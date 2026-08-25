@@ -10,9 +10,9 @@
 
 **A Reusable, Framework-Agnostic AI Engineering Operating System for Autonomous Coding Agents**
 
-*Featuring zero-config repository auto-initialization, contract-driven execution, deterministic machine verification, independent adversarial review, and multi-project profiles.*
+*Featuring a strict separation between deterministic CLI context bootstrap and AI agent engineering reasoning.*
 
-[Overview](#overview--philosophy) • [Key Features](#key-features) • [Commands & CLI](#commands--quickstart) • [Lifecycle](#lifecycle-stages) • [Architecture](#architecture--5-layer-configuration) • [Project Profiles](#project-profiles) • [Repository Structure](#repository-structure) • [Reference Examples](#reference-examples) • [Contributing](#contributing)
+[Overview](#overview--philosophy) • [CLI Commands](#cli-interface--commands) • [Agent Integration](#antigravity-agent-integration) • [Lifecycle](#lifecycle-stages) • [Architecture](#architecture--5-layer-configuration) • [Project Profiles](#project-profiles) • [Repository Structure](#repository-structure) • [Reference Examples](#reference-examples) • [Contributing](#contributing)
 
 </div>
 
@@ -20,84 +20,70 @@
 
 ## Overview & Philosophy
 
-Traditional AI coding workflows rely on **optimistic self-evaluation**: a single model analyzes, generates code, executes tests, and announces completion. This single-context pattern introduces blind spots, false-positive test validations, and premature merge declarations.
+The AI Engineering Loop enforces a clean architectural separation between **Deterministic Context Bootstrap** and **Agent Intelligence**:
 
-The **AI Engineering Loop** establishes a multi-agent engineering lifecycle that separates implementation from verification and final evaluation, starting with **autonomous repository discovery**:
+> **"The CLI bootstraps and validates repository context. The AI Agent reasons over that context to execute the engineering lifecycle."**
 
 ```mermaid
 flowchart TD
-    Start([Agent Invocation in Workspace]) --> Init[Stage 0: Automatic Project Context Discovery & Init]
-    Init --> GC[Stage 1: Goal Contract: Explicit Acceptance Criteria]
-    
-    subgraph CoreEngine [AI ENGINEERING OPERATING SYSTEM]
-        GC --> RCA[Stage 2: Root Cause Analysis]
-        RCA --> Plan[Stage 3: Implementation Plan]
-        Plan --> MA[Stage 4: Maker Agent: Surgical Diff & Tests]
-        MA --> DV{Stage 5: Deterministic Verification}
-        
-        DV -->|Fail| MA
-        DV -->|Pass| DA[Stage 6: Devil's Advocate: Adversarial Review]
-        
-        DA --> JD[Stage 7: Judge Agent: Impartial Magistrate]
-        
-        JD -->|ITERATE: Valid Findings| MA
-        JD -->|ESCALATE: Stalled / Max Iterations| HE([Human Escalation])
+    subgraph CLI [DETERMINISTIC CLI BOOTSTRAP: init / status / refresh]
+        Discover[Repository Discovery Engine] --> ContextGen[Generate .ai-engineering-loop/]
+        ContextGen --> Validate[Context Validation Engine]
     end
-    
-    JD -->|PASS: Verified Proof| Adapter[Stage 8: Delivery Adapter: GitLab / GitHub / Release]
-    Adapter --> TargetRepo[(Target Repository)]
+
+    Validate --> ContextDir[(.ai-engineering-loop/ Ground Truth)]
+
+    subgraph Agent [AI AGENT INTELLIGENCE: run]
+        ContextDir --> GoalContract[Stage 1: Goal Contract]
+        GoalContract --> RCA[Stage 2: Root Cause Analysis]
+        RCA --> Plan[Stage 3: Implementation Plan]
+        Plan --> Maker[Stage 4: Maker Agent: Code & Tests]
+        Maker --> Verify{Stage 5: Deterministic Verification}
+        Verify -->|Pass| DA[Stage 6: Devil's Advocate Review]
+        DA --> Judge[Stage 7: Judge Evaluation]
+        Judge -->|PASS| Adapter[Stage 8: Delivery Pipeline]
+    end
 ```
-
-### Core Axiom
-
-> **"The repository should teach the agent how the repository works. The engineering loop should teach the agent how to work on it."**
 
 ---
 
-## Commands & Quickstart
+## CLI Interface & Commands
 
-You can initialize and run the AI Engineering Loop in any repository using any of the following methods:
+The CLI operates against the current working directory without maintaining a centralized project registry.
 
-### Method 1: Antigravity IDE / AI Agent Skill (Recommended)
-Simply ask the AI agent in your workspace:
-```text
-/ai-engineering-loop
-```
-or
-```text
-"Initialize project context and run engineering loop"
-```
-The agent automatically reads the [Project Initialization](core/project-initialization.md) specification, inspects your codebase, generates `.ai-engineering-loop/`, and starts the task.
-
----
-
-### Method 2: Node.js / NPX CLI
-Run directly in any project root:
 ```bash
-npx egagofur/ai-engineering-loop
+# Bootstrap .ai-engineering-loop/ context from repository discovery
+npx ai-engineering-loop init
+
+# Check the validity and readiness of repository context
+npx ai-engineering-loop status
+
+# Re-analyze repository and update context non-destructively
+npx ai-engineering-loop refresh
+
+# Verify context readiness and begin engineering loop
+npx ai-engineering-loop run
 ```
+
+### Command Responsibilities:
+
+| Command | Purpose | Expected Writes | Mutates App Code? |
+|---|---|---|:---:|
+| **`init`** | Analyzes repository topology, manifests, and test scripts to generate `.ai-engineering-loop/`. | `.ai-engineering-loop/*` | **NO** |
+| **`status`** | Audits the completeness of the 5 required context files. | None | **NO** |
+| **`refresh`** | Re-analyzes manifests and surgically updates drifted sections while preserving human notes. | `.ai-engineering-loop/*` | **NO** |
+| **`run`** | Loads verified context and triggers the AI Agent to execute task engineering. | Determined by Task Scope | By Agent |
 
 ---
 
-### Method 3: One-Line Shell Script
-```bash
-curl -fsSL https://raw.githubusercontent.com/egagofur/ai-engineering-loop/main/scripts/init.sh | bash
-```
+## Antigravity Agent Integration
 
----
+When working inside the Antigravity IDE or compatible agentic platforms, you can invoke the loop via slash commands:
 
-## Key Features
-
-- **Zero-Config Auto-Initialization**: Automatically inspects repository topology, package manifests, and test suites to generate evidence-based `.ai-engineering-loop/` context without manual user setup.
-- **Goal-Contracted Execution**: Tasks begin with an explicit [Goal Contract](core/goal-contract.md) defining testable Acceptance Criteria (AC-1..N), technical invariants, and out-of-scope boundaries before touching codebase files.
-- **Triad Agent Architecture**:
-  - **[Maker Agent](agents/maker.md)**: Focuses on root-cause analysis, surgical code diffs, and comprehensive unit test authoring.
-  - **[Devil's Advocate Agent](agents/devil-advocate.md)**: Independent reviewer evaluating correctness, security, concurrency, performance, and testing gaps with concrete diffs.
-  - **[Judge Agent](agents/judge.md)**: Impartial magistrate evaluating evidence to issue `PASS`, `ITERATE`, or `ESCALATE` verdicts.
-- **Deterministic Precedence**: Machine-checkable tests, static type analysis (`tsc`), linters, and build pipelines must pass 100% before adversarial review begins.
-- **Bounded Iteration & Stagnation Detection**: Limits autonomous cycles (`MAX_ITERATIONS = 3`) and detects recurring finding signatures to prevent infinite retry loops.
-- **5-Layer Configuration Precedence**: Multi-project support that resolves repository facts dynamically without requiring a centralized registry.
-- **Pluggable Delivery Adapters**: Encapsulates release workflows (GitLab, GitHub, Mattermost, Jira, Slack) without coupling platform tools to the generic engineering core.
+- **`/ai-engineering-loop init`**: Initialize project context only (non-destructive bootstrap).
+- **`/ai-engineering-loop status`**: Check repository context health.
+- **`/ai-engineering-loop refresh`**: Refresh drifted context files.
+- **`/ai-engineering-loop [task description]`**: Load context and execute the full 8-stage engineering lifecycle.
 
 ---
 
@@ -129,8 +115,6 @@ $$\text{GLOBAL} \longrightarrow \text{ENGINEERING CORE} \longrightarrow \text{PR
 4. **PROJECT CONFIGURATION (`<repo>/.ai-engineering-loop/`)**: Target repository ground truth ([`verification.md`](templates/repo-config/verification.md), [`architecture.md`](templates/repo-config/architecture.md), [`conventions.md`](templates/repo-config/conventions.md)).
 5. **TASK CONTRACT**: Active task-scoped acceptance criteria and diff constraints.
 
-Detailed specification: [configuration-precedence.md](core/configuration-precedence.md).
-
 ---
 
 ## Project Profiles
@@ -159,10 +143,10 @@ ai-engineering-loop/
 ├── package.json                        # CLI package manifest
 │
 ├── bin/                                # CLI execution entrypoints
-│   └── ai-engineering-loop.js          # npx executable initializer
+│   └── ai-engineering-loop.js          # npx executable CLI (init, status, refresh, run)
 │
 ├── scripts/                            # Shell installers
-│   └── init.sh                         # curl | bash one-liner script
+│   └── init.sh                         # Convenience one-liner installer
 │
 ├── core/                               # Generic engineering loop specifications
 │   ├── project-initialization.md       # Auto-discovery & initialization lifecycle
