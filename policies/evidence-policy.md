@@ -63,7 +63,20 @@ flowchart TD
 
 ---
 
-## 4. Evidence Requirements for Common Agent Claims
+## 4. Capability Discovery & Orchestration Evidence Rules
+
+To prevent misleading claims of multi-agent execution, capability selection must adhere to strict evidence standards:
+
+1. **Documentation is NOT capability proof**: Mentioning `subagent: true` in markdown is not proof of subagent execution.
+2. **Configuration is NOT execution proof**: A YAML config file is not evidence of a running agent.
+3. **IPC existence is NOT execution proof**: The existence of an IPC binary (`agentapi`) or successful message dispatch (`send-message`) is an IPC capability, **NOT** an LLM agent execution capability.
+4. **Conversation creation without model response is NOT an agent**: A conversation ID without an actual captured LLM response is not execution proof.
+5. **Persona simulation is NEVER an agent**: Switching roles within the same session is self-review, not independent adversarial review.
+6. **Artifact isolation is strictly labeled**: When review is conducted within the same session via artifact boundaries, it is **strictly reported as `CONTEXT_ISOLATION_ONLY`** with `Independent LLM execution: NOT PROVEN`.
+
+---
+
+## 5. Evidence Requirements for Common Agent Claims
 
 | Claim Type | Mandatory Evidence Required | Prohibited Substitute |
 |---|---|---|
@@ -72,3 +85,4 @@ flowchart TD
 | **"Type safe"** | `tsc --noEmit` / compiler run output with 0 errors. | "I added type annotations." |
 | **"Review finding is invalid"** | File path & line showing the suggested API does not exist or behavior is intentional. | "I disagree with the reviewer." |
 | **"Acceptance criteria AC-X met"** | Test function name & assertion specifically targeting AC-X. | "Implemented according to spec." |
+| **"Independent subagent executed"** | Verified parent $\rightarrow$ child session ID + separate process + captured child model response. | "I switched to Devil's Advocate persona." |

@@ -2,41 +2,81 @@ const test = require('node:test');
 const assert = require('node:assert');
 const {
   EXECUTION_MODES,
-  resolveExecutionMode,
+  createCapabilityEvidence,
+  selectExecutionMode,
   buildReviewContextBarrier,
   validateVerificationEvidence,
   validateFindingLedger,
   computeJudgeVerdict
 } = require('../lib/orchestration.js');
 
-// Test A: Independent execution mode selection
-test('A. Independent execution mode selection priority', () => {
-  // Priority 1: Native subagent
+// Test A: Independent execution mode selection priority using capability registry
+test('A. Independent execution mode selection priority using capability registry', () => {
+  // Priority 1: Native subagent with execution proof
   assert.strictEqual(
-    resolveExecutionMode({ hasNativeSubagent: true, hasPythonSdk: true }).id,
-    EXECUTION_MODES.NATIVE_SUBAGENT.id
+    selectExecutionMode({
+      nativeSubagent: createCapabilityEvidence({
+        mechanism: 'native-subagent',
+        classification: 'TRUE_INDEPENDENT_AGENT',
+        available: true,
+        modelExecutionProven: true,
+        independentContextProven: true
+      }),
+      sdkAgent: createCapabilityEvidence({
+        mechanism: 'sdk-agent',
+        classification: 'ISOLATED_AGENT_INSTANCE',
+        available: true,
+        modelExecutionProven: true
+      })
+    }).id,
+    EXECUTION_MODES.TRUE_INDEPENDENT_AGENT.id
   );
 
-  // Priority 2: Python SDK Agent
+  // Priority 2: SDK Agent Instance
   assert.strictEqual(
-    resolveExecutionMode({ hasNativeSubagent: false, hasPythonSdk: true }).id,
-    EXECUTION_MODES.SDK_AGENT.id
+    selectExecutionMode({
+      nativeSubagent: createCapabilityEvidence({
+        mechanism: 'native-subagent',
+        classification: 'UNAVAILABLE',
+        available: false
+      }),
+      sdkAgent: createCapabilityEvidence({
+        mechanism: 'sdk-agent',
+        classification: 'ISOLATED_AGENT_INSTANCE',
+        available: true,
+        modelExecutionProven: true
+      })
+    }).id,
+    EXECUTION_MODES.ISOLATED_AGENT_INSTANCE.id
   );
 
   // Priority 3: Headless Subprocess
   assert.strictEqual(
-    resolveExecutionMode({ hasNativeSubagent: false, hasPythonSdk: false, hasHeadlessSubprocess: true }).id,
-    EXECUTION_MODES.HEADLESS_SUBPROCESS.id
+    selectExecutionMode({
+      headlessProcessAgent: createCapabilityEvidence({
+        mechanism: 'cli-agent',
+        classification: 'FRESH_PROCESS_AGENT',
+        available: true,
+        modelExecutionProven: true
+      })
+    }).id,
+    EXECUTION_MODES.FRESH_PROCESS_AGENT.id
   );
 
   // Priority 4: Fallback to Artifact Isolated Review
-  const fallback = resolveExecutionMode({});
-  assert.strictEqual(fallback.id, EXECUTION_MODES.ARTIFACT_ISOLATED_REVIEW.id);
-  assert.strictEqual(fallback.isTrulyIndependent, false);
-  assert.strictEqual(fallback.description, 'Isolated review context, not independent agent execution');
+  const fallback = selectExecutionMode({
+    artifactIsolation: createCapabilityEvidence({
+      mechanism: 'artifact-barrier',
+      classification: 'CONTEXT_ISOLATION_ONLY',
+      available: true
+    })
+  });
+  assert.strictEqual(fallback.id, EXECUTION_MODES.CONTEXT_ISOLATION_ONLY.id);
+  assert.strictEqual(fallback.isIndependentExecutionProven, false);
+  assert.strictEqual(fallback.description, 'Isolated review context within the same LLM session; independent agent execution is NOT proven');
 });
 
-// Test B & H: Artifact isolation excludes Maker conversational history
+// Test B & H: Artifact isolation strictly bounds review context without conversational history
 test('B & H. Artifact isolation strictly bounds review context without conversational history', () => {
   const goalContract = {
     objective: 'Fix race condition in payment queue',
@@ -148,7 +188,7 @@ test('E. Verification Evidence Contract strictly enforces execution proof', () =
   assert.strictEqual(validateVerificationEvidence(vagueEvidence).valid, false);
 });
 
-// Test D, F, G: Judge Decision Matrix, WEAK/INVALID dismissed, VALID BLOCKER forces ITERATE
+// Test D, F, G: Judge Decision Matrix: VALID BLOCKER forces ITERATE; INVALID does not block delivery
 test('D, F, G. Judge Decision Matrix: VALID BLOCKER forces ITERATE; INVALID does not block delivery', () => {
   const goalContract = { objective: 'Test' };
   const verificationEvidence = {
@@ -187,7 +227,7 @@ test('D, F, G. Judge Decision Matrix: VALID BLOCKER forces ITERATE; INVALID does
   assert.strictEqual(verdictBlocker.verdict, 'ITERATE');
   assert.strictEqual(verdictBlocker.blockingFindings.length, 1);
 
-  // Scenario F: INVALID (even if reviewer labeled it BLOCKER) is DISMISSED and does NOT block delivery
+  // Scenario F: INVALID is DISMISSED and does NOT block delivery
   const invalidLedger = {
     findings: [
       {
