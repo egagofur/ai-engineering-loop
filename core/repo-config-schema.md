@@ -2,11 +2,12 @@
 
 ## 1. Overview & Purpose
 
-To enable the AI Engineering Loop to operate across any codebase without a centralized monolithic database (such as a global `projects.json`), each repository optionally hosts its own local context directory:
+The `.ai-engineering-loop/` directory serves as the **Living Project Context** for autonomous agents working in a repository:
 
 ```text
 <target-repository>/
 └── .ai-engineering-loop/
+    ├── metadata.json       # Baseline tracking, git revisions, & manifest hashes
     ├── config.md           # Basic project metadata, type, and stack
     ├── architecture.md     # System architecture, layers, & boundaries
     ├── conventions.md      # Code standards, patterns, & forbidden practices
@@ -14,62 +15,58 @@ To enable the AI Engineering Loop to operate across any codebase without a centr
     └── adapter.md          # Configured delivery pipeline & CI/CD tools
 ```
 
-When an agent initializes in a workspace, it automatically discovers and loads these documents. If the directory is absent, the agent automatically executes [Project Initialization](file:///Users/egagofur/Development/work/ai-engineering-loop/core/project-initialization.md) to generate evidence-based files.
-
 ---
 
 ## 2. File Specifications
 
-### 1. `config.md` — Project Identity & Metadata
-Defines basic project descriptors:
+### 1. `metadata.json` — Context Baseline & Drift Tracking
+Maintains lightweight state for instant drift detection:
+- `contextVersion`: Schema version (e.g. `"1.0.0"`).
+- `generatedAt`: ISO timestamp of initial generation.
+- `repositoryRevision`: Full git commit SHA corresponding to this context baseline.
+- `projectProfile`: Active archetype profile (`web-app`, `backend-api`, `mobile-app`, `library`, `monorepo`).
+- `manifestChecksums`: Hash map of manifest files (`package.json`, `go.mod`, `Cargo.toml`).
+- `lastReconciliation`: Timestamp, trigger, and impact of the last update.
+
+### 2. `config.md` — Project Identity & Metadata
 - `project_name`: Name of the repository / service.
-- `project_profile`: Bound profile (`web-app`, `backend-api`, `mobile-app`, `library`, `monorepo`).
-- `languages`: Primary languages and versions (e.g. TypeScript 5.4, Go 1.22, Python 3.11).
-- `frameworks`: Core runtime frameworks (e.g. Next.js 14, NestJS, FastAPI, Gin, Flutter).
+- `project_profile`: Bound profile archetype.
+- `languages`: Primary languages and versions.
+- `frameworks`: Core runtime frameworks.
 - `package_manager`: Detected package manager (`pnpm`, `npm`, `yarn`, `bun`, `cargo`, `go`, `poetry`).
 - `default_base_branch`: Primary target branch (`main`, `master`, `develop`).
-- `evidence`: File paths used to infer project identity (e.g. `package.json`, `pnpm-workspace.yaml`).
+- `observed_evidence`: File paths used to infer project identity.
 
-### 2. `architecture.md` — System Design & Boundaries
-Documents key structural layers:
+### 3. `architecture.md` — System Design & Boundaries
 - **Presentation / Ingress**: UI components, API routers, controllers.
 - **Application / Domain**: Services, business logic actions, use cases.
 - **Data Access**: Repositories, ORMs, query builders, cache stores.
 - **Infrastructure / Integrations**: External third-party APIs, message brokers, queues.
 - **Critical Boundaries**: Rules regarding circular dependencies and forbidden layer leaps.
-- **Evidence & Confidence**: List of observed directories and files with confidence rating (`HIGH`, `MEDIUM`, `LOW`).
+- **Evidence & Confidence**: Observed directories and confidence rating (`HIGH`, `MEDIUM`, `LOW`).
 
-### 3. `conventions.md` — Engineering Standards & Invariants
-Specifies repository-level rules:
+### 4. `conventions.md` — Engineering Standards & Invariants
 - **Design System / UI Tokens**: Approved token sets, component libraries.
 - **Naming Conventions**: File naming (`kebab-case`, `PascalCase`), interface naming, test file suffixes.
 - **Error Handling Patterns**: Standard error classes, result types, domain exceptions.
-- **Forbidden Anti-Patterns**: Explicit list of practices banned in this codebase (e.g. "Do not use `any`", "Do not execute raw SQL queries without parameterization", "Do not import from `dist/` directly").
-- **Observed vs Inferred**: Clearly demarcates rules observed directly in code from inferred suggestions.
+- **Forbidden Anti-Patterns**: Explicit list of banned practices.
 
-### 4. `verification.md` — Deterministic Commands
-Specifies exact CLI commands for machine checks:
+### 5. `verification.md` — Deterministic Commands
 - `test_unit`: Command for focused unit testing.
 - `test_all`: Command for full regression suite.
 - `typecheck`: Command for static typechecking (`tsc --noEmit`, `mypy`).
 - `lint`: Command for linting with auto-fix.
 - `build`: Command for production bundle / binary compilation.
 - `e2e`: (Optional) End-to-end / browser test command.
-- **Evidence Source**: Exact script names in `package.json` or Makefile rules.
 
-### 5. `adapter.md` — Delivery Pipeline Configuration
-Specifies the downstream release workflow:
-- `adapter_type`: Configured adapter (`dot`, `github`, `gitlab`, `custom`, `none detected`).
-- `issue_tracker`: URL or repository tracker slug.
-- `notification_channel`: Channel name or webhook reference for messaging.
-- `multi_branch_propagation`: List of target branches (e.g. `main`, `staging`, `develop`).
+### 6. `adapter.md` — Delivery Pipeline Configuration
+- `adapter_type`: Configured adapter (`dot`, `github`, `gitlab`, `standard`).
+- `remote_repository`: Git remote repository slug.
+- `default_target_branch`: Base target branch.
+- `ci_provider`: Detected CI engine (GitHub Actions, GitLab CI).
 
 ---
 
-## 3. Automatic Initialization Behavior
+## 3. Version Control Recommendation
 
-If `.ai-engineering-loop/` does not exist:
-1. The agent automatically executes the 5-pass discovery workflow in [core/project-initialization.md](file:///Users/egagofur/Development/work/ai-engineering-loop/core/project-initialization.md).
-2. Generates all 5 files with evidence citations.
-3. Performs a second-pass quality check.
-4. Proceeds to the Goal Contract phase without user interruption.
+It is strongly recommended to **commit the `.ai-engineering-loop/` directory (including `metadata.json`) to git**. This ensures all developers and AI agent sessions share consistent, up-to-date repository context without repeated re-discovery overhead.

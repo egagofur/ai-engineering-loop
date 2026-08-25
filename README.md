@@ -10,9 +10,9 @@
 
 **A Reusable, Framework-Agnostic AI Engineering Operating System for Autonomous Coding Agents**
 
-*Featuring a strict separation between deterministic CLI context bootstrap and AI agent engineering reasoning.*
+*Featuring living project context, post-task impact assessment, contract-driven execution, deterministic machine verification, and independent adversarial review.*
 
-[Overview](#overview--philosophy) • [CLI Commands](#cli-interface--commands) • [Agent Integration](#antigravity-agent-integration) • [Lifecycle](#lifecycle-stages) • [Architecture](#architecture--5-layer-configuration) • [Project Profiles](#project-profiles) • [Repository Structure](#repository-structure) • [Reference Examples](#reference-examples) • [Contributing](#contributing)
+[Overview](#overview--philosophy) • [Living Project Context](#living-project-context) • [CLI Commands](#cli-interface--commands) • [Agent Integration](#antigravity-agent-integration) • [Lifecycle](#lifecycle-stages) • [Architecture](#architecture--5-layer-configuration) • [Project Profiles](#project-profiles) • [Repository Structure](#repository-structure) • [Reference Examples](#reference-examples) • [Contributing](#contributing)
 
 </div>
 
@@ -20,30 +20,63 @@
 
 ## Overview & Philosophy
 
-The AI Engineering Loop enforces a clean architectural separation between **Deterministic Context Bootstrap** and **Agent Intelligence**:
+The AI Engineering Loop enforces a clean architectural separation between **Deterministic Living Context Bootstrap** and **Agent Intelligence**:
 
-> **"The CLI bootstraps and validates repository context. The AI Agent reasons over that context to execute the engineering lifecycle."**
+> **"The CLI bootstraps, tracks, and validates living context. The AI Agent reasons over that context to execute the engineering lifecycle."**
 
 ```mermaid
 flowchart TD
-    subgraph CLI [DETERMINISTIC CLI BOOTSTRAP: init / status / refresh]
-        Discover[Repository Discovery Engine] --> ContextGen[Generate .ai-engineering-loop/]
-        ContextGen --> Validate[Context Validation Engine]
-    end
-
-    Validate --> ContextDir[(.ai-engineering-loop/ Ground Truth)]
-
-    subgraph Agent [AI AGENT INTELLIGENCE: run]
-        ContextDir --> GoalContract[Stage 1: Goal Contract]
-        GoalContract --> RCA[Stage 2: Root Cause Analysis]
+    Start([User Task in Workspace]) --> PreCheck{Pre-Task Drift Check: metadata.json}
+    
+    PreCheck -->|Context Missing| AutoInit[Stage 0: Bootstrap .ai-engineering-loop/]
+    PreCheck -->|Drift Detected| Reconcile[Stage 0: Reconcile Drifted Context]
+    PreCheck -->|Context Fresh| GC[Stage 1: Goal Contract: Explicit Acceptance Criteria]
+    
+    AutoInit --> GC
+    Reconcile --> GC
+    
+    subgraph CoreEngine [AI ENGINEERING OPERATING SYSTEM]
+        GC --> RCA[Stage 2: Root Cause Analysis]
         RCA --> Plan[Stage 3: Implementation Plan]
-        Plan --> Maker[Stage 4: Maker Agent: Code & Tests]
-        Maker --> Verify{Stage 5: Deterministic Verification}
-        Verify -->|Pass| DA[Stage 6: Devil's Advocate Review]
-        DA --> Judge[Stage 7: Judge Evaluation]
-        Judge -->|PASS| Adapter[Stage 8: Delivery Pipeline]
+        Plan --> MA[Stage 4: Maker Agent: Surgical Diff & Tests]
+        MA --> DV{Stage 5: Deterministic Verification}
+        
+        DV -->|Fail| MA
+        DV -->|Pass| DA[Stage 6: Devil's Advocate: Adversarial Review]
+        
+        DA --> JD[Stage 7: Judge Agent: Impartial Magistrate]
     end
+    
+    JD -->|PASS| ImpactEval{Post-Task Context Impact Assessment}
+    
+    ImpactEval -->|NONE: Typo, UI tweak| Adapter[Stage 8: Delivery Adapter: GitLab / GitHub]
+    ImpactEval -->|TARGETED: Dep/route changed| PartialRefresh[Surgical Context Update] --> Adapter
+    ImpactEval -->|MAJOR: Framework migration| FullRefresh[Full Context Reconciliation] --> Adapter
+    
+    Adapter --> TargetRepo[(Target Repository)]
 ```
+
+---
+
+## Living Project Context
+
+The `.ai-engineering-loop/` directory is **Living Context**, not a static wiki generated once.
+
+### 1. Post-Task Context Impact Assessment
+A task reaching `PASS` does **not** blindly trigger a full project refresh. The agent evaluates the impact level:
+- **`NONE` (80–90% of tasks)**: Typo fixes, CSS tweaks, surgical bugfixes preserving architecture $\rightarrow$ Refresh SKIPPED.
+- **`TARGETED` (10–15% of tasks)**: Manifest script change (`verification.md`), new module (`architecture.md`), new CI config (`adapter.md`) $\rightarrow$ Surgically update affected files only.
+- **`MAJOR` (<5% of tasks)**: Framework migration, monorepo restructuring, auth overhaul $\rightarrow$ Full context reconciliation.
+
+### 2. Context Baseline (`metadata.json`)
+Deterministic drift detection without a database:
+- Tracks `repositoryRevision` (git commit SHA), `manifestChecksums`, and `lastReconciliation`.
+- Enables instant **Level 0 (0ms)** drift verification on subsequent agent invocations.
+
+### 3. Strict Context Isolation
+- **Project Context (`.ai-engineering-loop/`)**: Shared, living ground truth of engineering rules and architecture.
+- **Task Context**: Transient task contracts, acceptance criteria, and active diff scope.
+- **Loop State**: Ephemeral finding signatures, iteration counters, and retry attempts.
 
 ---
 
@@ -55,10 +88,10 @@ The CLI operates against the current working directory without maintaining a cen
 # Bootstrap .ai-engineering-loop/ context from repository discovery
 npx ai-engineering-loop init
 
-# Check the validity and readiness of repository context
+# Check the validity, readiness, and baseline freshness of context
 npx ai-engineering-loop status
 
-# Re-analyze repository and update context non-destructively
+# Reconcile drifted context against repository non-destructively
 npx ai-engineering-loop refresh
 
 # Verify context readiness and begin engineering loop
@@ -70,9 +103,9 @@ npx ai-engineering-loop run
 | Command | Purpose | Expected Writes | Mutates App Code? |
 |---|---|---|:---:|
 | **`init`** | Analyzes repository topology, manifests, and test scripts to generate `.ai-engineering-loop/`. | `.ai-engineering-loop/*` | **NO** |
-| **`status`** | Audits the completeness of the 5 required context files. | None | **NO** |
+| **`status`** | Audits the completeness of context files and checks baseline drift (`CURRENT` / `STALE`). | None | **NO** |
 | **`refresh`** | Re-analyzes manifests and surgically updates drifted sections while preserving human notes. | `.ai-engineering-loop/*` | **NO** |
-| **`run`** | Loads verified context and triggers the AI Agent to execute task engineering. | Determined by Task Scope | By Agent |
+| **`run`** | Loads verified context and triggers the AI Agent to execute task engineering. | Governed by Task Scope | By Agent |
 
 ---
 
@@ -81,24 +114,23 @@ npx ai-engineering-loop run
 When working inside the Antigravity IDE or compatible agentic platforms, you can invoke the loop via slash commands:
 
 - **`/ai-engineering-loop init`**: Initialize project context only (non-destructive bootstrap).
-- **`/ai-engineering-loop status`**: Check repository context health.
-- **`/ai-engineering-loop refresh`**: Refresh drifted context files.
-- **`/ai-engineering-loop [task description]`**: Load context and execute the full 8-stage engineering lifecycle.
+- **`/ai-engineering-loop status`**: Check repository context health & baseline freshness.
+- **`/ai-engineering-loop refresh`**: Reconcile drifted context files non-destructively.
+- **`/ai-engineering-loop [task description]`**: Execute the full 8-stage engineering lifecycle with pre-task drift gate and post-task impact assessment.
 
 ---
 
 ## Lifecycle Stages
 
-1. **Stage 0: Project Initialization & Discovery ([`core/project-initialization.md`](core/project-initialization.md))**:
-   - State A: If `.ai-engineering-loop/` exists $\rightarrow$ load context, inspect drift, selectively refresh stale sections.
-   - State B: If missing $\rightarrow$ automatically discover manifests, infer profile, generate context, and validate quality.
+1. **Stage 0: Living Context & Drift Gate ([`core/project-initialization.md`](core/project-initialization.md), [`core/context-refresh-policy.md`](core/context-refresh-policy.md))**:
+   - Check `metadata.json` baseline. If fresh $\rightarrow$ proceed. If missing or drifted $\rightarrow$ reconcile context.
 2. **Stage 1: Goal Contract ([`core/goal-contract.md`](core/goal-contract.md))**: Formulate explicit, testable Acceptance Criteria.
 3. **Stage 2: Root Cause Analysis**: End-to-end data tracing and git commit history examination.
 4. **Stage 3: Implementation Plan**: Structured diff proposal and test plan.
 5. **Stage 4: Maker Execution ([`agents/maker.md`](agents/maker.md))**: Surgical implementation and test engineering.
 6. **Stage 5: Deterministic Verification ([`core/verification-loop.md`](core/verification-loop.md))**: 100% green pass on tests, typechecks, linters, and builds.
 7. **Stage 6: Devil's Advocate Review ([`agents/devil-advocate.md`](agents/devil-advocate.md))**: Layered adversarial critique with concrete alternative diffs.
-8. **Stage 7: Judge Evaluation ([`agents/judge.md`](agents/judge.md))**: Impartial evidence evaluation producing `PASS`, `ITERATE`, or `ESCALATE`.
+8. **Stage 7: Judge & Impact Assessment ([`agents/judge.md`](agents/judge.md), [`core/context-impact-assessment.md`](core/context-impact-assessment.md))**: Impartial verdict (`PASS`/`ITERATE`/`ESCALATE`) followed by Context Impact Assessment (`NONE`/`TARGETED`/`MAJOR`).
 9. **Stage 8: Delivery Pipeline ([`adapters/`](adapters/))**: Automated PR/MR generation, multi-branch propagation, and notification dispatch.
 
 ---
@@ -150,7 +182,8 @@ ai-engineering-loop/
 │
 ├── core/                               # Generic engineering loop specifications
 │   ├── project-initialization.md       # Auto-discovery & initialization lifecycle
-│   ├── context-refresh-policy.md       # Drift detection & selective refresh
+│   ├── context-refresh-policy.md       # Progressive drift hierarchy & living baseline
+│   ├── context-impact-assessment.md    # Post-task impact assessment (NONE, TARGETED, MAJOR)
 │   ├── goal-contract.md                # Task contract schema & acceptance criteria
 │   ├── verification-loop.md            # Dual-layer verification lifecycle
 │   ├── definition-of-done.md           # 5 pillars of Done & rejection triggers

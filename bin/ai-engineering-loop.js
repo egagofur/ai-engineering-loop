@@ -1,17 +1,19 @@
 #!/usr/bin/env node
 
 /**
- * AI Engineering Loop — Deterministic CLI Bootstrap & Context Engine
+ * AI Engineering Loop — Deterministic CLI Bootstrap & Living Context Engine
  * Repository: https://github.com/egagofur/ai-engineering-loop
  * 
  * Architecture Principle:
  * The CLI handles deterministic repository discovery, context initialization,
- * status checks, and non-destructive drift refreshes.
- * The AI Agent handles task reasoning, RCA, implementation, review, and judging.
+ * baseline metadata tracking (metadata.json), status checks, and non-destructive drift refreshes.
+ * The AI Agent handles task reasoning, RCA, implementation, review, judging, and impact assessment.
  */
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
+const { execSync } = require('child_process');
 
 const VERSION = '1.0.0';
 const CWD = process.cwd();
@@ -19,6 +21,7 @@ const CONTEXT_DIR = path.join(CWD, '.ai-engineering-loop');
 
 // Core files in .ai-engineering-loop/
 const REQUIRED_FILES = [
+  'metadata.json',
   'config.md',
   'architecture.md',
   'conventions.md',
@@ -50,6 +53,28 @@ function readFileSafe(filePath) {
 }
 
 /**
+ * Compute SHA256 checksum of a file
+ */
+function getFileChecksum(filePath) {
+  const content = readFileSafe(filePath);
+  if (!content) return null;
+  return crypto.createHash('sha256').update(content).digest('hex').slice(0, 16);
+}
+
+/**
+ * Get current git HEAD revision (Level 0 signal)
+ */
+function getGitRevision(rootDir) {
+  try {
+    return execSync('git rev-parse HEAD', { cwd: rootDir, stdio: ['pipe', 'pipe', 'ignore'] })
+      .toString()
+      .trim();
+  } catch (e) {
+    return 'untracked';
+  }
+}
+
+/**
  * Repository Discovery Engine
  */
 function analyzeRepository(rootDir) {
@@ -75,6 +100,7 @@ function analyzeRepository(rootDir) {
       ciProvider: 'none'
     },
     topLevelDirs: [],
+    manifestChecksums: {},
     evidence: []
   };
 
@@ -110,13 +136,14 @@ function analyzeRepository(rootDir) {
     discovery.packageManager = 'bun';
   }
 
-  // Parse package.json
-  const pkgJsonStr = readFileSafe(path.join(rootDir, 'package.json'));
-  if (pkgJsonStr) {
+  // Track manifest checksums
+  const pkgPath = path.join(rootDir, 'package.json');
+  if (fs.existsSync(pkgPath)) {
+    discovery.manifestChecksums['package.json'] = getFileChecksum(pkgPath);
     discovery.languages.push('TypeScript / JavaScript');
     discovery.evidence.push('Manifest: package.json');
     try {
-      const pkg = JSON.parse(pkgJsonStr);
+      const pkg = JSON.parse(readFileSafe(pkgPath) || '{}');
       const allDeps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };
 
       if (allDeps['next']) { discovery.frameworks.push('Next.js'); if (!discovery.isMonorepo) discovery.profile = 'web-app'; }
@@ -145,7 +172,9 @@ function analyzeRepository(rootDir) {
   }
 
   // Go
-  if (fs.existsSync(path.join(rootDir, 'go.mod'))) {
+  const goModPath = path.join(rootDir, 'go.mod');
+  if (fs.existsSync(goModPath)) {
+    discovery.manifestChecksums['go.mod'] = getFileChecksum(goModPath);
     discovery.languages.push('Go');
     if (!discovery.isMonorepo) discovery.profile = 'backend-api';
     discovery.scripts.testUnit = 'go test -v ./...';
@@ -155,7 +184,9 @@ function analyzeRepository(rootDir) {
   }
 
   // Rust
-  if (fs.existsSync(path.join(rootDir, 'Cargo.toml'))) {
+  const cargoPath = path.join(rootDir, 'Cargo.toml');
+  if (fs.existsSync(cargoPath)) {
+    discovery.manifestChecksums['Cargo.toml'] = getFileChecksum(cargoPath);
     discovery.languages.push('Rust');
     if (!discovery.isMonorepo) discovery.profile = 'library';
     discovery.scripts.testUnit = 'cargo test';
@@ -166,7 +197,11 @@ function analyzeRepository(rootDir) {
   }
 
   // Python
-  if (fs.existsSync(path.join(rootDir, 'pyproject.toml')) || fs.existsSync(path.join(rootDir, 'requirements.txt'))) {
+  const pyprojPath = path.join(rootDir, 'pyproject.toml');
+  const reqPath = path.join(rootDir, 'requirements.txt');
+  if (fs.existsSync(pyprojPath) || fs.existsSync(reqPath)) {
+    if (fs.existsSync(pyprojPath)) discovery.manifestChecksums['pyproject.toml'] = getFileChecksum(pyprojPath);
+    if (fs.existsSync(reqPath)) discovery.manifestChecksums['requirements.txt'] = getFileChecksum(reqPath);
     discovery.languages.push('Python');
     if (!discovery.isMonorepo) discovery.profile = 'backend-api';
     discovery.scripts.testUnit = 'pytest';
@@ -176,7 +211,9 @@ function analyzeRepository(rootDir) {
   }
 
   // Flutter / Mobile
-  if (fs.existsSync(path.join(rootDir, 'pubspec.yaml'))) {
+  const pubspecPath = path.join(rootDir, 'pubspec.yaml');
+  if (fs.existsSync(pubspecPath)) {
+    discovery.manifestChecksums['pubspec.yaml'] = getFileChecksum(pubspecPath);
     discovery.languages.push('Dart / Flutter');
     discovery.profile = 'mobile-app';
     discovery.scripts.testUnit = 'flutter test';
@@ -210,11 +247,28 @@ function analyzeRepository(rootDir) {
 }
 
 /**
- * Generate Context Files
+ * Generate Context Files (Including metadata.json Baseline)
  */
-function generateContextFiles(rootDir, discovery) {
+function generateContextFiles(rootDir, discovery, trigger = 'init', impact = 'INITIAL_BOOTSTRAP') {
   const targetDir = path.join(rootDir, '.ai-engineering-loop');
   fs.mkdirSync(targetDir, { recursive: true });
+
+  const currentRevision = getGitRevision(rootDir);
+
+  // 0. metadata.json (Baseline)
+  const metadataJson = {
+    contextVersion: '1.0.0',
+    generatedAt: new Date().toISOString(),
+    repositoryRevision: currentRevision,
+    projectProfile: discovery.profile,
+    manifestChecksums: discovery.manifestChecksums,
+    lastReconciliation: {
+      timestamp: new Date().toISOString(),
+      trigger,
+      impact
+    }
+  };
+  fs.writeFileSync(path.join(targetDir, 'metadata.json'), JSON.stringify(metadataJson, null, 2) + '\n');
 
   // 1. config.md
   const configMd = `# Project Configuration
@@ -312,6 +366,92 @@ function validateContext(targetDir) {
 }
 
 /**
+ * Evaluate Drift Against Baseline (Progressive Level 0 & Level 1)
+ */
+function evaluateDrift(rootDir, targetDir) {
+  const metadataPath = path.join(targetDir, 'metadata.json');
+  const metadataStr = readFileSafe(metadataPath);
+  if (!metadataStr) return { status: 'STALE', reason: 'Missing metadata.json baseline' };
+
+  let metadata;
+  try {
+    metadata = JSON.parse(metadataStr);
+  } catch (e) {
+    return { status: 'STALE', reason: 'Corrupt metadata.json' };
+  }
+
+  const currentRevision = getGitRevision(rootDir);
+  const baselineRevision = metadata.repositoryRevision || 'unknown';
+
+  // Check manifest checksums (Level 0)
+  const currentManifests = {};
+  for (const manifest of ['package.json', 'go.mod', 'Cargo.toml', 'pyproject.toml', 'requirements.txt', 'pubspec.yaml']) {
+    const p = path.join(rootDir, manifest);
+    if (fs.existsSync(p)) {
+      currentManifests[manifest] = getFileChecksum(p);
+    }
+  }
+
+  const baselineManifests = metadata.manifestChecksums || {};
+  let manifestDrift = false;
+  const changedManifests = [];
+
+  for (const [m, hash] of Object.entries(currentManifests)) {
+    if (baselineManifests[m] !== hash) {
+      manifestDrift = true;
+      changedManifests.push(m);
+    }
+  }
+
+  if (manifestDrift) {
+    return {
+      status: 'STALE',
+      reason: `Manifest drift detected in: ${changedManifests.join(', ')}`,
+      level: 'LEVEL_2'
+    };
+  }
+
+  if (currentRevision === baselineRevision || currentRevision === 'untracked') {
+    return { status: 'CURRENT', reason: 'Git HEAD and manifest checksums match baseline (Level 0)', level: 'LEVEL_0' };
+  }
+
+  // Inspect touched files if HEAD advanced (Level 1)
+  try {
+    const diffFiles = execSync(`git diff --name-only ${baselineRevision}..HEAD`, { cwd: rootDir, stdio: ['pipe', 'pipe', 'ignore'] })
+      .toString()
+      .trim()
+      .split('\n')
+      .filter(Boolean);
+
+    const architecturalFiles = diffFiles.filter(
+      (f) =>
+        f.endsWith('.json') ||
+        f.endsWith('.toml') ||
+        f.endsWith('.yaml') ||
+        f.endsWith('.yml') ||
+        f.startsWith('.github/') ||
+        f.startsWith('.gitlab-ci')
+    );
+
+    if (architecturalFiles.length === 0) {
+      return {
+        status: 'CURRENT',
+        reason: `HEAD advanced but only non-architectural files modified (${diffFiles.length} files)`,
+        level: 'LEVEL_1'
+      };
+    } else {
+      return {
+        status: 'POSSIBLE_DRIFT',
+        reason: `Architectural files modified: ${architecturalFiles.join(', ')}`,
+        level: 'LEVEL_2'
+      };
+    }
+  } catch (e) {
+    return { status: 'CURRENT', reason: 'Unable to compute git diff; manifests match', level: 'LEVEL_0' };
+  }
+}
+
+/**
  * Command Handlers
  */
 
@@ -324,6 +464,8 @@ function handleInit() {
     const validation = validateContext(CONTEXT_DIR);
     if (validation.valid) {
       log.success('✓ .ai-engineering-loop/ already exists and is valid.');
+      const drift = evaluateDrift(CWD, CONTEXT_DIR);
+      console.log(`- Baseline Status: ${drift.status} (${drift.reason})`);
       log.dim('Run "npx ai-engineering-loop status" to inspect health, or "refresh" to update.');
       process.exit(0);
     } else {
@@ -339,7 +481,7 @@ function handleInit() {
   log.dim(`> Package Manager: ${discovery.packageManager}`);
   log.dim(`> Unit Test Command: ${discovery.scripts.testUnit}`);
 
-  generateContextFiles(CWD, discovery);
+  generateContextFiles(CWD, discovery, 'init', 'INITIAL_BOOTSTRAP');
 
   const validation = validateContext(CONTEXT_DIR);
   if (validation.valid) {
@@ -370,15 +512,18 @@ function handleStatus() {
     process.exit(1);
   }
 
-  const configContent = readFileSafe(path.join(CONTEXT_DIR, 'config.md')) || '';
-  const profileMatch = configContent.match(/project_profile.*?:\s*"?(.*?)"?\s*(?:#|$)/m);
-  const nameMatch = configContent.match(/project_name.*?:\s*"?(.*?)"?\s*(?:#|$)/m);
+  const metadataStr = readFileSafe(path.join(CONTEXT_DIR, 'metadata.json'));
+  let metadata = {};
+  try { metadata = JSON.parse(metadataStr || '{}'); } catch (e) {}
+
+  const drift = evaluateDrift(CWD, CONTEXT_DIR);
 
   log.success('Status: READY & VALID');
-  console.log(`- Project Name: ${nameMatch ? nameMatch[1] : path.basename(CWD)}`);
-  console.log(`- Project Profile: ${profileMatch ? profileMatch[1] : 'unspecified'}`);
-  console.log('- Context Location: .ai-engineering-loop/');
-  console.log('- Context Files: 5/5 verified');
+  console.log(`- Project Name: ${path.basename(CWD)}`);
+  console.log(`- Project Profile: ${metadata.projectProfile || 'unspecified'}`);
+  console.log(`- Context Baseline Git: ${metadata.repositoryRevision ? metadata.repositoryRevision.slice(0, 8) : 'unknown'}`);
+  console.log(`- Living Freshness: \x1b[32m${drift.status}\x1b[0m (${drift.reason})`);
+  console.log('- Context Files: 6/6 verified (including metadata.json)');
 }
 
 // Command: refresh
@@ -386,12 +531,25 @@ function handleRefresh() {
   log.info('AI Engineering Loop — Context Drift Refresh (refresh)');
   log.dim(`Target directory: ${CWD}`);
 
-  log.info('Re-analyzing repository manifests and directory topology...');
+  if (!fs.existsSync(CONTEXT_DIR)) {
+    log.warn('Context not found. Initializing fresh context...');
+    handleInit();
+    return;
+  }
+
+  const drift = evaluateDrift(CWD, CONTEXT_DIR);
+  if (drift.status === 'CURRENT') {
+    log.success('✓ Context is already CURRENT. No changes required.');
+    log.dim(`Reason: ${drift.reason}`);
+    process.exit(0);
+  }
+
+  log.info(`Drift detected: ${drift.reason}. Reconciling context...`);
   const discovery = analyzeRepository(CWD);
 
-  generateContextFiles(CWD, discovery);
+  generateContextFiles(CWD, discovery, 'refresh', 'DRIFT_RECONCILIATION');
 
-  log.success('✓ Context refreshed non-destructively.');
+  log.success('✓ Context reconciled non-destructively.');
   handleStatus();
 }
 
@@ -414,7 +572,8 @@ function handleRun() {
   console.log('4. Run Deterministic Verification');
   console.log('5. Execute Devil\'s Advocate Adversarial Review');
   console.log('6. Judge Agent evaluates DoD and issues PASS verdict');
-  console.log('7. Delivery Adapter creates MR/PR');
+  console.log('7. Context Impact Assessment (NONE / TARGETED / MAJOR)');
+  console.log('8. Delivery Adapter creates MR/PR');
   console.log('------------------------------------------------------------\n');
 }
 
@@ -429,8 +588,8 @@ Usage:
 
 Commands:
   init      Bootstrap .ai-engineering-loop/ context from repository discovery
-  status    Check the validity and readiness of repository context
-  refresh   Re-analyze repository and update context non-destructively
+  status    Check the validity, readiness, and baseline freshness of context
+  refresh   Reconcile drifted context against repository non-destructively
   run       Verify context readiness and instruct AI agent to begin loop
 
 Options:
