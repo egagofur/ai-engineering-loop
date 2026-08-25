@@ -7,14 +7,17 @@ const {
   formatExecutionReport
 } = require('../lib/orchestration.js');
 
-// Test 1, 2, 3, 4: Priority fallthrough down to Artifact Isolation
-test('1, 2, 3, 4. Capability priority fallthrough selects CONTEXT_ISOLATION_ONLY when higher modes are unavailable', () => {
-  const registry = {
+// Test 1: Distinction between CONFIGURATION_SUPPORTED and INVOCATION_AVAILABLE / EXECUTION_PROVEN
+test('1. CONFIGURATION_SUPPORTED = true, INVOCATION_AVAILABLE = false, EXECUTION_PROVEN = false resolves to CONTEXT_ISOLATION_ONLY', () => {
+  const antigravityDiscovery = {
     nativeSubagent: createCapabilityEvidence({
-      mechanism: 'native-subagent-tool',
-      classification: 'UNAVAILABLE',
-      available: false,
-      reason: 'No general subagent tool exposed in active prompt'
+      mechanism: 'antigravity-custom-agent-config',
+      classification: 'CONFIGURATION_SUPPORTED_WITHOUT_INVOCATION_TOOL',
+      configurationSupported: true, // .agents/plugins/.../AGENT.md with subagent: true is discoverable
+      invocationAvailable: false,   // No invoke_subagent tool in active prompt
+      executionProven: false,       // No child execution occurred
+      isDocumentationOnly: false,
+      reason: 'Antigravity custom subagent configuration is supported/discoverable, but native subagent invocation is not exposed or executable from the current standalone agent runtime'
     }),
     sdkAgent: createCapabilityEvidence({
       mechanism: 'google-antigravity-python-sdk',
@@ -39,24 +42,23 @@ test('1, 2, 3, 4. Capability priority fallthrough selects CONTEXT_ISOLATION_ONLY
     })
   };
 
-  const selected = selectExecutionMode(registry);
+  const selected = selectExecutionMode(antigravityDiscovery);
   assert.strictEqual(selected.id, EXECUTION_MODES.CONTEXT_ISOLATION_ONLY.id);
   assert.strictEqual(selected.isIndependentExecutionProven, false);
 });
 
-// Test 5: Documentation-only evidence cannot activate a capability
-test('5. Documentation-only evidence cannot activate a capability', () => {
-  const docOnlyEvidence = createCapabilityEvidence({
-    mechanism: 'doc-mention-subagent-true',
-    classification: 'DOCUMENTATION_ONLY',
+// Test 2: browser_subagent is browser automation and CANNOT activate LLM subagent execution
+test('2. browser_subagent cannot activate LLM subagent execution mode', () => {
+  const browserSubagentEvidence = createCapabilityEvidence({
+    mechanism: 'browser_subagent-tool',
+    classification: 'BROWSER_AUTOMATION_TOOL',
     available: true,
-    isDocumentationOnly: true,
-    modelExecutionProven: false,
-    reason: 'subagent: true present in AGENT.md YAML but no execution proof'
+    isBrowserAutomationOnly: true,
+    reason: 'browser_subagent is scoped to DOM/browser navigation automation, not general LLM code review'
   });
 
   const registry = {
-    nativeSubagent: docOnlyEvidence,
+    nativeSubagent: browserSubagentEvidence,
     artifactIsolation: createCapabilityEvidence({
       mechanism: 'clean-slate-artifact-barrier',
       classification: 'CONTEXT_ISOLATION_ONLY',
@@ -65,18 +67,17 @@ test('5. Documentation-only evidence cannot activate a capability', () => {
   };
 
   const selected = selectExecutionMode(registry);
-  // Must reject native subagent and fall through to artifact isolation
   assert.strictEqual(selected.id, EXECUTION_MODES.CONTEXT_ISOLATION_ONLY.id);
 });
 
-// Test 6: agentapi.send-message cannot activate an agent capability
-test('6. agentapi.send-message cannot activate an agent capability (IPC only)', () => {
+// Test 3: agentapi.send-message is IPC communication and cannot activate an agent capability
+test('3. agentapi.send-message is IPC_MESSAGE_DISPATCH and cannot activate agent capability', () => {
   const ipcEvidence = createCapabilityEvidence({
     mechanism: 'antigravity-agentapi-send-message',
-    classification: 'NOT_AN_AGENT_EXECUTION_CAPABILITY',
+    classification: 'IPC_MESSAGE_DISPATCH',
     available: true,
     commandOrApi: 'agentapi send-message',
-    result: 'Message delivered to existing conversation',
+    result: 'Message delivered to existing conversation over gRPC',
     modelExecutionProven: false
   });
 
@@ -93,8 +94,8 @@ test('6. agentapi.send-message cannot activate an agent capability (IPC only)', 
   assert.strictEqual(selected.id, EXECUTION_MODES.CONTEXT_ISOLATION_ONLY.id);
 });
 
-// Test 7: new-conversation failure cannot activate an agent capability
-test('7. new-conversation failure cannot activate an agent capability', () => {
+// Test 4: agentapi.new-conversation failure cannot activate an agent capability
+test('4. agentapi.new-conversation failure cannot activate an agent capability', () => {
   const rpcFailedEvidence = createCapabilityEvidence({
     mechanism: 'antigravity-agentapi-new-conversation',
     classification: 'UNAVAILABLE',
@@ -118,13 +119,13 @@ test('7. new-conversation failure cannot activate an agent capability', () => {
   assert.strictEqual(selected.id, EXECUTION_MODES.CONTEXT_ISOLATION_ONLY.id);
 });
 
-// Test 8: Missing model response cannot activate an independent agent
-test('8. Missing model response cannot activate an independent agent', () => {
+// Test 5: Missing child model response cannot activate an independent agent
+test('5. Missing model response cannot activate an independent agent', () => {
   const threadWithoutModelResponse = createCapabilityEvidence({
-    mechanism: 'hypothetical-empty-thread',
+    mechanism: 'child-thread-without-response',
     classification: 'THREAD_CREATED_WITHOUT_RESPONSE',
     available: true,
-    childConversationId: 'child-conv-999',
+    childConversationId: 'child-conv-1234',
     modelExecutionProven: false, // No response produced
     independentContextProven: false
   });
@@ -142,40 +143,39 @@ test('8. Missing model response cannot activate an independent agent', () => {
   assert.strictEqual(selected.id, EXECUTION_MODES.CONTEXT_ISOLATION_ONLY.id);
 });
 
-// Test 9: Artifact isolation is reported as CONTEXT_ISOLATION_ONLY with Independent LLM execution: NOT PROVEN
-test('9. Truthful report format strictly labels CONTEXT_ISOLATION_ONLY as NOT PROVEN', () => {
-  const report = formatExecutionReport({
-    selectedMode: EXECUTION_MODES.CONTEXT_ISOLATION_ONLY
-  });
-
-  assert.ok(report.includes('Execution Mode: CONTEXT_ISOLATION_ONLY'));
-  assert.ok(report.includes('Independent LLM Execution: NOT PROVEN'));
-  assert.strictEqual(report.includes('Independent Sub-Agent Review'), false);
-  assert.strictEqual(report.includes('Multi-Agent Review'), false);
-});
-
-// Test 10: No unsupported execution mode can be selected
-test('10. No unsupported execution mode can be selected (falls to UNAVAILABLE if all false)', () => {
-  const emptyRegistry = {
-    nativeSubagent: { available: false },
-    sdkAgent: { available: false },
-    headlessProcessAgent: { available: false },
-    artifactIsolation: { available: false }
+// Test 6: Truthful report format strictly produces the required 4-line disclosure
+test('6. Truthful report format strictly produces the required 4-line disclosure', () => {
+  const capabilityRegistry = {
+    nativeSubagent: {
+      invocationAvailable: false
+    }
   };
 
-  const selected = selectExecutionMode(emptyRegistry);
-  assert.strictEqual(selected.id, EXECUTION_MODES.UNAVAILABLE.id);
-  assert.strictEqual(selected.isIndependentExecutionProven, false);
+  const report = formatExecutionReport({
+    selectedMode: EXECUTION_MODES.CONTEXT_ISOLATION_ONLY,
+    capabilityRegistry
+  });
+
+  const expected = [
+    'Execution Mode: CONTEXT_ISOLATION_ONLY',
+    'Independent LLM Execution: NOT PROVEN',
+    'Native Subagent Invocation: UNAVAILABLE',
+    'Review Method: Clean-Slate Artifact Isolation Barrier'
+  ].join('\n');
+
+  assert.strictEqual(report, expected);
 });
 
-// Test 11: True Independent Agent is selected ONLY when positive evidence is present
-test('11. TRUE_INDEPENDENT_AGENT is selected ONLY when full execution and independent context are proven', () => {
+// Test 7: TRUE_INDEPENDENT_AGENT is selected ONLY when full execution evidence is proven
+test('7. TRUE_INDEPENDENT_AGENT is selected ONLY when child session, response, identity, and context are proven', () => {
   const fullyProvenEvidence = createCapabilityEvidence({
     mechanism: 'native-subagent-runtime-tool',
     classification: 'TRUE_INDEPENDENT_AGENT',
     available: true,
     commandOrApi: 'invoke_subagent',
-    childConversationId: 'child-1234',
+    childConversationId: 'child-session-9876',
+    executionIdentity: 'grpc-stream-552',
+    childModelResponse: 'CHILD_AGENT_EXECUTION_OK',
     modelExecutionProven: true,
     independentContextProven: true,
     historyInherited: false,
@@ -190,4 +190,18 @@ test('11. TRUE_INDEPENDENT_AGENT is selected ONLY when full execution and indepe
   const selected = selectExecutionMode(registry);
   assert.strictEqual(selected.id, EXECUTION_MODES.TRUE_INDEPENDENT_AGENT.id);
   assert.strictEqual(selected.isIndependentExecutionProven, true);
+});
+
+// Test 8: Fallback to UNAVAILABLE when all modes including artifact isolation are unavailable
+test('8. Fallback to UNAVAILABLE when all modes are false', () => {
+  const emptyRegistry = {
+    nativeSubagent: { available: false },
+    sdkAgent: { available: false },
+    headlessProcessAgent: { available: false },
+    artifactIsolation: { available: false }
+  };
+
+  const selected = selectExecutionMode(emptyRegistry);
+  assert.strictEqual(selected.id, EXECUTION_MODES.UNAVAILABLE.id);
+  assert.strictEqual(selected.isIndependentExecutionProven, false);
 });

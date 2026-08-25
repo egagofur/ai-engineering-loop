@@ -12,13 +12,16 @@ const {
 
 // Test A: Independent execution mode selection priority using capability registry
 test('A. Independent execution mode selection priority using capability registry', () => {
-  // Priority 1: Native subagent with execution proof
+  // Priority 1: Native subagent with full execution proof
   assert.strictEqual(
     selectExecutionMode({
       nativeSubagent: createCapabilityEvidence({
         mechanism: 'native-subagent',
         classification: 'TRUE_INDEPENDENT_AGENT',
         available: true,
+        executionProven: true,
+        childConversationId: 'child-101',
+        executionIdentity: 'exec-101',
         modelExecutionProven: true,
         independentContextProven: true
       }),
@@ -26,6 +29,9 @@ test('A. Independent execution mode selection priority using capability registry
         mechanism: 'sdk-agent',
         classification: 'ISOLATED_AGENT_INSTANCE',
         available: true,
+        executionProven: true,
+        childConversationId: 'child-102',
+        executionIdentity: 'exec-102',
         modelExecutionProven: true
       })
     }).id,
@@ -44,6 +50,9 @@ test('A. Independent execution mode selection priority using capability registry
         mechanism: 'sdk-agent',
         classification: 'ISOLATED_AGENT_INSTANCE',
         available: true,
+        executionProven: true,
+        childConversationId: 'child-102',
+        executionIdentity: 'exec-102',
         modelExecutionProven: true
       })
     }).id,
@@ -57,6 +66,8 @@ test('A. Independent execution mode selection priority using capability registry
         mechanism: 'cli-agent',
         classification: 'FRESH_PROCESS_AGENT',
         available: true,
+        executionProven: true,
+        executionIdentity: 'pid-8821',
         modelExecutionProven: true
       })
     }).id,

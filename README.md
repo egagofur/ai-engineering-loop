@@ -10,9 +10,9 @@
 
 **A Reusable, Framework-Agnostic AI Engineering Operating System for Autonomous Coding Agents**
 
-*Featuring living project context, strict verification evidence contracts, 4-tier adversarial review orchestration, and dual-axis Judge evaluation.*
+*Featuring living project context, strict verification evidence contracts, 3-stage capability lifecycle registry, and dual-axis Judge evaluation.*
 
-[Overview](#overview--philosophy) • [Orchestration & Review Modes](#multi-agent-orchestration--review-modes) • [Verification Evidence](#verification-evidence-contract) • [CLI Commands](#cli-interface--commands) • [Agent Integration](#antigravity-agent-integration) • [Lifecycle](#lifecycle-stages) • [Architecture](#architecture--5-layer-configuration) • [Project Profiles](#project-profiles) • [Repository Structure](#repository-structure) • [Reference Examples](#reference-examples) • [Contributing](#contributing)
+[Overview](#overview--philosophy) • [Runtime Capability Registry](#runtime-capability-registry--execution-modes) • [Verification Evidence](#verification-evidence-contract) • [CLI Commands](#cli-interface--commands) • [Agent Integration](#antigravity-agent-integration) • [Lifecycle](#lifecycle-stages) • [Architecture](#architecture--5-layer-configuration) • [Project Profiles](#project-profiles) • [Repository Structure](#repository-structure) • [Reference Examples](#reference-examples) • [Contributing](#contributing)
 
 </div>
 
@@ -40,7 +40,7 @@ flowchart TD
         MA --> DV{Stage 5: Deterministic Verification<br>Evidence Contract: Exit Code 0 & Full Logs}
         
         DV -->|Fail| MA
-        DV -->|Pass| DA[Stage 6: Devil's Advocate Review<br>4-Tier Execution Priority]
+        DV -->|Pass| DA[Stage 6: Devil's Advocate Review<br>Capability Registry & Artifact Barrier]
         
         DA --> JD[Stage 7: Judge Agent: Impartial Magistrate<br>Validity + Severity Decision Matrix]
     end
@@ -58,21 +58,35 @@ flowchart TD
 
 ---
 
-## Multi-Agent Orchestration & Review Modes
+## Runtime Capability Registry & Execution Modes
 
-The system maintains a strict distinction between **Context Isolation** (stripping conversational history) and **Agent Independence** (spawning physically separate agent processes).
+The system maintains a strict distinction between **Configuration Support**, **Invocation Availability**, and **Execution Proof**:
 
-### 4-Tier Execution Priority:
+```text
+┌───────────────────────────┐     ┌───────────────────────────┐     ┌───────────────────────────┐
+│  CONFIGURATION_SUPPORTED  │ ──> │   INVOCATION_AVAILABLE    │ ──> │     EXECUTION_PROVEN      │
+│  (Config is recognized)   │     │ (Callable tool is active) │     │ (Child LLM response seen) │
+└───────────────────────────┘     └───────────────────────────┘     └───────────────────────────┘
+```
 
-| Priority | Mode Name | Execution Mechanism | Agent Independence | Logged Designation |
-|:---:|---|---|:---:|---|
-| **1** | **`NATIVE_SUBAGENT`** | Host runtime natively summons an independent sub-agent. | **YES** | `Execution Mode: NATIVE_SUBAGENT (Independent Agent)` |
-| **2** | **`SDK_AGENT`** | Programmatic instantiation via Python SDK (`google-antigravity.Agent`). | **YES** | `Execution Mode: SDK_AGENT (Independent Process & Context)` |
-| **3** | **`HEADLESS_SUBPROCESS`** | Headless CLI agent spawned in a separate subprocess. | **YES** | `Execution Mode: HEADLESS_SUBPROCESS (Fresh Process)` |
-| **4** | **`ARTIFACT_ISOLATED_REVIEW`** | Clean-Slate Artifact Isolation Barrier in single-agent session. | **NO** | `Execution Mode: ARTIFACT_ISOLATED_REVIEW (Isolated Review Context, Not Independent Agent Execution)` |
+### 5 Standard Execution Modes (Deterministic Priority):
 
-> [!IMPORTANT]
-> When `ARTIFACT_ISOLATED_REVIEW` is used, the system **never** claims "independent sub-agent review" in delivery logs or audit artifacts. It is explicitly labeled as *isolated review context*.
+| Priority | Mode Name | Requires Independent LLM Execution? | Condition for Selection |
+|:---:|---|:---:|---|
+| **1** | **`TRUE_INDEPENDENT_AGENT`** | **YES** | Child session exists **AND** actual model response is captured **AND** context is independent. |
+| **2** | **`ISOLATED_AGENT_INSTANCE`** | **YES** | Programmatic SDK agent instance with verified independent model execution. |
+| **3** | **`FRESH_PROCESS_AGENT`** | **YES** | Separate OS process successfully executes an LLM agent with fresh context. |
+| **4** | **`CONTEXT_ISOLATION_ONLY`** | **NO** | Clean-Slate Artifact Isolation Barrier in same session (100% prompt history excluded on disk). |
+| **5** | **`UNAVAILABLE`** | **NO** | No review execution mechanism is available. |
+
+### Truthful Reporting Disclosure:
+When `CONTEXT_ISOLATION_ONLY` is selected, the report strictly produces:
+```text
+Execution Mode: CONTEXT_ISOLATION_ONLY
+Independent LLM Execution: NOT PROVEN
+Native Subagent Invocation: UNAVAILABLE
+Review Method: Clean-Slate Artifact Isolation Barrier
+```
 
 ---
 
@@ -161,49 +175,6 @@ When working inside the Antigravity IDE or compatible agentic platforms, you can
 
 ---
 
-## Lifecycle Stages
-
-1. **Stage 0: Living Context & Drift Gate ([`core/project-initialization.md`](core/project-initialization.md), [`core/context-refresh-policy.md`](core/context-refresh-policy.md))**:
-   - Check `metadata.json` baseline. If fresh $\rightarrow$ proceed. If missing or drifted $\rightarrow$ reconcile context.
-2. **Stage 1: Goal Contract ([`core/goal-contract.md`](core/goal-contract.md))**: Formulate explicit, testable Acceptance Criteria.
-3. **Stage 2: Root Cause Analysis**: End-to-end data tracing and git commit history examination.
-4. **Stage 3: Implementation Plan**: Structured diff proposal and test plan.
-5. **Stage 4: Maker Execution ([`agents/maker.md`](agents/maker.md))**: Surgical implementation and test engineering.
-6. **Stage 5: Deterministic Verification ([`core/verification-loop.md`](core/verification-loop.md))**: 100% green pass on tests, typechecks, linters, and builds backed by Verification Evidence Contract.
-7. **Stage 6: Devil's Advocate Review ([`agents/devil-advocate.md`](agents/devil-advocate.md), [`core/orchestration-model.md`](core/orchestration-model.md))**: 4-Tier adversarial critique with concrete alternative diffs and Clean-Slate barrier.
-8. **Stage 7: Judge & Impact Assessment ([`agents/judge.md`](agents/judge.md), [`core/judge-policy.md`](core/judge-policy.md))**: Impartial verdict (`PASS`/`ITERATE`/`ESCALATE`) on Validity + Severity, followed by Context Impact Assessment (`NONE`/`TARGETED`/`MAJOR`).
-9. **Stage 8: Delivery Pipeline ([`adapters/`](adapters/))**: Automated PR/MR generation, multi-branch propagation, and notification dispatch.
-
----
-
-## Architecture & 5-Layer Configuration
-
-The system dynamically resolves configuration and review rules through a cascading 5-layer hierarchy:
-
-$$\text{GLOBAL} \longrightarrow \text{ENGINEERING CORE} \longrightarrow \text{PROJECT TYPE PROFILE} \longrightarrow \text{PROJECT CONFIG (`.ai-engineering-loop/`)} \longrightarrow \text{TASK CONTRACT}$$
-
-1. **GLOBAL**: Host execution safety limits and maximum iteration ceilings (`MAX_ITERATIONS <= 5`).
-2. **ENGINEERING CORE**: Universal loop invariants ([Goal Contract](core/goal-contract.md), [Verification Loop](core/verification-loop.md), [Definition of Done](core/definition-of-done.md)).
-3. **PROJECT TYPE PROFILE ([`profiles/`](profiles/README.md))**: Archetype defaults for web applications, backend APIs, mobile apps, libraries, or monorepos.
-4. **PROJECT CONFIGURATION (`<repo>/.ai-engineering-loop/`)**: Target repository ground truth ([`verification.md`](templates/repo-config/verification.md), [`architecture.md`](templates/repo-config/architecture.md), [`conventions.md`](templates/repo-config/conventions.md)).
-5. **TASK CONTRACT**: Active task-scoped acceptance criteria and diff constraints.
-
----
-
-## Project Profiles
-
-| Profile | Specification | Target Tech Stack | Active Review Focus |
-|---|---|---|---|
-| **`web-app`** | [web-app.md](profiles/web-app.md) | Next.js, Remix, Vite, React, Vue | DOM rendering, responsiveness (320px–4k), accessibility (a11y/ARIA), client state, Core Web Vitals |
-| **`backend-api`** | [backend-api.md](profiles/backend-api.md) | Go, Node.js, Python, Java, PostgreSQL | Auth/IDOR, database transactions & ACID rollbacks, concurrency locks (`SELECT FOR UPDATE`), N+1 query loops |
-| **`mobile-app`** | [mobile-app.md](profiles/mobile-app.md) | Flutter, React Native, iOS (Swift), Android (Kotlin) | Offline sync queues, OS lifecycle termination & state loss, permission denials, battery/GPS hygiene |
-| **`library`** | [library.md](profiles/library.md) | npm/PyPI packages, SDKs, crates | SemVer public API stability, zero dependency bloat, cross-runtime compatibility, bundle tree-shaking |
-| **`monorepo`** | [monorepo.md](profiles/monorepo.md) | Turborepo, Nx, Cargo/pnpm workspaces | Cross-package boundaries, circular dependencies, affected scope testing, workspace cache invalidation |
-
-Profile index: [profiles/README.md](profiles/README.md).
-
----
-
 ## Repository Structure
 
 ```text
@@ -217,13 +188,14 @@ ai-engineering-loop/
 │   └── ai-engineering-loop.js          # npx executable CLI (init, status, refresh, run)
 │
 ├── lib/                                # Core orchestration & decision engine
-│   └── orchestration.js                # Mode detection, barrier builder, Judge verdict engine
+│   └── orchestration.js                # 3-stage capability registry, barrier builder, Judge engine
 │
 ├── tests/                              # Deterministic test suites
-│   └── orchestration.test.js           # Verification of modes, isolation, Finding schema, Judge matrix
+│   ├── capability-selection.test.js    # Unit tests for capability lifecycle & truthful selection
+│   └── orchestration.test.js           # Tests for isolation, Finding schema, Judge matrix
 │
 ├── core/                               # Generic engineering loop specifications
-│   ├── orchestration-model.md          # 4-tier execution priority & Clean-Slate barrier
+│   ├── orchestration-model.md          # 3-stage capability lifecycle & execution priority
 │   ├── project-initialization.md       # Auto-discovery & initialization lifecycle
 │   ├── context-refresh-policy.md       # Progressive drift hierarchy & living baseline
 │   ├── context-impact-assessment.md    # Post-task impact assessment (NONE, TARGETED, MAJOR)
@@ -263,45 +235,17 @@ ai-engineering-loop/
 │       ├── coreview.md                 # @coreview-bot external review triage (Valid vs Halu)
 │       └── mattermost.md               # Channel mapping & MCP dispatch (from: "AI Agent")
 │
-├── templates/                          # Starter templates for target repositories
-│   └── repo-config/                    # Ready-to-copy .ai-engineering-loop/ files
-│       ├── config.md                   # Project identity & profile binding
-│       ├── architecture.md             # Layers & boundary invariants
-│       ├── conventions.md              # Code standards & forbidden patterns
-│       ├── verification.md             # CLI test/lint/build commands
-│       └── adapter.md                  # Configured release pipeline
-│
-├── examples/                           # End-to-end multi-archetype reference walkthroughs
-│   ├── initialization/                 # Unconfigured Monorepo auto-discovery trace
-│   ├── dot/attendance-confirmation/    # Scenario A: DOT Web Application bugfix & multi-branch MRs
-│   ├── backend-api/payment-idempotency/# Scenario B: Go/PostgreSQL race condition & idempotency fix
-│   └── mobile-app/offline-sync-queue/  # Scenario C: Flutter/SQLite offline sync queue
-│
-└── docs/                               # Meta-documentation & integration guides
-    ├── migration-plan.md               # 8-phase legacy workflow mapping & rationale
-    └── antigravity-feasibility.md      # Antigravity runtime evaluation & subagent orchestration
+└── templates/                          # Starter templates for target repositories
+    └── repo-config/                    # Ready-to-copy .ai-engineering-loop/ files
+        ├── config.md                   # Project identity & profile binding
+        ├── architecture.md             # Layers & boundary invariants
+        ├── conventions.md              # Code standards & forbidden patterns
+        ├── verification.md             # CLI test/lint/build commands
+        └── adapter.md                  # Configured release pipeline
 ```
-
----
-
-## Contributing
-
-Contributions, feedback, and new adapter profiles are welcome.
-
-1. Fork the repository (`https://github.com/egagofur/ai-engineering-loop/fork`).
-2. Create your feature branch (`git checkout -b feature/new-adapter`).
-3. Ensure all tests pass (`npm test`).
-4. Ensure all changes adhere to [core/definition-of-done.md](core/definition-of-done.md).
-5. Open a Pull Request.
 
 ---
 
 ## License
 
 This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
-
----
-
-<div align="center">
-Designed for software engineering teams and autonomous AI coding agents.
-</div>
