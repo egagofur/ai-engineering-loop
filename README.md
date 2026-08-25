@@ -10,9 +10,9 @@
 
 **A Reusable, Framework-Agnostic AI Engineering Operating System for Autonomous Coding Agents**
 
-*Transitioning autonomous agent workflows from optimistic self-evaluation toward contract-driven execution, deterministic machine verification, and independent adversarial review.*
+*Featuring zero-config repository auto-initialization, contract-driven execution, deterministic machine verification, independent adversarial review, and multi-project profiles.*
 
-[Overview](#overview--philosophy) • [Key Features](#key-features) • [Architecture](#architecture--5-layer-configuration) • [Project Profiles](#project-profiles) • [Quickstart](#quickstart) • [Repository Structure](#repository-structure) • [Reference Examples](#reference-examples) • [Contributing](#contributing)
+[Overview](#overview--philosophy) • [Key Features](#key-features) • [Lifecycle](#lifecycle-stages) • [Architecture](#architecture--5-layer-configuration) • [Project Profiles](#project-profiles) • [Quickstart](#quickstart) • [Repository Structure](#repository-structure) • [Reference Examples](#reference-examples) • [Contributing](#contributing)
 
 </div>
 
@@ -20,39 +20,43 @@
 
 ## Overview & Philosophy
 
-Traditional AI coding workflows rely heavily on **optimistic self-evaluation**: a single model analyzes, generates code, executes tests, and declares completion. This single-context pattern often introduces blind spots, false-positive test validations, and premature merge declarations.
+Traditional AI coding workflows rely on **optimistic self-evaluation**: a single model analyzes, generates code, executes tests, and announces completion. This single-context pattern introduces blind spots, false-positive test validations, and premature merge declarations.
 
-The **AI Engineering Loop** establishes a multi-agent engineering lifecycle that separates implementation from verification and final evaluation:
+The **AI Engineering Loop** establishes a multi-agent engineering lifecycle that separates implementation from verification and final evaluation, starting with **autonomous repository discovery**:
 
 ```mermaid
 flowchart TD
-    Human([Human Request]) --> GC[Goal Contract: Explicit Acceptance Criteria]
+    Start([Agent Invocation in Workspace]) --> Init[Stage 0: Automatic Project Context Discovery & Init]
+    Init --> GC[Stage 1: Goal Contract: Explicit Acceptance Criteria]
     
     subgraph CoreEngine [AI ENGINEERING OPERATING SYSTEM]
-        GC --> MA[Maker Agent: Surgical Diff & Unit Tests]
-        MA --> DV{Deterministic Verification}
+        GC --> RCA[Stage 2: Root Cause Analysis]
+        RCA --> Plan[Stage 3: Implementation Plan]
+        Plan --> MA[Stage 4: Maker Agent: Surgical Diff & Tests]
+        MA --> DV{Stage 5: Deterministic Verification}
         
         DV -->|Fail| MA
-        DV -->|Pass| DA[Devil's Advocate: Adversarial Review]
+        DV -->|Pass| DA[Stage 6: Devil's Advocate: Adversarial Review]
         
-        DA --> JD[Judge Agent: Impartial Magistrate]
+        DA --> JD[Stage 7: Judge Agent: Impartial Magistrate]
         
         JD -->|ITERATE: Valid Findings| MA
         JD -->|ESCALATE: Stalled / Max Iterations| HE([Human Escalation])
     end
     
-    JD -->|PASS: Verified Proof| Adapter[Delivery Adapter: GitLab / GitHub / Release]
+    JD -->|PASS: Verified Proof| Adapter[Stage 8: Delivery Adapter: GitLab / GitHub / Release]
     Adapter --> TargetRepo[(Target Repository)]
 ```
 
 ### Core Axiom
 
-> **"Do not ask whether the agent thinks the task is finished. Define how the system can prove that the task is finished."**
+> **"The repository should teach the agent how the repository works. The engineering loop should teach the agent how to work on it."**
 
 ---
 
 ## Key Features
 
+- **Zero-Config Auto-Initialization**: Automatically inspects repository topology, package manifests, and test suites to generate evidence-based `.ai-engineering-loop/` context without manual user setup.
 - **Goal-Contracted Execution**: Tasks begin with an explicit [Goal Contract](core/goal-contract.md) defining testable Acceptance Criteria (AC-1..N), technical invariants, and out-of-scope boundaries before touching codebase files.
 - **Triad Agent Architecture**:
   - **[Maker Agent](agents/maker.md)**: Focuses on root-cause analysis, surgical code diffs, and comprehensive unit test authoring.
@@ -62,6 +66,22 @@ flowchart TD
 - **Bounded Iteration & Stagnation Detection**: Limits autonomous cycles (`MAX_ITERATIONS = 3`) and detects recurring finding signatures to prevent infinite retry loops.
 - **5-Layer Configuration Precedence**: Multi-project support that resolves repository facts dynamically without requiring a centralized registry.
 - **Pluggable Delivery Adapters**: Encapsulates release workflows (GitLab, GitHub, Mattermost, Jira, Slack) without coupling platform tools to the generic engineering core.
+
+---
+
+## Lifecycle Stages
+
+1. **Stage 0: Project Initialization & Discovery ([`core/project-initialization.md`](core/project-initialization.md))**:
+   - State A: If `.ai-engineering-loop/` exists $\rightarrow$ load context, inspect drift, selectively refresh stale sections.
+   - State B: If missing $\rightarrow$ automatically discover manifests, infer profile, generate context, and validate quality.
+2. **Stage 1: Goal Contract ([`core/goal-contract.md`](core/goal-contract.md))**: Formulate explicit, testable Acceptance Criteria.
+3. **Stage 2: Root Cause Analysis**: End-to-end data tracing and git commit history examination.
+4. **Stage 3: Implementation Plan**: Structured diff proposal and test plan.
+5. **Stage 4: Maker Execution ([`agents/maker.md`](agents/maker.md))**: Surgical implementation and test engineering.
+6. **Stage 5: Deterministic Verification ([`core/verification-loop.md`](core/verification-loop.md))**: 100% green pass on tests, typechecks, linters, and builds.
+7. **Stage 6: Devil's Advocate Review ([`agents/devil-advocate.md`](agents/devil-advocate.md))**: Layered adversarial critique with concrete alternative diffs.
+8. **Stage 7: Judge Evaluation ([`agents/judge.md`](agents/judge.md))**: Impartial evidence evaluation producing `PASS`, `ITERATE`, or `ESCALATE`.
+9. **Stage 8: Delivery Pipeline ([`adapters/`](adapters/))**: Automated PR/MR generation, multi-branch propagation, and notification dispatch.
 
 ---
 
@@ -106,6 +126,8 @@ ai-engineering-loop/
 ├── LICENSE                             # MIT Open Source License
 │
 ├── core/                               # Generic engineering loop specifications
+│   ├── project-initialization.md       # Auto-discovery & initialization lifecycle
+│   ├── context-refresh-policy.md       # Drift detection & selective refresh
 │   ├── goal-contract.md                # Task contract schema & acceptance criteria
 │   ├── verification-loop.md            # Dual-layer verification lifecycle
 │   ├── definition-of-done.md           # 5 pillars of Done & rejection triggers
@@ -129,6 +151,7 @@ ai-engineering-loop/
 │   └── judge.md                        # Judge agent: neutral magistrate & verdict computation
 │
 ├── policies/                           # Operational schemas & algorithms
+│   ├── discovery-safety-policy.md      # Secret protection & non-destructive discovery rules
 │   ├── finding-policy.md               # Standardized finding schema & severity matrix
 │   ├── evidence-policy.md              # 5-level evidence hierarchy
 │   └── no-progress-policy.md           # Finding signature hashing & stagnation detection
@@ -150,6 +173,7 @@ ai-engineering-loop/
 │       └── adapter.md                  # Configured release pipeline
 │
 ├── examples/                           # End-to-end multi-archetype reference walkthroughs
+│   ├── initialization/                 # Unconfigured Monorepo auto-discovery trace
 │   ├── dot/attendance-confirmation/    # Scenario A: DOT Web Application bugfix & multi-branch MRs
 │   ├── backend-api/payment-idempotency/# Scenario B: Go/PostgreSQL race condition & idempotency fix
 │   └── mobile-app/offline-sync-queue/  # Scenario C: Flutter/SQLite offline sync queue
@@ -163,28 +187,17 @@ ai-engineering-loop/
 
 ## Quickstart
 
-### Step 1: Configure Your Repository (Recommended)
-Copy the starter templates into your repository's `.ai-engineering-loop/` directory:
-
-```bash
-mkdir -p .ai-engineering-loop
-# Copy templates from templates/repo-config/ into your project:
-# config.md, architecture.md, conventions.md, verification.md, adapter.md
-```
-
-### Step 2: Formulate the Goal Contract
-Before modifying code, establish an explicit [Goal Contract](core/goal-contract.md) with numbered Acceptance Criteria and clear out-of-scope boundaries.
-
-### Step 3: Run the Engineering Loop
-1. **Maker**: Perform data-flow analysis, generate surgical diffs, and write automated tests.
-2. **Verification**: Execute machine-checked gates (`test`, `typecheck`, `lint`, `build`).
-3. **Devil's Advocate**: Review the diff against active profile rules with concrete alternative diffs.
-4. **Judge**: Evaluate complete evidence and issue formal `PASS`, `ITERATE`, or `ESCALATE` verdict.
+### Zero-Configuration First Run
+When the AI Engineering Loop starts in any repository:
+1. **Auto-Discovery**: The agent detects if `.ai-engineering-loop/` exists. If missing, it inspects manifests, infers the matching Project Profile, and generates evidence-backed context files automatically.
+2. **Goal Contract**: The agent formulates an explicit [Goal Contract](core/goal-contract.md).
+3. **Execution & Verification**: Maker implements surgical diffs $\rightarrow$ runs deterministic verification $\rightarrow$ Devil's Advocate reviews $\rightarrow$ Judge certifies completion with `PASS`.
 
 ---
 
 ## Reference Examples
 
+- **[Auto-Initialization Trace](examples/initialization/README.md)**: Demonstrates the step-by-step discovery of an unconfigured TypeScript/Go monorepo.
 - **[Scenario A: DOT Web Application](examples/dot/attendance-confirmation/README.md)**: Resolves an attendance status bug across `main`, `staging`, and `develop` with `@coreview-bot` triage and Mattermost dispatch.
 - **[Scenario B: Backend API Service](examples/backend-api/payment-idempotency/README.md)**: Eliminates double-spend race conditions in Go/PostgreSQL with `SELECT FOR UPDATE` and automated race test suites.
 - **[Scenario C: Mobile Application](examples/mobile-app/offline-sync-queue/README.md)**: Implements an offline SQLite mutation queue in Flutter with network flapping tolerance and state preservation.

@@ -10,13 +10,17 @@ The core principle of configuration resolution is:
 
 ```mermaid
 flowchart TD
-    L1[Layer 1: GLOBAL ENVIRONMENT<br>Host safety ceilings, execution timeouts, max iteration cap]
-    L2[Layer 2: ENGINEERING CORE<br>Contract-driven loop, deterministic precedence, DoD, triad roles]
-    L3[Layer 3: PROJECT TYPE PROFILE<br>Archetype defaults: web-app, backend-api, mobile-app, library, monorepo]
-    L4[Layer 4: REPOSITORY LOCAL CONFIG<br>.ai-engineering-loop/ within target repository]
-    L5[Layer 5: TASK CONTRACT<br>Goal contract for current execution run]
+    Init[LIFECYCLE STAGE 0: Project Initialization & Discovery] --> Res[Dynamic Configuration Hierarchy]
+    
+    subgraph Layers [5-LAYER HIERARCHY]
+        L1[Layer 1: GLOBAL ENVIRONMENT<br>Host safety ceilings, execution timeouts, max iteration cap]
+        L2[Layer 2: ENGINEERING CORE<br>Contract-driven loop, deterministic precedence, DoD, triad roles]
+        L3[Layer 3: PROJECT TYPE PROFILE<br>Archetype defaults: web-app, backend-api, mobile-app, library, monorepo]
+        L4[Layer 4: REPOSITORY LOCAL CONFIG<br>.ai-engineering-loop/ auto-discovered or loaded]
+        L5[Layer 5: TASK CONTRACT<br>Goal contract for current execution run]
 
-    L1 --> L2 --> L3 --> L4 --> L5
+        L1 --> L2 --> L3 --> L4 --> L5
+    end
 ```
 
 ---
@@ -45,12 +49,13 @@ flowchart TD
 - **Overridability**: Overridden by explicit repository-local configuration.
 
 ### Layer 4: Repository-Local Configuration (`.ai-engineering-loop/`)
-- **Authority**: Target repository checked-in files.
+- **Authority**: Target repository checked-in or auto-initialized files.
 - **Scope**: Repository-specific ground truth:
   - Exact test/lint/typecheck commands in `verification.md`.
   - Layer definitions in `architecture.md`.
   - Architectural constraints and forbidden patterns in `conventions.md`.
   - Configured delivery adapter (DOT, GitHub, GitLab) in `adapter.md`.
+- **Auto-Discovery**: Automatically generated if missing via [Project Initialization](file:///Users/egagofur/Development/work/ai-engineering-loop/core/project-initialization.md).
 - **Overridability**: Overrides Layer 3 defaults for this specific codebase.
 
 ### Layer 5: Task Contract
@@ -91,7 +96,7 @@ def resolve_config_key(key: str, context: ExecutionContext) -> Any:
 ## 4. Conflict Resolution & Escalation Rules
 
 1. **Refinement vs Contradiction**:
-   - *Refinement (Allowed)*: Profile says "Run unit tests"; Repo config specifies `npx jest --config jest.unit.json`. $\rightarrow$ Valid refinement.
+   - *Refinement (Allowed)*: Profile says "Run unit tests"; Repo config specifies `pnpm run test:unit`. $\rightarrow$ Valid refinement.
    - *Contradiction (Escalate)*: Core requires deterministic verification; Task contract requests skipping tests to merge faster. $\rightarrow$ **Forbidden**. The engine rejects the override and flags a policy violation.
 2. **Unresolvable Contradictions**:
    - If repository configuration directly contradicts an established platform invariant (e.g. a command requires root sudo or drops protected tables), the system halts and triggers [Human Escalation](file:///Users/egagofur/Development/work/ai-engineering-loop/core/escalation-policy.md).

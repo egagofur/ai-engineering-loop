@@ -14,7 +14,7 @@ To enable the AI Engineering Loop to operate across any codebase without a centr
     └── adapter.md          # Configured delivery pipeline & CI/CD tools
 ```
 
-When an agent initializes in a workspace, it automatically discovers and loads these documents to contextualize its actions.
+When an agent initializes in a workspace, it automatically discovers and loads these documents. If the directory is absent, the agent automatically executes [Project Initialization](file:///Users/egagofur/Development/work/ai-engineering-loop/core/project-initialization.md) to generate evidence-based files.
 
 ---
 
@@ -26,7 +26,9 @@ Defines basic project descriptors:
 - `project_profile`: Bound profile (`web-app`, `backend-api`, `mobile-app`, `library`, `monorepo`).
 - `languages`: Primary languages and versions (e.g. TypeScript 5.4, Go 1.22, Python 3.11).
 - `frameworks`: Core runtime frameworks (e.g. Next.js 14, NestJS, FastAPI, Gin, Flutter).
+- `package_manager`: Detected package manager (`pnpm`, `npm`, `yarn`, `bun`, `cargo`, `go`, `poetry`).
 - `default_base_branch`: Primary target branch (`main`, `master`, `develop`).
+- `evidence`: File paths used to infer project identity (e.g. `package.json`, `pnpm-workspace.yaml`).
 
 ### 2. `architecture.md` — System Design & Boundaries
 Documents key structural layers:
@@ -35,6 +37,7 @@ Documents key structural layers:
 - **Data Access**: Repositories, ORMs, query builders, cache stores.
 - **Infrastructure / Integrations**: External third-party APIs, message brokers, queues.
 - **Critical Boundaries**: Rules regarding circular dependencies and forbidden layer leaps.
+- **Evidence & Confidence**: List of observed directories and files with confidence rating (`HIGH`, `MEDIUM`, `LOW`).
 
 ### 3. `conventions.md` — Engineering Standards & Invariants
 Specifies repository-level rules:
@@ -42,6 +45,7 @@ Specifies repository-level rules:
 - **Naming Conventions**: File naming (`kebab-case`, `PascalCase`), interface naming, test file suffixes.
 - **Error Handling Patterns**: Standard error classes, result types, domain exceptions.
 - **Forbidden Anti-Patterns**: Explicit list of practices banned in this codebase (e.g. "Do not use `any`", "Do not execute raw SQL queries without parameterization", "Do not import from `dist/` directly").
+- **Observed vs Inferred**: Clearly demarcates rules observed directly in code from inferred suggestions.
 
 ### 4. `verification.md` — Deterministic Commands
 Specifies exact CLI commands for machine checks:
@@ -51,19 +55,21 @@ Specifies exact CLI commands for machine checks:
 - `lint`: Command for linting with auto-fix.
 - `build`: Command for production bundle / binary compilation.
 - `e2e`: (Optional) End-to-end / browser test command.
+- **Evidence Source**: Exact script names in `package.json` or Makefile rules.
 
 ### 5. `adapter.md` — Delivery Pipeline Configuration
 Specifies the downstream release workflow:
-- `adapter_type`: Configured adapter (`dot`, `github`, `gitlab`, `custom`).
+- `adapter_type`: Configured adapter (`dot`, `github`, `gitlab`, `custom`, `none detected`).
 - `issue_tracker`: URL or repository tracker slug.
 - `notification_channel`: Channel name or webhook reference for messaging.
 - `multi_branch_propagation`: List of target branches (e.g. `main`, `staging`, `develop`).
 
 ---
 
-## 3. Graceful Fallback When Configuration Is Missing
+## 3. Automatic Initialization Behavior
 
-If a repository does **not** contain a `.ai-engineering-loop/` directory:
-1. The engine automatically inspects root files (`package.json`, `go.mod`, `Cargo.toml`, `pyproject.toml`, `pubspec.yaml`) to infer the matching **Project Profile** (`profiles/`).
-2. The engine uses the standard defaults of the inferred profile.
-3. The engine alerts the user with a non-blocking suggestion to generate `.ai-engineering-loop/` templates for optimal precision.
+If `.ai-engineering-loop/` does not exist:
+1. The agent automatically executes the 5-pass discovery workflow in [core/project-initialization.md](file:///Users/egagofur/Development/work/ai-engineering-loop/core/project-initialization.md).
+2. Generates all 5 files with evidence citations.
+3. Performs a second-pass quality check.
+4. Proceeds to the Goal Contract phase without user interruption.
