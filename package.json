@@ -7,8 +7,7 @@
     "ai-engineering-loop": "bin/ai-engineering-loop.js"
   },
   "scripts": {
-    "init": "node bin/ai-engineering-loop.js",
-    "publish:npm": "node scripts/publish-npm.js"
+    "init": "node bin/ai-engineering-loop.js"
   },
   "repository": {
     "type": "git",
