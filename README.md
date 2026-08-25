@@ -2,11 +2,11 @@
 
 <div align="center">
 
+[![NPM Version](https://img.shields.io/npm/v/ai-engineering-loop.svg?color=cb3837)](https://www.npmjs.com/package/ai-engineering-loop)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/egagofur/ai-engineering-loop/pulls)
 [![AI Engineering](https://img.shields.io/badge/AI-Engineering%20Loop-orange.svg)](https://github.com/egagofur/ai-engineering-loop)
 [![Release](https://img.shields.io/badge/release-v1.0.0-purple.svg)](https://github.com/egagofur/ai-engineering-loop/releases)
-[![Status](https://img.shields.io/badge/status-production--ready-success.svg)](https://github.com/egagofur/ai-engineering-loop)
 
 **A Reusable, Framework-Agnostic AI Engineering Operating System for Autonomous Coding Agents**
 
@@ -82,7 +82,7 @@ Deterministic drift detection without a database:
 
 ## CLI Interface & Commands
 
-The CLI operates against the current working directory without maintaining a centralized project registry.
+The CLI package is published on NPM as [`ai-engineering-loop`](https://www.npmjs.com/package/ai-engineering-loop) and operates against the current working directory.
 
 ```bash
 # Bootstrap .ai-engineering-loop/ context from repository discovery
