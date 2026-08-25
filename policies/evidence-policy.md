@@ -10,9 +10,23 @@ An agent may not state that code is functional, bug-free, optimized, or ready fo
 
 ---
 
-## 2. The Evidence Hierarchy
+## 2. Verification Evidence Contract
 
-Evidence is ranked in order of reliability and truth value:
+A verification `PASS` is strictly invalid without concrete execution evidence. The system categorically rejects vague statements such as *"command was launched"* or *"test appears to have passed"*.
+
+### Mandatory Execution Evidence Properties:
+1. **`command`**: Exact CLI command executed.
+2. **`executionIdentity`**: Execution ID / PID / timestamp.
+3. **`startTime` & `endTime`**: Documenting execution duration.
+4. **`exitCode`**: Must be `0`.
+5. **`stdout` & `stderr`**: Raw machine logs captured.
+6. **`timeoutStatus`**: Must be `"COMPLETED"`.
+7. **`testCounts`**: Explicit counts of passed, failed, and skipped tests.
+8. **`assertionEvidence`**: Specific assertion proof matching the active Goal Contract's Acceptance Criteria.
+
+---
+
+## 3. The Evidence Hierarchy
 
 ```mermaid
 flowchart TD
@@ -20,7 +34,7 @@ flowchart TD
     E2[Level 2: Concrete Codebase Artifacts<br>Actual file contents, git commit history, schema files]
     E3[Level 3: Adversarial Code Diffs<br>Exact before/after reproduction snippets]
     E4[Level 4: Theoretical / Analytical Deduction<br>Reasoning through architectural implications]
-    E5[Level 5: Unsupported Assertion<br>'Looks correct', 'Should work fine' - REJECTED]
+    E5[Level 5: Unsupported Assertion<br>'Looks correct', 'Command launched' - REJECTED]
 
     E1 --> E2 --> E3 --> E4 -.-> E5
 ```
@@ -49,22 +63,12 @@ flowchart TD
 
 ---
 
-## 3. Evidence Requirements for Common Agent Claims
+## 4. Evidence Requirements for Common Agent Claims
 
 | Claim Type | Mandatory Evidence Required | Prohibited Substitute |
 |---|---|---|
 | **"Bug is fixed"** | Reproducing test that previously failed now passes with exit code 0. | "The logic was corrected." |
 | **"No regressions"** | Full test suite execution log showing 0 failures. | "I only touched a single function." |
 | **"Type safe"** | `tsc --noEmit` / compiler run output with 0 errors. | "I added type annotations." |
-| **"Review finding is invalid (Halu)"** | File path & line showing the suggested API does not exist or behavior is intentional. | "I disagree with the reviewer." |
+| **"Review finding is invalid"** | File path & line showing the suggested API does not exist or behavior is intentional. | "I disagree with the reviewer." |
 | **"Acceptance criteria AC-X met"** | Test function name & assertion specifically targeting AC-X. | "Implemented according to spec." |
-
----
-
-## 4. Evidentiary Audit Trail
-
-Every artifact created during the engineering loop (Goal Contract, Maker Log, Review Findings, Judge Verdict) must maintain an unbroken chain of evidence:
-
-1. **Exact Commands Run**: Included in verbatim code blocks.
-2. **Standard Output / Error Logs**: Verbatim output snippets without truncation of error counts.
-3. **Traceable File Links**: Every cited file must use clickable format (`file:///path/to/file#L1-L10`).

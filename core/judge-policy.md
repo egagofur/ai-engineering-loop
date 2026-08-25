@@ -1,123 +1,70 @@
-# Judge Policy Specification
+# Judge Agent & Evaluation Policy
 
-## 1. Overview & Role Definition
+## 1. Overview & Core Mission
 
-The **Judge Agent** is the impartial arbiter of the AI Engineering Loop. In traditional workflows, either the author approves its own code (optimistic bias) or a reviewer blocks changes arbitrarily (nitpicking/hallucination).
-
-The Judge Agent evaluates the complete matrix of:
-1. The original [Goal Contract](file:///Users/egagofur/Development/work/ai-engineering-loop/core/goal-contract.md).
-2. The surgical code implementation & diff.
-3. The raw [Deterministic Verification](file:///Users/egagofur/Development/work/ai-engineering-loop/core/verification-loop.md) outputs (tests, typecheck, lint, build).
-4. The [Devil's Advocate Review Findings](file:///Users/egagofur/Development/work/ai-engineering-loop/agents/devil-advocate.md) and Author's evidence/triage.
-5. The [Iteration & No-Progress State](file:///Users/egagofur/Development/work/ai-engineering-loop/core/iteration-policy.md).
+The **Judge Agent** is the impartial magistrate of the AI Engineering Loop. It does not write application code and does not guess at intent. It evaluates objective evidence to render one of three verdicts: **`PASS`**, **`ITERATE`**, or **`ESCALATE`**.
 
 ```mermaid
 flowchart TD
-    GC[Goal Contract] --> Judge[Judge Agent]
-    Diff[Implementation Diff] --> Judge
-    DV[Deterministic Logs] --> Judge
-    DA[Devil's Advocate Findings] --> Judge
+    Start([Evaluation Input]) --> Gate1{Verification Evidence Contract<br>Exit Code 0 & Complete Logs?}
     
-    Judge --> Decision{Evaluate Rules}
+    Gate1 -->|Failed / Vague| IterateVerif[Verdict: ITERATE<br>Reason: Incomplete Verification Evidence]
+    Gate1 -->|Passed| Gate2{Evaluate Finding Ledger<br>Validity + Severity}
     
-    Decision -->|All ACs Met, Tests Green, Findings Resolved| PASS[Verdict: PASS]
-    Decision -->|Valid Blocking Findings & Iterations Remaining| ITERATE[Verdict: ITERATE]
-    Decision -->|Stalled / Max Iterations / High Risk| ESCALATE[Verdict: ESCALATE]
+    Gate2 -->|VALID + BLOCKER / HIGH| IterateFindings[Verdict: ITERATE<br>Reason: Blocking Substantive Issues]
+    Gate2 -->|INVALID Findings| Dismiss[DISMISS Invalid Findings<br>Record Signatures]
+    Gate2 -->|VALID + MEDIUM / LOW| Accept[ACCEPT & Document Tradeoffs in MR]
+    
+    Dismiss --> FinalCheck{0 Blocking Findings & 100% ACs Verified?}
+    Accept --> FinalCheck
+    
+    FinalCheck -->|Yes: PASS| PassVerdict([Verdict: PASS<br>Proceed to Impact Assessment & Delivery])
+    FinalCheck -->|No| IterateFindings
+    
+    IterateFindings --> IterCheck{Active Iterations >= MAX_ITERATIONS?}
+    IterCheck -->|Yes: Escalate| EscalateVerdict([Verdict: ESCALATE<br>Human Escalation Report])
+    IterCheck -->|No| MakerFix([Maker Applies Fix & Adds Tests])
 ```
 
 ---
 
-## 2. Evidence Evaluation Rules
+## 2. Evidence-Based Decision Matrix
 
-The Judge does NOT blindly accept claims from either the Maker or the Devil's Advocate. Every statement is scrutinized according to the following evidentiary rules:
+The Judge renders decisions based strictly on **Validity + Severity**. The reviewer's subjective disposition (`STRONG`, `ACCEPTABLE`, `WEAK`) **never overrides factual evidence**:
 
-### Rule 1: Deterministic Precedence
-If any deterministic check (unit tests, TypeScript compilation, linter, build) failed or was not executed, the Judge **CANNOT** issue a `PASS` verdict.
-
-### Rule 2: Rejection of Unsubstantiated Nitpicks
-A Devil's Advocate finding that:
-- Relies on personal aesthetic preference (e.g. *"variable names could be shorter"*),
-- Suggests speculative future-proofing abstractions not requested in the Goal Contract, or
-- Misunderstands existing repository conventions,
-must be declared **`INVALID`** by the Judge and discarded from blocking the build.
-
-### Rule 3: Strict Severity Thresholds
-- **SEV-1 (Critical)** and **SEV-2 (High)** findings: Must be resolved in code with passing tests before a `PASS` verdict can be granted.
-- **SEV-3 (Medium)** and **SEV-4 (Low)** findings: May be accepted into an action items backlog if they do not violate any Acceptance Criteria in the Goal Contract.
-
-### Rule 4: Verification of Author Triage
-If the Maker Agent claims a finding is `INVALID` (e.g. *"The suggested API does not exist"*), the Judge verifies this claim against the repository before accepting the dismissal.
+| Finding Validity | Finding Severity | Disposition | Judge Action | Impact on Final Verdict |
+|---|---|---|---|---|
+| **`VALID`** | **`BLOCKER`** | Any | **UPHELD (Blocking)** | **`ITERATE`** — Maker must apply alternative diff & tests. |
+| **`VALID`** | **`HIGH`** | Any | **UPHELD (Blocking)** | **`ITERATE`** — Maker must apply alternative diff & tests. |
+| **`VALID`** | **`MEDIUM`** | `ACCEPTABLE` | **UPHELD (Tradeoff)** | **`PASS`** (if ACs met) — Logged as known tradeoff in MR. |
+| **`VALID`** | **`LOW`** | `ACCEPTABLE` | **UPHELD (Tradeoff)** | **`PASS`** (if ACs met) — Logged as known tradeoff in MR. |
+| **`INVALID`** | Any | `WEAK` | **DISMISSED (Hallucination)** | **`PASS`** (if ACs met) — Discarded with evidence proof. |
 
 ---
 
-## 3. Verdict Computation Logic
+## 3. The 3 Verdict Rules
 
-```text
-FUNCTION ComputeVerdict(Contract, Diff, DeterministicLogs, Findings, IterationState):
-    IF DeterministicLogs.HasFailures() THEN
-        RETURN ITERATE(reason="Deterministic verification gates failed")
-    END IF
-
-    IF IterationState.IsStalled() OR IterationState.CurrentIteration >= IterationState.MaxIterations THEN
-        IF Findings.HasUnresolvedBlocking() THEN
-            RETURN ESCALATE(reason="Max iterations reached with unresolved blocking findings")
-        END IF
-    END IF
-
-    IF Contract.ViolatesConstraints(Diff) THEN
-        RETURN ESCALATE(reason="Implementation violated technical constraints or modified out-of-scope files")
-    END IF
-
-    UnresolvedBlocking = Findings.GetUnresolved(severity IN [SEV_1, SEV_2])
-    
-    IF UnresolvedBlocking.Count == 0 THEN
-        IF Contract.AllAcceptanceCriteriaVerified(DeterministicLogs) THEN
-            RETURN PASS(summary="All criteria satisfied and verified with proof")
-        ELSE
-            RETURN ITERATE(reason="Missing deterministic proof for specific Acceptance Criteria")
-        END IF
-    ELSE
-        RETURN ITERATE(reason="Unresolved blocking findings exist", findings=UnresolvedBlocking)
-    END IF
-```
+### Verdict 1: `PASS`
+- **Conditions**:
+  1. 100% of Goal Contract Acceptance Criteria (AC-1..N) proven via deterministic verification.
+  2. Verification Evidence Contract 100% satisfied (exit code 0, complete logs, assertion proof).
+  3. Zero open `VALID + BLOCKER` or `VALID + HIGH` findings.
+  4. Any `INVALID` findings are formally dismissed with counter-evidence.
+  5. Any `VALID + MEDIUM/LOW` findings are documented as tradeoffs.
 
 ---
 
-## 4. Standardized Judge Verdict Report
+### Verdict 2: `ITERATE`
+- **Conditions**:
+  1. One or more `VALID + BLOCKER` or `VALID + HIGH` findings exist.
+  2. Active iteration count $< \text{MAX\_ITERATIONS}$ (default 3).
+- **Maker Directive**: The Maker must adopt the concrete alternative diff or provide an equivalent verified architectural resolution, authoring regression unit tests.
 
-Every evaluation concludes with a formal **Judge Verdict Artifact**:
+---
 
-```markdown
-# ⚖️ Judge Evaluation Report
-
-## 1. Executive Verdict
-- **Verdict**: `[PASS | ITERATE | ESCALATE]`
-- **Iteration**: `[K of N]`
-- **Confidence**: `[HIGH | MEDIUM | LOW]`
-
-## 2. Deterministic Verification Audit
-| Gate | Command | Result | Status |
-|---|---|---|:---:|
-| Unit Tests | `npx jest --testPathIgnorePatterns="integration"` | 14 passed, 0 failed | ✅ PASS |
-| Static Types | `npx tsc --noEmit` | Exit code 0 | ✅ PASS |
-| Linter | `npx eslint --fix <files>` | 0 errors, 0 warnings | ✅ PASS |
-| Build | `npm run build` | Exit code 0 | ✅ PASS |
-
-## 3. Goal Contract Compliance Audit
-| Acceptance Criterion | Verification Method | Status |
-|---|---|:---:|
-| AC-1: Correct attendance status calculation | `resolve-display-status.test.ts` | ✅ PASS |
-| AC-2: Weekend & non-normal hours edge cases | `resolve-display-status.test.ts:L45` | ✅ PASS |
-| AC-3: Backward compatibility preserved | Integration test suite | ✅ PASS |
-
-## 4. Finding Triage & Resolution Matrix
-| ID | Severity | Category | Reviewer Finding | Triage Status | Resolution Proof |
-|---|---|---|---|:---:|---|
-| COR-001 | HIGH | Correctness | Missing null check on overtimeNote | `VALID` | Fixed in `service.ts:L32`; tested in `service.test.ts` |
-| SEC-001 | LOW | Security | Suggest sanitizing display status | `INVALID` | Display status is an enum internally generated, not user input |
-
-## 5. Directives for Next Step
-[If PASS: Hand off to Delivery Adapter.]
-[If ITERATE: Explicit, numbered instructions for the Maker Agent.]
-[If ESCALATE: Actionable human decision points.]
-```
+### Verdict 3: `ESCALATE`
+- **Conditions**:
+  1. Active iteration count $\ge \text{MAX\_ITERATIONS}$ (3).
+  2. Stagnation detected (identical finding signatures repeated across 2 iterations).
+  3. Contradictory architectural invariants that cannot be resolved within task scope.
+- **Action**: Halt the loop immediately and generate an actionable Human Escalation Report.

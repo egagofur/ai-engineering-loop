@@ -1,13 +1,14 @@
 {
   "name": "ai-engineering-loop",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A reusable, framework-agnostic AI Engineering Operating System for autonomous coding agents.",
   "main": "bin/ai-engineering-loop.js",
   "bin": {
     "ai-engineering-loop": "bin/ai-engineering-loop.js"
   },
   "scripts": {
-    "init": "node bin/ai-engineering-loop.js"
+    "init": "node bin/ai-engineering-loop.js",
+    "test": "node --test tests/*.test.js"
   },
   "repository": {
     "type": "git",
