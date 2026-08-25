@@ -1,4 +1,4 @@
-# AI Engineering Loop 🔄
+# AI Engineering Loop
 
 <div align="center">
 
@@ -10,19 +10,19 @@
 
 **A Reusable, Framework-Agnostic AI Engineering Operating System for Autonomous Coding Agents**
 
-*Move beyond linear AI pipelines and optimistic self-evaluation toward contract-driven execution, deterministic proof, and independent adversarial review.*
+*Transitioning autonomous agent workflows from optimistic self-evaluation toward contract-driven execution, deterministic machine verification, and independent adversarial review.*
 
-[Features](#-key-features) • [Architecture](#-architecture) • [Project Profiles](#-project-profiles) • [Quickstart](#-quickstart) • [Repository Structure](#-repository-structure) • [Examples](#-real-world-examples) • [Contributing](#-contributing)
+[Overview](#overview--philosophy) • [Key Features](#key-features) • [Architecture](#architecture--5-layer-configuration) • [Project Profiles](#project-profiles) • [Quickstart](#quickstart) • [Repository Structure](#repository-structure) • [Reference Examples](#reference-examples) • [Contributing](#contributing)
 
 </div>
 
 ---
 
-## 🌟 The Paradigm Shift
+## Overview & Philosophy
 
-Traditional AI coding assistants rely on **optimistic self-evaluation**: a single agent analyzes, edits, runs tests, and announces completion. This frequently leads to hallucinated passes, unhandled edge cases, and premature victory claims.
+Traditional AI coding workflows rely heavily on **optimistic self-evaluation**: a single model analyzes, generates code, executes tests, and declares completion. This single-context pattern often introduces blind spots, false-positive test validations, and premature merge declarations.
 
-The **AI Engineering Loop** replaces naive linear workflows (`Analyze ──▶ Implement ──▶ Test ──▶ Build ──▶ MR`) with a **rigorous multi-agent engineering lifecycle**:
+The **AI Engineering Loop** establishes a multi-agent engineering lifecycle that separates implementation from verification and final evaluation:
 
 ```mermaid
 flowchart TD
@@ -45,43 +45,47 @@ flowchart TD
     Adapter --> TargetRepo[(Target Repository)]
 ```
 
-### 🎯 Core Axiom
+### Core Axiom
 
 > **"Do not ask whether the agent thinks the task is finished. Define how the system can prove that the task is finished."**
 
 ---
 
-## 🚀 Key Features
+## Key Features
 
-- **📑 Goal-Contracted Execution**: Work is bound to explicit Acceptance Criteria (AC-1..N), technical invariants, and out-of-scope boundaries before touching code.
-- **🤖 Triad Agent Model**:
-  - **[Maker Agent](agents/maker.md)**: Deep data-flow analysis, surgical diffs, and comprehensive test authoring.
-  - **[Devil's Advocate Agent](agents/devil-advocate.md)**: Independent adversary evaluating correctness, security, concurrency, performance, and testing gaps.
-  - **[Judge Agent](agents/judge.md)**: Impartial magistrate with sole authority to issue `PASS`, `ITERATE`, or `ESCALATE` verdicts.
-- **⚡ Deterministic Precedence**: Machine-checkable tests, typechecks (`tsc`), linters, and builds are non-negotiable prerequisites.
-- **🛡️ Bounded Iteration & Stagnation Detection**: Enforces `MAX_ITERATIONS = 3` and detects recurring finding signatures to prevent thrashing.
-- **🌐 5-Layer Configuration Precedence**: Seamlessly adapts across multiple repositories without a central database monolith.
-- **🔌 Decoupled Delivery Adapters**: Generic core is isolated from GitLab, GitHub, Jira, `@coreview-bot`, Mattermost, or Slack.
+- **Goal-Contracted Execution**: Tasks begin with an explicit [Goal Contract](core/goal-contract.md) defining testable Acceptance Criteria (AC-1..N), technical invariants, and out-of-scope boundaries before touching codebase files.
+- **Triad Agent Architecture**:
+  - **[Maker Agent](agents/maker.md)**: Focuses on root-cause analysis, surgical code diffs, and comprehensive unit test authoring.
+  - **[Devil's Advocate Agent](agents/devil-advocate.md)**: Independent reviewer evaluating correctness, security, concurrency, performance, and testing gaps with concrete diffs.
+  - **[Judge Agent](agents/judge.md)**: Impartial magistrate evaluating evidence to issue `PASS`, `ITERATE`, or `ESCALATE` verdicts.
+- **Deterministic Precedence**: Machine-checkable tests, static type analysis (`tsc`), linters, and build pipelines must pass 100% before adversarial review begins.
+- **Bounded Iteration & Stagnation Detection**: Limits autonomous cycles (`MAX_ITERATIONS = 3`) and detects recurring finding signatures to prevent infinite retry loops.
+- **5-Layer Configuration Precedence**: Multi-project support that resolves repository facts dynamically without requiring a centralized registry.
+- **Pluggable Delivery Adapters**: Encapsulates release workflows (GitLab, GitHub, Mattermost, Jira, Slack) without coupling platform tools to the generic engineering core.
 
 ---
 
-## 🏗️ 5-Layer Configuration Hierarchy
+## Architecture & 5-Layer Configuration
 
-The engine dynamically resolves context using a cascading 5-layer precedence model:
+The system dynamically resolves configuration and review rules through a cascading 5-layer hierarchy:
 
 $$\text{GLOBAL} \longrightarrow \text{ENGINEERING CORE} \longrightarrow \text{PROJECT TYPE PROFILE} \longrightarrow \text{PROJECT CONFIG (`.ai-engineering-loop/`)} \longrightarrow \text{TASK CONTRACT}$$
 
-1. **GLOBAL**: Host safety boundaries, maximum iteration ceilings (`MAX_ITERATIONS <= 5`).
+1. **GLOBAL**: Host execution safety limits and maximum iteration ceilings (`MAX_ITERATIONS <= 5`).
 2. **ENGINEERING CORE**: Universal loop invariants ([Goal Contract](core/goal-contract.md), [Verification Loop](core/verification-loop.md), [Definition of Done](core/definition-of-done.md)).
-3. **PROJECT TYPE PROFILE ([`profiles/`](profiles/README.md))**: Archetype defaults for web, backend, mobile, library, or monorepo.
-4. **PROJECT CONFIGURATION (`<repo>/.ai-engineering-loop/`)**: Target repository facts ([`verification.md`](templates/repo-config/verification.md), [`architecture.md`](templates/repo-config/architecture.md), [`conventions.md`](templates/repo-config/conventions.md)).
+3. **PROJECT TYPE PROFILE ([`profiles/`](profiles/README.md))**: Archetype defaults for web applications, backend APIs, mobile apps, libraries, or monorepos.
+4. **PROJECT CONFIGURATION (`<repo>/.ai-engineering-loop/`)**: Target repository ground truth ([`verification.md`](templates/repo-config/verification.md), [`architecture.md`](templates/repo-config/architecture.md), [`conventions.md`](templates/repo-config/conventions.md)).
 5. **TASK CONTRACT**: Active task-scoped acceptance criteria and diff constraints.
+
+Detailed specification: [configuration-precedence.md](core/configuration-precedence.md).
 
 ---
 
-## 📦 Project Profiles
+## Project Profiles
 
-| Profile | Spec | Archetype | Active Review Focus |
+Profiles define technology-specific characteristics and activate relevant review domains for the Devil's Advocate without modifying the core engine:
+
+| Profile | Specification | Target Tech Stack | Active Review Focus |
 |---|---|---|---|
 | **`web-app`** | [web-app.md](profiles/web-app.md) | Next.js, Remix, Vite, React, Vue | DOM rendering, responsiveness (320px–4k), accessibility (a11y/ARIA), client state, Core Web Vitals |
 | **`backend-api`** | [backend-api.md](profiles/backend-api.md) | Go, Node.js, Python, Java, PostgreSQL | Auth/IDOR, database transactions & ACID rollbacks, concurrency locks (`SELECT FOR UPDATE`), N+1 query loops |
@@ -89,9 +93,11 @@ $$\text{GLOBAL} \longrightarrow \text{ENGINEERING CORE} \longrightarrow \text{PR
 | **`library`** | [library.md](profiles/library.md) | npm/PyPI packages, SDKs, crates | SemVer public API stability, zero dependency bloat, cross-runtime compatibility, bundle tree-shaking |
 | **`monorepo`** | [monorepo.md](profiles/monorepo.md) | Turborepo, Nx, Cargo/pnpm workspaces | Cross-package boundaries, circular dependencies, affected scope testing, workspace cache invalidation |
 
+Profile index: [profiles/README.md](profiles/README.md).
+
 ---
 
-## 📂 Repository Structure
+## Repository Structure
 
 ```text
 ai-engineering-loop/
@@ -155,9 +161,9 @@ ai-engineering-loop/
 
 ---
 
-## ⚡ Quickstart
+## Quickstart
 
-### Step 1: Add Configuration to Your Repository (Optional but Recommended)
+### Step 1: Configure Your Repository (Recommended)
 Copy the starter templates into your repository's `.ai-engineering-loop/` directory:
 
 ```bash
@@ -167,27 +173,28 @@ mkdir -p .ai-engineering-loop
 ```
 
 ### Step 2: Formulate the Goal Contract
-Before editing code, define a [Goal Contract](core/goal-contract.md) with numbered Acceptance Criteria.
+Before modifying code, establish an explicit [Goal Contract](core/goal-contract.md) with numbered Acceptance Criteria and clear out-of-scope boundaries.
 
 ### Step 3: Run the Engineering Loop
-1. **Maker**: Write surgical changes and tests.
-2. **Verification**: Execute deterministic gates (`test`, `typecheck`, `lint`, `build`).
-3. **Devil's Advocate**: Review the diff against active profile rules.
-4. **Judge**: Obtain formal `PASS`, `ITERATE`, or `ESCALATE` evaluation.
+1. **Maker**: Perform data-flow analysis, generate surgical diffs, and write automated tests.
+2. **Verification**: Execute machine-checked gates (`test`, `typecheck`, `lint`, `build`).
+3. **Devil's Advocate**: Review the diff against active profile rules with concrete alternative diffs.
+4. **Judge**: Evaluate complete evidence and issue formal `PASS`, `ITERATE`, or `ESCALATE` verdict.
 
 ---
 
-## 💡 Real-World Examples
+## Reference Examples
 
-- **[Scenario A: DOT Web Application](examples/dot/attendance-confirmation/README.md)**: Resolves complex attendance status bug across `main`, `staging`, and `develop` with `@coreview-bot` triage and Mattermost dispatch.
-- **[Scenario B: Backend API Service](examples/backend-api/payment-idempotency/README.md)**: Eliminates double-spend race condition in Go/PostgreSQL with `SELECT FOR UPDATE` and automated race tests.
-- **[Scenario C: Mobile Application](examples/mobile-app/offline-sync-queue/README.md)**: Implements offline SQLite mutation queue in Flutter with network flapping tolerance.
+- **[Scenario A: DOT Web Application](examples/dot/attendance-confirmation/README.md)**: Resolves an attendance status bug across `main`, `staging`, and `develop` with `@coreview-bot` triage and Mattermost dispatch.
+- **[Scenario B: Backend API Service](examples/backend-api/payment-idempotency/README.md)**: Eliminates double-spend race conditions in Go/PostgreSQL with `SELECT FOR UPDATE` and automated race test suites.
+- **[Scenario C: Mobile Application](examples/mobile-app/offline-sync-queue/README.md)**: Implements an offline SQLite mutation queue in Flutter with network flapping tolerance and state preservation.
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
-Contributions, feedback, and new adapter profiles are warmly welcome!
+Contributions, feedback, and new adapter profiles are welcome.
+
 1. Fork the repository (`https://github.com/egagofur/ai-engineering-loop/fork`).
 2. Create your feature branch (`git checkout -b feature/new-adapter`).
 3. Ensure all changes adhere to [core/definition-of-done.md](core/definition-of-done.md).
@@ -195,12 +202,12 @@ Contributions, feedback, and new adapter profiles are warmly welcome!
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
 
 ---
 
 <div align="center">
-Built with ❤️ to empower engineers and autonomous AI agents everywhere.
+Designed for software engineering teams and autonomous AI coding agents.
 </div>
