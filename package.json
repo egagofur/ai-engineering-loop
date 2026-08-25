@@ -1,0 +1,31 @@
+{
+  "name": "ai-engineering-loop",
+  "version": "1.0.0",
+  "description": "A reusable, framework-agnostic AI Engineering Operating System for autonomous coding agents.",
+  "main": "bin/ai-engineering-loop.js",
+  "bin": {
+    "ai-engineering-loop": "bin/ai-engineering-loop.js"
+  },
+  "scripts": {
+    "init": "node bin/ai-engineering-loop.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/egagofur/ai-engineering-loop.git"
+  },
+  "keywords": [
+    "ai-agents",
+    "agentic-workflow",
+    "software-engineering",
+    "devils-advocate",
+    "verification",
+    "autonomous-agents",
+    "antigravity"
+  ],
+  "author": "Ega Gofur",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/egagofur/ai-engineering-loop/issues"
+  },
+  "homepage": "https://github.com/egagofur/ai-engineering-loop#readme"
+}

@@ -12,7 +12,7 @@
 
 *Featuring zero-config repository auto-initialization, contract-driven execution, deterministic machine verification, independent adversarial review, and multi-project profiles.*
 
-[Overview](#overview--philosophy) • [Key Features](#key-features) • [Lifecycle](#lifecycle-stages) • [Architecture](#architecture--5-layer-configuration) • [Project Profiles](#project-profiles) • [Quickstart](#quickstart) • [Repository Structure](#repository-structure) • [Reference Examples](#reference-examples) • [Contributing](#contributing)
+[Overview](#overview--philosophy) • [Key Features](#key-features) • [Commands & CLI](#commands--quickstart) • [Lifecycle](#lifecycle-stages) • [Architecture](#architecture--5-layer-configuration) • [Project Profiles](#project-profiles) • [Repository Structure](#repository-structure) • [Reference Examples](#reference-examples) • [Contributing](#contributing)
 
 </div>
 
@@ -51,6 +51,38 @@ flowchart TD
 ### Core Axiom
 
 > **"The repository should teach the agent how the repository works. The engineering loop should teach the agent how to work on it."**
+
+---
+
+## Commands & Quickstart
+
+You can initialize and run the AI Engineering Loop in any repository using any of the following methods:
+
+### Method 1: Antigravity IDE / AI Agent Skill (Recommended)
+Simply ask the AI agent in your workspace:
+```text
+/ai-engineering-loop
+```
+or
+```text
+"Initialize project context and run engineering loop"
+```
+The agent automatically reads the [Project Initialization](core/project-initialization.md) specification, inspects your codebase, generates `.ai-engineering-loop/`, and starts the task.
+
+---
+
+### Method 2: Node.js / NPX CLI
+Run directly in any project root:
+```bash
+npx egagofur/ai-engineering-loop
+```
+
+---
+
+### Method 3: One-Line Shell Script
+```bash
+curl -fsSL https://raw.githubusercontent.com/egagofur/ai-engineering-loop/main/scripts/init.sh | bash
+```
 
 ---
 
@@ -124,6 +156,13 @@ ai-engineering-loop/
 │
 ├── README.md                           # Operating system overview & architecture
 ├── LICENSE                             # MIT Open Source License
+├── package.json                        # CLI package manifest
+│
+├── bin/                                # CLI execution entrypoints
+│   └── ai-engineering-loop.js          # npx executable initializer
+│
+├── scripts/                            # Shell installers
+│   └── init.sh                         # curl | bash one-liner script
 │
 ├── core/                               # Generic engineering loop specifications
 │   ├── project-initialization.md       # Auto-discovery & initialization lifecycle
@@ -182,16 +221,6 @@ ai-engineering-loop/
     ├── migration-plan.md               # 8-phase legacy workflow mapping & rationale
     └── antigravity-feasibility.md      # Antigravity runtime evaluation & subagent orchestration
 ```
-
----
-
-## Quickstart
-
-### Zero-Configuration First Run
-When the AI Engineering Loop starts in any repository:
-1. **Auto-Discovery**: The agent detects if `.ai-engineering-loop/` exists. If missing, it inspects manifests, infers the matching Project Profile, and generates evidence-backed context files automatically.
-2. **Goal Contract**: The agent formulates an explicit [Goal Contract](core/goal-contract.md).
-3. **Execution & Verification**: Maker implements surgical diffs $\rightarrow$ runs deterministic verification $\rightarrow$ Devil's Advocate reviews $\rightarrow$ Judge certifies completion with `PASS`.
 
 ---
 
