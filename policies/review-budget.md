@@ -2,6 +2,13 @@
 
 Applies to Devil's Advocate and Judge on Claude Code, Grok CLI, and Antigravity. Parent always waits; children never run in the background.
 
+The **agent body** (instructions + JSON output) is identical on all three hosts. Source of truth:
+
+- `agents/shared/devil-advocate.body.md`
+- `agents/shared/judge.body.md`
+
+Host files (`.claude/agents/`, `.grok/agents/`, `.agents/`) may differ only in YAML frontmatter (tool names). Tests fail if a host body drifts.
+
 ## Shared spawn rules
 
 - Write `git diff` to `.ai-engineering-loop/tasks/current.diff` before review.

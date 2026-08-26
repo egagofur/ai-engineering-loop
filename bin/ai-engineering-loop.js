@@ -15,7 +15,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { execSync } = require('child_process');
 
-const VERSION = '1.0.10';
+const VERSION = '1.0.11';
 const CWD = process.cwd();
 const CONTEXT_DIR = path.join(CWD, '.ai-engineering-loop');
 

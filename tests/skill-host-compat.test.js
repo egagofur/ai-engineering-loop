@@ -79,6 +79,26 @@ test('Grok skill may use spawn_subagent; Claude skill must not', () => {
   assert.doesNotMatch(claude, /spawn_subagent/);
 });
 
+function bodyAfterFrontmatter(content) {
+  const match = content.match(/^---\n[\s\S]*?\n---\n+/);
+  assert.ok(match, 'missing frontmatter');
+  return content.slice(match[0].length).replace(/\s+$/, '');
+}
+
+test('DA body is identical on Claude Code, Grok, and Antigravity', () => {
+  const shared = readRepo('agents/shared/devil-advocate.body.md').replace(/\s+$/, '');
+  for (const rel of ['.claude/agents/devil-advocate.md', '.grok/agents/devil-advocate.md', '.agents/devil-advocate.md']) {
+    assert.strictEqual(bodyAfterFrontmatter(readRepo(rel)), shared, rel);
+  }
+});
+
+test('Judge body is identical on Claude Code, Grok, and Antigravity', () => {
+  const shared = readRepo('agents/shared/judge.body.md').replace(/\s+$/, '');
+  for (const rel of ['.claude/agents/judge.md', '.grok/agents/judge.md', '.agents/judge.md']) {
+    assert.strictEqual(bodyAfterFrontmatter(readRepo(rel)), shared, rel);
+  }
+});
+
 test('Judge budget is the same on Claude Code, Grok, and Antigravity', () => {
   const hosts = [
     '.claude/agents/judge.md',
@@ -92,6 +112,20 @@ test('Judge budget is the same on Claude Code, Grok, and Antigravity', () => {
     assert.match(body, /Do not run git log/);
     assert.match(body, /Do not re-review the whole diff/);
     assert.match(body, /\*report-css\*/);
+  }
+});
+
+test('Parent DA and Judge prompts match across hosts', () => {
+  const daPrompt = 'at most 8 tool calls; read the diff file; skip css and generated files';
+  const judgePrompt = 'at most 4 tool calls; ledger and contract only; skip css; do not re-review the whole diff';
+  for (const rel of [
+    '.claude/skills/ai-engineering-loop/SKILL.md',
+    '.grok/skills/ai-engineering-loop/SKILL.md',
+    '.agents/workflows/ai-engineering-loop.md'
+  ]) {
+    const text = readRepo(rel);
+    assert.match(text, new RegExp(daPrompt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), rel);
+    assert.match(text, new RegExp(judgePrompt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), rel);
   }
 });
 
