@@ -51,8 +51,8 @@ Run `npx ai-engineering-loop <command>` in the target repo. Do not commit unless
    - Goal Contract path
    - `git diff <base>...HEAD` (file)
    - verification log (file)
-6. Stage 6: `spawn_subagent` Devil's Advocate. `background: false`. `capability_mode: "execute"`. Do **not** pass `resume_from`. Prompt contains only artifact paths + `agents/devil-advocate.md` output contract.
-7. Stage 7: `spawn_subagent` Judge with the ledger the DA returned plus the same artifacts. Prompt follows `agents/judge.md`.
+6. Stage 6: `spawn_subagent` Devil's Advocate. `background: false`. `capability_mode: "execute"`. Do **not** pass `resume_from`. Wait for the child. Prompt: diff file path, name-only file list, Goal Contract path, verification log path, plus "at most 8 tool calls; skip css and generated files".
+7. Stage 7: `spawn_subagent` Judge the same way (`background: false`, wait). Prompt follows `agents/judge.md`.
 8. If Judge says `ITERATE` and iteration < 3, Maker fixes in the parent, re-verify, spawn a **fresh** DA (new spawn, no resume).
 9. Stage 8: delivery adapter from `.ai-engineering-loop/adapter.md`.
 

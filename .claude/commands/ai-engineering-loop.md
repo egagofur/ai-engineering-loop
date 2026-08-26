@@ -6,6 +6,6 @@ allowed-tools: "Read, Grep, Glob, Edit, Write, Task, Bash(npm run *), Bash(npm t
 
 Follow `.claude/skills/ai-engineering-loop/SKILL.md`.
 
-Use the Task tool for Devil's Advocate and Judge. Pass only subagent_type, description, and prompt.
+Use the Task tool for Devil's Advocate and Judge. Pass subagent_type, description, and prompt. If the schema includes run_in_background, set it false. Wait for each Task to finish. Write the git diff to a file and pass that path; do not let the reviewer roam the repo.
 
 Arguments: init, status, refresh, or a task description.

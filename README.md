@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/egagofur/ai-engineering-loop/pulls)
 [![AI Engineering](https://img.shields.io/badge/AI-Engineering%20Loop-orange.svg)](https://github.com/egagofur/ai-engineering-loop)
-[![Release](https://img.shields.io/badge/release-v1.0.8-purple.svg)](https://github.com/egagofur/ai-engineering-loop/releases)
+[![Release](https://img.shields.io/badge/release-v1.0.9-purple.svg)](https://github.com/egagofur/ai-engineering-loop/releases)
 
 **A Reusable, Framework-Agnostic AI Engineering Operating System for Autonomous Coding Agents**
 
@@ -201,8 +201,10 @@ API Error: 400 [kiro/claude-sonnet-5] REQUEST_BODY_INVALID
 | Loop role | Claude Code `subagent_type` | Task keys |
 |---|---|---|
 | Orchestrator / Maker | parent session | n/a |
-| Devil's Advocate | `devil-advocate` (fallback `general-purpose`) | `subagent_type`, `description`, `prompt` |
-| Judge | `judge` (fallback `general-purpose`) | `subagent_type`, `description`, `prompt` |
+| Devil's Advocate | `devil-advocate` (fallback `general-purpose`) | `subagent_type`, `description`, `prompt`, wait (no background) |
+| Judge | `judge` (fallback `general-purpose`) | same, after DA returns |
+
+Parent writes `git diff` to a file and passes that path. DA is capped at 8 tool calls and skips css/generated blobs so review does not take tens of minutes.
 
 Repo-local Claude Code files:
 

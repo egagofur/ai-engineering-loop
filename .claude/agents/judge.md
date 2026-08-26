@@ -46,4 +46,4 @@ Return a fenced JSON block:
 
 `verdict` must be exactly PASS, ITERATE, or ESCALATE.
 
-Use Read and read-only git. Do not edit source.
+Budget: at most 4 tool calls. Read the ledger and Goal Contract first. Open source only to fact-check a cited location. Do not run git log. Do not edit source.

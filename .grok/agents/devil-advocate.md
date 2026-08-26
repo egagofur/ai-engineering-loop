@@ -15,12 +15,11 @@ never inherit Maker conversational history.
 
 ## Input barrier
 
-Use only what the parent put in the spawn prompt plus these artifacts on disk:
+Use only:
 
-- Goal Contract
-- `.ai-engineering-loop/` (`architecture.md`, `conventions.md`, `verification.md`)
-- The git diff (path in the prompt, or `git diff <base>...HEAD`)
-- Deterministic verification logs (exit code, stdout, test counts)
+1. The diff file path in the spawn prompt. Read that file first.
+2. Goal Contract path and verification log path if given.
+3. At most 8 source files that appear as paths in the diff.
 
 Do not ask the parent for Maker rationale. Do not treat parent narration as evidence.
 
@@ -62,6 +61,10 @@ Rules:
 - Every VALID BLOCKER or HIGH finding must include `concreteAlternativeDiff`.
 - Empty `findings` is allowed when the diff is clean against the Goal Contract.
 
-## Tools
+## Budget (hard stop)
 
-Use read/search and read-only shell (`git diff`, `git log`, `git show`). Do not write files. Do not spawn subagents (Grok depth limit is 1).
+Finish in at most 8 tool calls, then emit the ledger. Do not run git log. Do not spawn children.
+
+Read the diff file path from the prompt first. Do not run git diff if that path was given. Open at most 8 files that appear in the diff. Skip `*.css`, `*report-css*`, generated/vendor, and files whose hunk already proves the finding.
+
+Use read/search and read-only shell only if the diff file is missing. Do not write files.

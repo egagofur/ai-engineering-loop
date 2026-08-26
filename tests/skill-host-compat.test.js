@@ -38,6 +38,9 @@ test('Claude Code skill is Kiro-safe: no mermaid, latex, HTML breaks, or Grok to
   assert.match(content, /devil-advocate/);
   assert.match(content, /\bjudge\b/);
   assert.match(content, /cannot determine the safety/);
+  assert.match(content, /run_in_background/);
+  assert.match(content, /current\.diff/);
+  assert.match(content, /8 tool calls/);
 });
 
 test('Claude Code agents exist with Claude tool names and Finding Ledger / verdict contracts', () => {
@@ -51,9 +54,13 @@ test('Claude Code agents exist with Claude tool names and Finding Ledger / verdi
   assert.doesNotMatch(da, /spawn_subagent|capability_mode|resume_from/);
   assert.doesNotMatch(judge, /spawn_subagent|capability_mode|resume_from/);
   assert.match(da, /Finding Ledger/);
+  assert.match(da, /8 tool calls/);
+  assert.match(da, /Skip: `\*\.css`/);
+  assert.match(da, /Do not run git log/);
   assert.match(judge, /PASS/);
   assert.match(judge, /ITERATE/);
   assert.match(judge, /ESCALATE/);
+  assert.match(judge, /4 tool calls/);
 });
 
 test('Claude Code slash command does not embed Grok spawn keys', () => {

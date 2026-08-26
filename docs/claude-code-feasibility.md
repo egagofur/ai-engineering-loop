@@ -21,8 +21,10 @@ This is separate from 9router bugs that reject any Anthropic `system` field. Tho
 | Loop role | Claude Code type | Task keys allowed |
 |---|---|---|
 | Orchestrator / Maker | parent session | n/a |
-| Devil's Advocate | `devil-advocate` (fallback `general-purpose`) | `subagent_type`, `description`, `prompt` |
-| Judge | `judge` (fallback `general-purpose`) | `subagent_type`, `description`, `prompt` |
+| Devil's Advocate | `devil-advocate` (fallback `general-purpose`) | `subagent_type`, `description`, `prompt`, `run_in_background: false` |
+| Judge | `judge` (fallback `general-purpose`) | same; wait for DA first |
+
+Parent must write `git diff` to a file and pass that path. DA budget: 8 tool calls, skip css/generated, no git log. Do not leave DA running in the background.
 
 Do not pass Grok keys (`spawn_subagent`, `capability_mode`, `resume_from`, `isolation`, `background`) on Claude Code.
 
