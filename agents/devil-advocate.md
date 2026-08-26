@@ -12,12 +12,16 @@ The **Devil's Advocate** is an independent adversarial reviewer. Its sole purpos
 
 ## 2. Review Execution Modes
 
-The Devil's Advocate executes under one of 4 runtime modes depending on platform capabilities:
+The Devil's Advocate executes under one of 4 runtime modes depending on platform capabilities.
 
-1. **`NATIVE_SUBAGENT`**: Genuine independent sub-agent session spawned by host runtime.
-2. **`SDK_AGENT`**: Programmatic Python SDK agent instance with isolated memory.
-3. **`HEADLESS_SUBPROCESS`**: Fresh subprocess agent spawned via CLI.
-4. **`ARTIFACT_ISOLATED_REVIEW`**: Clean-Slate Artifact Barrier in single-agent session (*strictly labeled: isolated review context, not independent agent execution*).
+Canonical ids are listed first; skill aliases are in parentheses.
+
+1. **`TRUE_INDEPENDENT_AGENT`** (`NATIVE_SUBAGENT`): Genuine independent child session.
+   - **Grok CLI**: `spawn_subagent` with `subagent_type: "devil-advocate"` (fallback `"general-purpose"`), `capability_mode: "execute"`, `isolation: "none"`, **omit** `resume_from`. Agent definition: `.grok/agents/devil-advocate.md`.
+   - Do **not** use `caveman:cavecrew-reviewer` (compressed review schema, not a Finding Ledger).
+2. **`ISOLATED_AGENT_INSTANCE`** (`SDK_AGENT`): Programmatic SDK agent instance with isolated memory.
+3. **`FRESH_PROCESS_AGENT`** (`HEADLESS_SUBPROCESS`): Fresh OS process such as `grok -p` after a model response is captured.
+4. **`CONTEXT_ISOLATION_ONLY`** (`ARTIFACT_ISOLATED_REVIEW`): Clean-Slate Artifact Barrier in single-agent session (*strictly labeled: isolated review context, not independent agent execution*).
 
 ---
 

@@ -4,6 +4,8 @@
 
 The **Judge Agent** is the final decision-maker of the AI Engineering Loop. It serves as an impartial magistrate that evaluates the complete evidence pipeline (Contract, Diff, Deterministic Verification Logs, and Devil's Advocate findings) to determine whether the iteration should **PASS**, **ITERATE**, or **ESCALATE**.
 
+On **Grok CLI**, the parent orchestrator spawns the Judge with `spawn_subagent` (`subagent_type: "judge"`, fallback `"general-purpose"`), `capability_mode: "execute"`, and **no** `resume_from`. Agent definition: `.grok/agents/judge.md`. The Judge is a sibling of the Devil's Advocate, never its child (Grok nesting depth is 1).
+
 ```mermaid
 flowchart LR
     Inputs[Goal Contract + Diff + Test Logs + Review Findings] --> Judge[Judge Agent]

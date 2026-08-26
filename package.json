@@ -1,11 +1,29 @@
 {
   "name": "ai-engineering-loop",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "A reusable, framework-agnostic AI Engineering Operating System for autonomous coding agents.",
   "main": "bin/ai-engineering-loop.js",
   "bin": {
     "ai-engineering-loop": "bin/ai-engineering-loop.js"
   },
+  "files": [
+    "bin/",
+    "lib/",
+    "core/",
+    "agents/",
+    "policies/",
+    "profiles/",
+    "adapters/",
+    "templates/",
+    "examples/",
+    "docs/",
+    "tests/",
+    "scripts/",
+    ".grok/",
+    "LICENSE",
+    "README.md",
+    "README.npm.md"
+  ],
   "scripts": {
     "init": "node bin/ai-engineering-loop.js",
     "test": "node --test tests/*.test.js"
@@ -21,7 +39,9 @@
     "devils-advocate",
     "verification",
     "autonomous-agents",
-    "antigravity"
+    "antigravity",
+    "grok",
+    "subagents"
   ],
   "author": "Ega Gofur",
   "license": "MIT",

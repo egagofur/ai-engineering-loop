@@ -6,13 +6,13 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/egagofur/ai-engineering-loop/pulls)
 [![AI Engineering](https://img.shields.io/badge/AI-Engineering%20Loop-orange.svg)](https://github.com/egagofur/ai-engineering-loop)
-[![Release](https://img.shields.io/badge/release-v1.0.3-purple.svg)](https://github.com/egagofur/ai-engineering-loop/releases)
+[![Release](https://img.shields.io/badge/release-v1.0.5-purple.svg)](https://github.com/egagofur/ai-engineering-loop/releases)
 
 **A Reusable, Framework-Agnostic AI Engineering Operating System for Autonomous Coding Agents**
 
 *Featuring living project context, strict verification evidence contracts, 3-stage capability lifecycle registry, and dual-axis Judge evaluation.*
 
-[Overview](#overview--philosophy) • [Runtime Capability Registry](#runtime-capability-registry--execution-modes) • [Verification Evidence](#verification-evidence-contract) • [CLI Commands](#cli-interface--commands) • [Agent Integration](#antigravity-agent-integration) • [Lifecycle](#lifecycle-stages) • [Architecture](#architecture--5-layer-configuration) • [Project Profiles](#project-profiles) • [Repository Structure](#repository-structure) • [Reference Examples](#reference-examples) • [Contributing](#contributing)
+[Overview](#overview--philosophy) • [Runtime Capability Registry](#runtime-capability-registry--execution-modes) • [Verification Evidence](#verification-evidence-contract) • [CLI Commands](#cli-interface--commands) • [Grok CLI](#grok-cli-integration) • [Antigravity](#antigravity-agent-integration) • [Lifecycle](#lifecycle-stages) • [Architecture](#architecture--5-layer-configuration) • [Project Profiles](#project-profiles) • [Repository Structure](#repository-structure) • [Reference Examples](#reference-examples) • [Contributing](#contributing)
 
 </div>
 
@@ -164,6 +164,30 @@ npx ai-engineering-loop run
 
 ---
 
+## Grok CLI Integration
+
+Grok CLI is a first-class host. `spawn_subagent` is a real independent child session (own context, no parent transcript unless `resume_from` is set). After a child id and model response are captured, the registry selects **`TRUE_INDEPENDENT_AGENT`**.
+
+| Loop role | Grok `subagent_type` | Spawn rules |
+|---|---|---|
+| Orchestrator / Maker | parent session | Parent stays the orchestrator (Grok nesting depth is 1) |
+| Devil's Advocate | `devil-advocate` (fallback `general-purpose`) | `capability_mode: execute`, omit `resume_from` |
+| Judge | `judge` (fallback `general-purpose`) | Sibling of DA, never nested under DA |
+
+Do **not** use `caveman:cavecrew-reviewer` as Devil's Advocate or Judge — its output schema is not the Finding Ledger.
+
+Repo-local Grok files:
+
+- `.grok/agents/devil-advocate.md` / `.grok/agents/judge.md`
+- `.grok/skills/ai-engineering-loop/SKILL.md`
+- `.grok/commands/ai-engineering-loop.md` → `/ai-engineering-loop`
+
+Fallback: `GROK_SUBAGENTS=0` or `--disallowed-tools Agent` → `CONTEXT_ISOLATION_ONLY`, disclosed as such. Optional process fallback: `grok -p` → `FRESH_PROCESS_AGENT` only after a model response is captured.
+
+See [docs/grok-cli-feasibility.md](docs/grok-cli-feasibility.md).
+
+---
+
 ## Antigravity Agent Integration
 
 When working inside the Antigravity IDE or compatible agentic platforms, you can invoke the loop via slash commands:
@@ -172,6 +196,8 @@ When working inside the Antigravity IDE or compatible agentic platforms, you can
 - **`/ai-engineering-loop status`**: Check repository context health & baseline freshness.
 - **`/ai-engineering-loop refresh`**: Reconcile drifted context files non-destructively.
 - **`/ai-engineering-loop [task description]`**: Execute the full 8-stage engineering lifecycle with pre-task drift gate and post-task impact assessment.
+
+On Grok CLI the same slash command is provided by `.grok/commands/ai-engineering-loop.md` and runs Devil's Advocate / Judge as native subagents.
 
 ---
 
@@ -192,7 +218,14 @@ ai-engineering-loop/
 │
 ├── tests/                              # Deterministic test suites
 │   ├── capability-selection.test.js    # Unit tests for capability lifecycle & truthful selection
-│   └── orchestration.test.js           # Tests for isolation, Finding schema, Judge matrix
+│   ├── orchestration.test.js           # Tests for isolation, Finding schema, Judge matrix
+│   └── grok-runtime.test.js            # Grok spawn_subagent mapping, aliases, forbidden types
+│
+├── .grok/                              # Grok CLI host adapter
+│   ├── agents/devil-advocate.md        # Native DA subagent type
+│   ├── agents/judge.md                 # Native Judge subagent type
+│   ├── skills/ai-engineering-loop/     # Grok skill (spawn protocol)
+│   └── commands/ai-engineering-loop.md # /ai-engineering-loop slash command
 │
 ├── core/                               # Generic engineering loop specifications
 │   ├── orchestration-model.md          # 3-stage capability lifecycle & execution priority

@@ -15,7 +15,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { execSync } = require('child_process');
 
-const VERSION = '1.0.2';
+const VERSION = '1.0.5';
 const CWD = process.cwd();
 const CONTEXT_DIR = path.join(CWD, '.ai-engineering-loop');
 
@@ -553,6 +553,15 @@ function handleRefresh() {
   handleStatus();
 }
 
+function detectGrokHost() {
+  try {
+    const { detectGrokRuntime } = require('../lib/orchestration.js');
+    return detectGrokRuntime(process.env, fs);
+  } catch (e) {
+    return null;
+  }
+}
+
 // Command: run
 function handleRun() {
   log.info('AI Engineering Loop — Task Execution Entrypoint (run)');
@@ -564,6 +573,8 @@ function handleRun() {
     handleStatus();
   }
 
+  const grok = detectGrokHost();
+
   console.log('\n------------------------------------------------------------');
   log.bold('AI Agent Ready:');
   console.log('1. Formulate Goal Contract (core/goal-contract.md)');
@@ -574,6 +585,22 @@ function handleRun() {
   console.log('6. Judge Agent evaluates DoD and issues PASS verdict');
   console.log('7. Context Impact Assessment (NONE / TARGETED / MAJOR)');
   console.log('8. Delivery Adapter creates MR/PR');
+
+  if (grok && grok.host === 'grok-cli') {
+    console.log('------------------------------------------------------------');
+    log.bold('Grok CLI host:');
+    console.log(`- Binary: ${grok.grokBin || 'detected'}`);
+    console.log(`- spawn_subagent: ${grok.invocationAvailable ? 'INVOCATION_AVAILABLE' : 'UNAVAILABLE'}`);
+    console.log(`- Execution proven: no (requires child subagent_id + model response)`);
+    if (grok.invocationAvailable) {
+      console.log('- Devil\'s Advocate: spawn_subagent type=devil-advocate capability_mode=execute (no resume_from)');
+      console.log('- Judge: spawn_subagent type=judge capability_mode=execute (sibling, not nested)');
+      console.log('- Forbidden types: caveman:cavecrew-reviewer, explore, plan');
+    } else {
+      console.log(`- Fallback: CONTEXT_ISOLATION_ONLY (${grok.reason})`);
+    }
+    console.log('- Skill: .grok/skills/ai-engineering-loop/SKILL.md');
+  }
   console.log('------------------------------------------------------------\n');
 }
 

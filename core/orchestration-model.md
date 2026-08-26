@@ -69,6 +69,26 @@ The system categorically rejects the following as proof of independent LLM execu
 
 ---
 
+## 4b. Grok CLI Empirical Discovery Record
+
+| Investigated Surface | Tested Command / API | Classification | Status & Result |
+|---|---|---|---|
+| **Grok CLI binary** | `~/.grok/bin/grok` | `CONFIGURATION_SUPPORTED` | Installed (`grok 1.0.5+`). Not execution proof. |
+| **Native subagent tool** | `spawn_subagent` | `INVOCATION_AVAILABLE` | Enabled by default. Disabled by `GROK_SUBAGENTS=0` or `--disallowed-tools Agent`. |
+| **Child session** | `subagent_id` + child model response, `resume_from` omitted | `EXECUTION_PROVEN` → `TRUE_INDEPENDENT_AGENT` | Own context window; parent transcript is not inherited. |
+| **Project agent types** | `.grok/agents/devil-advocate.md`, `.grok/agents/judge.md` | `CONFIGURATION_SUPPORTED` | Prefer these types; fall back to `general-purpose` with the spec prepended. |
+| **Headless process** | `grok -p` | `FRESH_PROCESS_AGENT` | Only after the process prints a model response. |
+| **Cavecrew reviewer** | `caveman:cavecrew-reviewer` | `GROK_COMPRESSED_REVIEW_PRESET` | **Rejected** as Devil's Advocate / Judge (wrong output schema). |
+| **Maker resume** | `spawn_subagent(resume_from=maker)` | tainted history | **Rejected**. DA and Judge must spawn fresh. |
+| **Artifact barrier** | `buildReviewContextBarrier()` | `CONTEXT_ISOLATION_ONLY` | Fallback when spawn is disabled. |
+
+### Architectural Conclusion:
+> *"Grok CLI spawn_subagent is a true independent child session. Select TRUE_INDEPENDENT_AGENT only after a child id and model response are captured without resume_from. Binary presence and agent markdown are never sufficient."*
+
+See [docs/grok-cli-feasibility.md](../docs/grok-cli-feasibility.md).
+
+---
+
 ## 5. Truthful Reporting Output
 
 When `CONTEXT_ISOLATION_ONLY` is selected, the report generator strictly produces:

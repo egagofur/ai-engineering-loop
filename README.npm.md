@@ -36,6 +36,13 @@ npx ai-engineering-loop run
 2. **Living Project Context**: Tracks repository revisions and manifest checksums in `metadata.json` for instant drift detection.
 3. **Multi-Agent Triad**: Coordinates **Maker** (surgical diffs & tests), **Devil's Advocate** (independent adversarial review), and **Judge** (impartial evaluation & PASS certification).
 4. **Context Impact Assessment**: Evaluates completed tasks (`NONE`, `TARGETED`, `MAJOR`) to keep project context fresh without expensive whole-repo re-analysis.
+5. **Grok CLI host**: Native `spawn_subagent` for Devil's Advocate and Judge (`TRUE_INDEPENDENT_AGENT`). Disabled by `GROK_SUBAGENTS=0`.
+
+---
+
+## Grok CLI
+
+Inside a Grok TUI session, `/ai-engineering-loop` uses repo-local `.grok/agents/` types. Devil's Advocate and Judge spawn as sibling children (`capability_mode: execute`, no `resume_from`). Do not use `caveman:cavecrew-reviewer` as the loop reviewer.
 
 ---
 
