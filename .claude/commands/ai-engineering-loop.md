@@ -1,6 +1,7 @@
 ---
 name: ai-engineering-loop
 description: Run the AI Engineering Loop (init, status, refresh, or full Maker then Devil's Advocate then Judge).
+allowed-tools: "Read, Grep, Glob, Edit, Write, Task, Bash(npm run *), Bash(npm test *), Bash(npx *), Bash(git *)"
 ---
 
 Follow `.claude/skills/ai-engineering-loop/SKILL.md`.

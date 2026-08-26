@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/egagofur/ai-engineering-loop/pulls)
 [![AI Engineering](https://img.shields.io/badge/AI-Engineering%20Loop-orange.svg)](https://github.com/egagofur/ai-engineering-loop)
-[![Release](https://img.shields.io/badge/release-v1.0.7-purple.svg)](https://github.com/egagofur/ai-engineering-loop/releases)
+[![Release](https://img.shields.io/badge/release-v1.0.8-purple.svg)](https://github.com/egagofur/ai-engineering-loop/releases)
 
 **A Reusable, Framework-Agnostic AI Engineering Operating System for Autonomous Coding Agents**
 
@@ -209,6 +209,8 @@ Repo-local Claude Code files:
 - `.claude/agents/devil-advocate.md` / `.claude/agents/judge.md`
 - `.claude/skills/ai-engineering-loop/SKILL.md`
 - `.claude/commands/ai-engineering-loop.md` → `/ai-engineering-loop`
+
+On Kiro auto mode, pre-allow verification Bash or the safety classifier 400s the session. Copy `templates/repo-config/claude-permissions.json` into the target repo `.claude/settings.local.json` `permissions.allow` list. If Bash returns "cannot determine the safety", do not retry; switch permission mode to default and start a new session.
 
 See [docs/claude-code-feasibility.md](docs/claude-code-feasibility.md).
 

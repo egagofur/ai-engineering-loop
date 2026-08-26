@@ -23,8 +23,10 @@ function parseFrontmatter(content, label) {
 
 test('Claude Code skill is Kiro-safe: no mermaid, latex, HTML breaks, or Grok tool keys', () => {
   const content = readRepo('.claude/skills/ai-engineering-loop/SKILL.md');
-  parseFrontmatter(content, 'claude skill');
+  const { fm } = parseFrontmatter(content, 'claude skill');
 
+  assert.match(fm, /^allowed-tools:/m);
+  assert.match(fm, /Bash\(npm run \*\)/);
   assert.doesNotMatch(content, /```mermaid/);
   assert.doesNotMatch(content, /\$\\/);
   assert.doesNotMatch(content, /<br\s*\/?>/i);
@@ -35,6 +37,7 @@ test('Claude Code skill is Kiro-safe: no mermaid, latex, HTML breaks, or Grok to
   assert.match(content, /subagent_type/);
   assert.match(content, /devil-advocate/);
   assert.match(content, /\bjudge\b/);
+  assert.match(content, /cannot determine the safety/);
 });
 
 test('Claude Code agents exist with Claude tool names and Finding Ledger / verdict contracts', () => {
@@ -55,7 +58,9 @@ test('Claude Code agents exist with Claude tool names and Finding Ledger / verdi
 
 test('Claude Code slash command does not embed Grok spawn keys', () => {
   const cmd = readRepo('.claude/commands/ai-engineering-loop.md');
-  parseFrontmatter(cmd, 'claude command');
+  const { fm } = parseFrontmatter(cmd, 'claude command');
+  assert.match(fm, /^allowed-tools:/m);
+  assert.match(fm, /Bash\(npm run \*\)/);
   assert.doesNotMatch(cmd, /spawn_subagent|capability_mode|resume_from/);
   assert.match(cmd, /ai-engineering-loop/);
 });

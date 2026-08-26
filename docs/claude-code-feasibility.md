@@ -40,6 +40,39 @@ Repo files:
 | Task/Agent tool present, child result returned | `TRUE_INDEPENDENT_AGENT` |
 | No subagent tool | `CONTEXT_ISOLATION_ONLY` |
 
-## 4. What stays in Grok-only files
+## 4. Second 400 path: auto-mode Bash classifier
+
+A later failure looks like this:
+
+```
+Error: kr/claude-sonnet-5 is temporarily unavailable, so auto mode
+cannot determine the safety of Bash right now.
+API Error: 400 [kiro/claude-sonnet-5] REQUEST_BODY_INVALID
+```
+
+Read/Grep still work. The first Bash that needs the auto-mode safety classifier (`npm run typecheck`, `npm test`) is sent to Kiro. When that classifier request is invalid or the model is down, Claude Code retries and Kiro returns 400.
+
+Mitigations shipped in the skill:
+
+1. `allowed-tools` pre-approves `Bash(npm run *)`, `Bash(npm test *)`, `Bash(npx *)`, `Bash(git *)` so those commands skip the classifier when the skill or slash command is active.
+2. The skill tells the model not to retry Bash/Write after a classifier or 400 failure.
+3. Project allow rules (copy into `.claude/settings.local.json`):
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(npm test *)",
+      "Bash(npx *)",
+      "Bash(git *)"
+    ]
+  }
+}
+```
+
+If 400 still happens on a fresh session with no Bash yet, it is the 9router `system` field bug, not this package.
+
+## 5. What stays in Grok-only files
 
 Grok spawn details live in `.grok/skills/ai-engineering-loop/SKILL.md`. Claude Code must not load that file as its skill. Claude Code discovers `.claude/` first.
