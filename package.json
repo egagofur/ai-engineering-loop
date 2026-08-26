@@ -1,6 +1,6 @@
 {
   "name": "ai-engineering-loop",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "A reusable, framework-agnostic AI Engineering Operating System for autonomous coding agents.",
   "main": "bin/ai-engineering-loop.js",
   "bin": {
@@ -19,6 +19,7 @@
     "docs/",
     "tests/",
     "scripts/",
+    ".agents/",
     ".grok/",
     ".claude/agents/",
     ".claude/commands/",

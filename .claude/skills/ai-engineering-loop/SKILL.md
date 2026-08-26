@@ -40,7 +40,7 @@ Parent session is Maker plus orchestrator. Spawn Devil's Advocate and Judge as *
    - Write changed paths (`git diff --name-only`) into the Task prompt as a short list.
    - Put those paths in the child prompt. Do not paste Maker rationale.
 6. Stage 6: Task `subagent_type: devil-advocate`. Use `general-purpose` only if that type is rejected. If the Task schema includes `run_in_background`, set it false. Then wait for Task to return. Do not start Judge or more Maker work until the Finding Ledger is back. Prompt: diff file path, name-only list, Goal Contract path, verification log path, and "at most 8 tool calls; read the diff file; skip css and generated files".
-7. Stage 7: Task `subagent_type: judge` the same way (wait, no background). Prompt: Goal Contract, verification evidence, Finding Ledger.
+7. Stage 7: Task `subagent_type: judge` the same way (wait, no background). Use `general-purpose` only if `judge` is rejected. Prompt: Goal Contract path, verification evidence path, Finding Ledger, and "at most 4 tool calls; ledger and contract only; skip css; do not re-review the whole diff".
 8. ITERATE with iteration under 3: fix in the parent, re-verify, spawn a **new** Devil's Advocate (do not resume the previous child).
 9. Stage 8: delivery from `.ai-engineering-loop/adapter.md`.
 

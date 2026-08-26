@@ -78,3 +78,35 @@ test('Grok skill may use spawn_subagent; Claude skill must not', () => {
   assert.match(grok, /spawn_subagent/);
   assert.doesNotMatch(claude, /spawn_subagent/);
 });
+
+test('Judge budget is the same on Claude Code, Grok, and Antigravity', () => {
+  const hosts = [
+    '.claude/agents/judge.md',
+    '.grok/agents/judge.md',
+    '.agents/judge.md'
+  ];
+  for (const rel of hosts) {
+    const body = readRepo(rel);
+    assert.match(body, /Budget \(hard stop\)/);
+    assert.match(body, /4 tool calls/);
+    assert.match(body, /Do not run git log/);
+    assert.match(body, /Do not re-review the whole diff/);
+    assert.match(body, /\*report-css\*/);
+  }
+});
+
+test('Antigravity workflow waits and never uses browser_subagent as reviewer', () => {
+  const wf = readRepo('.agents/workflows/ai-engineering-loop.md');
+  parseFrontmatter(wf, 'antigravity workflow');
+  assert.match(wf, /8 tool calls/);
+  assert.match(wf, /4 tool calls/);
+  assert.match(wf, /browser_subagent/);
+  assert.match(wf, /CONTEXT_ISOLATION_ONLY/);
+});
+
+test('Claude and Grok parent skills pass Judge a 4-call ledger-only prompt', () => {
+  const claude = readRepo('.claude/skills/ai-engineering-loop/SKILL.md');
+  const grok = readRepo('.grok/skills/ai-engineering-loop/SKILL.md');
+  assert.match(claude, /4 tool calls/);
+  assert.match(grok, /4 tool calls/);
+});

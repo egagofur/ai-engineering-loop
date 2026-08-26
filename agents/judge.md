@@ -4,7 +4,11 @@
 
 The **Judge Agent** is the final decision-maker of the AI Engineering Loop. It serves as an impartial magistrate that evaluates the complete evidence pipeline (Contract, Diff, Deterministic Verification Logs, and Devil's Advocate findings) to determine whether the iteration should **PASS**, **ITERATE**, or **ESCALATE**.
 
-On **Grok CLI**, the parent orchestrator spawns the Judge with `spawn_subagent` (`subagent_type: "judge"`, fallback `"general-purpose"`), `capability_mode: "execute"`, and **no** `resume_from`. Agent definition: `.grok/agents/judge.md`. The Judge is a sibling of the Devil's Advocate, never its child (Grok nesting depth is 1).
+Host spawn (Judge is a sibling of Devil's Advocate, never nested). Wait for the child. Do not run Judge in the background. Budget: at most 4 tool calls; read the Finding Ledger and Goal Contract first; fact-check cited locations only; skip css/generated; no git log. Policy: `policies/review-budget.md`.
+
+- **Claude Code**: Task `subagent_type: "judge"` (fallback `"general-purpose"`). Agent: `.claude/agents/judge.md`.
+- **Grok CLI**: `spawn_subagent` `subagent_type: "judge"`, `capability_mode: "execute"`, omit `resume_from`, `background: false`. Agent: `.grok/agents/judge.md`.
+- **Antigravity**: `invoke_subagent` (or Task) named `judge`. Do not use `browser_subagent`. Agent: `.agents/judge.md`. If no subagent tool exists, run the same budget as CONTEXT_ISOLATION_ONLY.
 
 ```mermaid
 flowchart LR

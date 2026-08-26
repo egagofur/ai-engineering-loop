@@ -64,9 +64,11 @@ flowchart TD
 - **Analysis**:
   - Full codebase context in every prompt leads to context bloat and degraded attention.
   - **Optimization Strategy**:
-    - Pass only the `Goal Contract` + `git diff <base>...HEAD` to the Devil's Advocate, not the entire conversation history.
-    - Retain finding signatures and summaries rather than full raw chat transcripts.
-    - Run deterministic checks with summarized test output (failing tests in detail, passing suites as totals).
+    - Write `git diff` to `.ai-engineering-loop/tasks/current.diff` and pass that path.
+    - Devil's Advocate: at most 8 tool calls; skip css/generated; no git log; wait (no background).
+    - Judge: at most 4 tool calls; ledger + Goal Contract only; fact-check cited locations; wait.
+    - Do not use `browser_subagent` as a reviewer.
+    - If `invoke_subagent` is missing, use CONTEXT_ISOLATION_ONLY with the same budgets. See `policies/review-budget.md` and `.agents/`.
 
 ---
 

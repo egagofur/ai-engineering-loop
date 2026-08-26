@@ -16,8 +16,10 @@ The Devil's Advocate executes under one of 4 runtime modes depending on platform
 
 Canonical ids are listed first; skill aliases are in parentheses.
 
-1. **`TRUE_INDEPENDENT_AGENT`** (`NATIVE_SUBAGENT`): Genuine independent child session.
-   - **Grok CLI**: `spawn_subagent` with `subagent_type: "devil-advocate"` (fallback `"general-purpose"`), `capability_mode: "execute"`, `isolation: "none"`, **omit** `resume_from`. Agent definition: `.grok/agents/devil-advocate.md`.
+1. **`TRUE_INDEPENDENT_AGENT`** (`NATIVE_SUBAGENT`): Genuine independent child session. Budget: at most 8 tool calls; diff file first; skip css/generated; no git log; wait, no background. Policy: `policies/review-budget.md`.
+   - **Claude Code**: Task `subagent_type: "devil-advocate"`. Agent: `.claude/agents/devil-advocate.md`.
+   - **Grok CLI**: `spawn_subagent` `subagent_type: "devil-advocate"`, `capability_mode: "execute"`, omit `resume_from`, `background: false`. Agent: `.grok/agents/devil-advocate.md`.
+   - **Antigravity**: `invoke_subagent` (or Task) named `devil-advocate`. Do not use `browser_subagent`. Agent: `.agents/devil-advocate.md`.
    - Do **not** use `caveman:cavecrew-reviewer` (compressed review schema, not a Finding Ledger).
 2. **`ISOLATED_AGENT_INSTANCE`** (`SDK_AGENT`): Programmatic SDK agent instance with isolated memory.
 3. **`FRESH_PROCESS_AGENT`** (`HEADLESS_SUBPROCESS`): Fresh OS process such as `grok -p` after a model response is captured.

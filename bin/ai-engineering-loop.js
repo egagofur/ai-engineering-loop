@@ -15,7 +15,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { execSync } = require('child_process');
 
-const VERSION = '1.0.9';
+const VERSION = '1.0.10';
 const CWD = process.cwd();
 const CONTEXT_DIR = path.join(CWD, '.ai-engineering-loop');
 
@@ -612,6 +612,16 @@ function handleRun() {
     console.log('- Judge: Task subagent_type=judge (sibling, not nested)');
     console.log('- Do not pass spawn_subagent, capability_mode, isolation, resume_from (Kiro 400 REQUEST_BODY_INVALID)');
     console.log('- Skill: .claude/skills/ai-engineering-loop/SKILL.md');
+  }
+
+  const agAgent = path.join(CWD, '.agents', 'judge.md');
+  if (fs.existsSync(agAgent)) {
+    console.log('------------------------------------------------------------');
+    log.bold('Antigravity host:');
+    console.log('- Subagent: invoke_subagent or Task; wait; never browser_subagent');
+    console.log('- Devil\'s Advocate: 8 tool calls, diff file, skip css');
+    console.log('- Judge: 4 tool calls, ledger + contract only');
+    console.log('- Workflow: .agents/workflows/ai-engineering-loop.md');
   }
   console.log('------------------------------------------------------------\n');
 }
