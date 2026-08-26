@@ -1,0 +1,59 @@
+---
+name: ai-engineering-loop
+description: Use when the user runs /ai-engineering-loop, asks to init or refresh living project context, or wants the Maker / Devil's Advocate / Judge engineering loop on Claude Code.
+---
+
+# AI Engineering Loop (Claude Code)
+
+Canonical specs: `core/`, `agents/`, `policies/`. Read those files. Do not invent extra tool parameters.
+
+## Host rule (prevents 400 REQUEST_BODY_INVALID)
+
+Claude Code talks to strict proxies (including Kiro). Follow this exactly:
+
+1. Use only tools that exist in this session.
+2. For subagents, call the host tool named **Task** (or **Agent** if that is the only subagent tool). Pass **only** these keys:
+   - `subagent_type`
+   - `description`
+   - `prompt`
+3. Do **not** add any other keys. Extra keys make Kiro return HTTP 400 `REQUEST_BODY_INVALID`.
+4. If no Task/Agent tool exists, review in this session and label it `CONTEXT_ISOLATION_ONLY`. Do not invent a tool name.
+
+## Commands
+
+- `init` / `status` / `refresh`: run `npx ai-engineering-loop <command>` in the repo. Do not commit unless asked.
+- Any other argument: full loop for that task.
+
+## Loop
+
+Parent session is Maker plus orchestrator. Spawn Devil's Advocate and Judge as **siblings**, not nested.
+
+1. Stage 0: `npx ai-engineering-loop status` (init or refresh if missing or stale).
+2. Stage 1: write a Goal Contract. Schema: `core/goal-contract.md`.
+3. Stages 2-4: Maker work in the parent. Surgical diff plus tests.
+4. Stage 5: run commands from `.ai-engineering-loop/verification.md`. Keep command, exit code, stdout, test counts. Vague "seems green" is invalid.
+5. Write artifact paths (Goal Contract, diff, verification log). Put those paths in child prompts. Do not paste Maker rationale.
+6. Stage 6: Task `subagent_type: devil-advocate` (fallback `general-purpose`). Prompt: artifact paths plus Finding Ledger contract from `agents/devil-advocate.md`.
+7. Stage 7: Task `subagent_type: judge` (fallback `general-purpose`). Prompt: Goal Contract, verification evidence, Finding Ledger. Verdict is PASS, ITERATE, or ESCALATE.
+8. ITERATE with iteration under 3: fix in the parent, re-verify, spawn a **new** Devil's Advocate (do not resume the previous child).
+9. Stage 8: delivery from `.ai-engineering-loop/adapter.md`.
+
+## Report header
+
+When Task/Agent actually returned a child result:
+
+```
+Execution Mode: TRUE_INDEPENDENT_AGENT
+Independent LLM Execution: PROVEN
+Native Subagent Invocation: AVAILABLE
+Review Method: True Independent Agent
+```
+
+When no subagent tool exists:
+
+```
+Execution Mode: CONTEXT_ISOLATION_ONLY
+Independent LLM Execution: NOT PROVEN
+Native Subagent Invocation: UNAVAILABLE
+Review Method: Clean-Slate Artifact Isolation Barrier
+```

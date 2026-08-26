@@ -6,13 +6,13 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/egagofur/ai-engineering-loop/pulls)
 [![AI Engineering](https://img.shields.io/badge/AI-Engineering%20Loop-orange.svg)](https://github.com/egagofur/ai-engineering-loop)
-[![Release](https://img.shields.io/badge/release-v1.0.5-purple.svg)](https://github.com/egagofur/ai-engineering-loop/releases)
+[![Release](https://img.shields.io/badge/release-v1.0.6-purple.svg)](https://github.com/egagofur/ai-engineering-loop/releases)
 
 **A Reusable, Framework-Agnostic AI Engineering Operating System for Autonomous Coding Agents**
 
 *Featuring living project context, strict verification evidence contracts, 3-stage capability lifecycle registry, and dual-axis Judge evaluation.*
 
-[Overview](#overview--philosophy) • [Runtime Capability Registry](#runtime-capability-registry--execution-modes) • [Verification Evidence](#verification-evidence-contract) • [CLI Commands](#cli-interface--commands) • [Grok CLI](#grok-cli-integration) • [Antigravity](#antigravity-agent-integration) • [Lifecycle](#lifecycle-stages) • [Architecture](#architecture--5-layer-configuration) • [Project Profiles](#project-profiles) • [Repository Structure](#repository-structure) • [Reference Examples](#reference-examples) • [Contributing](#contributing)
+[Overview](#overview--philosophy) • [Runtime Capability Registry](#runtime-capability-registry--execution-modes) • [Verification Evidence](#verification-evidence-contract) • [CLI Commands](#cli-interface--commands) • [Grok CLI](#grok-cli-integration) • [Claude Code](#claude-code-integration) • [Antigravity](#antigravity-agent-integration) • [Lifecycle](#lifecycle-stages) • [Architecture](#architecture--5-layer-configuration) • [Project Profiles](#project-profiles) • [Repository Structure](#repository-structure) • [Reference Examples](#reference-examples) • [Contributing](#contributing)
 
 </div>
 
@@ -188,6 +188,32 @@ See [docs/grok-cli-feasibility.md](docs/grok-cli-feasibility.md).
 
 ---
 
+## Claude Code Integration
+
+Claude Code is a first-class host. Use the **Task** (or **Agent**) tool with **only** `subagent_type`, `description`, and `prompt`.
+
+Do **not** pass Grok keys (`spawn_subagent`, `capability_mode`, `isolation`, `resume_from`). Extra keys are the usual cause of:
+
+```
+API Error: 400 [kiro/claude-sonnet-5] REQUEST_BODY_INVALID
+```
+
+| Loop role | Claude Code `subagent_type` | Task keys |
+|---|---|---|
+| Orchestrator / Maker | parent session | n/a |
+| Devil's Advocate | `devil-advocate` (fallback `general-purpose`) | `subagent_type`, `description`, `prompt` |
+| Judge | `judge` (fallback `general-purpose`) | `subagent_type`, `description`, `prompt` |
+
+Repo-local Claude Code files:
+
+- `.claude/agents/devil-advocate.md` / `.claude/agents/judge.md`
+- `.claude/skills/ai-engineering-loop/SKILL.md`
+- `.claude/commands/ai-engineering-loop.md` → `/ai-engineering-loop`
+
+See [docs/claude-code-feasibility.md](docs/claude-code-feasibility.md).
+
+---
+
 ## Antigravity Agent Integration
 
 When working inside the Antigravity IDE or compatible agentic platforms, you can invoke the loop via slash commands:
@@ -225,6 +251,12 @@ ai-engineering-loop/
 │   ├── agents/devil-advocate.md        # Native DA subagent type
 │   ├── agents/judge.md                 # Native Judge subagent type
 │   ├── skills/ai-engineering-loop/     # Grok skill (spawn protocol)
+│   └── commands/ai-engineering-loop.md # /ai-engineering-loop slash command
+│
+├── .claude/                            # Claude Code host adapter (Kiro-safe)
+│   ├── agents/devil-advocate.md        # Task subagent type
+│   ├── agents/judge.md                 # Task subagent type
+│   ├── skills/ai-engineering-loop/     # Claude skill (Task keys only)
 │   └── commands/ai-engineering-loop.md # /ai-engineering-loop slash command
 │
 ├── core/                               # Generic engineering loop specifications

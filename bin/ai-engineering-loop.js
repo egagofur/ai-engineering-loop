@@ -15,7 +15,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { execSync } = require('child_process');
 
-const VERSION = '1.0.5';
+const VERSION = '1.0.6';
 const CWD = process.cwd();
 const CONTEXT_DIR = path.join(CWD, '.ai-engineering-loop');
 
@@ -600,6 +600,18 @@ function handleRun() {
       console.log(`- Fallback: CONTEXT_ISOLATION_ONLY (${grok.reason})`);
     }
     console.log('- Skill: .grok/skills/ai-engineering-loop/SKILL.md');
+  }
+
+  const claudeSkill = path.join(CWD, '.claude', 'skills', 'ai-engineering-loop', 'SKILL.md');
+  const claudeAgent = path.join(CWD, '.claude', 'agents', 'devil-advocate.md');
+  if (fs.existsSync(claudeSkill) || fs.existsSync(claudeAgent)) {
+    console.log('------------------------------------------------------------');
+    log.bold('Claude Code host:');
+    console.log('- Subagent tool: Task (or Agent). Keys allowed: subagent_type, description, prompt');
+    console.log('- Devil\'s Advocate: Task subagent_type=devil-advocate');
+    console.log('- Judge: Task subagent_type=judge (sibling, not nested)');
+    console.log('- Do not pass spawn_subagent, capability_mode, isolation, resume_from (Kiro 400 REQUEST_BODY_INVALID)');
+    console.log('- Skill: .claude/skills/ai-engineering-loop/SKILL.md');
   }
   console.log('------------------------------------------------------------\n');
 }

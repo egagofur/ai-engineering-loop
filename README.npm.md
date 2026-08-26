@@ -44,6 +44,10 @@ npx ai-engineering-loop run
 
 Inside a Grok TUI session, `/ai-engineering-loop` uses repo-local `.grok/agents/` types. Devil's Advocate and Judge spawn as sibling children (`capability_mode: execute`, no `resume_from`). Do not use `caveman:cavecrew-reviewer` as the loop reviewer.
 
+## Claude Code
+
+Inside Claude Code, `/ai-engineering-loop` uses `.claude/agents/` types via the **Task** tool. Pass only `subagent_type`, `description`, and `prompt`. Do not pass Grok keys (`spawn_subagent`, `capability_mode`, `resume_from`) — extra keys cause Kiro `REQUEST_BODY_INVALID`.
+
 ---
 
 ## Antigravity IDE Integration

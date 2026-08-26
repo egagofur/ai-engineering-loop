@@ -1,6 +1,6 @@
 {
   "name": "ai-engineering-loop",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "A reusable, framework-agnostic AI Engineering Operating System for autonomous coding agents.",
   "main": "bin/ai-engineering-loop.js",
   "bin": {
@@ -20,6 +20,7 @@
     "tests/",
     "scripts/",
     ".grok/",
+    ".claude/",
     "LICENSE",
     "README.md",
     "README.npm.md"
@@ -41,6 +42,7 @@
     "autonomous-agents",
     "antigravity",
     "grok",
+    "claude-code",
     "subagents"
   ],
   "author": "Ega Gofur",
