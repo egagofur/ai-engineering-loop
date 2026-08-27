@@ -101,7 +101,7 @@ Changes log
 - Menjaga synchronous script di head untuk preferensi tema agar tidak terjadi kedipan tampilan (FOUC).
 - Menambahkan auto-migration otomatis untuk memindahkan data lama dari localStorage ke IndexedDB sekaligus membebaskan kuota browser.
 
-cc: @Ulfatul Mufida
+cc: @ulfa.mufida
 
 [MR DEV] https://gitlab.dot.co.id/dot-system/dotify-new/-/merge_requests/963
 Changes log 
@@ -110,5 +110,5 @@ Changes log
 - Menjaga entitas lain yang sudah disetujui PM di periode yang sama agar status approval-nya tidak ter-reset.
 - Menambahkan unit test untuk skenario lembur multi-entry harian.
 
-cc: @Ulfatul Mufida
+cc: @ulfa.mufida
 ```
