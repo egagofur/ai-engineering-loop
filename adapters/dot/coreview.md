@@ -76,12 +76,15 @@ Every Coreview comment must be categorized into one of two paths:
      git push origin <branch-name>
      ```
   4. Cherry-pick the new fix commit to all other active environment branches (`main`, `staging`).
-  5. Post a resolution note on GitLab citing the commit hash:
+  5. Post a resolution reply directly **inside the bot's discussion thread**:
      ```bash
-     glab mr note <mr-id> --repo <repo> -m "Fixed in commit <commit-hash>: <technical explanation of the resolution>"
+     # Get discussion_id: glab api "projects/:fullpath/merge_requests/<mr-id>/discussions"
+     glab api "projects/:fullpath/merge_requests/<mr-id>/discussions/<discussion_id>/notes" \
+       -X POST \
+       -F "body=Fixed in commit <commit-hash>: <technical explanation of the resolution>"
      ```
 
-### Case B: Feedback is HALU (False Positive / Hallucinated)
+### Case B: Feedback is HALU (False Positive / Intended Architecture)
 - **Criteria**:
   - The bot suggests calling an API, library method, or hook that does not exist in the codebase or standard library.
   - The bot flags intentional architecture or established framework patterns as "errors".
@@ -89,9 +92,12 @@ Every Coreview comment must be categorized into one of two paths:
   - The bot misinterprets domain-specific business logic already agreed in the Goal Contract.
 - **Action Plan**:
   1. **DO NOT modify any code.**
-  2. Post a polite, evidence-backed technical rebuttal on the GitLab note explaining why the suggestion is invalid:
+  2. Post a polite, evidence-backed technical rebuttal directly **inside the bot's discussion thread**:
      ```bash
-     glab mr note <mr-id> --repo <repo> -m "Feedback is invalid / false positive: <detailed technical explanation with file citations>."
+     # Get discussion_id: glab api "projects/:fullpath/merge_requests/<mr-id>/discussions"
+     glab api "projects/:fullpath/merge_requests/<mr-id>/discussions/<discussion_id>/notes" \
+       -X POST \
+       -F "body=Terima kasih atas masukannya @coreview-bot. <detailed technical explanation with file citations>."
      ```
 
 ---
