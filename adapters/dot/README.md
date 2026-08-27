@@ -36,15 +36,34 @@ The DOT adapter is organized into four dedicated specification modules:
    - Clean cherry-picking workflow and target-specific test verification.
 3. **[Coreview External Reviewer Triage (`coreview.md`)](file:///Users/egagofur/Development/work/ai-engineering-loop/adapters/dot/coreview.md)**:
    - Ingestion of `@coreview-bot` automated PR comments.
-   - Rigorous evaluation of bot suggestions into `VALID` (fix & propagate) vs `HALU` (false positive pushback).
+   - Mandatory Phase 8 Triage reporting gate before Mattermost dispatch.
+   - Rigorous evaluation of bot suggestions into `VALID` (fix & propagate) vs `HALU` (false positive pushback) using principles from `gitlab-mr-feedback` and `receiving-code-review`.
 4. **[Mattermost Notifications (`mattermost.md`)](file:///Users/egagofur/Development/work/ai-engineering-loop/adapters/dot/mattermost.md)**:
    - Repository-to-channel resolution using persistent configuration.
    - MCP `mattermost_send_message` dispatch with mandatory `from: "AI Agent"` attribution.
-   - Environment-tagged Markdown blocks (`[MR DEV]`, `[MR STAGING]`, `[MR MAIN]`).
+   - Environment-tagged Markdown blocks (`[MR DEV]`, `[MR STAGING]`, `[MR MAIN]`) formatted with strict **`no-ai-slop`** human-written standards.
 
 ---
 
-## 3. Separation of Concerns
+## 3. Official DOT Engineering Skills Integration
+
+This adapter integrates with the official DOT skill suite installed in `~/.gemini/config/skills/` (and `~/.claude/skills/`):
+
+| Skill | Primary Role & Governance |
+| :--- | :--- |
+| **`dot-dev-workflow`** | Standard 9-phase lifecycle coordinator (RCA s.d. Mattermost auto-send). |
+| **`backend-development`** | Framework-agnostic backend guidelines (clean naming, database queries, security, error handling). |
+| **`backend-safety-guardrails`** | 6 architectural backend safety invariants (queue bypass, BigInt, status recalculation loops). |
+| **`devils-advocate`** | Pre-commit multi-round adversarial review gate (Phase 6). |
+| **`requesting-code-review`** | Standards for requesting human and peer code review. |
+| **`receiving-code-review`** | Technical rigor in evaluating review feedback without blind compliance. |
+| **`gitlab-mr-feedback`** | GitLab API patterns and thread resolution on MR discussions. |
+| **`auto-mr-issue`** | Automated issue, MR creation, and Mattermost Markdown formatting. |
+| **`no-ai-slop`** | Human-written, crisp, active-voice release notes without AI puffery. |
+
+---
+
+## 4. Separation of Concerns
 
 | Generic Core Responsibility | DOT Adapter Responsibility |
 |---|---|

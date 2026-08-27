@@ -63,40 +63,45 @@ flowchart TD
 
 ---
 
-## 5. Standardized Mattermost Markdown Report Format
+## 5. Standardized Mattermost Markdown Report Format (No AI Slop + Human-Written)
 
-Render separate, ready-to-copy Markdown blocks for every generated Merge Request:
+Render separate, ready-to-copy Markdown blocks for every generated Merge Request using a simple, clean, and punchy format:
 
 ```text
 [MR <ENV_TAG>] <MR_URL>
 Changes log 
-- <Concise change point 1>
-- <Concise change point 2>
-- <Concise change point 3>
+- <Poin 1: Apa yang diperbaiki / fitur apa yang aktif>
+- <Poin 2: Perubahan mekanisme/perilaku sistem secara gamblang>
+- <Poin 3: Proteksi regresi atau pengujian yang ditambahkan>
 ```
+
+### Formatting & Writing Rules (Prinsip `no-ai-slop`):
+- **DILARANG MENGGUNAKAN HEADING MARKDOWN (`#`, `##`, `###`, `####`)**: Gunakan teks polos agar font di Mattermost tidak membesar secara berlebihan.
+- **Format Sederhana Tanpa Metadata Bertele-tele**: Jangan menyertakan tabel metadata yang panjang (seperti Branch, Repo, Status Verifikasi). Cukup link MR dan list `Changes log`.
+- **Gunakan Bahasa Manusia yang Lugas & Konkret**:
+  - ✅ **Awali dengan kata kerja aktif**: *"Memperbaiki..."*, *"Memigrasikan..."*, *"Menjaga..."*, *"Menambahkan..."*, *"Mengubah..."*.
+  - ❌ **Dilarang kata-kata AI Slop / Puffery**: `secara komprehensif`, `memastikan keakuratan`, `memfasilitasi`, `menyelaraskan alur`, `mengoptimalkan proses`, `solusi yang kokoh/robust`, `meningkatkan efisiensi`, `telah berhasil diimplementasikan`.
+  - ❌ **Dilarang raw code / AST leakage**: Jangan menyebut nama variabel internal atau query mentah (misal `user.type.hasNormalHours`, `attendanceConfirmationPagination Prisma query`). Jelaskan dampak fungsionalnya.
 
 ### Environment Tags:
 - `[MR DEV]`: Merge Request targeting `develop`.
 - `[MR STAGING]`: Merge Request targeting `staging`.
 - `[MR MAIN]` (or `[MR PROD]`): Merge Request targeting `main` / `master`.
 
-### Example Report:
+### Contoh Penerapan Nyata:
+
 ```text
-[MR DEV] https://gitlab.dot.co.id/dot-system/dotify-new/-/merge_requests/948
+[MR DEV] https://gitlab.dot.co.id/playground/bikin-rindu-tools-v2/-/merge_requests/108
 Changes log 
-- Include user.type.hasNormalHours and timeEntities.overtimeNote in attendanceConfirmationPagination Prisma query.
-- Create resolveAttendanceConfirmationDisplayStatus utility to properly evaluate hasPendingTimeEntities by checking overtimeNote, isWeekend, duration > 8, non-normal hours employees, and null statuses.
-- Add comprehensive unit tests in src/server/attendance-confirmations/utils/resolve-display-status.test.ts covering all status permutations.
+- Memperbaiki crash halaman dashboard di Safari setelah login akibat QuotaExceededError pada localStorage.
+- Memigrasikan penyimpanan cache browser ke IndexedDB (idb-keyval) sehingga kapasitas penyimpanan leluasa dan tidak memblokir main thread.
+- Menjaga synchronous script di head untuk preferensi tema agar tidak terjadi kedipan tampilan (FOUC).
+- Menambahkan auto-migration otomatis untuk memindahkan data lama dari localStorage ke IndexedDB sekaligus membebaskan kuota browser.
 
-[MR STAGING] https://gitlab.dot.co.id/dot-system/dotify-new/-/merge_requests/947
+[MR DEV] https://gitlab.dot.co.id/dot-system/dotify-new/-/merge_requests/963
 Changes log 
-- Include user.type.hasNormalHours and timeEntities.overtimeNote in attendanceConfirmationPagination Prisma query.
-- Create resolveAttendanceConfirmationDisplayStatus utility to properly evaluate hasPendingTimeEntities by checking overtimeNote, isWeekend, duration > 8, non-normal hours employees, and null statuses.
-- Add comprehensive unit tests in src/server/attendance-confirmations/utils/resolve-display-status.test.ts covering all status permutations.
-
-[MR MAIN] https://gitlab.dot.co.id/dot-system/dotify-new/-/merge_requests/946
-Changes log 
-- Include user.type.hasNormalHours and timeEntities.overtimeNote in attendanceConfirmationPagination Prisma query.
-- Create resolveAttendanceConfirmationDisplayStatus utility to properly evaluate hasPendingTimeEntities by checking overtimeNote, isWeekend, duration > 8, non-normal hours employees, and null statuses.
-- Add comprehensive unit tests in src/server/attendance-confirmations/utils/resolve-display-status.test.ts covering all status permutations.
+- Mengubah status entitas yang tadinya APPROVED menjadi NEED APPROVAL otomatis saat project atau jam kerjanya diedit.
+- Memperbaiki sinkronisasi worker agar periode absensi berjalan (UNCONFIRMED) tetap diproses saat admin mengedit data.
+- Menjaga entitas lain yang sudah disetujui PM di periode yang sama agar status approval-nya tidak ter-reset.
+- Menambahkan unit test untuk skenario lembur multi-entry harian.
 ```

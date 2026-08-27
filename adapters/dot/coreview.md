@@ -5,21 +5,34 @@
 In the DOT ecosystem, `@coreview-bot` operates as an external, company-level automated code reviewer attached to GitLab Merge Requests (specifically MRs targeting `develop`).
 
 > [!IMPORTANT]
-> **We do not have access to `@coreview-bot`'s internal rules or heuristics.**
-> - Do not attempt to reverse-engineer or invent Coreview behavior.
-> - Treat Coreview strictly as an external reviewer providing asynchronous critique on GitLab MRs.
-> - Evaluate its comments objectively through the lens of the repository's ground truth.
+> **GATE sebelum Phase 9 (Mattermost Dispatch)**:
+> Dilarang mengirim Mattermost sebelum hasil `glab mr view --comments` **tercetak di pesan ke user**.
+> Jika `comments: 0`, triage kosong tetap wajib dilaporkan sebagai bukti bahwa pengecekan bot telah dilakukan secara riil.
+> 
+> Selalu cetak laporan triage dengan format:
+> ```text
+> Phase 8 Triage
+> MR: !<id>
+> Command: glab mr view <id> --comments
+> Comments: <n>
+> Valid: <list atau none>
+> Halu: <list atau none>
+> Action: <none | fix | reply>
+> ```
 
 ---
 
 ## 2. Coreview Triage Workflow
 
+Mengikuti panduan dari skill `gitlab-mr-feedback` dan `receiving-code-review` (verifikasi teknis menyeluruh sebelum implementasi, tanpa *performative agreement*).
+
 ```mermaid
 flowchart TD
     MRDev[MR Targeting develop Created] --> FetchBot[Fetch Comments via glab mr view --comments]
-    FetchBot --> CheckComments{Bot Comments Found?}
+    FetchBot --> PrintTriage[Print Phase 8 Triage Report to User]
+    PrintTriage --> CheckComments{Bot Comments Found?}
     
-    CheckComments -->|No| Done([Complete Triage])
+    CheckComments -->|No: comments: 0| Done([Complete Triage -> Gate Passed])
     CheckComments -->|Yes| Evaluate{Evaluate Each Comment}
     
     Evaluate -->|VALID: Real Defect| Fix[1. Surgical Code Fix<br>2. Run Tests & Linter<br>3. Commit & Cherry-pick to all branches<br>4. Reply with commit hash]
