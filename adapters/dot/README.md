@@ -52,6 +52,7 @@ This adapter integrates with the official DOT skill suite installed in `~/.gemin
 | Skill | Primary Role & Governance |
 | :--- | :--- |
 | **`dot-dev-workflow`** | Standard 9-phase lifecycle coordinator (RCA s.d. Mattermost auto-send). |
+| **`task-impact-inquiry`** | Proactive 4-pillar blast radius scan and critical probing questions before writing code. |
 | **`backend-development`** | Framework-agnostic backend guidelines (clean naming, database queries, security, error handling). |
 | **`backend-safety-guardrails`** | 6 architectural backend safety invariants (queue bypass, BigInt, status recalculation loops). |
 | **`devils-advocate`** | Pre-commit multi-round adversarial review gate (Phase 6). |
