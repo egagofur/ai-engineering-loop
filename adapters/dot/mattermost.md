@@ -63,7 +63,7 @@ flowchart TD
 
 ---
 
-## 5. Standardized Mattermost Markdown Report Format (No AI Slop + Human-Written)
+## 5. Standardized Mattermost Markdown Report Format (No AI Slop + Human-Written + PIC at End)
 
 Render separate, ready-to-copy Markdown blocks for every generated Merge Request using a simple, clean, and punchy format:
 
@@ -73,11 +73,14 @@ Changes log
 - <Poin 1: Apa yang diperbaiki / fitur apa yang aktif>
 - <Poin 2: Perubahan mekanisme/perilaku sistem secara gamblang>
 - <Poin 3: Proteksi regresi atau pengujian yang ditambahkan>
+
+cc: <PIC>
 ```
 
 ### Formatting & Writing Rules (Prinsip `no-ai-slop`):
 - **DILARANG MENGGUNAKAN HEADING MARKDOWN (`#`, `##`, `###`, `####`)**: Gunakan teks polos agar font di Mattermost tidak membesar secara berlebihan.
 - **Format Sederhana Tanpa Metadata Bertele-tele**: Jangan menyertakan tabel metadata yang panjang (seperti Branch, Repo, Status Verifikasi). Cukup link MR dan list `Changes log`.
+- **Sertakan PIC di Akhir Pesan**: Ambil PIC dari file konfigurasi `mattermost-channel-mapping.json`. Jika belum ada, tanyakan kepada user dan simpan ke file mapping. Tambahkan `cc: <PIC>` di baris paling bawah.
 - **Gunakan Bahasa Manusia yang Lugas & Konkret**:
   - ✅ **Awali dengan kata kerja aktif**: *"Memperbaiki..."*, *"Memigrasikan..."*, *"Menjaga..."*, *"Menambahkan..."*, *"Mengubah..."*.
   - ❌ **Dilarang kata-kata AI Slop / Puffery**: `secara komprehensif`, `memastikan keakuratan`, `memfasilitasi`, `menyelaraskan alur`, `mengoptimalkan proses`, `solusi yang kokoh/robust`, `meningkatkan efisiensi`, `telah berhasil diimplementasikan`.
@@ -98,10 +101,14 @@ Changes log
 - Menjaga synchronous script di head untuk preferensi tema agar tidak terjadi kedipan tampilan (FOUC).
 - Menambahkan auto-migration otomatis untuk memindahkan data lama dari localStorage ke IndexedDB sekaligus membebaskan kuota browser.
 
+cc: @Ulfatul Mufida
+
 [MR DEV] https://gitlab.dot.co.id/dot-system/dotify-new/-/merge_requests/963
 Changes log 
 - Mengubah status entitas yang tadinya APPROVED menjadi NEED APPROVAL otomatis saat project atau jam kerjanya diedit.
 - Memperbaiki sinkronisasi worker agar periode absensi berjalan (UNCONFIRMED) tetap diproses saat admin mengedit data.
 - Menjaga entitas lain yang sudah disetujui PM di periode yang sama agar status approval-nya tidak ter-reset.
 - Menambahkan unit test untuk skenario lembur multi-entry harian.
+
+cc: @Ulfatul Mufida
 ```
