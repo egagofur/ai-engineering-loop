@@ -12,7 +12,11 @@ The `.ai-engineering-loop/` directory serves as the **Living Project Context** f
     ├── architecture.md     # System architecture, layers, & boundaries
     ├── conventions.md      # Code standards, patterns, & forbidden practices
     ├── verification.md     # Exact CLI verification commands
-    └── adapter.md          # Configured delivery pipeline & CI/CD tools
+    ├── adapter.md          # Configured delivery pipeline & CI/CD tools
+    ├── glossary.md         # Ubiquitous language (one term per concept)
+    ├── adrs/               # Architecture Decision Records from Stage 1 grill
+    │   └── README.md
+    └── tasks/              # Ephemeral: current.diff, handoff.md, verification logs
 ```
 
 ---
@@ -64,6 +68,16 @@ Maintains lightweight state for instant drift detection:
 - `remote_repository`: Git remote repository slug.
 - `default_target_branch`: Base target branch.
 - `ci_provider`: Detected CI engine (GitHub Actions, GitLab CI).
+
+### 7. `glossary.md` — Ubiquitous Language
+- One term per domain concept. Goal Contracts, tests, and code names must use these words.
+- Updated during Stage 1 grill when a term is coined or corrected. Never overwritten by `refresh` if already filled.
+
+### 8. `adrs/` — Architecture Decision Records
+- Durable why for load-bearing choices settled in grill. `refresh` does not overwrite existing ADRs.
+
+### 9. `tasks/` — Run artifacts (optional)
+- `current.diff`, verification logs, `handoff.md`. Not required for `init` validity.
 
 ---
 

@@ -5,6 +5,7 @@ description: >
   with native spawn_subagent for Devil's Advocate and Judge (TRUE_INDEPENDENT_AGENT).
   Also handles init/status/refresh of .ai-engineering-loop/ living context.
   Triggers: /ai-engineering-loop, "run the engineering loop", "devil's advocate review".
+user-invocable: true
 ---
 
 # AI Engineering Loop — Grok CLI Runtime
@@ -37,21 +38,22 @@ Optional fallback if `devil-advocate` / `judge` types are not registered: `subag
 
 ## Commands
 
-### `/ai-engineering-loop init|status|refresh`
+### `/ai-engineering-loop init|status|refresh|sync-hosts`
 
-Run `npx ai-engineering-loop <command>` in the target repo. Do not commit unless the user asks.
+Run `npx ai-engineering-loop <command>` in the target repo. Do not commit unless the user asks. `sync-hosts` copies this package's skills/agents/commands into `~/.claude`, `~/.grok`, `~/.gemini`, and `~/.agents` for hosts that already exist.
 
 ### `/ai-engineering-loop [task]`
 
-1. Stage 0: `npx ai-engineering-loop status` (init/refresh if missing or stale).
-2. Stage 1: write a Goal Contract (`core/goal-contract.md`).
-3. Stages 2–4: Maker work in the **parent**. Surgical diff + tests. Parent may be the Maker; do not spawn Maker as a child if you still need to spawn DA/Judge afterward from the same parent.
+1. Stage 0: `npx ai-engineering-loop sync-hosts` then `npx ai-engineering-loop status` (init/refresh if missing or stale). Read `.ai-engineering-loop/glossary.md`. If sync-hosts copied files, tell the user a new session is needed for updated skill text; keep going with this session.
+2. Stage 1: Goal Contract (`core/goal-contract.md`). If the task is ambiguous and the user can answer, grill first (`core/grill-policy.md`): design tree, recommended answers, do not ask look-up facts. Skip grill if the contract is already frozen or the user waived it. On `adapter_type: dot`, that grill includes the four-pillar blast radius (state, sibling, approval, queues). Do not run a second interview. Freeze before any production edit. Name test seams. Use glossary terms.
+3. Stages 2–4: Maker work in the **parent**. Bugs: red repro first (`core/root-cause-analysis.md`). Features: TDD at named seams (`policies/tdd-policy.md`). Surgical diff. Parent may be the Maker; do not spawn Maker as a child if you still need to spawn DA/Judge afterward from the same parent.
 4. Stage 5: run verification from `.ai-engineering-loop/verification.md`. Keep command, exit code, stdout, test counts. Vague "seems green" is invalid.
 5. Write artifacts to disk so children do not need parent chat:
    - Goal Contract path
    - `git diff` written to `.ai-engineering-loop/tasks/current.diff`
    - verification log (file)
-6. Stage 6: `spawn_subagent` Devil's Advocate. `background: false`. `capability_mode: "execute"`. Do **not** pass `resume_from`. Wait for the child. Prompt: diff file path, name-only file list, Goal Contract path, verification log path, plus "at most 8 tool calls; read the diff file; skip css and generated files".
+   - If stopping mid-loop, `.ai-engineering-loop/tasks/handoff.md` (`core/handoff-policy.md`)
+6. Stage 6: `spawn_subagent` Devil's Advocate. `background: false`. `capability_mode: "execute"`. Do **not** pass `resume_from`. Wait for the child. Prompt: diff file path, name-only file list, Goal Contract path, verification log path, conventions.md path, plus "at most 8 tool calls; read the diff file; skip css and generated files". Report Spec and Standards axes separately.
 7. Stage 7: `spawn_subagent` Judge the same way (`background: false`, wait). Use `general-purpose` only if `judge` is rejected. Prompt: Goal Contract path, verification evidence path, Finding Ledger, and "at most 4 tool calls; ledger and contract only; skip css; do not re-review the whole diff".
 8. If Judge says `ITERATE` and iteration < 3, Maker fixes in the parent, re-verify, spawn a **fresh** DA (new spawn, no resume).
 9. Stage 8: delivery adapter from `.ai-engineering-loop/adapter.md`.

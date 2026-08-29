@@ -14,8 +14,14 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { execSync } = require('child_process');
+const {
+  homeDir,
+  applyHostSync,
+  planHostSync,
+  formatHostSyncReport
+} = require('../lib/sync-hosts.js');
 
-const VERSION = '1.0.11';
+const VERSION = '1.0.12';
 const CWD = process.cwd();
 const CONTEXT_DIR = path.join(CWD, '.ai-engineering-loop');
 
@@ -26,8 +32,19 @@ const REQUIRED_FILES = [
   'architecture.md',
   'conventions.md',
   'verification.md',
-  'adapter.md'
+  'adapter.md',
+  'glossary.md',
+  'adrs/README.md'
 ];
+
+function writeContextFile(filePath, content, { overwrite = true } = {}) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  if (!overwrite && fs.existsSync(filePath) && fs.statSync(filePath).size > 0) {
+    return false;
+  }
+  fs.writeFileSync(filePath, content);
+  return true;
+}
 
 /**
  * Colorized console helpers
@@ -249,7 +266,8 @@ function analyzeRepository(rootDir) {
 /**
  * Generate Context Files (Including metadata.json Baseline)
  */
-function generateContextFiles(rootDir, discovery, trigger = 'init', impact = 'INITIAL_BOOTSTRAP') {
+function generateContextFiles(rootDir, discovery, trigger = 'init', impact = 'INITIAL_BOOTSTRAP', options = {}) {
+  const overwriteCore = options.overwriteCore !== false;
   const targetDir = path.join(rootDir, '.ai-engineering-loop');
   fs.mkdirSync(targetDir, { recursive: true });
 
@@ -257,7 +275,7 @@ function generateContextFiles(rootDir, discovery, trigger = 'init', impact = 'IN
 
   // 0. metadata.json (Baseline)
   const metadataJson = {
-    contextVersion: '1.0.0',
+    contextVersion: '1.0.12',
     generatedAt: new Date().toISOString(),
     repositoryRevision: currentRevision,
     projectProfile: discovery.profile,
@@ -268,7 +286,11 @@ function generateContextFiles(rootDir, discovery, trigger = 'init', impact = 'IN
       impact
     }
   };
-  fs.writeFileSync(path.join(targetDir, 'metadata.json'), JSON.stringify(metadataJson, null, 2) + '\n');
+  writeContextFile(
+    path.join(targetDir, 'metadata.json'),
+    JSON.stringify(metadataJson, null, 2) + '\n',
+    { overwrite: overwriteCore }
+  );
 
   // 1. config.md
   const configMd = `# Project Configuration
@@ -286,7 +308,7 @@ ${discovery.frameworks.map((f) => `  - ${f}`).join('\n') || '  - Standard'}
 ## Observed Evidence
 ${discovery.evidence.map((e) => `- ${e}`).join('\n')}
 `;
-  fs.writeFileSync(path.join(targetDir, 'config.md'), configMd);
+  writeContextFile(path.join(targetDir, 'config.md'), configMd, { overwrite: overwriteCore });
 
   // 2. architecture.md
   const archMd = `# Project Architecture
@@ -306,7 +328,7 @@ ${discovery.topLevelDirs.map((d) => `- \`${d}/\``).join('\n') || '- Flat directo
 - Observed from: Directory scan, package manifests
 - Confidence: HIGH
 `;
-  fs.writeFileSync(path.join(targetDir, 'architecture.md'), archMd);
+  writeContextFile(path.join(targetDir, 'architecture.md'), archMd, { overwrite: overwriteCore });
 
   // 3. conventions.md
   const convMd = `# Project Conventions
@@ -321,7 +343,7 @@ ${discovery.topLevelDirs.map((d) => `- \`${d}/\``).join('\n') || '- Flat directo
 - Never commit private secrets, passwords, or API keys.
 - Do not make unsolicited renovations outside the active Goal Contract scope.
 `;
-  fs.writeFileSync(path.join(targetDir, 'conventions.md'), convMd);
+  writeContextFile(path.join(targetDir, 'conventions.md'), convMd, { overwrite: overwriteCore });
 
   // 4. verification.md
   const verifyMd = `# Project Verification Commands
@@ -337,7 +359,7 @@ ${discovery.scripts.e2e ? `- **e2e**: \`${discovery.scripts.e2e}\`` : ''}
 - 100% deterministic checks must pass before Devil's Advocate review.
 - Unit tests must cover boundary cases, null safety, and error paths.
 `;
-  fs.writeFileSync(path.join(targetDir, 'verification.md'), verifyMd);
+  writeContextFile(path.join(targetDir, 'verification.md'), verifyMd, { overwrite: overwriteCore });
 
   // 5. adapter.md
   const adapterMd = `# Project Delivery Adapter Configuration
@@ -348,7 +370,48 @@ ${discovery.adapter.repoSlug ? `- **remote_repository**: "${discovery.adapter.re
 - **default_target_branch**: "${discovery.adapter.defaultBranch}"
 - **ci_provider**: "${discovery.adapter.ciProvider}"
 `;
-  fs.writeFileSync(path.join(targetDir, 'adapter.md'), adapterMd);
+  writeContextFile(path.join(targetDir, 'adapter.md'), adapterMd, { overwrite: overwriteCore });
+
+  const glossaryMd = `# Ubiquitous Language
+
+One term per concept. Agents and humans use these words in Goal Contracts, tests, code names, and review.
+
+## Terms
+
+| Term | Meaning | Do not say |
+|---|---|---|
+| Goal Contract | Frozen Stage 1 acceptance document | "the prompt" |
+| Seam | Public interface under test | "the internals" |
+
+Update this file during Stage 1 grill when a term is coined or corrected.
+`;
+  writeContextFile(path.join(targetDir, 'glossary.md'), glossaryMd, { overwrite: false });
+
+  const adrReadme = `# Architecture Decision Records
+
+Hard decisions that would otherwise live only in chat. Write one ADR when Stage 1 grill settles a choice that future agents must not re-litigate.
+
+File name: \`NNN-short-kebab-title.md\`
+
+## Template
+
+\`\`\`markdown
+# ADR NNN: <title>
+
+## Status
+Accepted
+
+## Context
+What forced a choice.
+
+## Decision
+What we chose, in glossary terms.
+
+## Consequences
+What becomes easier, harder, or forbidden.
+\`\`\`
+`;
+  writeContextFile(path.join(targetDir, 'adrs', 'README.md'), adrReadme, { overwrite: false });
 }
 
 /**
@@ -460,6 +523,10 @@ function handleInit() {
   log.info('AI Engineering Loop — Project Context Bootstrap (init)');
   log.dim(`Target directory: ${CWD}`);
 
+  let overwriteCore = true;
+  let trigger = 'init';
+  let impact = 'INITIAL_BOOTSTRAP';
+
   if (fs.existsSync(CONTEXT_DIR)) {
     const validation = validateContext(CONTEXT_DIR);
     if (validation.valid) {
@@ -470,6 +537,9 @@ function handleInit() {
       process.exit(0);
     } else {
       log.warn(`! Existing .ai-engineering-loop/ found but incomplete: ${validation.reason}. Repairing...`);
+      overwriteCore = false;
+      trigger = 'repair';
+      impact = 'REPAIR_MISSING';
     }
   }
 
@@ -481,7 +551,7 @@ function handleInit() {
   log.dim(`> Package Manager: ${discovery.packageManager}`);
   log.dim(`> Unit Test Command: ${discovery.scripts.testUnit}`);
 
-  generateContextFiles(CWD, discovery, 'init', 'INITIAL_BOOTSTRAP');
+  generateContextFiles(CWD, discovery, trigger, impact, { overwriteCore });
 
   const validation = validateContext(CONTEXT_DIR);
   if (validation.valid) {
@@ -523,7 +593,17 @@ function handleStatus() {
   console.log(`- Project Profile: ${metadata.projectProfile || 'unspecified'}`);
   console.log(`- Context Baseline Git: ${metadata.repositoryRevision ? metadata.repositoryRevision.slice(0, 8) : 'unknown'}`);
   console.log(`- Living Freshness: \x1b[32m${drift.status}\x1b[0m (${drift.reason})`);
-  console.log('- Context Files: 6/6 verified (including metadata.json)');
+  console.log(`- Context Files: ${REQUIRED_FILES.length}/${REQUIRED_FILES.length} verified (including metadata.json, glossary.md, adrs/)`);
+
+  const hostPlan = planHostSync({ home: homeDir() });
+  const hostCopy = hostPlan.filter((item) => item.action === 'copy').length;
+  if (hostCopy > 0) {
+    log.warn(`- Host skills: STALE (${hostCopy} file(s) behind package v${VERSION})`);
+    log.dim('  Run "npx ai-engineering-loop sync-hosts" then start a new session.');
+  } else {
+    const hostCurrent = hostPlan.filter((item) => item.action === 'current').length;
+    console.log(`- Host skills: CURRENT (${hostCurrent} managed file(s) match v${VERSION})`);
+  }
 }
 
 // Command: refresh
@@ -537,8 +617,15 @@ function handleRefresh() {
     return;
   }
 
+  const validation = validateContext(CONTEXT_DIR);
+  if (!validation.valid) {
+    log.info(`Incomplete context: ${validation.reason}. Filling missing files without overwriting filled ones...`);
+    const discovery = analyzeRepository(CWD);
+    generateContextFiles(CWD, discovery, 'refresh', 'REPAIR_MISSING', { overwriteCore: false });
+  }
+
   const drift = evaluateDrift(CWD, CONTEXT_DIR);
-  if (drift.status === 'CURRENT') {
+  if (drift.status === 'CURRENT' && validateContext(CONTEXT_DIR).valid) {
     log.success('✓ Context is already CURRENT. No changes required.');
     log.dim(`Reason: ${drift.reason}`);
     process.exit(0);
@@ -547,10 +634,24 @@ function handleRefresh() {
   log.info(`Drift detected: ${drift.reason}. Reconciling context...`);
   const discovery = analyzeRepository(CWD);
 
-  generateContextFiles(CWD, discovery, 'refresh', 'DRIFT_RECONCILIATION');
+  generateContextFiles(CWD, discovery, 'refresh', 'DRIFT_RECONCILIATION', { overwriteCore: true });
 
   log.success('✓ Context reconciled non-destructively.');
   handleStatus();
+}
+
+function syncHostsQuiet() {
+  const results = applyHostSync({ home: homeDir(), dryRun: false });
+  const copied = results.filter((item) => item.action === 'copy').length;
+  if (copied === 0) return;
+  console.log(formatHostSyncReport(results, { version: VERSION }));
+}
+
+function handleSyncHosts() {
+  const dryRun = process.argv.includes('--dry-run');
+  log.info(`AI Engineering Loop — Sync host skills (sync-hosts)${dryRun ? ' [dry-run]' : ''}`);
+  const results = applyHostSync({ home: homeDir(), dryRun });
+  console.log(formatHostSyncReport(results, { version: VERSION, dryRun }));
 }
 
 function detectGrokHost() {
@@ -573,13 +674,15 @@ function handleRun() {
     handleStatus();
   }
 
+  syncHostsQuiet();
+
   const grok = detectGrokHost();
 
   console.log('\n------------------------------------------------------------');
   log.bold('AI Agent Ready:');
-  console.log('1. Formulate Goal Contract (core/goal-contract.md)');
-  console.log('2. Execute Root Cause Analysis & Plan');
-  console.log('3. Maker Agent implements surgical code and tests');
+  console.log('1. Grill if needed, then freeze Goal Contract (core/grill-policy.md, core/goal-contract.md)');
+  console.log('2. Root Cause Analysis (core/root-cause-analysis.md) & Plan');
+  console.log('3. Maker TDD at named seams (policies/tdd-policy.md)');
   console.log('4. Run Deterministic Verification');
   console.log('5. Execute Devil\'s Advocate Adversarial Review');
   console.log('6. Judge Agent evaluates DoD and issues PASS verdict');
@@ -636,10 +739,13 @@ Usage:
   npx ai-engineering-loop <command>
 
 Commands:
-  init      Bootstrap .ai-engineering-loop/ context from repository discovery
-  status    Check the validity, readiness, and baseline freshness of context
-  refresh   Reconcile drifted context against repository non-destructively
-  run       Verify context readiness and instruct AI agent to begin loop
+  init         Bootstrap .ai-engineering-loop/ context from repository discovery
+  status       Check the validity, readiness, and baseline freshness of context
+  refresh      Reconcile drifted context against repository non-destructively
+  run          Verify context readiness, sync host skills, and instruct the agent
+  sync-hosts   Copy package skills/agents/commands into ~/.claude ~/.grok ~/.gemini ~/.agents
+               (only hosts that already exist; DOT skills only if already installed)
+               --dry-run  print the plan without writing
 
 Options:
   -h, --help     Show this help menu
@@ -666,6 +772,9 @@ switch (command) {
     break;
   case 'run':
     handleRun();
+    break;
+  case 'sync-hosts':
+    handleSyncHosts();
     break;
   case '-v':
   case '--version':

@@ -81,7 +81,8 @@ Inspect Topology ──▶ Manifests/Commands ──▶ Inferred Profile ──�
    - Cross-checks existing docs (`README.md`, `CONTRIBUTING.md`, `CLAUDE.md`, `AGENTS.md`) without blindly trusting contradictions.
 5. **Pass 5 (Safety Audit & File Generation)**:
    - Strictly ignores private credentials (`.env`, `.env.local`, `.pem`, tokens, API keys).
-   - Generates `.ai-engineering-loop/` (`config.md`, `architecture.md`, `conventions.md`, `verification.md`, `adapter.md`).
+   - Generates `.ai-engineering-loop/` (`config.md`, `architecture.md`, `conventions.md`, `verification.md`, `adapter.md`, `glossary.md`, `adrs/README.md`).
+   - Repair of a valid-but-incomplete directory fills missing files only. Filled `glossary.md` and ADRs are never overwritten.
 
 ---
 

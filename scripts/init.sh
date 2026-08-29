@@ -81,5 +81,26 @@ cat <<EOF > .ai-engineering-loop/adapter.md
 - **default_target_branch**: "main"
 EOF
 
+cat <<EOF > .ai-engineering-loop/glossary.md
+# Ubiquitous Language
+
+One term per concept. Use these words in Goal Contracts, tests, and code names.
+
+## Terms
+
+| Term | Meaning | Do not say |
+|---|---|---|
+| Goal Contract | Frozen Stage 1 acceptance document | "the prompt" |
+| Seam | Public interface under test | "the internals" |
+EOF
+
+mkdir -p .ai-engineering-loop/adrs
+cat <<EOF > .ai-engineering-loop/adrs/README.md
+# Architecture Decision Records
+
+Write one ADR when Stage 1 grill settles a load-bearing choice.
+File name: NNN-short-kebab-title.md
+EOF
+
 echo -e "\033[1;32m✓ .ai-engineering-loop/ successfully initialized!\033[0m"
 echo -e "You can now run the AI Engineering Loop on this repository."

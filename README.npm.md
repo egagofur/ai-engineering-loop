@@ -26,14 +26,17 @@ npx ai-engineering-loop refresh
 
 # 4. Verify context readiness and begin engineering loop
 npx ai-engineering-loop run
+
+# 5. Copy package host skills into ~/.claude ~/.grok ~/.gemini ~/.agents
+npx ai-engineering-loop sync-hosts
 ```
 
 ---
 
 ## What It Does
 
-1. **Zero-Config Discovery (`init`)**: Analyzes repository topology (monorepo vs single app), package manifests (`package.json`, `go.mod`, `Cargo.toml`, etc.), frameworks, and test scripts to generate `.ai-engineering-loop/`.
-2. **Living Project Context**: Tracks repository revisions and manifest checksums in `metadata.json` for instant drift detection.
+1. **Zero-Config Discovery (`init`)**: Analyzes repository topology (monorepo vs single app), package manifests (`package.json`, `go.mod`, `Cargo.toml`, etc.), frameworks, and test scripts to generate `.ai-engineering-loop/` including `glossary.md` and `adrs/`.
+2. **Living Project Context**: Tracks repository revisions and manifest checksums in `metadata.json` for instant drift detection. Stage 1 grill freezes a Goal Contract; Maker uses TDD at named seams; DA reports Spec vs Standards without merging them.
 3. **Multi-Agent Triad**: Coordinates **Maker** (surgical diffs & tests), **Devil's Advocate** (independent adversarial review), and **Judge** (impartial evaluation & PASS certification).
 4. **Context Impact Assessment**: Evaluates completed tasks (`NONE`, `TARGETED`, `MAJOR`) to keep project context fresh without expensive whole-repo re-analysis.
 5. **Grok CLI host**: Native `spawn_subagent` for Devil's Advocate and Judge (`TRUE_INDEPENDENT_AGENT`). Disabled by `GROK_SUBAGENTS=0`.

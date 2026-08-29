@@ -24,22 +24,23 @@ Claude Code talks to strict proxies (including Kiro). Follow this exactly:
 
 ## Commands
 
-- `init` / `status` / `refresh`: run `npx ai-engineering-loop <command>` in the repo. Do not commit unless asked.
+- `init` / `status` / `refresh` / `sync-hosts`: run `npx ai-engineering-loop <command>` in the repo. Do not commit unless asked.
 - Any other argument: full loop for that task.
 
 ## Loop
 
 Parent session is Maker plus orchestrator. Spawn Devil's Advocate and Judge as **siblings**, not nested.
 
-1. Stage 0: `npx ai-engineering-loop status` (init or refresh if missing or stale).
-2. Stage 1: write a Goal Contract. Schema: `core/goal-contract.md`.
-3. Stages 2-4: Maker work in the parent. Surgical diff plus tests.
+1. Stage 0: `npx ai-engineering-loop sync-hosts` then `npx ai-engineering-loop status` (init or refresh if missing or stale). Read `.ai-engineering-loop/glossary.md`. If sync-hosts copied files, tell the user a new session is needed for updated skill text; keep going with this session.
+2. Stage 1: Goal Contract (`core/goal-contract.md`). If the task is ambiguous and the user can answer, grill first (`core/grill-policy.md`): design tree, recommended answers, do not ask look-up facts. Skip grill if the contract is already frozen or the user waived it. On `adapter_type: dot`, that grill includes the four-pillar blast radius (state, sibling, approval, queues). Do not run a second interview. Freeze before any production edit. Name test seams. Use glossary terms.
+3. Stages 2-4: Maker in the parent. Bugs: red repro first (`core/root-cause-analysis.md`). Features: TDD at named seams (`policies/tdd-policy.md`). Surgical diff.
 4. Stage 5: run commands from `.ai-engineering-loop/verification.md`. Keep command, exit code, stdout, test counts. Vague "seems green" is invalid.
 5. Write artifacts, then spawn. Before Devil's Advocate:
    - Write `git diff` to a file (for example `.ai-engineering-loop/tasks/current.diff`).
    - Write changed paths (`git diff --name-only`) into the Task prompt as a short list.
    - Put those paths in the child prompt. Do not paste Maker rationale.
-6. Stage 6: Task `subagent_type: devil-advocate`. Use `general-purpose` only if that type is rejected. If the Task schema includes `run_in_background`, set it false. Then wait for Task to return. Do not start Judge or more Maker work until the Finding Ledger is back. Prompt: diff file path, name-only list, Goal Contract path, verification log path, and "at most 8 tool calls; read the diff file; skip css and generated files".
+   - If stopping mid-loop, write `.ai-engineering-loop/tasks/handoff.md` (`core/handoff-policy.md`).
+6. Stage 6: Task `subagent_type: devil-advocate`. Use `general-purpose` only if that type is rejected. If the Task schema includes `run_in_background`, set it false. Then wait for Task to return. Do not start Judge or more Maker work until the Finding Ledger is back. Prompt: diff file path, name-only list, Goal Contract path, verification log path, conventions.md path, and "at most 8 tool calls; read the diff file; skip css and generated files". Report Spec and Standards axes separately.
 7. Stage 7: Task `subagent_type: judge` the same way (wait, no background). Use `general-purpose` only if `judge` is rejected. Prompt: Goal Contract path, verification evidence path, Finding Ledger, and "at most 4 tool calls; ledger and contract only; skip css; do not re-review the whole diff".
 8. ITERATE with iteration under 3: fix in the parent, re-verify, spawn a **new** Devil's Advocate (do not resume the previous child).
 9. Stage 8: delivery from `.ai-engineering-loop/adapter.md`.

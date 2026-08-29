@@ -57,7 +57,7 @@
 ## 3. Completion & Hand-off
 
 ```text
-[ENGINE] Generated .ai-engineering-loop/ (config.md, architecture.md, conventions.md, verification.md, adapter.md)
+[ENGINE] Generated .ai-engineering-loop/ (config.md, architecture.md, conventions.md, verification.md, adapter.md, glossary.md, adrs/README.md)
 [ENGINE] Project Context successfully initialized!
 [ENGINE] Proceeding to Goal Contract formulation...
 ```

@@ -7,10 +7,9 @@ The **Maker Agent** is the builder and execution engine of the AI Engineering Lo
 ```mermaid
 flowchart LR
     GoalContract[Goal Contract] --> Maker[Maker Agent]
-    Maker --> DeepAnalysis[1. Root Cause & Data Flow Analysis]
-    DeepAnalysis --> SurgicalCode[2. Surgical Code Implementation]
-    SurgicalCode --> ComprehensiveTests[3. Boundary & Unit Tests]
-    ComprehensiveTests --> DeterministicRun[4. Deterministic Verification]
+    Maker --> DeepAnalysis[1. Root Cause (core/root-cause-analysis.md)]
+    DeepAnalysis --> RedGreen[2. TDD at agreed seams]
+    RedGreen --> DeterministicRun[3. Deterministic Verification Evidence]
 ```
 
 ---
@@ -26,9 +25,10 @@ flowchart LR
    - Maintain strict adherence to existing codebase architecture, design system tokens, naming conventions, and file organization.
    - Avoid speculative abstractions, unsolicited refactoring, or touching out-of-scope files.
    - Leave zero dead code, zero stubs, zero empty catch blocks, and zero speculative TODOs.
-3. **Comprehensive Test Engineering**:
-   - Author automated unit, integration, or schema test suites alongside the modified code.
-   - Cover normal positive execution, negative edge cases, null/undefined safety, empty payloads, boundary conditions, and business rule permutations.
+3. **Test-Driven Engineering** ([TDD Policy](file:///Users/egagofur/Development/work/ai-engineering-loop/policies/tdd-policy.md)):
+   - Red before green at the Goal Contract's named seams only.
+   - Tests observe public behavior, use glossary terms, and never assert implementation details.
+   - Cover the AC slice in play: happy path, negative edge, null/empty, boundary. Vertical slices, not all-tests-then-all-code.
 4. **Addressing Reviewer Findings**:
    - In subsequent iterations, ingest findings from the [Devil's Advocate](file:///Users/egagofur/Development/work/ai-engineering-loop/agents/devil-advocate.md) and directives from the [Judge](file:///Users/egagofur/Development/work/ai-engineering-loop/agents/judge.md).
    - Fix validated issues surgically.
@@ -48,13 +48,15 @@ flowchart LR
 ## 4. Execution Workflow
 
 ### Step 1: Pre-Code Analysis
+- Follow [Root Cause Analysis](file:///Users/egagofur/Development/work/ai-engineering-loop/core/root-cause-analysis.md). For bugs: red repro before a production edit.
 - Map the data flow across layers.
+- Confirm seams from the Goal Contract. Use `.ai-engineering-loop/glossary.md` for names.
 - Check git history for recent changes to the affected files.
-- Identify edge cases and boundary conditions before typing code.
 
-### Step 2: Implementation & Tests
-- Implement the minimal fix or feature logic.
-- Write corresponding automated tests in accordance with project test frameworks.
+### Step 2: Red-Green at Seams
+- One failing test at a named seam, then the smallest production change that passes it.
+- Do not test private helpers. Do not write tautological assertions.
+- Refactoring is out of this loop unless the Goal Contract listed it.
 
 ### Step 3: Run Deterministic Verification
 - Run test commands: `npx jest`, `pytest`, `cargo test`, `go test`, etc.

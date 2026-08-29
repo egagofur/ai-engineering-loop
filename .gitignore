@@ -6,3 +6,4 @@ tmp/
 .temp/
 *.log
 .claude/settings.local.json
+.serena/

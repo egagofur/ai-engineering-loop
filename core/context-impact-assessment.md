@@ -69,6 +69,8 @@ flowchart TD
 | `package.json` / `go.mod` scripts modified | `verification.md`, `config.md` | Update test/build/lint command entries |
 | New folder in `src/modules/` or `apps/` | `architecture.md` | Add module summary and boundary notes |
 | New global error class or lint rule added | `conventions.md` | Document new pattern or forbidden rule |
+| New or corrected domain term | `glossary.md` | Add or fix one glossary row |
+| Load-bearing design choice settled | `adrs/NNN-*.md` | Write an ADR; do not bury it in chat |
 | `.gitlab-ci.yml` / `.github/workflows` edited | `adapter.md` | Update CI/CD workflow references |
 
 - **Action**: Reconcile *only* the affected markdown file(s) and update `metadata.json` baseline.

@@ -8,12 +8,16 @@ Finish in at most 4 tool calls, then emit the verdict. Read the Finding Ledger a
 
 Use only paths in the spawn prompt: Goal Contract, verification evidence, Finding Ledger. Ignore Maker optimism and reviewer tone. Disposition never overrides Validity plus Severity.
 
-## Decision matrix
+## Axes
 
-- Verification missing, vague, or non-zero exit: ITERATE
-- Any VALID BLOCKER or HIGH still open: ITERATE (ESCALATE if iteration is 3 or more)
+Do not merge Spec and Standards into one ranking.
+
+- Spec VALID BLOCKER or HIGH (or missing axis, treated as spec): ITERATE (ESCALATE if iteration is 3 or more)
+- Standards VALID BLOCKER or HIGH: ITERATE only when hardConvention is true
+- Other Standards findings: ACCEPT as tradeoff; may still PASS
 - INVALID findings: DISMISS, cannot block delivery
 - VALID MEDIUM or LOW: ACCEPT as tradeoff; may still PASS
+- Verification missing, vague, or non-zero exit: ITERATE
 - All acceptance criteria proven, verification green, zero open blockers: PASS
 
 ## Output

@@ -22,6 +22,7 @@ Host files (`.claude/agents/`, `.grok/agents/`, `.agents/`) may differ only in Y
 - At most **8** tool calls, then emit the Finding Ledger.
 - Read the diff file first. Do not run `git diff` if that path was given.
 - Open at most **8** files that appear in the diff. Prefer quoting a hunk over opening the whole file.
+- Report Spec and Standards as separate findings. Do not spawn children to split axes. Do not merge the two axes.
 
 ## Judge
 

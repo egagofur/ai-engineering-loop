@@ -47,16 +47,20 @@ The DOT adapter is organized into four dedicated specification modules:
 
 ## 3. Official DOT Engineering Skills Integration
 
-This adapter integrates with the official DOT skill suite installed in `~/.gemini/config/skills/` (and `~/.claude/skills/`):
+This adapter composes the DOT skill suite that Antigravity loads from `~/.gemini/config/skills/` (not from `~/.claude/skills/` and not from this npm package). Claude Code and Grok do not get these skills unless the same files are installed on those hosts.
+
+On a DOT repo (`adapter_type: dot`), **run `ai-engineering-loop`**, not the old 9-phase `dot-dev-workflow`, as the engineering OS. Stage 1 grill **includes** `task-impact-inquiry`. Do not run a second interview. After Judge `PASS`, Stage 8 is `dot-dev-workflow` delivery (GitLab, cherry-pick, Coreview, Mattermost). Canonical copies: `adapters/dot/skills/`. See `core/grill-policy.md`.
 
 | Skill | Primary Role & Governance |
 | :--- | :--- |
-| **`dot-dev-workflow`** | Standard 9-phase lifecycle coordinator (RCA s.d. Mattermost auto-send). |
-| **`task-impact-inquiry`** | Proactive 4-pillar blast radius scan and critical probing questions before writing code. |
+| **`ai-engineering-loop`** | Engineering OS (Stages 0-7). Use this for DOT bugfix/feature/refactor. |
+| **`dot-dev-workflow`** | Stage 8 delivery only after Judge PASS. Not a parallel engineering loop. |
+| **`dot-dev-skill-router`** | Routes commit-bound DOT work to `ai-engineering-loop`, then Stage 8. |
+| **`task-impact-inquiry`** | Antigravity skill at `~/.gemini/config/skills/task-impact-inquiry/`. Four-pillar blast radius (state, sibling, approval, downstream queues). Fills Stage 1 grill on DOT; then freeze the Goal Contract. |
 | **`backend-development`** | Framework-agnostic backend guidelines (clean naming, database queries, security, error handling). |
 | **`backend-safety-guardrails`** | 6 architectural backend safety invariants (queue bypass, BigInt, status recalculation loops). |
-| **`devils-advocate`** | Pre-commit multi-round adversarial review gate (Phase 6). |
-| **`requesting-code-review`** | Standards for requesting human and peer code review. |
+| **`devils-advocate`** | Legacy DOT pre-commit skill. On AEL, Stages 6-7 are package Devil's Advocate + Judge. Do not re-run this skill after Judge PASS. |
+| **`requesting-code-review`** | Optional peer-review dispatch. AEL Judge is the pre-commit gate. |
 | **`receiving-code-review`** | Technical rigor in evaluating review feedback without blind compliance. |
 | **`gitlab-mr-feedback`** | GitLab API patterns and thread resolution on MR discussions. |
 | **`auto-mr-issue`** | Automated issue, MR creation, and Mattermost Markdown formatting. |

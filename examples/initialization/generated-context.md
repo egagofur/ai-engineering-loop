@@ -1,6 +1,6 @@
 # Generated Context Artifacts: `acme-platform`
 
-Below are the exact 5 files generated automatically inside `/workspaces/acme-platform/.ai-engineering-loop/`:
+Below are the files generated automatically inside `/workspaces/acme-platform/.ai-engineering-loop/` (including `glossary.md` and `adrs/README.md`):
 
 ---
 

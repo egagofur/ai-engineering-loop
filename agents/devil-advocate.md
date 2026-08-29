@@ -31,7 +31,7 @@ Canonical ids are listed first; skill aliases are in parentheses.
 
 The Devil's Advocate receives **only** the objective artifact package:
 - `Goal Contract` (AC-1..N, constraints, out of scope).
-- `Project Context` (`.ai-engineering-loop/`: `architecture.md`, `conventions.md`, `verification.md`).
+- `Project Context` (`.ai-engineering-loop/`: `architecture.md`, `conventions.md`, `verification.md`, `glossary.md`).
 - `Pure Git Diff` (`git diff <base>...HEAD`).
 - `Deterministic Verification Logs` (exit code 0 proof).
 - `Prior Finding Signatures`.
@@ -52,6 +52,8 @@ The Devil's Advocate outputs a strictly structured Finding Ledger:
   "findings": [
     {
       "id": "DA-01",
+      "axis": "spec",
+      "hardConvention": false,
       "topic": "correctness",
       "validity": "VALID",
       "severity": "BLOCKER",

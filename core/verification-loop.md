@@ -6,6 +6,8 @@ The Verification Loop is the deterministic machine gate of the AI Engineering Lo
 
 > **"Code cannot enter Devil's Advocate review until it achieves 100% green machine verification backed by explicit, verifiable execution evidence."**
 
+Maker reaches that green via [TDD Policy](file:///Users/egagofur/Development/work/ai-engineering-loop/policies/tdd-policy.md): red at a named seam, then green. "We did TDD" without logs is not a PASS.
+
 ---
 
 ## 2. Verification Evidence Contract
@@ -20,7 +22,7 @@ A verification `PASS` is **strictly invalid** without concrete execution evidenc
 5. **`stdout` & `stderr`**: Raw machine logs captured from execution.
 6. **`timeoutStatus`**: Must be `"COMPLETED"` (not timed out or backgrounded without completion).
 7. **`testCounts`**: Explicit counts of passed, failed, and skipped tests.
-8. **`assertionEvidence`**: Specific assertion proof matching the active Goal Contract's Acceptance Criteria.
+8. **`assertionEvidence`**: Specific assertion proof matching the active Goal Contract's Acceptance Criteria, observed at a named test seam.
 
 ```json
 {

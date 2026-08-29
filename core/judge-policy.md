@@ -30,12 +30,13 @@ flowchart TD
 
 ## 2. Evidence-Based Decision Matrix
 
-The Judge renders decisions based strictly on **Validity + Severity**. The reviewer's subjective disposition (`STRONG`, `ACCEPTABLE`, `WEAK`) **never overrides factual evidence**:
+The Judge renders decisions based strictly on **Validity + Severity**, then **review axis**. The reviewer's subjective disposition (`STRONG`, `ACCEPTABLE`, `WEAK`) **never overrides factual evidence**. Do not merge Spec and Standards into one ranking:
 
 | Finding Validity | Finding Severity | Disposition | Judge Action | Impact on Final Verdict |
 |---|---|---|---|---|
-| **`VALID`** | **`BLOCKER`** | Any | **UPHELD (Blocking)** | **`ITERATE`** — Maker must apply alternative diff & tests. |
-| **`VALID`** | **`HIGH`** | Any | **UPHELD (Blocking)** | **`ITERATE`** — Maker must apply alternative diff & tests. |
+| **`VALID`** | **`BLOCKER`** | Any | **UPHELD (Blocking)** if `axis` is `spec` (or omitted), or `standards` with `hardConvention: true` | **`ITERATE`** — Maker must apply alternative diff & tests. |
+| **`VALID`** | **`HIGH`** | Any | **UPHELD (Blocking)** under the same axis rule | **`ITERATE`** — Maker must apply alternative diff & tests. |
+| **`VALID`** | **`BLOCKER` / `HIGH`** | Any | **TRADEOFF** if `axis` is `standards` and `hardConvention` is not true | **`PASS`** (if ACs met) — smell/convention judgement, not an AC breach. |
 | **`VALID`** | **`MEDIUM`** | `ACCEPTABLE` | **UPHELD (Tradeoff)** | **`PASS`** (if ACs met) — Logged as known tradeoff in MR. |
 | **`VALID`** | **`LOW`** | `ACCEPTABLE` | **UPHELD (Tradeoff)** | **`PASS`** (if ACs met) — Logged as known tradeoff in MR. |
 | **`INVALID`** | Any | `WEAK` | **DISMISSED (Hallucination)** | **`PASS`** (if ACs met) — Discarded with evidence proof. |

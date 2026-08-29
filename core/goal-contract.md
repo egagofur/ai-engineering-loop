@@ -11,6 +11,8 @@ The Goal Contract establishes:
 - **Where** the boundaries are set (preventing scope creep).
 - **When** the work is strictly considered complete.
 
+Alignment before freeze follows [Grill Policy](file:///Users/egagofur/Development/work/ai-engineering-loop/core/grill-policy.md). Terms come from `.ai-engineering-loop/glossary.md`.
+
 ---
 
 ## 2. Mandatory Contract Schema
@@ -40,13 +42,22 @@ Every Goal Contract MUST adhere to the following schema in Markdown or structure
 ## 5. Out of Scope
 - [Explicitly list what the agent MUST NOT touch or refactor during this task]
 
-## 6. Verification Requirements
+## 6. Ubiquitous Language
+- Terms used in this contract (must match `.ai-engineering-loop/glossary.md`): [term, ...]
+- New terms coined in Stage 1 grill: [add to glossary before freeze]
+
+## 7. Test Seams
+- [Public interface under test. Prefer existing seams. No test at an unconfirmed seam.]
+- [What a passing test at this seam proves for AC-1..N]
+
+## 8. Verification Requirements
 - **Unit Tests**: [Target files, boundary cases, and minimum expected coverage]
 - **Static Analysis**: [Typecheck command, linter command, schema validation command]
 - **Build / Packaging**: [Build command or bundling check]
 - **Runtime / Integration**: [Manual smoke test steps or integration test command]
+- **TDD**: Red then green at the seams above (`policies/tdd-policy.md`)
 
-## 7. Definition of Done (DoD)
+## 9. Definition of Done (DoD)
 - [ ] All Acceptance Criteria (AC-1 through AC-N) verified with automated tests.
 - [ ] 100% pass on all deterministic verification commands (0 errors, 0 warnings where enforced).
 - [ ] Independent Devil's Advocate review completed with 0 unresolved blocking findings (SEV-1 / SEV-2).
@@ -60,7 +71,8 @@ Every Goal Contract MUST adhere to the following schema in Markdown or structure
 
 1. **Pre-Implementation Freezing**:
    - The Goal Contract is authored and frozen *before* any production code edits.
-   - If the task is ambiguous, the agent must refine the contract with the user before touching code.
+   - If the task is ambiguous and a human is present, run the [Grill Policy](file:///Users/egagofur/Development/work/ai-engineering-loop/core/grill-policy.md) until the design-tree frontier is empty, then freeze.
+   - If the task is unambiguous, waived, or headless with testable AC, skip grill and freeze immediately.
 2. **Immutability During Iteration**:
    - Neither the Maker Agent nor the Devil's Advocate Agent may alter Acceptance Criteria during an iteration loop to make tests pass or bypass critique.
 3. **Contract Amendments**:
@@ -83,6 +95,8 @@ Every single item listed under `Acceptance Criteria` must map to at least one co
 
 ## 5. Anti-Patterns to Avoid
 
-- **The Vague Contract**: "Make authentication work better." (Invalid: lacks testable acceptance criteria).
+- **The Vague Contract**: "Make authentication work better." (Invalid: lacks testable acceptance criteria). Grill or refuse to freeze.
+- **The Missing Seam**: Acceptance criteria with no public interface to test against.
+- **The Parallel Glossary**: Using 20 words for a concept that already has a term in `glossary.md`.
 - **The Missing Constraint**: Failing to declare out-of-scope files, leading to arbitrary refactoring of adjacent legacy modules.
 - **The Self-Serving Goal**: Modifying acceptance criteria post-hoc when tests fail rather than fixing the underlying implementation.

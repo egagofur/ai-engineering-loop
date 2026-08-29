@@ -6,13 +6,13 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/egagofur/ai-engineering-loop/pulls)
 [![AI Engineering](https://img.shields.io/badge/AI-Engineering%20Loop-orange.svg)](https://github.com/egagofur/ai-engineering-loop)
-[![Release](https://img.shields.io/badge/release-v1.0.11-purple.svg)](https://github.com/egagofur/ai-engineering-loop/releases)
+[![Release](https://img.shields.io/badge/release-v1.0.12-purple.svg)](https://github.com/egagofur/ai-engineering-loop/releases)
 
 **A Reusable, Framework-Agnostic AI Engineering Operating System for Autonomous Coding Agents**
 
 *Featuring living project context, strict verification evidence contracts, 3-stage capability lifecycle registry, and dual-axis Judge evaluation.*
 
-[Overview](#overview--philosophy) • [Runtime Capability Registry](#runtime-capability-registry--execution-modes) • [Verification Evidence](#verification-evidence-contract) • [CLI Commands](#cli-interface--commands) • [Grok CLI](#grok-cli-integration) • [Claude Code](#claude-code-integration) • [Antigravity](#antigravity-agent-integration) • [Lifecycle](#lifecycle-stages) • [Architecture](#architecture--5-layer-configuration) • [Project Profiles](#project-profiles) • [Repository Structure](#repository-structure) • [Reference Examples](#reference-examples) • [Contributing](#contributing)
+[Overview](#overview--philosophy) • [Stage techniques](#stage-techniques) • [Runtime Capability Registry](#runtime-capability-registry--execution-modes) • [Verification Evidence](#verification-evidence-contract) • [CLI Commands](#cli-interface--commands) • [Grok CLI](#grok-cli-integration) • [Claude Code](#claude-code-integration) • [Antigravity](#antigravity-agent-integration) • [Lifecycle](#lifecycle-stages) • [Architecture](#architecture--5-layer-configuration) • [Project Profiles](#project-profiles) • [Repository Structure](#repository-structure) • [Reference Examples](#reference-examples) • [Contributing](#contributing)
 
 </div>
 
@@ -55,6 +55,23 @@ flowchart TD
     
     Adapter --> TargetRepo[(Target Repository)]
 ```
+
+---
+
+## Stage techniques
+
+The 8-stage loop stays one OS. These techniques sit **inside** existing stages (they are not optional slash-command products):
+
+| Stage | Technique | Spec |
+|---|---|---|
+| 1 | Grill until the design-tree frontier is empty, then freeze the Goal Contract. Skip if already frozen, waived, or headless with testable AC. | `core/grill-policy.md` |
+| 1 | Ubiquitous language in `.ai-engineering-loop/glossary.md`; load-bearing choices in `.ai-engineering-loop/adrs/` | `core/repo-config-schema.md` |
+| 2 | Bugs: red repro → minimise → hypothesise → instrument → fix | `core/root-cause-analysis.md` |
+| 4–5 | Red-green at named **seams**; no implementation-coupled or tautological tests | `policies/tdd-policy.md` |
+| 6–7 | Spec vs Standards reported separately. Standards BLOCKER/HIGH iterate only when `hardConvention` is true | `policies/finding-policy.md` |
+| any | Mid-loop stop writes `.ai-engineering-loop/tasks/handoff.md` | `core/handoff-policy.md` |
+
+`init` now requires `glossary.md` and `adrs/README.md`. Repair fills missing files only; a filled glossary is never overwritten.
 
 ---
 
@@ -160,7 +177,12 @@ npx ai-engineering-loop refresh
 
 # Verify context readiness and begin engineering loop
 npx ai-engineering-loop run
+
+# Copy package skills/agents/commands into ~/.claude ~/.grok ~/.gemini ~/.agents
+npx ai-engineering-loop sync-hosts
 ```
+
+`sync-hosts` updates only hosts that already exist on the machine. DOT skills (`dot-dev-skill-router`, `dot-dev-workflow`) are updated only if they are already installed. It does not install `task-impact-inquiry`. After a copy, start a new session so the host reloads skill text. `/ai-engineering-loop` Stage 0 and `run` call `sync-hosts` so a published package bump reaches global host files without a manual copy.
 
 ---
 
@@ -243,7 +265,7 @@ ai-engineering-loop/
 ├── package.json                        # CLI package manifest
 │
 ├── bin/                                # CLI execution entrypoints
-│   └── ai-engineering-loop.js          # npx executable CLI (init, status, refresh, run)
+│   └── ai-engineering-loop.js          # npx executable CLI (init, status, refresh, run, sync-hosts)
 │
 ├── lib/                                # Core orchestration & decision engine
 │   └── orchestration.js                # 3-stage capability registry, barrier builder, Judge engine
@@ -276,6 +298,9 @@ ai-engineering-loop/
 │   ├── context-refresh-policy.md       # Progressive drift hierarchy & living baseline
 │   ├── context-impact-assessment.md    # Post-task impact assessment (NONE, TARGETED, MAJOR)
 │   ├── goal-contract.md                # Task contract schema & acceptance criteria
+│   ├── grill-policy.md                 # Stage 1 human alignment (design tree)
+│   ├── root-cause-analysis.md          # Stage 2 diagnosis gates
+│   ├── handoff-policy.md               # Mid-loop session handoff artifact
 │   ├── verification-loop.md            # Dual-layer verification & Evidence Contract
 │   ├── definition-of-done.md           # 5 pillars of Done & rejection triggers
 │   ├── iteration-policy.md             # Bounded autonomous loop (MAX_ITERATIONS = 3)
@@ -300,6 +325,7 @@ ai-engineering-loop/
 ├── policies/                           # Operational schemas & algorithms
 │   ├── discovery-safety-policy.md      # Secret protection & non-destructive discovery rules
 │   ├── finding-policy.md               # Dual-axis finding schema & severity matrix
+│   ├── tdd-policy.md                   # Red-green at named seams
 │   ├── evidence-policy.md              # 5-level evidence hierarchy & Verification Evidence Contract
 │   └── no-progress-policy.md           # Finding signature hashing & stagnation detection
 │
@@ -315,6 +341,8 @@ ai-engineering-loop/
     └── repo-config/                    # Ready-to-copy .ai-engineering-loop/ files
         ├── config.md                   # Project identity & profile binding
         ├── architecture.md             # Layers & boundary invariants
+        ├── glossary.md                 # Ubiquitous language
+        ├── adr-readme.md               # ADR folder template
         ├── conventions.md              # Code standards & forbidden patterns
         ├── verification.md             # CLI test/lint/build commands
         └── adapter.md                  # Configured release pipeline

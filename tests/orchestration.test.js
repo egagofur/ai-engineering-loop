@@ -286,3 +286,83 @@ test('D, F, G. Judge Decision Matrix: VALID BLOCKER forces ITERATE; INVALID does
   assert.strictEqual(verdictTradeoff.verdict, 'PASS');
   assert.strictEqual(verdictTradeoff.acceptableTradeoffs.length, 1);
 });
+
+test('Standards axis BLOCKER does not iterate unless hardConvention is true', () => {
+  const goalContract = { objective: 'Test' };
+  const verificationEvidence = {
+    command: 'npm test',
+    executionIdentity: 'exec-1',
+    startTime: '2026-08-25T10:00:00Z',
+    endTime: '2026-08-25T10:00:02Z',
+    exitCode: 0,
+    stdout: '10 passed',
+    timeoutStatus: 'COMPLETED',
+    testCounts: { passed: 10, failed: 0 }
+  };
+
+  const smellLedger = {
+    findings: [
+      {
+        id: 'DA-S1',
+        axis: 'standards',
+        hardConvention: false,
+        severity: 'HIGH',
+        validity: 'VALID',
+        disposition: 'STRONG',
+        location: 'src/pay.ts#L4',
+        failureScenario: 'Duplicated Code across two hunks',
+        evidence: 'Same lock shape in two functions'
+      }
+    ]
+  };
+
+  const smellVerdict = computeJudgeVerdict({
+    goalContract,
+    verificationEvidence,
+    findingLedger: smellLedger,
+    activeIteration: 1
+  });
+  assert.strictEqual(smellVerdict.verdict, 'PASS');
+  assert.strictEqual(smellVerdict.acceptableTradeoffs.length, 1);
+
+  const hardLedger = {
+    findings: [
+      {
+        id: 'DA-S2',
+        axis: 'standards',
+        hardConvention: true,
+        severity: 'HIGH',
+        validity: 'VALID',
+        disposition: 'STRONG',
+        location: 'src/pay.ts#L4',
+        failureScenario: 'conventions.md forbids any',
+        evidence: 'any used in public seam',
+        concreteAlternativeDiff: '- x: any\n+ x: unknown'
+      }
+    ]
+  };
+
+  const hardVerdict = computeJudgeVerdict({
+    goalContract,
+    verificationEvidence,
+    findingLedger: hardLedger,
+    activeIteration: 1
+  });
+  assert.strictEqual(hardVerdict.verdict, 'ITERATE');
+  assert.strictEqual(hardVerdict.blockingFindings.length, 1);
+});
+
+test('Finding ledger rejects unknown axis; missing axis remains valid', () => {
+  const base = {
+    id: 'DA-1',
+    severity: 'LOW',
+    validity: 'VALID',
+    disposition: 'ACCEPTABLE',
+    location: 'src/a.ts#L1',
+    failureScenario: 'n',
+    evidence: 'e'
+  };
+  assert.strictEqual(validateFindingLedger({ findings: [base] }).valid, true);
+  assert.strictEqual(validateFindingLedger({ findings: [{ ...base, axis: 'spec' }] }).valid, true);
+  assert.strictEqual(validateFindingLedger({ findings: [{ ...base, axis: 'style' }] }).valid, false);
+});

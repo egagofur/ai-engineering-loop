@@ -39,6 +39,8 @@ flowchart LR
 ### Pillar 3: Code & Diff Quality
 - **Surgical Diff**: Smallest coherent diff that completely resolves the issue.
 - **Architecture Preservation**: Adheres to existing repository patterns, naming conventions, and layer boundaries.
+- **Seams & TDD**: Tests sit at Goal Contract seams; red then green (`policies/tdd-policy.md`).
+- **Glossary**: New names match `.ai-engineering-loop/glossary.md`.
 - **Zero Placeholders**: No stubbed functions, empty `catch` blocks, speculative `TODO` comments, or orphaned dead code.
 - **Null & Boundary Safety**: Explicit handling of `null`, `undefined`, empty collections, and error paths.
 

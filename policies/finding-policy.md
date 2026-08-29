@@ -20,6 +20,10 @@ id: "<CATEGORY_PREFIX>-<3_DIGIT_NUMBER>" # e.g. COR-001, SEC-002, PERF-001
 title: "<Short, descriptive summary of the problem>"
 topic: "<correctness | error_handling | security | concurrency | performance | maintainability | testing_gaps>"
 
+# Review axis (do not merge Spec with Standards)
+axis: "<spec | standards>" # spec: Goal Contract / runtime defect | standards: conventions.md or smell baseline
+hardConvention: false # true only when conventions.md states a hard rule this hunk violates
+
 # Axis 1: Factual Validity
 validity: "<VALID | INVALID>" # VALID: Real technical flaw | INVALID: Reviewer hallucination or misunderstanding
 
@@ -66,5 +70,7 @@ Review findings are hypotheses, not absolute truths.
 - **`INVALID` (Dismissed)**: The reviewer made an assumption disproved by the codebase, referenced a non-existent API, or flagged intentional behavior.
 
 > [!IMPORTANT]
-> **Decision Rule**: The Judge Agent evaluates findings primarily on **Validity + Severity**.
+> **Decision Rule**: The Judge Agent evaluates findings primarily on **Validity + Severity**, then on **review axis**.
 > A reviewer's subjective disposition (`STRONG`, `ACCEPTABLE`, `WEAK`) **never overrides evidence**. An `INVALID` finding cannot block delivery, even if the reviewer labeled it `STRONG` or `BLOCKER`.
+> Spec (`axis: spec`) VALID BLOCKER/HIGH forces `ITERATE`. Standards (`axis: standards`) VALID BLOCKER/HIGH forces `ITERATE` only when `hardConvention: true`. Other Standards findings are tradeoffs. Missing `axis` is treated as `spec`.
+> Do not merge Spec and Standards into one ranking. A change can pass one axis and fail the other.

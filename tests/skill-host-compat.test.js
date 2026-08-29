@@ -144,3 +144,86 @@ test('Claude and Grok parent skills pass Judge a 4-call ledger-only prompt', () 
   assert.match(claude, /4 tool calls/);
   assert.match(grok, /4 tool calls/);
 });
+
+test('Gemini Antigravity skill matches the loop and never uses Grok spawn keys or browser_subagent as reviewer', () => {
+  const gemini = readRepo('.gemini/skills/ai-engineering-loop/SKILL.md');
+  const { fm } = parseFrontmatter(gemini, 'gemini skill');
+  assert.doesNotMatch(fm, /^description:\s*>-?/m);
+  assert.doesNotMatch(gemini, /```mermaid/);
+  assert.doesNotMatch(gemini, /\$\\/);
+  assert.doesNotMatch(gemini, /spawn_subagent/);
+  assert.doesNotMatch(gemini, /capability_mode/);
+  assert.doesNotMatch(gemini, /resume_from/);
+  assert.match(gemini, /browser_subagent/);
+  assert.match(gemini, /CONTEXT_ISOLATION_ONLY/);
+  assert.match(gemini, /grill-policy/);
+  assert.match(gemini, /tdd-policy/);
+  assert.match(gemini, /glossary\.md/);
+  assert.match(gemini, /Spec and Standards/);
+  assert.match(gemini, /task-impact-inquiry/);
+  assert.match(gemini, /8 tool calls/);
+  assert.match(gemini, /4 tool calls/);
+  assert.match(gemini, /TRUE_INDEPENDENT_AGENT/);
+});
+
+test('DOT adapter locates task-impact-inquiry on Antigravity Gemini skills, not Claude', () => {
+  const readme = readRepo('adapters/dot/README.md');
+  assert.match(readme, /~\/\.gemini\/config\/skills/);
+  assert.match(readme, /task-impact-inquiry/);
+  assert.match(readme, /not from `~\/\.claude\/skills\/`/);
+  assert.doesNotMatch(readme, /and `~\/\.claude\/skills\/`/);
+  const grill = readRepo('core/grill-policy.md');
+  assert.match(grill, /task-impact-inquiry/);
+  assert.match(grill, /Do not skip grill/);
+  const wf = readRepo('.agents/workflows/ai-engineering-loop.md');
+  assert.match(wf, /task-impact-inquiry/);
+});
+
+test('DOT router sends commit-bound work to ai-engineering-loop; workflow is Stage 8 only', () => {
+  const router = readRepo('adapters/dot/skills/dot-dev-skill-router/SKILL.md');
+  const delivery = readRepo('adapters/dot/skills/dot-dev-workflow/SKILL.md');
+  const readme = readRepo('adapters/dot/README.md');
+  assert.match(router, /ai-engineering-loop/);
+  assert.match(router, /Do not use dot-dev-workflow as a parallel engineering OS/);
+  assert.doesNotMatch(router, /task-impact-inquiry` → `dot-dev-workflow/);
+  assert.match(delivery, /Not a substitute for ai-engineering-loop/);
+  assert.match(delivery, /Judge `PASS`/);
+  assert.doesNotMatch(delivery, /```mermaid/);
+  assert.match(readme, /run `ai-engineering-loop`/);
+  assert.match(readme, /Stage 8 delivery only/);
+  assert.doesNotMatch(readme, /Pre-commit multi-round adversarial review gate \(Phase 6\)/);
+});
+
+test('Host skills Stage 0 runs sync-hosts before status', () => {
+  for (const rel of [
+    '.claude/skills/ai-engineering-loop/SKILL.md',
+    '.grok/skills/ai-engineering-loop/SKILL.md',
+    '.gemini/skills/ai-engineering-loop/SKILL.md',
+    '.agents/workflows/ai-engineering-loop.md'
+  ]) {
+    const text = readRepo(rel);
+    assert.match(text, /sync-hosts/, rel);
+  }
+});
+
+test('Host skills absorb grill, TDD, glossary, and two-axis review without splitting the loop', () => {
+  for (const rel of [
+    '.claude/skills/ai-engineering-loop/SKILL.md',
+    '.grok/skills/ai-engineering-loop/SKILL.md',
+    '.agents/workflows/ai-engineering-loop.md'
+  ]) {
+    const text = readRepo(rel);
+    assert.match(text, /grill-policy/, rel);
+    assert.match(text, /tdd-policy/, rel);
+    assert.match(text, /glossary\.md/, rel);
+    assert.match(text, /Spec and Standards/, rel);
+    assert.match(text, /adapter_type: dot/, rel);
+  }
+  const da = readRepo('agents/shared/devil-advocate.body.md');
+  assert.match(da, /"axis": "spec"/);
+  assert.match(da, /hardConvention/);
+  assert.match(da, /standards/);
+  const judge = readRepo('agents/shared/judge.body.md');
+  assert.match(judge, /hardConvention is true/);
+  assert.match(judge, /Do not merge Spec and Standards/);
+});
