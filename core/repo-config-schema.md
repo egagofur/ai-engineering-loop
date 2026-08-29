@@ -64,7 +64,7 @@ Maintains lightweight state for instant drift detection:
 - `e2e`: (Optional) End-to-end / browser test command.
 
 ### 6. `adapter.md` — Delivery Pipeline Configuration
-- `adapter_type`: Configured adapter (`dot`, `github`, `gitlab`, `standard`).
+- `adapter_type`: Configured adapter (`standard`, `github`, `gitlab`, `dot`, `custom`). Shipped specs live in `adapters/<type>/`. Generate with `npx ai-engineering-loop generate-adapter` (grill) or `--type`.
 - `remote_repository`: Git remote repository slug.
 - `default_target_branch`: Base target branch.
 - `ci_provider`: Detected CI engine (GitHub Actions, GitLab CI).

@@ -38,9 +38,9 @@ Optional fallback if `devil-advocate` / `judge` types are not registered: `subag
 
 ## Commands
 
-### `/ai-engineering-loop init|status|refresh|sync-hosts`
+### `/ai-engineering-loop init|status|refresh|sync-hosts|generate-adapter`
 
-Run `npx ai-engineering-loop <command>` in the target repo. Do not commit unless the user asks. `sync-hosts` copies this package's skills/agents/commands into `~/.claude`, `~/.grok`, `~/.gemini`, and `~/.agents` for hosts that already exist.
+Run `npx ai-engineering-loop <command>` in the target repo. Do not commit unless the user asks. `sync-hosts` copies this package's skills/agents/commands into `~/.claude`, `~/.grok`, `~/.gemini`, and `~/.agents` for hosts that already exist. `generate-adapter`: load skill `generate-adapter` if present. Grill Q1-Q5. Then write `.ai-engineering-loop/adapter.md`. Do not start Maker.
 
 ### `/ai-engineering-loop [task]`
 
@@ -56,7 +56,7 @@ Run `npx ai-engineering-loop <command>` in the target repo. Do not commit unless
 6. Stage 6: `spawn_subagent` Devil's Advocate. `background: false`. `capability_mode: "execute"`. Do **not** pass `resume_from`. Wait for the child. Prompt: diff file path, name-only file list, Goal Contract path, verification log path, conventions.md path, plus "at most 8 tool calls; read the diff file; skip css and generated files". Report Spec and Standards axes separately.
 7. Stage 7: `spawn_subagent` Judge the same way (`background: false`, wait). Use `general-purpose` only if `judge` is rejected. Prompt: Goal Contract path, verification evidence path, Finding Ledger, and "at most 4 tool calls; ledger and contract only; skip css; do not re-review the whole diff".
 8. If Judge says `ITERATE` and iteration < 3, Maker fixes in the parent, re-verify, spawn a **fresh** DA (new spawn, no resume).
-9. Stage 8: delivery adapter from `.ai-engineering-loop/adapter.md`.
+9. Stage 8: delivery from `.ai-engineering-loop/adapter.md`. Load shipped spec `adapters/<adapter_type>/` (`standard`, `github`, `gitlab`, `dot`). If adapter.md is missing or the type is unknown, run `generate-adapter` (grill). Do not invent a company pipeline.
 
 After a proven Grok DA spawn, the report header must be:
 

@@ -15,4 +15,4 @@ If `invoke_subagent` (or Task) exists, spawn `devil-advocate` then `judge` as si
 
 If no subagent tool exists, run the same budgets in this session as CONTEXT_ISOLATION_ONLY. Do not claim independent agent execution.
 
-Init/status/refresh/sync-hosts: `npx ai-engineering-loop <command>`. Stage 0: `npx ai-engineering-loop sync-hosts` then `npx ai-engineering-loop status`. If sync-hosts copied files, tell the user a new session is needed for updated skill text; keep going with this session.
+Init/status/refresh/sync-hosts/generate-adapter: `npx ai-engineering-loop <command>`. Stage 0: `npx ai-engineering-loop sync-hosts` then `npx ai-engineering-loop status`. If sync-hosts copied files, tell the user a new session is needed for updated skill text; keep going with this session. Stage 8: load `adapters/<adapter_type>/`. If adapter.md is missing, run `generate-adapter` (grill). Do not invent a company pipeline.

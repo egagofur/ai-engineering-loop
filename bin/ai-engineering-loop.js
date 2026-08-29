@@ -20,8 +20,14 @@ const {
   planHostSync,
   formatHostSyncReport
 } = require('../lib/sync-hosts.js');
+const {
+  detectAdapterHints,
+  writeShippedAdapter,
+  formatGenerateAdapterReport,
+  parseTypeArg
+} = require('../lib/generate-adapter.js');
 
-const VERSION = '1.0.15';
+const VERSION = '1.0.16';
 const CWD = process.cwd();
 const CONTEXT_DIR = path.join(CWD, '.ai-engineering-loop');
 
@@ -275,7 +281,7 @@ function generateContextFiles(rootDir, discovery, trigger = 'init', impact = 'IN
 
   // 0. metadata.json (Baseline)
   const metadataJson = {
-    contextVersion: '1.0.15',
+    contextVersion: '1.0.16',
     generatedAt: new Date().toISOString(),
     repositoryRevision: currentRevision,
     projectProfile: discovery.profile,
@@ -365,7 +371,7 @@ ${discovery.scripts.e2e ? `- **e2e**: \`${discovery.scripts.e2e}\`` : ''}
   const adapterMd = `# Project Delivery Adapter Configuration
 
 ## Delivery Pipeline
-- **adapter_type**: "${discovery.adapter.type}" # dot | github | gitlab | standard
+- **adapter_type**: "${discovery.adapter.type}" # standard | github | gitlab | dot | custom
 ${discovery.adapter.repoSlug ? `- **remote_repository**: "${discovery.adapter.repoSlug}"` : ''}
 - **default_target_branch**: "${discovery.adapter.defaultBranch}"
 - **ci_provider**: "${discovery.adapter.ciProvider}"
@@ -654,6 +660,23 @@ function handleSyncHosts() {
   console.log(formatHostSyncReport(results, { version: VERSION, dryRun }));
 }
 
+function handleGenerateAdapter() {
+  log.info('AI Engineering Loop — Generate delivery adapter (generate-adapter)');
+  const hints = detectAdapterHints(CWD);
+  const type = parseTypeArg(process.argv);
+  if (!type) {
+    console.log(formatGenerateAdapterReport(hints, { version: VERSION }));
+    return;
+  }
+  try {
+    const wrote = writeShippedAdapter(CWD, { type, hints });
+    console.log(formatGenerateAdapterReport(hints, { version: VERSION, wrote }));
+  } catch (err) {
+    log.error(err.message);
+    process.exit(1);
+  }
+}
+
 function detectGrokHost() {
   try {
     const { detectGrokRuntime } = require('../lib/orchestration.js');
@@ -746,6 +769,8 @@ Commands:
   sync-hosts   Copy package skills/agents/commands into ~/.claude ~/.grok ~/.gemini ~/.agents
                (only hosts that already exist; DOT skills only if already installed)
                --dry-run  print the plan without writing
+  generate-adapter  Print detected forge and grill protocol for Stage 8
+               --type standard|github|gitlab|dot  write .ai-engineering-loop/adapter.md (skip grill)
 
 Options:
   -h, --help     Show this help menu
@@ -775,6 +800,9 @@ switch (command) {
     break;
   case 'sync-hosts':
     handleSyncHosts();
+    break;
+  case 'generate-adapter':
+    handleGenerateAdapter();
     break;
   case '-v':
   case '--version':

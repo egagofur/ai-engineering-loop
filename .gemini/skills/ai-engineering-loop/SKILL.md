@@ -19,7 +19,8 @@ Canonical mode ids: `TRUE_INDEPENDENT_AGENT`, `ISOLATED_AGENT_INSTANCE`, `FRESH_
 
 ## Commands
 
-- `init` / `status` / `refresh` / `sync-hosts`: run `npx ai-engineering-loop <command>` in the repo. Do not commit unless asked.
+- `init` / `status` / `refresh` / `sync-hosts` / `generate-adapter`: run `npx ai-engineering-loop <command>` in the repo. Do not commit unless asked.
+- `generate-adapter`: load skill `generate-adapter` if present. Grill Q1-Q5. Then write `.ai-engineering-loop/adapter.md`. Do not start Maker.
 - Any other argument: full loop for that task.
 
 ## Loop
@@ -36,7 +37,7 @@ Canonical mode ids: `TRUE_INDEPENDENT_AGENT`, `ISOLATED_AGENT_INSTANCE`, `FRESH_
 6. Stage 6: spawn `devil-advocate`. Wait. Prompt: diff file path, name-only list, Goal Contract path, verification log path, conventions.md path, and "at most 8 tool calls; read the diff file; skip css and generated files". Report Spec and Standards axes separately.
 7. Stage 7: spawn `judge` the same way (wait, no background). Prompt: Goal Contract path, verification evidence path, Finding Ledger, and "at most 4 tool calls; ledger and contract only; skip css; do not re-review the whole diff".
 8. ITERATE with iteration under 3: fix in the parent, re-verify, spawn a **new** Devil's Advocate.
-9. Stage 8: delivery from `.ai-engineering-loop/adapter.md`.
+9. Stage 8: delivery from `.ai-engineering-loop/adapter.md`. Load shipped spec `adapters/<adapter_type>/` (`standard`, `github`, `gitlab`, `dot`). If adapter.md is missing or the type is unknown, run `generate-adapter` (grill). Do not invent a company pipeline.
 
 ## Report header
 

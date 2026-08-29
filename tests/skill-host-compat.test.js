@@ -210,6 +210,27 @@ test('DOT router sends commit-bound work to ai-engineering-loop; workflow is Sta
   assert.doesNotMatch(readme, /Pre-commit multi-round adversarial review gate \(Phase 6\)/);
 });
 
+test('generate-adapter skill is Claude-safe and shipped adapters stay generic', () => {
+  const skill = readRepo('adapters/generate-adapter/SKILL.md');
+  const { fm } = parseFrontmatter(skill, 'generate-adapter');
+  assert.doesNotMatch(fm, /^description:\s*>-?/m);
+  assert.doesNotMatch(skill, /```mermaid/);
+  assert.doesNotMatch(skill, /\$\\/);
+  assert.doesNotMatch(skill, /spawn_subagent/);
+  assert.match(skill, /Q1/);
+  assert.match(skill, /Do not start Maker/);
+  const catalog = readRepo('adapters/README.md');
+  assert.match(catalog, /standard/);
+  assert.match(catalog, /github/);
+  assert.match(catalog, /gitlab/);
+  const gitlab = readRepo('adapters/gitlab/README.md');
+  assert.match(gitlab, /not the DOT adapter/);
+  assert.doesNotMatch(gitlab, /Coreview/);
+  assert.doesNotMatch(gitlab, /Mattermost/);
+  const standard = readRepo('adapters/standard/README.md');
+  assert.match(standard, /Judge `PASS`/);
+});
+
 test('Host skills Stage 0 runs sync-hosts before status', () => {
   for (const rel of [
     '.claude/skills/ai-engineering-loop/SKILL.md',

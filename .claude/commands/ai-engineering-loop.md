@@ -8,4 +8,4 @@ Follow `.claude/skills/ai-engineering-loop/SKILL.md`.
 
 Use the Task tool for Devil's Advocate and Judge. Pass subagent_type, description, and prompt. If the schema includes run_in_background, set it false. Wait for each Task to finish. Write the git diff to a file and pass that path. DA: 8 tool calls. Judge: 4 tool calls, ledger and contract only. Do not let either roam the repo.
 
-Arguments: init, status, refresh, sync-hosts, or a task description.
+Arguments: init, status, refresh, sync-hosts, generate-adapter, or a task description.
