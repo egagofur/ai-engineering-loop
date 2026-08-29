@@ -52,13 +52,18 @@ The Judge renders decisions based strictly on **Validity + Severity**, then **re
   3. Zero open `VALID + BLOCKER` or `VALID + HIGH` findings.
   4. Any `INVALID` findings are formally dismissed with counter-evidence.
   5. Any `VALID + MEDIUM/LOW` findings are documented as tradeoffs.
+  6. AC source is **only** the Goal Contract file given to the Judge. Chat agreement is not an AC. `CONTEXT_ISOLATION_ONLY` does not relax this.
+  7. Evidence is for the artifact the AC names (sample path, seam, verification command). A `/tmp` build is not proof of a different user-facing file.
+  8. Source `grep` of implementation files is not AC proof (`policies/tdd-policy.md`).
 
 ---
 
 ### Verdict 2: `ITERATE`
 - **Conditions**:
-  1. One or more `VALID + BLOCKER` or `VALID + HIGH` findings exist.
-  2. Active iteration count $< \text{MAX\_ITERATIONS}$ (default 3).
+  1. One or more `VALID + BLOCKER` or `VALID + HIGH` findings exist (Spec, or Standards with `hardConvention: true`).
+  2. Active iteration count is below MAX_ITERATIONS (default 3).
+  3. Maker or verification cites chat agreement for behavior that is not an AC in the Goal Contract file.
+  4. Evidence is for the wrong artifact, is source-grep only, or does not map to written AC ids.
 - **Maker Directive**: The Maker must adopt the concrete alternative diff or provide an equivalent verified architectural resolution, authoring regression unit tests.
 
 ---

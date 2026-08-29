@@ -21,6 +21,30 @@ Skip grill (write the Goal Contract from what is already known) when any of thes
 
 Do not interview the user for **facts** you can look up (files, scripts, types, git). Look them up. Grill only **decisions**.
 
+## Idea and menu requests
+
+If the user asks for ideas, a feature catalog, or "what should we add" without naming one task:
+
+1. Do not implement.
+2. Do not freeze a Goal Contract.
+3. List at most five options. Mark one recommended. Wait for a pick.
+4. After they pick, grill that one task, then freeze.
+
+`/ai-engineering-loop` on an idea request still stays this loop: menu, then grill. Do not switch to a parallel brainstorm product.
+
+## Freeze gate
+
+Chat `setuju`, `lanjut`, `ok`, or "looks good" is **not** a freeze.
+
+Before Maker starts:
+
+1. Every accepted grill decision that changes user-visible output is a numbered AC in the Goal Contract **file** (page order, enable flags, layout, copy, numbering).
+2. Each of those ACs names the artifact to inspect (sample path, command, seam).
+3. Write `.ai-engineering-loop/tasks/goal-contract.md` (or the path this repo uses). Show the AC list.
+4. Freeze only after that file exists and contains those ACs.
+
+If a decision was agreed in chat and is missing from the file, the contract is not frozen. Do not start Maker.
+
 ## DOT adapter (`adapter_type: dot`)
 
 On DOT repositories, grill is **one** session that includes the four-pillar blast radius from Antigravity skill `task-impact-inquiry` (`~/.gemini/config/skills/task-impact-inquiry/SKILL.md`). Do not run that skill as a second interview after grill.

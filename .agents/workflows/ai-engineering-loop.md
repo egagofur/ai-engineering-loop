@@ -5,7 +5,7 @@ description: Run the AI Engineering Loop on Antigravity (init, status, refresh, 
 
 Follow `policies/review-budget.md`. Parent is Maker plus orchestrator. Do not use `browser_subagent`.
 
-Stage 1: grill if the task is ambiguous (`core/grill-policy.md`), then freeze the Goal Contract. On `adapter_type: dot`, that grill includes `task-impact-inquiry` (Antigravity skill under `~/.gemini/config/skills/`); do not run a second interview. Use `.ai-engineering-loop/glossary.md`. Name test seams. Maker: TDD at those seams (`policies/tdd-policy.md`). Bugs: red repro first (`core/root-cause-analysis.md`). Mid-loop stop: `core/handoff-policy.md`.
+Stage 1: if the user asks for ideas, list a short menu and wait; do not implement. Grill if the task is ambiguous (`core/grill-policy.md`), then freeze the Goal Contract file. Chat agreement is not freeze. On `adapter_type: dot`, that grill includes `task-impact-inquiry` (Antigravity skill under `~/.gemini/config/skills/`); do not run a second interview. Use `.ai-engineering-loop/glossary.md`. Name test seams. Maker: TDD at those seams (`policies/tdd-policy.md`). Bugs: red repro first (`core/root-cause-analysis.md`). Mid-loop stop: `core/handoff-policy.md`.
 
 If `invoke_subagent` (or Task) exists, spawn `devil-advocate` then `judge` as siblings. Wait for each child. Do not run them in the background. Use `general-purpose` only if the named type is rejected.
 

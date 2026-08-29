@@ -8,6 +8,10 @@ Finish in at most 4 tool calls, then emit the verdict. Read the Finding Ledger a
 
 Use only paths in the spawn prompt: Goal Contract, verification evidence, Finding Ledger. Ignore Maker optimism and reviewer tone. Disposition never overrides Validity plus Severity.
 
+AC source is the Goal Contract **file** only. Chat `setuju` and the parent transcript are not AC. Do not PASS because the parent agreed in chat. `CONTEXT_ISOLATION_ONLY` does not relax this.
+
+ITERATE if verification is missing, vague, non-zero, proves a different artifact than the AC names, or is only a source grep.
+
 ## Axes
 
 Do not merge Spec and Standards into one ranking.

@@ -77,6 +77,9 @@ Every Goal Contract MUST adhere to the following schema in Markdown or structure
    - Neither the Maker Agent nor the Devil's Advocate Agent may alter Acceptance Criteria during an iteration loop to make tests pass or bypass critique.
 3. **Contract Amendments**:
    - If during implementation a fundamental contradiction or impossible requirement is discovered, the agent must trigger **Human Escalation**. Only a human user may amend the Goal Contract.
+4. **Chat is not the contract**:
+   - Parent-transcript `setuju` does not freeze AC.
+   - Every user-visible grill decision (order of pages, enable flags, layout) MUST appear as AC-1..N in the contract file before Maker starts.
 
 ---
 
@@ -100,3 +103,5 @@ Every single item listed under `Acceptance Criteria` must map to at least one co
 - **The Parallel Glossary**: Using 20 words for a concept that already has a term in `glossary.md`.
 - **The Missing Constraint**: Failing to declare out-of-scope files, leading to arbitrary refactoring of adjacent legacy modules.
 - **The Self-Serving Goal**: Modifying acceptance criteria post-hoc when tests fail rather than fixing the underlying implementation.
+- **The Chat Contract**: Treating "setuju" in the parent transcript as AC. The file is the contract.
+- **The Wrong Artifact**: Tests pass on a `/tmp` build while the sample the user opens omits the feature.

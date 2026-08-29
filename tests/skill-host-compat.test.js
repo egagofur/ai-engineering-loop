@@ -206,6 +206,33 @@ test('Host skills Stage 0 runs sync-hosts before status', () => {
   }
 });
 
+test('Grill freeze gate and idea menu are in the loop, not a parallel product', () => {
+  const grill = readRepo('core/grill-policy.md');
+  assert.match(grill, /Idea and menu requests/);
+  assert.match(grill, /Do not implement/);
+  assert.match(grill, /is \*\*not\*\* a freeze/);
+  assert.match(grill, /numbered AC/);
+  const contract = readRepo('core/goal-contract.md');
+  assert.match(contract, /Chat is not the contract/);
+  assert.match(contract, /The Chat Contract/);
+  assert.match(contract, /The Wrong Artifact/);
+  const judge = readRepo('agents/shared/judge.body.md');
+  assert.match(judge, /Goal Contract \*\*file\*\* only/);
+  assert.match(judge, /source grep/);
+  const tdd = readRepo('policies/tdd-policy.md');
+  assert.match(tdd, /Source grep/);
+  for (const rel of [
+    '.claude/skills/ai-engineering-loop/SKILL.md',
+    '.grok/skills/ai-engineering-loop/SKILL.md',
+    '.gemini/skills/ai-engineering-loop/SKILL.md',
+    '.agents/workflows/ai-engineering-loop.md'
+  ]) {
+    const text = readRepo(rel);
+    assert.match(text, /list a short menu and wait/, rel);
+    assert.match(text, /Chat agreement is not freeze/, rel);
+  }
+});
+
 test('Host skills absorb grill, TDD, glossary, and two-axis review without splitting the loop', () => {
   for (const rel of [
     '.claude/skills/ai-engineering-loop/SKILL.md',

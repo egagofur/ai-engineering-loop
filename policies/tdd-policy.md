@@ -25,6 +25,7 @@ The test reads like a specification of behavior at the seam. Names use `.ai-engi
 
 - **Implementation-coupled:** mocks internal collaborators, tests private methods, or asserts through a side channel (raw DB) instead of the seam.
 - **Tautological:** expected value is computed the same way as the code (`expect(add(a,b)).toBe(a+b)`).
+- **Source grep:** `grep -q 'featureFlag' src/file` is not a test of the AC. Prove behavior at the named seam or on the named artifact.
 - **Horizontal slicing:** all tests first, then all implementation.
 
 ## Evidence
