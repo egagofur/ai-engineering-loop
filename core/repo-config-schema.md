@@ -14,6 +14,8 @@ The `.ai-engineering-loop/` directory serves as the **Living Project Context** f
     ├── verification.md     # Exact CLI verification commands
     ├── adapter.md          # Configured delivery pipeline & CI/CD tools
     ├── glossary.md         # Ubiquitous language (one term per concept)
+    ├── workflow.md         # Optional loop overlay (hooks around the 8-stage OS)
+    ├── lessons.md          # Optional confirmed process lessons (not a chat log)
     ├── adrs/               # Architecture Decision Records from Stage 1 grill
     │   └── README.md
     └── tasks/              # Ephemeral: current.diff, handoff.md, verification logs
@@ -78,6 +80,17 @@ Maintains lightweight state for instant drift detection:
 
 ### 9. `tasks/` — Run artifacts (optional)
 - `current.diff`, verification logs, `handoff.md`. Not required for `init` validity.
+
+### 10. `workflow.md` — Loop overlay (optional)
+- Hooks around the 8-stage OS: `before_grill`, `after_freeze`, `after_pass`.
+- Cannot skip Goal Contract, verification, Devil's Advocate, or Judge.
+- Missing file means default 8-stage loop (no extra hooks).
+- Generate with `npx ai-engineering-loop generate-workflow` (grill) or `--write`.
+
+### 11. `lessons.md` — Confirmed process lessons (optional)
+- One human-confirmed row per lesson. Not a chat transcript. Not `eval.md`.
+- Terms still go to `glossary.md`. Code bans to `conventions.md`. Design why to `adrs/`.
+- `refresh` / `--write` must not overwrite filled lessons.
 
 ---
 

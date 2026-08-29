@@ -210,6 +210,30 @@ test('DOT router sends commit-bound work to ai-engineering-loop; workflow is Sta
   assert.doesNotMatch(readme, /Pre-commit multi-round adversarial review gate \(Phase 6\)/);
 });
 
+test('generate-workflow skill is Claude-safe and host skills read the overlay', () => {
+  const skill = readRepo('adapters/generate-workflow/SKILL.md');
+  const { fm } = parseFrontmatter(skill, 'generate-workflow');
+  assert.doesNotMatch(fm, /^description:\s*>-?/m);
+  assert.doesNotMatch(skill, /```mermaid/);
+  assert.doesNotMatch(skill, /\$\\/);
+  assert.doesNotMatch(skill, /spawn_subagent/);
+  assert.match(skill, /Q1/);
+  assert.match(skill, /Do not start Maker/);
+  assert.match(skill, /lessons\.md/);
+  for (const rel of [
+    '.claude/skills/ai-engineering-loop/SKILL.md',
+    '.grok/skills/ai-engineering-loop/SKILL.md',
+    '.gemini/skills/ai-engineering-loop/SKILL.md',
+    '.agents/workflows/ai-engineering-loop.md'
+  ]) {
+    const text = readRepo(rel);
+    assert.match(text, /lessons\.md/, rel);
+    assert.match(text, /workflow\.md/, rel);
+    assert.match(text, /Do not skip Goal Contract, verification, Devil's Advocate, or Judge/, rel);
+    assert.match(text, /generate-workflow/, rel);
+  }
+});
+
 test('generate-adapter skill is Claude-safe and shipped adapters stay generic', () => {
   const skill = readRepo('adapters/generate-adapter/SKILL.md');
   const { fm } = parseFrontmatter(skill, 'generate-adapter');

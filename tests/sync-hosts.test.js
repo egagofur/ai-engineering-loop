@@ -102,7 +102,7 @@ test('dry-run does not write; second apply is current', () => {
   assert.ok(!fs.existsSync(path.join(home, '.gemini/config/skills/ai-engineering-loop/SKILL.md')));
   applyHostSync({ packageRoot: ROOT, home });
   const again = applyHostSync({ packageRoot: ROOT, home });
-  assert.strictEqual(summarizeHostSync(again.filter((item) => item.id === 'gemini')).current, 3);
+  assert.strictEqual(summarizeHostSync(again.filter((item) => item.id === 'gemini')).current, 4);
   assert.strictEqual(summarizeHostSync(again.filter((item) => item.id === 'gemini')).copy, 0);
 });
 
@@ -135,6 +135,7 @@ test('CLI help lists sync-hosts', () => {
   const out = execFileSync('node', [CLI, '--help'], { encoding: 'utf8' });
   assert.match(out, /sync-hosts/);
   assert.match(out, /generate-adapter/);
+  assert.match(out, /generate-workflow/);
 });
 
 test('sync upserts generate-adapter onto Claude, Grok, and Gemini', () => {
@@ -148,4 +149,20 @@ test('sync upserts generate-adapter onto Claude, Grok, and Gemini', () => {
   assert.match(claude, /name: generate-adapter/);
   assert.doesNotMatch(claude, /```mermaid/);
   assert.match(grok, /^user-invocable: true$/m);
+});
+
+test('sync upserts generate-workflow onto Claude, Grok, and Gemini', () => {
+  const home = tmpHome();
+  fs.mkdirSync(path.join(home, '.claude'));
+  fs.mkdirSync(path.join(home, '.grok'));
+  fs.mkdirSync(path.join(home, '.gemini'));
+  applyHostSync({ packageRoot: ROOT, home });
+  const claude = fs.readFileSync(path.join(home, '.claude/skills/generate-workflow/SKILL.md'), 'utf8');
+  const grok = fs.readFileSync(path.join(home, '.grok/skills/generate-workflow/SKILL.md'), 'utf8');
+  const gemini = fs.readFileSync(path.join(home, '.gemini/config/skills/generate-workflow/SKILL.md'), 'utf8');
+  assert.match(claude, /name: generate-workflow/);
+  assert.doesNotMatch(claude, /```mermaid/);
+  assert.match(claude, /lessons\.md/);
+  assert.match(grok, /^user-invocable: true$/m);
+  assert.match(gemini, /Do not start Maker/);
 });

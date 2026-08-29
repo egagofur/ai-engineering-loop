@@ -7,5 +7,5 @@ Follow `.grok/skills/ai-engineering-loop/SKILL.md`.
 
 Arguments:
 
-- `init` / `status` / `refresh` / `sync-hosts` / `generate-adapter` → run `npx ai-engineering-loop <arg>`
+- `init` / `status` / `refresh` / `sync-hosts` / `generate-adapter` / `generate-workflow` → run `npx ai-engineering-loop <arg>`
 - anything else → full 8-stage loop for that task, spawning `devil-advocate` then `judge` via `spawn_subagent`

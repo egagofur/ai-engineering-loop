@@ -25,3 +25,5 @@ npx ai-engineering-loop generate-adapter --type github
 ```
 
 Interactive path: load skill `generate-adapter`, answer Q1–Q5, then the agent writes `.ai-engineering-loop/adapter.md`.
+
+Loop overlay (not a forge type): skill `generate-workflow` writes `.ai-engineering-loop/workflow.md` and `lessons.md`. It does not replace Stages 0–7.

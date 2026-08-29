@@ -21,10 +21,16 @@ test('init writes glossary.md and adrs/README.md', () => {
   execFileSync('node', [CLI, 'init'], { cwd: dir, encoding: 'utf8' });
   const glossary = path.join(dir, '.ai-engineering-loop', 'glossary.md');
   const adr = path.join(dir, '.ai-engineering-loop', 'adrs', 'README.md');
+  const workflow = path.join(dir, '.ai-engineering-loop', 'workflow.md');
+  const lessons = path.join(dir, '.ai-engineering-loop', 'lessons.md');
   assert.ok(fs.existsSync(glossary));
   assert.ok(fs.existsSync(adr));
+  assert.ok(fs.existsSync(workflow));
+  assert.ok(fs.existsSync(lessons));
   assert.match(fs.readFileSync(glossary, 'utf8'), /Ubiquitous Language/);
   assert.match(fs.readFileSync(adr, 'utf8'), /Architecture Decision Records/);
+  assert.match(fs.readFileSync(workflow, 'utf8'), /before_grill/);
+  assert.match(fs.readFileSync(lessons, 'utf8'), /# Lessons/);
 });
 
 test('repair fills missing glossary without overwriting a filled glossary or architecture', () => {
@@ -43,4 +49,13 @@ test('repair fills missing glossary without overwriting a filled glossary or arc
   execFileSync('node', [CLI, 'init'], { cwd: dir, encoding: 'utf8' });
   assert.match(fs.readFileSync(glossary, 'utf8'), /Foo: bar/);
   assert.ok(fs.existsSync(architecture));
+});
+
+test('init does not overwrite filled lessons.md', () => {
+  const dir = tmpRepo();
+  execFileSync('node', [CLI, 'init'], { cwd: dir, encoding: 'utf8' });
+  const lessons = path.join(dir, '.ai-engineering-loop', 'lessons.md');
+  fs.writeFileSync(lessons, '# Lessons\n\n| Date | Lesson | Do not |\n|---|---|---|\n| 2026-08-30 | Keep Figma | skip Figma |\n');
+  execFileSync('node', [CLI, 'init'], { cwd: dir, encoding: 'utf8' });
+  assert.match(fs.readFileSync(lessons, 'utf8'), /Keep Figma/);
 });

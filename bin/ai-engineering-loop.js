@@ -26,8 +26,15 @@ const {
   formatGenerateAdapterReport,
   parseTypeArg
 } = require('../lib/generate-adapter.js');
+const {
+  writeWorkflowOverlay,
+  formatGenerateWorkflowReport,
+  parseWriteArg,
+  workflowMarkdown,
+  lessonsMarkdown
+} = require('../lib/generate-workflow.js');
 
-const VERSION = '1.0.16';
+const VERSION = '1.0.17';
 const CWD = process.cwd();
 const CONTEXT_DIR = path.join(CWD, '.ai-engineering-loop');
 
@@ -281,7 +288,7 @@ function generateContextFiles(rootDir, discovery, trigger = 'init', impact = 'IN
 
   // 0. metadata.json (Baseline)
   const metadataJson = {
-    contextVersion: '1.0.16',
+    contextVersion: '1.0.17',
     generatedAt: new Date().toISOString(),
     repositoryRevision: currentRevision,
     projectProfile: discovery.profile,
@@ -418,6 +425,9 @@ What becomes easier, harder, or forbidden.
 \`\`\`
 `;
   writeContextFile(path.join(targetDir, 'adrs', 'README.md'), adrReadme, { overwrite: false });
+
+  writeContextFile(path.join(targetDir, 'workflow.md'), workflowMarkdown(), { overwrite: false });
+  writeContextFile(path.join(targetDir, 'lessons.md'), lessonsMarkdown(), { overwrite: false });
 }
 
 /**
@@ -677,6 +687,22 @@ function handleGenerateAdapter() {
   }
 }
 
+function handleGenerateWorkflow() {
+  log.info('AI Engineering Loop — Generate loop overlay (generate-workflow)');
+  const shouldWrite = parseWriteArg(process.argv);
+  if (!shouldWrite) {
+    console.log(formatGenerateWorkflowReport({ version: VERSION }));
+    return;
+  }
+  try {
+    const wrote = writeWorkflowOverlay(CWD, {});
+    console.log(formatGenerateWorkflowReport({ version: VERSION, wrote }));
+  } catch (err) {
+    log.error(err.message);
+    process.exit(1);
+  }
+}
+
 function detectGrokHost() {
   try {
     const { detectGrokRuntime } = require('../lib/orchestration.js');
@@ -771,6 +797,8 @@ Commands:
                --dry-run  print the plan without writing
   generate-adapter  Print detected forge and grill protocol for Stage 8
                --type standard|github|gitlab|dot  write .ai-engineering-loop/adapter.md (skip grill)
+  generate-workflow Print grill protocol for a loop overlay (hooks + lessons.md)
+               --write  write .ai-engineering-loop/workflow.md and empty lessons.md (skip grill)
 
 Options:
   -h, --help     Show this help menu
@@ -803,6 +831,9 @@ switch (command) {
     break;
   case 'generate-adapter':
     handleGenerateAdapter();
+    break;
+  case 'generate-workflow':
+    handleGenerateWorkflow();
     break;
   case '-v':
   case '--version':

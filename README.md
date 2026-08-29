@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/egagofur/ai-engineering-loop/pulls)
 [![AI Engineering](https://img.shields.io/badge/AI-Engineering%20Loop-orange.svg)](https://github.com/egagofur/ai-engineering-loop)
-[![Release](https://img.shields.io/badge/release-v1.0.16-purple.svg)](https://github.com/egagofur/ai-engineering-loop/releases)
+[![Release](https://img.shields.io/badge/release-v1.0.17-purple.svg)](https://github.com/egagofur/ai-engineering-loop/releases)
 
 **A Reusable, Framework-Agnostic AI Engineering Operating System for Autonomous Coding Agents**
 
@@ -184,11 +184,15 @@ npx ai-engineering-loop sync-hosts
 # Grill (or --type) a Stage 8 delivery adapter for this repo
 npx ai-engineering-loop generate-adapter
 npx ai-engineering-loop generate-adapter --type github
+
+# Grill (or --write) a loop overlay + empty lessons.md for this repo
+npx ai-engineering-loop generate-workflow
+npx ai-engineering-loop generate-workflow --write
 ```
 
 Shipped adapters (Stage 8 only, after Judge PASS): `standard`, `github`, `gitlab`, `dot`. Catalog: `adapters/README.md`. Each team generates its own; do not copy a neighbour's pipeline.
 
-`sync-hosts` updates only hosts that already exist on the machine. DOT skills (`dot-dev-skill-router`, `dot-dev-workflow`) are updated only if they are already installed. `task-impact-inquiry` and `generate-adapter` are upserted onto Claude, Grok, and Gemini. After a copy, start a new session so the host reloads skill text. `/ai-engineering-loop` Stage 0 and `run` call `sync-hosts` so a published package bump reaches global host files without a manual copy.
+`sync-hosts` updates only hosts that already exist on the machine. DOT skills (`dot-dev-skill-router`, `dot-dev-workflow`) are updated only if they are already installed. `task-impact-inquiry`, `generate-adapter`, and `generate-workflow` are upserted onto Claude, Grok, and Gemini. After a copy, start a new session so the host reloads skill text. `/ai-engineering-loop` Stage 0 and `run` call `sync-hosts` so a published package bump reaches global host files without a manual copy.
 
 ---
 
@@ -338,6 +342,7 @@ ai-engineering-loop/
 ├── adapters/                           # Pluggable Stage 8 delivery (not a second OS)
 │   ├── README.md                       # Catalog: standard, github, gitlab, dot
 │   ├── generate-adapter/SKILL.md       # Grill Q1-Q5, then write adapter.md
+│   ├── generate-workflow/SKILL.md      # Grill Q1-Q5, then write workflow.md + lessons.md
 │   ├── standard/                       # Generic git delivery (any forge)
 │   ├── github/                         # gh pr / GitHub Issues
 │   ├── gitlab/                         # glab mr (not the DOT pipeline)
@@ -351,7 +356,9 @@ ai-engineering-loop/
         ├── adr-readme.md               # ADR folder template
         ├── conventions.md              # Code standards & forbidden patterns
         ├── verification.md             # CLI test/lint/build commands
-        └── adapter.md                  # Configured release pipeline
+        ├── adapter.md                  # Configured release pipeline
+        ├── workflow.md                 # Optional loop overlay hooks
+        └── lessons.md                  # Optional confirmed process lessons
 ```
 
 ---
