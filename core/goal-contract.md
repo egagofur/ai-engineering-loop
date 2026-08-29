@@ -29,9 +29,15 @@ Every Goal Contract MUST adhere to the following schema in Markdown or structure
 [Explain what changes for the real-world actor (e.g. Employee, Admin, Customer, System). Describe the before/after lifecycle state transition.]
 
 ## 3. Acceptance Criteria (AC)
-- [ ] AC-1: [Exact, testable statement with expected outcome]
-- [ ] AC-2: [Exact, testable statement with expected outcome]
-- [ ] AC-3: [Edge case or boundary behavior explicitly specified]
+Each AC is one row that can **fail**. Happy path alone is not a contract (`policies/tdd-policy.md`).
+
+| AC | Input / actor | Expected at seam | Must fail if missing |
+|---|---|---|---|
+| AC-1 | Happy path | [observable] | [what would still look green] |
+| AC-2 | Empty / omitted field | [observable] | [what would still look green] |
+| AC-3 | Boundary | [observable] | [what would still look green] |
+| AC-4 | Sibling / isolation (if domain has siblings) | [observable] | [what would still look green] |
+| AC-5 | Error / denied / locked | [observable] | [what would still look green] |
 
 ## 4. Technical Constraints
 - [Architecture]: [Preserve existing patterns, layer boundaries, dependency conventions]
@@ -105,3 +111,4 @@ Every single item listed under `Acceptance Criteria` must map to at least one co
 - **The Self-Serving Goal**: Modifying acceptance criteria post-hoc when tests fail rather than fixing the underlying implementation.
 - **The Chat Contract**: Treating "setuju" in the parent transcript as AC. The file is the contract.
 - **The Wrong Artifact**: Tests pass on a `/tmp` build while the sample the user opens omits the feature.
+- **The Happy-Path Contract**: Only the sunny case is an AC. Coverage % is not a substitute for a failure table.

@@ -80,11 +80,13 @@ The grill is done when the frontier is empty: every branch visited, nothing sile
 ## What the grill must settle
 
 - Objective and business outcome
-- Acceptance criteria that can fail a test
+- Acceptance criteria that can fail a test, as a **failure table** (not happy path only)
 - Out of scope
 - Test **seams** (public interfaces to observe; prefer existing seams; fewer is better)
 - Glossary terms to use (read and update `.ai-engineering-loop/glossary.md`)
 - Hard decisions that belong in an ADR under `.ai-engineering-loop/adrs/`
+
+A Goal Contract with only the sunny path is not frozen. Include at least: happy path, empty/omitted input, one boundary, one isolation/sibling (when the domain has siblings), one error/denied path. DOT four-pillar rows count toward this table.
 
 ## Invariants
 

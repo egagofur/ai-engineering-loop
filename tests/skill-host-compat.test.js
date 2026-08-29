@@ -233,6 +233,36 @@ test('Grill freeze gate and idea menu are in the loop, not a parallel product', 
   }
 });
 
+test('Failure table is required to freeze, TDD, verify, and Judge', () => {
+  const grill = readRepo('core/grill-policy.md');
+  assert.match(grill, /failure table/);
+  assert.match(grill, /sunny path is not frozen/);
+  const contract = readRepo('core/goal-contract.md');
+  assert.match(contract, /The Happy-Path Contract/);
+  assert.match(contract, /Empty \/ omitted field/);
+  const tdd = readRepo('policies/tdd-policy.md');
+  assert.match(tdd, /Coverage as a map, not a score/);
+  assert.match(tdd, /Happy-path only/);
+  assert.match(tdd, /Coverage theater/);
+  const verif = readRepo('core/verification-loop.md');
+  assert.match(verif, /non-happy-path AC/);
+  const judge = readRepo('agents/shared/judge.body.md');
+  assert.match(judge, /happy-path-only/);
+  const da = readRepo('agents/shared/devil-advocate.body.md');
+  assert.match(da, /happy-path-only suite vs written failure table/);
+  for (const rel of [
+    '.claude/skills/ai-engineering-loop/SKILL.md',
+    '.grok/skills/ai-engineering-loop/SKILL.md',
+    '.gemini/skills/ai-engineering-loop/SKILL.md',
+    '.agents/workflows/ai-engineering-loop.md'
+  ]) {
+    const text = readRepo(rel);
+    assert.match(text, /failure table/, rel);
+    assert.match(text, /One red test per AC row/, rel);
+    assert.match(text, /Do not freeze sunny-path-only/, rel);
+  }
+});
+
 test('Host skills absorb grill, TDD, glossary, and two-axis review without splitting the loop', () => {
   for (const rel of [
     '.claude/skills/ai-engineering-loop/SKILL.md',

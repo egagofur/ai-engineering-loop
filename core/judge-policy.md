@@ -64,6 +64,7 @@ The Judge renders decisions based strictly on **Validity + Severity**, then **re
   2. Active iteration count is below MAX_ITERATIONS (default 3).
   3. Maker or verification cites chat agreement for behavior that is not an AC in the Goal Contract file.
   4. Evidence is for the wrong artifact, is source-grep only, or does not map to written AC ids.
+  5. The suite is happy-path-only while the Goal Contract lists empty, boundary, sibling, or error AC rows.
 - **Maker Directive**: The Maker must adopt the concrete alternative diff or provide an equivalent verified architectural resolution, authoring regression unit tests.
 
 ---

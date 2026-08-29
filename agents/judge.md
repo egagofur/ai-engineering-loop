@@ -49,7 +49,8 @@ flowchart LR
 
 ### Step 2: Goal Contract Compliance Audit
 - Cross-reference every Acceptance Criterion (AC-1 through AC-N) from the [Goal Contract](file:///Users/egagofur/Development/work/ai-engineering-loop/core/goal-contract.md).
-- Verify that automated tests exist that explicitly exercise and prove each criterion.
+- Verify that automated tests exist that explicitly exercise and prove each criterion, including non-happy-path rows in the failure table.
+- A happy-path-only suite while the contract lists empty, boundary, sibling, or error rows is `ITERATE`.
 - Verify that no out-of-scope files were touched and technical constraints were respected.
 
 ### Step 3: Finding Triage & Evidence Verification

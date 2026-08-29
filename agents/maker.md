@@ -28,7 +28,7 @@ flowchart LR
 3. **Test-Driven Engineering** ([TDD Policy](file:///Users/egagofur/Development/work/ai-engineering-loop/policies/tdd-policy.md)):
    - Red before green at the Goal Contract's named seams only.
    - Tests observe public behavior, use glossary terms, and never assert implementation details.
-   - Cover the AC slice in play: happy path, negative edge, null/empty, boundary. Vertical slices, not all-tests-then-all-code.
+   - Cover the AC slice in play: happy path, empty/omit, boundary, sibling/isolation, error/denied. One red test per AC row. Vertical slices, not all-tests-then-all-code.
 4. **Addressing Reviewer Findings**:
    - In subsequent iterations, ingest findings from the [Devil's Advocate](file:///Users/egagofur/Development/work/ai-engineering-loop/agents/devil-advocate.md) and directives from the [Judge](file:///Users/egagofur/Development/work/ai-engineering-loop/agents/judge.md).
    - Fix validated issues surgically.

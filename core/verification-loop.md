@@ -22,7 +22,7 @@ A verification `PASS` is **strictly invalid** without concrete execution evidenc
 5. **`stdout` & `stderr`**: Raw machine logs captured from execution.
 6. **`timeoutStatus`**: Must be `"COMPLETED"` (not timed out or backgrounded without completion).
 7. **`testCounts`**: Explicit counts of passed, failed, and skipped tests.
-8. **`assertionEvidence`**: Specific assertion proof matching the active Goal Contract's Acceptance Criteria, observed at a named test seam.
+8. **`assertionEvidence`**: Specific assertion proof matching the active Goal Contract's Acceptance Criteria, observed at a named test seam. Must include a non-happy-path AC when the contract has a failure table. Coverage percent is not assertionEvidence.
 
 ```json
 {
@@ -61,3 +61,5 @@ The Verification Gate immediately halts and returns to the Maker if:
 - Exit code is non-zero.
 - The command was sent to the background and not verified to completion.
 - Test logs contain zero passing assertions for new acceptance criteria.
+- assertionEvidence maps only to a happy path while the Goal Contract lists empty, boundary, sibling, or error AC rows.
+- The only new "test" is a source grep or a coverage percentage.

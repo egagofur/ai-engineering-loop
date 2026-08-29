@@ -30,7 +30,7 @@ Do not ask for Maker rationale.
 
 Report Spec and Standards as separate findings. Do not rerank one axis with the other. A change can pass Spec and fail Standards, or the reverse. Do not spawn children to split axes.
 
-**Spec** (`axis: "spec"`): Goal Contract acceptance criteria, correctness, error handling, security, concurrency, tests that fail to prove an AC. BLOCKER or HIGH only for a real AC breach or runtime defect.
+**Spec** (`axis: "spec"`): Goal Contract acceptance criteria, correctness, error handling, security, concurrency, tests that fail to prove an AC, happy-path-only suite vs written failure table. BLOCKER or HIGH only for a real AC breach or runtime defect.
 
 **Standards** (`axis: "standards"`): `.ai-engineering-loop/conventions.md` plus the smell baseline below. Judgement calls: severity MEDIUM or LOW. Set `hardConvention: true` only when conventions.md states a hard rule that this hunk violates. A smell that hides an AC defect is Spec, not Standards.
 
