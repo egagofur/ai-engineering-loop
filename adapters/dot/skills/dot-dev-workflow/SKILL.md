@@ -32,7 +32,7 @@ While AEL Maker runs, still enforce:
 
 - `backend-development` for naming, queries, layering.
 - `backend-safety-guardrails` on mutations, jobs, recalculation: never bypass BullMQ; scope by entity id not coarse date strings; never overwrite `APPROVED`/`REJECTED` without explicit force; BigInt as string across boundaries; container moves sync old and new parents.
-- Tests: `npx jest --testPathIgnorePatterns="dotify-api"` unless `.ai-engineering-loop/verification.md` says otherwise.
+- Tests: commands in `.ai-engineering-loop/verification.md` (fallback `npx jest && npx tsc --noEmit`).
 - Branch from a clean target (`main`, `staging`, or `develop`), then `git checkout -b <type>/<descriptive-name>`.
 
 Print these six invariants before commit (N/A allowed only with one sentence citing the diff):
@@ -97,7 +97,7 @@ glab api "projects/:fullpath/merge_requests/<mr-id>/discussions/<discussion_id>/
 
 Follow `adapters/dot/mattermost.md` when present.
 
-1. Resolve channel and PIC from `/Users/egagofur/.gemini/config/mattermost-channel-mapping.json`. If PIC is missing, ask the user and save it.
+1. Resolve channel and PIC from `~/.gemini/config/mattermost-channel-mapping.json`. If PIC is missing, ask the user and save it.
 2. Send via MCP `mattermost_send_message` with `from: "AI Agent"`. Use the Mattermost CLI only if MCP fails. Do not send twice.
 3. Put `cc: <PIC>` on the last line.
 

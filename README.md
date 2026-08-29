@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/egagofur/ai-engineering-loop/pulls)
 [![AI Engineering](https://img.shields.io/badge/AI-Engineering%20Loop-orange.svg)](https://github.com/egagofur/ai-engineering-loop)
-[![Release](https://img.shields.io/badge/release-v1.0.14-purple.svg)](https://github.com/egagofur/ai-engineering-loop/releases)
+[![Release](https://img.shields.io/badge/release-v1.0.15-purple.svg)](https://github.com/egagofur/ai-engineering-loop/releases)
 
 **A Reusable, Framework-Agnostic AI Engineering Operating System for Autonomous Coding Agents**
 
@@ -64,7 +64,7 @@ The 8-stage loop stays one OS. These techniques sit **inside** existing stages (
 
 | Stage | Technique | Spec |
 |---|---|---|
-| 1 | Grill until the design-tree frontier is empty, then freeze the Goal Contract. Idea requests: menu, wait, then grill the pick. Chat `setuju` is not freeze; user-visible decisions must be numbered AC in the contract file. AC is a **failure table** (happy, empty/omit, boundary, sibling, error), not sunny path only. | `core/grill-policy.md` |
+| 1 | Grill until the design-tree frontier is empty, then freeze the Goal Contract. Idea requests: menu, wait, then grill the pick. Chat `setuju` is not freeze; user-visible decisions must be numbered AC in the contract file. AC is a **failure table** (happy, empty/omit, boundary, sibling, error), not sunny path only. Business-logic change: **blast radius** (lifecycle sketch, four pillars, ASCII picture) via `task-impact-inquiry` inside grill — not a second loop. Passing unit tests are not isolation proof. | `core/grill-policy.md` |
 | 1 | Ubiquitous language in `.ai-engineering-loop/glossary.md`; load-bearing choices in `.ai-engineering-loop/adrs/` | `core/repo-config-schema.md` |
 | 2 | Bugs: red repro → minimise → hypothesise → instrument → fix | `core/root-cause-analysis.md` |
 | 4–5 | Red-green at named **seams**; failure table (not happy path only); coverage is a map; no grep/tautology | `policies/tdd-policy.md` |
@@ -182,7 +182,7 @@ npx ai-engineering-loop run
 npx ai-engineering-loop sync-hosts
 ```
 
-`sync-hosts` updates only hosts that already exist on the machine. DOT skills (`dot-dev-skill-router`, `dot-dev-workflow`) are updated only if they are already installed. It does not install `task-impact-inquiry`. After a copy, start a new session so the host reloads skill text. `/ai-engineering-loop` Stage 0 and `run` call `sync-hosts` so a published package bump reaches global host files without a manual copy.
+`sync-hosts` updates only hosts that already exist on the machine. DOT skills (`dot-dev-skill-router`, `dot-dev-workflow`) are updated only if they are already installed. `task-impact-inquiry` is upserted onto Claude, Grok, and Gemini so blast-radius grill is available on those hosts. After a copy, start a new session so the host reloads skill text. `/ai-engineering-loop` Stage 0 and `run` call `sync-hosts` so a published package bump reaches global host files without a manual copy.
 
 ---
 

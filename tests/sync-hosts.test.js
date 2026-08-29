@@ -47,7 +47,25 @@ test('sync upserts Claude AEL files but does not invent DOT skills', () => {
   assert.ok(fs.existsSync(path.join(home, '.claude/agents/judge.md')));
   assert.ok(fs.existsSync(path.join(home, '.claude/commands/ai-engineering-loop.md')));
   assert.ok(!fs.existsSync(path.join(home, '.claude/skills/dot-dev-workflow/SKILL.md')));
+  assert.ok(fs.existsSync(path.join(home, '.claude/skills/task-impact-inquiry/SKILL.md')));
   assert.ok(!fs.existsSync(path.join(home, '.claude/settings.local.json')));
+});
+
+test('sync upserts task-impact-inquiry onto Claude, Grok, and Gemini', () => {
+  const home = tmpHome();
+  fs.mkdirSync(path.join(home, '.claude'));
+  fs.mkdirSync(path.join(home, '.grok'));
+  fs.mkdirSync(path.join(home, '.gemini'));
+  applyHostSync({ packageRoot: ROOT, home });
+  const claude = fs.readFileSync(path.join(home, '.claude/skills/task-impact-inquiry/SKILL.md'), 'utf8');
+  const grok = fs.readFileSync(path.join(home, '.grok/skills/task-impact-inquiry/SKILL.md'), 'utf8');
+  const gemini = fs.readFileSync(path.join(home, '.gemini/config/skills/task-impact-inquiry/SKILL.md'), 'utf8');
+  assert.match(claude, /name: task-impact-inquiry/);
+  assert.doesNotMatch(claude, /```mermaid/);
+  assert.match(claude, /New-dev briefing/);
+  assert.match(grok, /^user-invocable: true$/m);
+  assert.match(grok, /Where it hits/);
+  assert.match(gemini, /Business blast radius|blast radius/);
 });
 
 test('DOT skills update only when already installed', () => {
@@ -84,7 +102,7 @@ test('dry-run does not write; second apply is current', () => {
   assert.ok(!fs.existsSync(path.join(home, '.gemini/config/skills/ai-engineering-loop/SKILL.md')));
   applyHostSync({ packageRoot: ROOT, home });
   const again = applyHostSync({ packageRoot: ROOT, home });
-  assert.strictEqual(summarizeHostSync(again.filter((item) => item.id === 'gemini')).current, 1);
+  assert.strictEqual(summarizeHostSync(again.filter((item) => item.id === 'gemini')).current, 2);
   assert.strictEqual(summarizeHostSync(again.filter((item) => item.id === 'gemini')).copy, 0);
 });
 

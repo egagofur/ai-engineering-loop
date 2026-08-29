@@ -21,7 +21,7 @@ const {
   formatHostSyncReport
 } = require('../lib/sync-hosts.js');
 
-const VERSION = '1.0.14';
+const VERSION = '1.0.15';
 const CWD = process.cwd();
 const CONTEXT_DIR = path.join(CWD, '.ai-engineering-loop');
 
@@ -275,7 +275,7 @@ function generateContextFiles(rootDir, discovery, trigger = 'init', impact = 'IN
 
   // 0. metadata.json (Baseline)
   const metadataJson = {
-    contextVersion: '1.0.14',
+    contextVersion: '1.0.15',
     generatedAt: new Date().toISOString(),
     repositoryRevision: currentRevision,
     projectProfile: discovery.profile,

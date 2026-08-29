@@ -53,7 +53,8 @@ git checkout -b <branch-name>-<target-env> origin/<target-env>
 git cherry-pick <commit-hash>
 
 # 4. Resolve any target-specific differences and verify tests pass
-npx jest --testPathIgnorePatterns="dotify-api"
+# commands from .ai-engineering-loop/verification.md
+npx jest
 npx tsc --noEmit
 
 # 5. Push the branch to remote
@@ -75,7 +76,7 @@ glab mr create \
 ## 3. Conflict & Environment Discrepancy Handling
 
 1. **Clean Cherry-Picks**:
-   Because the [Generic AI Engineering Loop](file:///Users/egagofur/Development/work/ai-engineering-loop/README.md) enforces surgical, minimal diffs, cherry-picking should be clean in >95% of cases.
+   Because the [generic AI Engineering Loop](../../README.md) enforces surgical, minimal diffs, cherry-picking should be clean in >95% of cases.
 2. **Merge Conflicts**:
    If a merge conflict occurs due to divergent code between `main` and `develop`:
    - Resolve the conflict surgically preserving the fix semantics.

@@ -13,7 +13,7 @@ This walkthrough demonstrates how the **AI Engineering Loop** automatically init
 
 ## 2. Walkthrough Artifacts
 
-1. **[Discovery Execution Trace (`discovery-trace.md`)](file:///Users/egagofur/Development/work/ai-engineering-loop/examples/initialization/discovery-trace.md)**:
+1. **[Discovery Execution Trace (`discovery-trace.md`)](./discovery-trace.md)**:
    - Full 5-pass log of directory inspection, manifest parsing, script discovery, architecture tracing, and second-pass quality check.
-2. **[Generated Context Artifacts (`generated-context.md`)](file:///Users/egagofur/Development/work/ai-engineering-loop/examples/initialization/generated-context.md)**:
+2. **[Generated Context Artifacts (`generated-context.md`)](./generated-context.md)**:
    - The exact evidence-based `.ai-engineering-loop/` files generated automatically by the agent without user intervention.

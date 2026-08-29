@@ -22,12 +22,12 @@ Task: Implement atomic idempotency key validation and SELECT FOR UPDATE row lock
 
 ## 3. Walkthrough Artifacts
 
-1. **[Goal Contract (`goal-contract.md`)](file:///Users/egagofur/Development/work/ai-engineering-loop/examples/backend-api/payment-idempotency/goal-contract.md)**:
+1. **[Goal Contract (`goal-contract.md`)](./goal-contract.md)**:
    - AC-1: Idempotency-Key header mandatory on POST `/api/v1/payments/charge`.
    - AC-2: Atomic reservation using PostgreSQL `INSERT ... ON CONFLICT DO NOTHING`.
    - AC-3: Concurrent requests for same user wallet serialized with `SELECT ... FOR UPDATE`.
-2. **[Adversarial Review Findings (`review-findings.md`)](file:///Users/egagofur/Development/work/ai-engineering-loop/examples/backend-api/payment-idempotency/review-findings.md)**:
+2. **[Adversarial Review Findings (`review-findings.md`)](./review-findings.md)**:
    - Devil's Advocate activates `backend-api` rules (concurrency, database atomicity).
    - Flags missing rollback on external gateway timeout (`ERR-001`).
-3. **[Judge Verdict (`judge-verdict.md`)](file:///Users/egagofur/Development/work/ai-engineering-loop/examples/backend-api/payment-idempotency/judge-verdict.md)**:
+3. **[Judge Verdict (`judge-verdict.md`)](./judge-verdict.md)**:
    - Evaluates parallel test execution (`go test -race ./...`), verifies concurrency safety, and issues `PASS` verdict.

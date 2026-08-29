@@ -166,17 +166,33 @@ test('Gemini Antigravity skill matches the loop and never uses Grok spawn keys o
   assert.match(gemini, /TRUE_INDEPENDENT_AGENT/);
 });
 
-test('DOT adapter locates task-impact-inquiry on Antigravity Gemini skills, not Claude', () => {
-  const readme = readRepo('adapters/dot/README.md');
-  assert.match(readme, /~\/\.gemini\/config\/skills/);
-  assert.match(readme, /task-impact-inquiry/);
-  assert.match(readme, /not from `~\/\.claude\/skills\/`/);
-  assert.doesNotMatch(readme, /and `~\/\.claude\/skills\/`/);
+test('task-impact-inquiry is Claude-safe and ships to Claude, Grok, and Gemini', () => {
+  const skill = readRepo('adapters/dot/skills/task-impact-inquiry/SKILL.md');
+  const { fm } = parseFrontmatter(skill, 'task-impact-inquiry');
+  assert.doesNotMatch(fm, /^description:\s*>-?/m);
+  assert.doesNotMatch(skill, /```mermaid/);
+  assert.doesNotMatch(skill, /\$\\/);
+  assert.doesNotMatch(skill, /spawn_subagent/);
+  assert.match(skill, /lifecycle/);
+  assert.match(skill, /ASCII/);
+  assert.match(skill, /failure table/);
+  assert.match(skill, /Do not interview again/);
+  assert.match(skill, /Passing unit tests are not isolation proof|Green unit tests/);
+  assert.match(skill, /New-dev briefing/);
+  assert.match(skill, /Hit map|Where it hits/);
+  assert.match(skill, /Do not generate an FSD/);
   const grill = readRepo('core/grill-policy.md');
-  assert.match(grill, /task-impact-inquiry/);
-  assert.match(grill, /Do not skip grill/);
+  assert.match(grill, /Business blast radius/);
+  assert.match(grill, /~\/\.claude\/skills\/task-impact-inquiry/);
+  assert.match(grill, /~\/\.grok\/skills\/task-impact-inquiry/);
+  assert.match(grill, /~\/\.gemini\/config\/skills\/task-impact-inquiry/);
+  const readme = readRepo('adapters/dot/README.md');
+  assert.match(readme, /task-impact-inquiry/);
+  assert.match(readme, /~\/\.claude\/skills\//);
+  assert.doesNotMatch(readme, /not from `~\/\.claude\/skills\/`/);
   const wf = readRepo('.agents/workflows/ai-engineering-loop.md');
   assert.match(wf, /task-impact-inquiry/);
+  assert.match(wf, /blast radius: lifecycle sketch/);
 });
 
 test('DOT router sends commit-bound work to ai-engineering-loop; workflow is Stage 8 only', () => {
@@ -260,6 +276,7 @@ test('Failure table is required to freeze, TDD, verify, and Judge', () => {
     assert.match(text, /failure table/, rel);
     assert.match(text, /One red test per AC row/, rel);
     assert.match(text, /Do not freeze sunny-path-only/, rel);
+    assert.match(text, /blast radius: lifecycle sketch/, rel);
   }
 });
 

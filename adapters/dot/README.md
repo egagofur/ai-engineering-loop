@@ -2,7 +2,7 @@
 
 ## 1. Overview & Architecture
 
-The **DOT Delivery Adapter** connects the generic [AI Engineering Loop](file:///Users/egagofur/Development/work/ai-engineering-loop/README.md) to the specific development infrastructure of **DOT Indonesia**.
+The **DOT Delivery Adapter** connects the generic [AI Engineering Loop](../../README.md) to DOT's delivery tools (GitLab, multi-branch, Coreview, Mattermost).
 
 The generic engineering loop guarantees that code is correct, verified, and adversarially tested. The DOT adapter is responsible for downstream release engineering, collaboration tools, issue tracking, and multi-environment synchronization.
 
@@ -27,18 +27,18 @@ flowchart TD
 
 The DOT adapter is organized into four dedicated specification modules:
 
-1. **[GitLab Integration (`gitlab.md`)](file:///Users/egagofur/Development/work/ai-engineering-loop/adapters/dot/gitlab.md)**:
+1. **[GitLab Integration (`gitlab.md`)](gitlab.md)**:
    - CLI automation with `glab`.
    - Standardized issue card templates with actual vs expected tables and QA testing steps.
    - Standardized MR descriptions linking issue IDs and change summaries.
-2. **[Multi-Branch Propagation (`multi-branch.md`)](file:///Users/egagofur/Development/work/ai-engineering-loop/adapters/dot/multi-branch.md)**:
+2. **[Multi-Branch Propagation (`multi-branch.md`)](multi-branch.md)**:
    - Multi-environment branching model across `main`, `staging`, and `develop`.
    - Clean cherry-picking workflow and target-specific test verification.
-3. **[Coreview External Reviewer Triage (`coreview.md`)](file:///Users/egagofur/Development/work/ai-engineering-loop/adapters/dot/coreview.md)**:
+3. **[Coreview External Reviewer Triage (`coreview.md`)](coreview.md)**:
    - Ingestion of `@coreview-bot` automated PR comments.
    - Mandatory Phase 8 Triage reporting gate before Mattermost dispatch.
    - Rigorous evaluation of bot suggestions into `VALID` (fix & propagate) vs `HALU` (false positive pushback) using principles from `gitlab-mr-feedback` and `receiving-code-review`.
-4. **[Mattermost Notifications (`mattermost.md`)](file:///Users/egagofur/Development/work/ai-engineering-loop/adapters/dot/mattermost.md)**:
+4. **[Mattermost Notifications (`mattermost.md`)](mattermost.md)**:
    - Repository-to-channel resolution using persistent configuration.
    - MCP `mattermost_send_message` dispatch with mandatory `from: "AI Agent"` attribution.
    - Environment-tagged Markdown blocks (`[MR DEV]`, `[MR STAGING]`, `[MR MAIN]`) formatted with strict **`no-ai-slop`** human-written standards.
@@ -47,7 +47,7 @@ The DOT adapter is organized into four dedicated specification modules:
 
 ## 3. Official DOT Engineering Skills Integration
 
-This adapter composes the DOT skill suite that Antigravity loads from `~/.gemini/config/skills/` (not from `~/.claude/skills/` and not from this npm package). Claude Code and Grok do not get these skills unless the same files are installed on those hosts.
+This adapter composes the DOT skill suite. `task-impact-inquiry` ships in this package (`adapters/dot/skills/task-impact-inquiry/`) and `sync-hosts` upserts it to Claude, Grok, and Gemini. Other DOT skills (router, workflow) still update-if-exists only.
 
 On a DOT repo (`adapter_type: dot`), **run `ai-engineering-loop`**, not the old 9-phase `dot-dev-workflow`, as the engineering OS. Stage 1 grill **includes** `task-impact-inquiry`. Do not run a second interview. After Judge `PASS`, Stage 8 is `dot-dev-workflow` delivery (GitLab, cherry-pick, Coreview, Mattermost). Canonical copies: `adapters/dot/skills/`. See `core/grill-policy.md`.
 
@@ -56,7 +56,7 @@ On a DOT repo (`adapter_type: dot`), **run `ai-engineering-loop`**, not the old 
 | **`ai-engineering-loop`** | Engineering OS (Stages 0-7). Use this for DOT bugfix/feature/refactor. |
 | **`dot-dev-workflow`** | Stage 8 delivery only after Judge PASS. Not a parallel engineering loop. |
 | **`dot-dev-skill-router`** | Routes commit-bound DOT work to `ai-engineering-loop`, then Stage 8. |
-| **`task-impact-inquiry`** | Antigravity skill at `~/.gemini/config/skills/task-impact-inquiry/`. Four-pillar blast radius (state, sibling, approval, downstream queues). Fills Stage 1 grill on DOT; then freeze the Goal Contract. |
+| **`task-impact-inquiry`** | Business blast radius (lifecycle sketch, four pillars, ASCII picture). Canonical: `adapters/dot/skills/task-impact-inquiry/`. Host copies: `~/.claude/skills/`, `~/.grok/skills/`, `~/.gemini/config/skills/`. Fills Stage 1 grill; impact-only stops after the matrix. Not a parallel OS. |
 | **`backend-development`** | Framework-agnostic backend guidelines (clean naming, database queries, security, error handling). |
 | **`backend-safety-guardrails`** | 6 architectural backend safety invariants (queue bypass, BigInt, status recalculation loops). |
 | **`devils-advocate`** | Legacy DOT pre-commit skill. On AEL, Stages 6-7 are package Devil's Advocate + Judge. Do not re-run this skill after Judge PASS. |
@@ -73,7 +73,7 @@ On a DOT repo (`adapter_type: dot`), **run `ai-engineering-loop`**, not the old 
 | Generic Core Responsibility | DOT Adapter Responsibility |
 |---|---|
 | Goal Contract & Acceptance Criteria | GitLab Issue Card drafting |
-| Unit testing, typecheck, lint, build | Running DOT-specific scripts (`npx jest --testPathIgnorePatterns="dotify-api"`) |
+| Unit testing, typecheck, lint, build | Commands from `.ai-engineering-loop/verification.md` |
 | Internal Devil's Advocate Review | External `@coreview-bot` triage on GitLab MRs |
 | Judge verdict & completion certificate | Multi-environment cherry-picking & branch synchronization |
 | Evidence collection & finding logs | Mattermost channel notifications & MR link delivery |

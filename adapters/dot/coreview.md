@@ -67,7 +67,8 @@ Every Coreview comment must be categorized into one of two paths:
   1. Apply the fix surgically to the local working branch.
   2. Re-run all unit tests and static analysis:
      ```bash
-     npx jest --testPathIgnorePatterns="dotify-api"
+     # commands from .ai-engineering-loop/verification.md
+     npx jest
      npx tsc --noEmit
      ```
   3. Commit and push the fix to the branch:
@@ -104,4 +105,4 @@ Every Coreview comment must be categorized into one of two paths:
 
 ## 5. Anti-Pattern: Blind Compliance
 
-Agents must **never** rewrite working, verified code solely because an automated review bot posted a comment. If the bot's suggestion violates the [Goal Contract](file:///Users/egagofur/Development/work/ai-engineering-loop/core/goal-contract.md) or introduces broken dependencies, it MUST be triaged as `HALU` with evidence.
+Agents must **never** rewrite working, verified code solely because an automated review bot posted a comment. If the bot's suggestion violates the [Goal Contract](../../core/goal-contract.md) or introduces broken dependencies, it MUST be triaged as `HALU` with evidence.

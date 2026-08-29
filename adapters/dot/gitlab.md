@@ -2,7 +2,7 @@
 
 ## 1. Purpose & Scope
 
-This module encapsulates all GitLab operations within the DOT ecosystem. Once a code change has successfully passed the [Generic AI Engineering Loop](file:///Users/egagofur/Development/work/ai-engineering-loop/README.md), this adapter automates issue tracking and Merge Request (MR) generation via the `glab` CLI.
+This module encapsulates GitLab operations for the DOT adapter. Once a change has passed the [generic AI Engineering Loop](../../README.md), this adapter automates issue tracking and Merge Request (MR) generation via the `glab` CLI.
 
 ---
 
@@ -54,7 +54,7 @@ flowchart TD
     ```
 
 ### B. Create Standardized Issue Card
-If no issue exists, create one in the designated tracker (e.g. `dot-system/dotify-new` for central Dotify tracker, or the target repository):
+If no issue exists, create one in the current repository (or the tracker named in `.ai-engineering-loop/adapter.md`):
 
 ```bash
 glab issue create \
@@ -79,7 +79,7 @@ glab issue create \
 ## Testing Steps
 1. Login as [User Role / Email].
 2. Navigate to [Target Menu / URL].
-3. Perform [Action e.g. submit attendance, clock-in, approve overtime].
+3. Perform [Action e.g. submit the form, approve the request].
 4. Verify [Expected Result].
 
 ## Expectation

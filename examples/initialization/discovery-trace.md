@@ -18,7 +18,7 @@
   - `packages/` (contains `ui/`, `database/`, `shared/`)
   - `pnpm-workspace.yaml` (detected `pnpm` monorepo)
   - `turbo.json` (detected Turborepo pipeline)
-- **Profile Binding**: Bound [`profiles/monorepo.md`](file:///Users/egagofur/Development/work/ai-engineering-loop/profiles/monorepo.md).
+- **Profile Binding**: Bound [`profiles/monorepo.md`](../../profiles/monorepo.md).
 
 ### Pass 2: Manifests & Verification Commands Discovery
 - Parsed `package.json` (root):

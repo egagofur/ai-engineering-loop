@@ -45,22 +45,26 @@ Before Maker starts:
 
 If a decision was agreed in chat and is missing from the file, the contract is not frozen. Do not start Maker.
 
-## DOT adapter (`adapter_type: dot`)
+## Business blast radius
 
-On DOT repositories, grill is **one** session that includes the four-pillar blast radius from Antigravity skill `task-impact-inquiry` (`~/.gemini/config/skills/task-impact-inquiry/SKILL.md`). Do not run that skill as a second interview after grill.
+Green unit tests are not proof that sibling rows, approvals, or downstream jobs survived.
 
-The four pillars must appear in the grill (and then in the Goal Contract) whenever the change can touch:
+When the change can touch state, siblings, actors/approvals, or downstream work, grill **must** include blast radius — even if AC look obvious or the user said "just do it". Typo, lint, and version-bump skips still apply.
 
-1. State and condition permutations (status, overtime vs normal hours, locked vs open periods)
-2. Sibling / historical isolation (other entities in the same parent, period, or cart)
-3. Actor and approval authority (who edits, when an existing approval is void vs kept)
-4. Downstream jobs and queues (BullMQ, cron, payroll/aggregates)
+On `adapter_type: dot`, this is mandatory. On other adapters, skip only when the change cannot touch those four (copy, CSS, comment).
 
-**Do not skip grill** for those four cases, even if AC look obvious or the user said "just do it". Typo, lint, and version-bump skips still apply.
+Canonical skill: `adapters/dot/skills/task-impact-inquiry/SKILL.md`. Host copies via `sync-hosts`: `~/.claude/skills/task-impact-inquiry/`, `~/.grok/skills/task-impact-inquiry/`, `~/.gemini/config/skills/task-impact-inquiry/`. Load that skill if present. If it is missing, still run this section. Do not claim the skill ran.
 
-If the skill file is missing on this host, still ask the four pillars from this section. Do not claim the Gemini skill ran.
+If Stage 1 grill already produced the matrix and the user confirmed it, do not run a second interview.
 
-Present the impact matrix and 2–3 probing questions in the same grill round as other Stage 1 decisions. Recommended answers required. After the frontier is empty, freeze the Goal Contract once.
+In the same grill round:
+
+1. Look up the current flow. Draw an ASCII lifecycle (actor → status → lock). Do not ask look-up facts.
+2. Scan four pillars: state/conditions; sibling/historical isolation; actor and approval (void vs keep); downstream jobs and queues.
+3. ASCII blast-radius picture. No mermaid.
+4. Impact matrix (happy, empty/omit, boundary, sibling, error). Sunny-path-only is not done.
+5. 2–3 probing questions with recommended answers. Wait.
+6. Each accepted row becomes a numbered AC in the Goal Contract **file** (failure table).
 
 ## Design tree
 
