@@ -9,10 +9,13 @@ const { execFileSync } = require('child_process');
 
 const {
   parseWorkflowFile,
+  parseWorkflowMarkdown,
   writeWorkflowOverlay,
   assertNoRequiredSkip,
   routeDurableNote,
-  parseWriteArg
+  parseWriteArg,
+  normalizeMakerIntern,
+  workflowMarkdown
 } = require('../lib/generate-workflow.js');
 
 const CLI = path.join(__dirname, '..', 'bin', 'ai-engineering-loop.js');
@@ -93,7 +96,7 @@ test('CLI generate-workflow without --write prints grill protocol', () => {
   const dir = tmpRepo();
   const out = execFileSync('node', [CLI, 'generate-workflow'], { cwd: dir, encoding: 'utf8' });
   assert.match(out, /generate-workflow/);
-  assert.match(out, /Q1-Q5/);
+  assert.match(out, /Q1-Q6/);
   assert.ok(!fs.existsSync(path.join(dir, '.ai-engineering-loop', 'workflow.md')));
 });
 
@@ -106,4 +109,59 @@ test('CLI generate-workflow --write writes overlay files', () => {
   assert.match(out, /Wrote:/);
   assert.ok(fs.existsSync(path.join(dir, '.ai-engineering-loop', 'workflow.md')));
   assert.ok(fs.existsSync(path.join(dir, '.ai-engineering-loop', 'lessons.md')));
+});
+
+test('AC-1 default overlay maker_intern is none', () => {
+  const dir = tmpRepo();
+  const wrote = writeWorkflowOverlay(dir, {});
+  const workflow = fs.readFileSync(wrote.workflow, 'utf8');
+  const parsed = parseWorkflowFile(dir);
+  assert.match(workflow, /\*\*maker_intern\*\*: none/);
+  assert.strictEqual(parsed.makerIntern, 'none');
+  assert.match(workflowMarkdown(), /Not locked to one vendor/);
+  assert.match(workflowMarkdown(), /gemini-flash/);
+});
+
+test('AC-2 missing workflow.md makerIntern is none', () => {
+  const dir = tmpRepo();
+  const parsed = parseWorkflowFile(dir);
+  assert.strictEqual(parsed.missing, true);
+  assert.strictEqual(parsed.makerIntern, 'none');
+});
+
+test('AC-3 empty or None intern normalizes to none', () => {
+  assert.strictEqual(normalizeMakerIntern(''), 'none');
+  assert.strictEqual(normalizeMakerIntern('none'), 'none');
+  assert.strictEqual(normalizeMakerIntern('None'), 'none');
+  const parsed = parseWorkflowMarkdown('# Loop Overlay\n\n- **maker_intern**:\n');
+  assert.strictEqual(parsed.makerIntern, 'none');
+});
+
+test('AC-4 gemini-flash and haiku are valid intern labels', () => {
+  const dir = tmpRepo();
+  writeWorkflowOverlay(dir, { makerIntern: 'gemini-flash' });
+  assert.strictEqual(parseWorkflowFile(dir).makerIntern, 'gemini-flash');
+  writeWorkflowOverlay(dir, { makerIntern: 'haiku' });
+  assert.strictEqual(parseWorkflowFile(dir).makerIntern, 'haiku');
+  const text = workflowMarkdown();
+  assert.doesNotMatch(text, /must use qwen/i);
+  assert.doesNotMatch(text, /must use deepseek/i);
+  assert.doesNotMatch(text, /required: qwen/i);
+});
+
+test('AC-5 intern label does not allow skipping Devil\'s Advocate', () => {
+  const dir = tmpRepo();
+  assert.throws(
+    () => writeWorkflowOverlay(dir, { makerIntern: 'qwen', optionalSkips: ['devil_advocate'] }),
+    /cannot skip/
+  );
+  assert.ok(!fs.existsSync(path.join(dir, '.ai-engineering-loop', 'workflow.md')));
+});
+
+test('AC-6 intern rejects API keys and URLs', () => {
+  const dir = tmpRepo();
+  assert.throws(() => writeWorkflowOverlay(dir, { makerIntern: 'sk-abc' }), /not a key or URL/);
+  assert.throws(() => writeWorkflowOverlay(dir, { makerIntern: 'https://api.example.com' }), /not a key or URL/);
+  assert.throws(() => normalizeMakerIntern('openai_api_key'), /not a key or URL/);
+  assert.ok(!fs.existsSync(path.join(dir, '.ai-engineering-loop', 'workflow.md')));
 });

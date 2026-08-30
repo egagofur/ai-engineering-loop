@@ -13,6 +13,11 @@ This file adds hooks around the AI Engineering Loop. It does not replace the 8-s
 - **after_freeze**: none
 - **after_pass**: none
 
+## Maker intern
+- **maker_intern**: none
+
+Default `none` = parent is Maker. Any host-native label is allowed (gemini-flash, grok-mini, haiku, qwen, deepseek, ...). Not locked to one vendor. AEL does not store intern API keys. Devil's Advocate and Judge stay on the parent. Intern cannot skip them.
+
 ## Optional skips
 none
 

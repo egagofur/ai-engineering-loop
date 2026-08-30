@@ -797,7 +797,7 @@ Commands:
                --dry-run  print the plan without writing
   generate-adapter  Print detected forge and grill protocol for Stage 8
                --type standard|github|gitlab|dot  write .ai-engineering-loop/adapter.md (skip grill)
-  generate-workflow Print grill protocol for a loop overlay (hooks + lessons.md)
+  generate-workflow Print grill protocol for a loop overlay (hooks + intern + lessons.md)
                --write  write .ai-engineering-loop/workflow.md and empty lessons.md (skip grill)
 
 Options:

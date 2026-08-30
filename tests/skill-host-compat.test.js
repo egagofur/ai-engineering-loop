@@ -218,8 +218,11 @@ test('generate-workflow skill is Claude-safe and host skills read the overlay', 
   assert.doesNotMatch(skill, /\$\\/);
   assert.doesNotMatch(skill, /spawn_subagent/);
   assert.match(skill, /Q1/);
+  assert.match(skill, /Q6/);
+  assert.match(skill, /maker_intern/);
   assert.match(skill, /Do not start Maker/);
   assert.match(skill, /lessons\.md/);
+  assert.match(skill, /Not locked to one vendor/);
   for (const rel of [
     '.claude/skills/ai-engineering-loop/SKILL.md',
     '.grok/skills/ai-engineering-loop/SKILL.md',
@@ -231,6 +234,8 @@ test('generate-workflow skill is Claude-safe and host skills read the overlay', 
     assert.match(text, /workflow\.md/, rel);
     assert.match(text, /Do not skip Goal Contract, verification, Devil's Advocate, or Judge/, rel);
     assert.match(text, /generate-workflow/, rel);
+    assert.match(text, /maker_intern/, rel);
+    assert.match(text, /INVOCATION_UNAVAILABLE/, rel);
   }
 });
 

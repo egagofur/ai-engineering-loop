@@ -42,6 +42,7 @@ flowchart LR
 2. **CANNOT Alter Acceptance Criteria**: The Maker Agent must never modify the Goal Contract's acceptance criteria to bypass failing tests.
 3. **CANNOT Suppress Verification Failures**: The Maker Agent is strictly prohibited from adding `@ts-ignore`, `eslint-disable`, mock overrides that mask bugs, or skipping broken tests to achieve green results.
 4. **CANNOT Make Unsolicited Renovations**: Even if surrounding legacy code is poorly written, the Maker must not refactor untouched modules unless explicitly included in the Goal Contract.
+5. **CANNOT Skip Review**: A Maker intern (optional `maker_intern` overlay label) cannot skip verification, Devil's Advocate, or Judge. Intern is a cheaper Stage 4 builder only. Default `none` means the parent is Maker. The label is host-native and not locked to one vendor. AEL does not store intern API keys.
 
 ---
 

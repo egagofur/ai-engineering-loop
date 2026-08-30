@@ -16,7 +16,7 @@ Do not edit production code. Do not create a feature branch for the product.
 Do not write `.ai-engineering-loop/workflow.md` until:
 
 1. Look-up is done (existing overlay, lessons, adapter).
-2. Q1–Q5 are on screen with a recommended answer.
+2. Q1–Q6 are on screen with a recommended answer.
 3. The user has answered or waived.
 
 Never skip Goal Contract, verification, Devil's Advocate, or Judge. If the user asks to skip those, refuse and keep them required.
@@ -53,7 +53,7 @@ Cite what already exists. Do not ask whether those files are present.
 
 ### 2. Grill (wait)
 
-Ask all five in one round. Number them. Give Recommended. Wait.
+Ask all six in one round. Number them. Give Recommended. Wait.
 
 ```text
 Q1 - Extra step before grill: none | name it
@@ -70,9 +70,14 @@ Recommended: keep AEL default
 
 Q5 - Skip generate-adapter when adapter.md already exists: yes | no
 Recommended: yes
+
+Q6 - Maker intern: none | any host-native label (gemini-flash, grok-mini, haiku, qwen, ...)
+Recommended: none
 ```
 
 If they name a tool or step, write that name into the matching hook. Do not invent Figma/Jira/Slack unless they said so.
+
+Q6 is a host-native label only (`maker_intern` in workflow.md). Not locked to one vendor. Do not paste API keys or URLs. Default none = parent is Maker.
 
 ### 3. Write
 
@@ -80,6 +85,7 @@ Write `.ai-engineering-loop/workflow.md` (create `.ai-engineering-loop/` if need
 
 - Required stages listed and not skippable
 - Hooks from Q1–Q3 (`none` if they picked none)
+- **maker_intern** from Q6 (`none` if they picked none)
 - Optional skips only `blast_radius` and/or `generate_adapter`
 - No tokens, no coworker handles, no internal ticket URLs
 
@@ -91,7 +97,7 @@ Headless alternative the user can run:
 npx ai-engineering-loop generate-workflow --write
 ```
 
-`--write` skips this interview and writes default hooks (`none`). Do not pass `--write` yourself unless they waived the grill.
+`--write` skips this interview and writes default hooks (`none`) and `maker_intern: none`. Do not pass `--write` yourself unless they waived the grill.
 
 ### 4. Lessons during later product work
 
@@ -112,7 +118,7 @@ Print the paths written. Do not start Maker. Do not open a PR.
 ```text
 Generate workflow overlay
 Existing: <workflow yes/no> <lessons yes/no>
-Questions: Q1..Q5 with Recommended
+Questions: Q1..Q6 with Recommended
 Wrote: .ai-engineering-loop/workflow.md
 Lessons: .ai-engineering-loop/lessons.md (created or left)
 Next: /ai-engineering-loop for product work. Stage 0 reads these files.

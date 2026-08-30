@@ -79,13 +79,14 @@ Maintains lightweight state for instant drift detection:
 - Durable why for load-bearing choices settled in grill. `refresh` does not overwrite existing ADRs.
 
 ### 9. `tasks/` — Run artifacts (optional)
-- `current.diff`, verification logs, `handoff.md`, `claimed-vs-reality.md`. Not required for `init` validity.
+- `current.diff`, verification logs, `handoff.md`, `claimed-vs-reality.md`, `maker-brief.md`. Not required for `init` validity.
 
 ### 10. `workflow.md` — Loop overlay (optional)
 - Hooks around the 8-stage OS: `before_grill`, `after_freeze`, `after_pass`.
+- Optional `maker_intern` (default `none`). Any host-native label. Not locked to one vendor. Not a key or URL.
 - Cannot skip Goal Contract, verification, Devil's Advocate, or Judge.
-- Missing file means default 8-stage loop (no extra hooks).
-- Generate with `npx ai-engineering-loop generate-workflow` (grill) or `--write`.
+- Missing file means default 8-stage loop (no extra hooks, parent is Maker).
+- Generate with `npx ai-engineering-loop generate-workflow` (grill Q1–Q6) or `--write`.
 
 ### 11. `lessons.md` — Confirmed process lessons (optional)
 - One human-confirmed row per lesson. Not a chat transcript. Not `eval.md`.
