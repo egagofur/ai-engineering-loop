@@ -64,14 +64,17 @@ The 8-stage loop stays one OS. These techniques sit **inside** existing stages (
 
 | Stage | Technique | Spec |
 |---|---|---|
-| 1 | Grill until the design-tree frontier is empty, then freeze the Goal Contract. Idea requests: menu, wait, then grill the pick. Chat `setuju` is not freeze; user-visible decisions must be numbered AC in the contract file. AC is a **failure table** (happy, empty/omit, boundary, sibling, error), not sunny path only. Business-logic change: **blast radius** (lifecycle sketch, four pillars, ASCII picture) via `task-impact-inquiry` inside grill — not a second loop. Passing unit tests are not isolation proof. | `core/grill-policy.md` |
+| 1 | Grill until the design-tree frontier is empty, then freeze the Goal Contract. Idea requests: menu, wait, then grill the pick. Chat `setuju` is not freeze; user-visible decisions must be numbered AC in the contract file. AC is a **failure table** (happy, empty/omit, boundary, sibling, error), not sunny path only. **Sloppy prompt** (no numbered AC): draft the Goal Contract file, show it, wait for freeze — do not Maker. Business-logic change: **blast radius** (lifecycle sketch, four pillars, ASCII picture) via `task-impact-inquiry` inside grill — not a second loop. Passing unit tests are not isolation proof. | `core/grill-policy.md` |
 | 1 | Ubiquitous language in `.ai-engineering-loop/glossary.md`; load-bearing choices in `.ai-engineering-loop/adrs/` | `core/repo-config-schema.md` |
 | 2 | Bugs: red repro → minimise → hypothesise → instrument → fix | `core/root-cause-analysis.md` |
 | 4–5 | Red-green at named **seams**; failure table (not happy path only); coverage is a map; no grep/tautology | `policies/tdd-policy.md` |
+| 5 | **Claimed vs Reality** table before DA. Missing file or empty Reality blocks Devil's Advocate. "Seems green" is not Reality. | `core/verification-loop.md` |
 | 6–7 | Spec vs Standards reported separately. Standards BLOCKER/HIGH iterate only when `hardConvention` is true | `policies/finding-policy.md` |
 | any | Mid-loop stop writes `.ai-engineering-loop/tasks/handoff.md` | `core/handoff-policy.md` |
 
 `init` now requires `glossary.md` and `adrs/README.md`. Repair fills missing files only; a filled glossary is never overwritten.
+
+Later phases (not this release): cheap intern as Maker; host compact pipeline.
 
 ---
 

@@ -267,6 +267,29 @@ test('Host skills Stage 0 runs sync-hosts before status', () => {
   }
 });
 
+test('Sloppy prompt drafts a Goal Contract; claimed-vs-reality gates DA', () => {
+  const grill = readRepo('core/grill-policy.md');
+  assert.match(grill, /Sloppy \/ underspecified prompts/);
+  assert.match(grill, /Do not start Maker/);
+  assert.match(grill, /Do not invent a second draft/);
+  const verif = readRepo('core/verification-loop.md');
+  assert.match(verif, /claimed-vs-reality\.md/);
+  assert.match(verif, /seems green/);
+  const judge = readRepo('agents/shared/judge.body.md');
+  assert.match(judge, /claimed-vs-reality\.md/);
+  for (const rel of [
+    '.claude/skills/ai-engineering-loop/SKILL.md',
+    '.grok/skills/ai-engineering-loop/SKILL.md',
+    '.gemini/skills/ai-engineering-loop/SKILL.md',
+    '.agents/workflows/ai-engineering-loop.md'
+  ]) {
+    const text = readRepo(rel);
+    assert.match(text, /If the user prompt has no numbered AC/, rel);
+    assert.match(text, /claimed-vs-reality\.md/, rel);
+    assert.match(text, /Do not spawn Devil's Advocate if the file is missing/, rel);
+  }
+});
+
 test('Grill freeze gate and idea menu are in the loop, not a parallel product', () => {
   const grill = readRepo('core/grill-policy.md');
   assert.match(grill, /Idea and menu requests/);

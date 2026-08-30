@@ -45,6 +45,19 @@ Before Maker starts:
 
 If a decision was agreed in chat and is missing from the file, the contract is not frozen. Do not start Maker.
 
+## Sloppy / underspecified prompts
+
+A prompt with no numbered AC (for example "fix login", "bikin aja bagus") is not permission to Maker.
+
+1. Look up facts. Draft `.ai-engineering-loop/tasks/goal-contract.md` with a **failure table** (happy, empty/omit, boundary, sibling, error).
+2. Show the AC list. Recommended answers already filled.
+3. Wait for an explicit freeze of that file. Chat `setuju` is **not** a freeze.
+4. Do not start Maker. Do not treat the draft as frozen.
+
+If the prompt already has numbered AC, or a Goal Contract for this task is already frozen on disk, Do not invent a second draft.
+
+Later phases (not this loop): cheap intern as Maker; host compact pipeline.
+
 ## Business blast radius
 
 Green unit tests are not proof that sibling rows, approvals, or downstream jobs survived.

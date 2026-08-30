@@ -63,3 +63,26 @@ The Verification Gate immediately halts and returns to the Maker if:
 - Test logs contain zero passing assertions for new acceptance criteria.
 - assertionEvidence maps only to a happy path while the Goal Contract lists empty, boundary, sibling, or error AC rows.
 - The only new "test" is a source grep or a coverage percentage.
+
+---
+
+## 5. Claimed vs Reality (before Devil's Advocate)
+
+Write `.ai-engineering-loop/tasks/claimed-vs-reality.md` after verification logs exist:
+
+```markdown
+# Claimed vs Reality
+
+| AC | Claimed | Reality |
+|---|---|---|
+| AC-1 | <what Maker said is done> | <command, exit code, assertion or log line> |
+```
+
+Do **not** spawn Devil's Advocate if:
+
+- the file is missing
+- the table has zero rows
+- any Claimed row has empty Reality
+- Reality is only `seems green`
+
+Parser: `lib/claimed-vs-reality.js` (`readyForDa`). Pass that path to DA/Judge with the verification log.

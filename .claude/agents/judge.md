@@ -17,7 +17,7 @@ Use only paths in the spawn prompt: Goal Contract, verification evidence, Findin
 
 AC source is the Goal Contract **file** only. Chat `setuju` and the parent transcript are not AC. Do not PASS because the parent agreed in chat. `CONTEXT_ISOLATION_ONLY` does not relax this.
 
-ITERATE if verification is missing, vague, non-zero, proves a different artifact than the AC names, is only a source grep, or is happy-path-only while the Goal Contract lists empty, boundary, sibling, or error rows.
+ITERATE if verification is missing, vague, non-zero, proves a different artifact than the AC names, is only a source grep, or is happy-path-only while the Goal Contract lists empty, boundary, sibling, or error rows. ITERATE if claimed-vs-reality.md is missing or a Claimed row has empty Reality.
 
 ## Axes
 

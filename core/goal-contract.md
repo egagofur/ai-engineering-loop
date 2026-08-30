@@ -112,3 +112,4 @@ Every single item listed under `Acceptance Criteria` must map to at least one co
 - **The Chat Contract**: Treating "setuju" in the parent transcript as AC. The file is the contract.
 - **The Wrong Artifact**: Tests pass on a `/tmp` build while the sample the user opens omits the feature.
 - **The Happy-Path Contract**: Only the sunny case is an AC. Coverage % is not a substitute for a failure table.
+- **The Sloppy Ship**: Implementing from a vague prompt without a drafted failure table in the Goal Contract file.

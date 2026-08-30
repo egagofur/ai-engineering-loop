@@ -24,6 +24,7 @@ Overwrite the previous handoff for the active task. Do not commit unless the use
 
 ## Verification
 - last command, exit code, log path (or NOT RUN)
+- claimed-vs-reality.md path (or NOT RUN)
 
 ## Review
 - DA ledger path (or NOT RUN)

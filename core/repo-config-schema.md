@@ -79,7 +79,7 @@ Maintains lightweight state for instant drift detection:
 - Durable why for load-bearing choices settled in grill. `refresh` does not overwrite existing ADRs.
 
 ### 9. `tasks/` — Run artifacts (optional)
-- `current.diff`, verification logs, `handoff.md`. Not required for `init` validity.
+- `current.diff`, verification logs, `handoff.md`, `claimed-vs-reality.md`. Not required for `init` validity.
 
 ### 10. `workflow.md` — Loop overlay (optional)
 - Hooks around the 8-stage OS: `before_grill`, `after_freeze`, `after_pass`.
