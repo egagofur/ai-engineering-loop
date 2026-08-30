@@ -31,6 +31,8 @@ Claude Code talks to strict proxies (including Kiro). Follow this exactly:
 
 ## Loop
 
+Compact map (not a second OS): Specify (stages 0-1), Make (stages 2-4), Review (stages 5-7), Deliver (stage 8). Keep the 8-stage numbers. Do not skip Goal Contract, verification, Devil's Advocate, or Judge.
+
 Parent session is Maker plus orchestrator. Spawn Devil's Advocate and Judge as **siblings**, not nested.
 
 1. Stage 0: `npx ai-engineering-loop sync-hosts` then `npx ai-engineering-loop status` (init or refresh if missing or stale). Read `.ai-engineering-loop/glossary.md`. Read `.ai-engineering-loop/lessons.md` and `.ai-engineering-loop/workflow.md` if they exist. Follow workflow.md hooks (`before_grill`, `after_freeze`, `after_pass`). Do not skip Goal Contract, verification, Devil's Advocate, or Judge even if workflow.md asks. If workflow.md is missing, run the default 8-stage loop (no extra hooks). If sync-hosts copied files, tell the user a new session is needed for updated skill text; keep going with this session.

@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/egagofur/ai-engineering-loop/pulls)
 [![AI Engineering](https://img.shields.io/badge/AI-Engineering%20Loop-orange.svg)](https://github.com/egagofur/ai-engineering-loop)
-[![Release](https://img.shields.io/badge/release-v1.0.17-purple.svg)](https://github.com/egagofur/ai-engineering-loop/releases)
+[![Release](https://img.shields.io/badge/release-v1.0.18-purple.svg)](https://github.com/egagofur/ai-engineering-loop/releases)
 
 **A Reusable, Framework-Agnostic AI Engineering Operating System for Autonomous Coding Agents**
 
@@ -72,10 +72,9 @@ The 8-stage loop stays one OS. These techniques sit **inside** existing stages (
 | 5 | **Claimed vs Reality** table before DA. Missing file or empty Reality blocks Devil's Advocate. "Seems green" is not Reality. | `core/verification-loop.md` |
 | 6–7 | Spec vs Standards reported separately. Standards BLOCKER/HIGH iterate only when `hardConvention` is true | `policies/finding-policy.md` |
 | any | Mid-loop stop writes `.ai-engineering-loop/tasks/handoff.md` | `core/handoff-policy.md` |
+| any | **Compact map** (host guidance, not a second OS): Specify (stages 0-1), Make (stages 2-4), Review (stages 5-7), Deliver (stage 8). Keep the 8-stage numbers. Do not skip Goal Contract, verification, Devil's Advocate, or Judge. | host skills |
 
 `init` now requires `glossary.md` and `adrs/README.md`. Repair fills missing files only; a filled glossary is never overwritten.
-
-Later phase (not this change): host compact pipeline.
 
 ---
 

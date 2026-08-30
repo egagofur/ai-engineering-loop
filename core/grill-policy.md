@@ -56,8 +56,6 @@ A prompt with no numbered AC (for example "fix login", "bikin aja bagus") is not
 
 If the prompt already has numbered AC, or a Goal Contract for this task is already frozen on disk, Do not invent a second draft.
 
-Later phase (not this loop): host compact pipeline.
-
 ## Business blast radius
 
 Green unit tests are not proof that sibling rows, approvals, or downstream jobs survived.

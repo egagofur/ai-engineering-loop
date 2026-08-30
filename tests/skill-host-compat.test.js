@@ -260,6 +260,32 @@ test('generate-adapter skill is Claude-safe and shipped adapters stay generic', 
   assert.match(standard, /Judge `PASS`/);
 });
 
+test('Host compact map names four buckets and keeps 8-stage numbers', () => {
+  const readme = readRepo('README.md');
+  assert.match(readme, /Specify \(stages 0-1\)/);
+  assert.match(readme, /Make \(stages 2-4\)/);
+  assert.match(readme, /Review \(stages 5-7\)/);
+  assert.match(readme, /Deliver \(stage 8\)/);
+  assert.doesNotMatch(readme, /Later phase \(not this change\): host compact pipeline/);
+  const grill = readRepo('core/grill-policy.md');
+  assert.doesNotMatch(grill, /Later phase \(not this loop\): host compact pipeline/);
+  for (const rel of [
+    '.claude/skills/ai-engineering-loop/SKILL.md',
+    '.grok/skills/ai-engineering-loop/SKILL.md',
+    '.gemini/skills/ai-engineering-loop/SKILL.md',
+    '.agents/workflows/ai-engineering-loop.md'
+  ]) {
+    const text = readRepo(rel);
+    assert.match(text, /Specify \(stages 0-1\)/, rel);
+    assert.match(text, /Make \(stages 2-4\)/, rel);
+    assert.match(text, /Review \(stages 5-7\)/, rel);
+    assert.match(text, /Deliver \(stage 8\)/, rel);
+    assert.match(text, /8-stage/, rel);
+    assert.match(text, /not a second OS/, rel);
+    assert.match(text, /Do not skip Goal Contract, verification, Devil's Advocate, or Judge/, rel);
+  }
+});
+
 test('Host skills Stage 0 runs sync-hosts before status', () => {
   for (const rel of [
     '.claude/skills/ai-engineering-loop/SKILL.md',

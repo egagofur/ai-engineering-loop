@@ -111,6 +111,18 @@ test('CLI generate-workflow --write writes overlay files', () => {
   assert.ok(fs.existsSync(path.join(dir, '.ai-engineering-loop', 'lessons.md')));
 });
 
+test('compact pipeline does not add overlay pipeline or Q7', () => {
+  const text = workflowMarkdown();
+  assert.doesNotMatch(text, /\*\*pipeline\*\*/);
+  assert.doesNotMatch(text, /## Pipeline/);
+  const skill = fs.readFileSync(
+    path.join(__dirname, '..', 'adapters', 'generate-workflow', 'SKILL.md'),
+    'utf8'
+  );
+  assert.doesNotMatch(skill, /Q7/);
+  assert.match(skill, /Q1–Q6|Q1-Q6|Q1\.\.Q6|Q6/);
+});
+
 test('AC-1 default overlay maker_intern is none', () => {
   const dir = tmpRepo();
   const wrote = writeWorkflowOverlay(dir, {});
