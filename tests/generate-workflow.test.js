@@ -97,6 +97,7 @@ test('CLI generate-workflow without --write prints grill protocol', () => {
   const out = execFileSync('node', [CLI, 'generate-workflow'], { cwd: dir, encoding: 'utf8' });
   assert.match(out, /generate-workflow/);
   assert.match(out, /Q1-Q6/);
+  assert.match(out, /Do not type a model name/);
   assert.ok(!fs.existsSync(path.join(dir, '.ai-engineering-loop', 'workflow.md')));
 });
 
@@ -130,8 +131,8 @@ test('AC-1 default overlay maker_intern is none', () => {
   const parsed = parseWorkflowFile(dir);
   assert.match(workflow, /\*\*maker_intern\*\*: none/);
   assert.strictEqual(parsed.makerIntern, 'none');
-  assert.match(workflowMarkdown(), /Not locked to one vendor/);
-  assert.match(workflowMarkdown(), /gemini-flash/);
+  assert.match(workflowMarkdown(), /host's catalog/);
+  assert.match(workflowMarkdown(), /Do not type a guessed slug/);
 });
 
 test('AC-2 missing workflow.md makerIntern is none', () => {

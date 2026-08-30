@@ -83,7 +83,7 @@ Maintains lightweight state for instant drift detection:
 
 ### 10. `workflow.md` — Loop overlay (optional)
 - Hooks around the 8-stage OS: `before_grill`, `after_freeze`, `after_pass`.
-- Optional `maker_intern` (default `none`). Any host-native label. Not locked to one vendor. Not a key or URL.
+- Optional `maker_intern` (default `none`). Pick from this host's catalog (`grok models` or `/models`). Do not type a guessed slug. Not a key or URL.
 - Cannot skip Goal Contract, verification, Devil's Advocate, or Judge.
 - Missing file means default 8-stage loop (no extra hooks, parent is Maker).
 - Generate with `npx ai-engineering-loop generate-workflow` (grill Q1–Q6) or `--write`.

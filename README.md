@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/egagofur/ai-engineering-loop/pulls)
 [![AI Engineering](https://img.shields.io/badge/AI-Engineering%20Loop-orange.svg)](https://github.com/egagofur/ai-engineering-loop)
-[![Release](https://img.shields.io/badge/release-v1.0.18-purple.svg)](https://github.com/egagofur/ai-engineering-loop/releases)
+[![Release](https://img.shields.io/badge/release-v1.0.19-purple.svg)](https://github.com/egagofur/ai-engineering-loop/releases)
 
 **A Reusable, Framework-Agnostic AI Engineering Operating System for Autonomous Coding Agents**
 
@@ -67,7 +67,7 @@ The 8-stage loop stays one OS. These techniques sit **inside** existing stages (
 | 1 | Grill until the design-tree frontier is empty, then freeze the Goal Contract. Idea requests: menu, wait, then grill the pick. Chat `setuju` is not freeze; user-visible decisions must be numbered AC in the contract file. AC is a **failure table** (happy, empty/omit, boundary, sibling, error), not sunny path only. **Sloppy prompt** (no numbered AC): draft the Goal Contract file, show it, wait for freeze — do not Maker. Business-logic change: **blast radius** (lifecycle sketch, four pillars, ASCII picture) via `task-impact-inquiry` inside grill — not a second loop. Passing unit tests are not isolation proof. | `core/grill-policy.md` |
 | 1 | Ubiquitous language in `.ai-engineering-loop/glossary.md`; load-bearing choices in `.ai-engineering-loop/adrs/` | `core/repo-config-schema.md` |
 | 2 | Bugs: red repro → minimise → hypothesise → instrument → fix | `core/root-cause-analysis.md` |
-| 4 | Optional **Maker intern**: one overlay field `maker_intern`. Default `none` = parent is Maker. Any host-native label (`gemini-flash`, `haiku`, `grok-mini`, `qwen`, …). Not locked to one vendor. No intern API keys. If the host cannot spawn that intern, parent is Maker (`INVOCATION_UNAVAILABLE`). Devil's Advocate and Judge stay on the parent. | `.ai-engineering-loop/workflow.md` |
+| 4 | Optional **Maker intern**: overlay `maker_intern`. Default `none`. Pick from the host catalog (`grok models` or `/models` if that command exists; numbered options). Do not type a model name. No custom endpoint. Imagine/video models are not intern picks. Unknown id → parent Maker (`INVOCATION_UNAVAILABLE`). Devil's Advocate and Judge stay on the parent. | `.ai-engineering-loop/workflow.md` |
 | 4–5 | Red-green at named **seams**; failure table (not happy path only); coverage is a map; no grep/tautology | `policies/tdd-policy.md` |
 | 5 | **Claimed vs Reality** table before DA. Missing file or empty Reality blocks Devil's Advocate. "Seems green" is not Reality. | `core/verification-loop.md` |
 | 6–7 | Spec vs Standards reported separately. Standards BLOCKER/HIGH iterate only when `hardConvention` is true | `policies/finding-policy.md` |

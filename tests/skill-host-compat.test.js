@@ -222,7 +222,10 @@ test('generate-workflow skill is Claude-safe and host skills read the overlay', 
   assert.match(skill, /maker_intern/);
   assert.match(skill, /Do not start Maker/);
   assert.match(skill, /lessons\.md/);
-  assert.match(skill, /Not locked to one vendor/);
+  assert.match(skill, /grok models/);
+  assert.match(skill, /\/models/);
+  assert.match(skill, /Do not type a model name/);
+  assert.doesNotMatch(skill, /any host-native label \(gemini-flash/);
   for (const rel of [
     '.claude/skills/ai-engineering-loop/SKILL.md',
     '.grok/skills/ai-engineering-loop/SKILL.md',
@@ -236,6 +239,7 @@ test('generate-workflow skill is Claude-safe and host skills read the overlay', 
     assert.match(text, /generate-workflow/, rel);
     assert.match(text, /maker_intern/, rel);
     assert.match(text, /INVOCATION_UNAVAILABLE/, rel);
+    assert.match(text, /Do not type a model name/, rel);
   }
 });
 

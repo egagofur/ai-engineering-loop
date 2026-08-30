@@ -71,13 +71,18 @@ Recommended: keep AEL default
 Q5 - Skip generate-adapter when adapter.md already exists: yes | no
 Recommended: yes
 
-Q6 - Maker intern: none | any host-native label (gemini-flash, grok-mini, haiku, qwen, ...)
+Q6 - Maker intern: pick from the host catalog. Do not type a model name.
+Look up models with this host's list command:
+- Grok CLI: `grok models`
+- Many agent CLIs (Codex and others): `/models` if that slash command exists in this session
+Drop image/video/imagine ids. Show numbered options plus 0) none.
+If no list command exists here: only 0) none.
 Recommended: none
 ```
 
 If they name a tool or step, write that name into the matching hook. Do not invent Figma/Jira/Slack unless they said so.
 
-Q6 is a host-native label only (`maker_intern` in workflow.md). Not locked to one vendor. Do not paste API keys or URLs. Default none = parent is Maker.
+Q6 writes `maker_intern` from the numbered pick only. Do not type a model name. Do not use a custom endpoint. Do not paste API keys or URLs. Default none = parent is Maker.
 
 ### 3. Write
 
@@ -132,3 +137,5 @@ Next: /ai-engineering-loop for product work. Stage 0 reads these files.
 - Dumping chat into lessons
 - Mermaid or LaTeX
 - Running the 8-stage product loop inside this skill
+- Typing a model name for Q6
+- Custom intern endpoints
