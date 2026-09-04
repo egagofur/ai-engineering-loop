@@ -1,6 +1,6 @@
 ---
 name: dot-dev-workflow
-description: DOT Stage 8 delivery after AI Engineering Loop Judge PASS. GitLab issue/MR, multi-branch cherry-pick, Coreview triage, Mattermost. Not a substitute for ai-engineering-loop.
+description: DOT Stage 8 delivery after AI Engineering Loop Judge PASS. GitLab issue/MR, one topic-branch MR (extra env cherry-pick only if named this turn), Coreview triage, Mattermost. Not a substitute for ai-engineering-loop.
 ---
 
 # DOT Delivery Workflow (Stage 8)
@@ -33,7 +33,7 @@ While AEL Maker runs, still enforce:
 - `backend-development` for naming, queries, layering.
 - `backend-safety-guardrails` on mutations, jobs, recalculation: never bypass BullMQ; scope by entity id not coarse date strings; never overwrite `APPROVED`/`REJECTED` without explicit force; BigInt as string across boundaries; container moves sync old and new parents.
 - Tests: commands in `.ai-engineering-loop/verification.md` (fallback `npx jest && npx tsc --noEmit`).
-- Branch from a clean target (`main`, `staging`, or `develop`), then `git checkout -b <type>/<descriptive-name>`.
+- Topic branch: if HEAD is already `feat/…` or `fix/…` for this feature, stay on that branch. Do not create a new topic branch. If HEAD is unrelated (`main`, `master`, `develop`, `staging`, other ticket), `git fetch origin`, then `git checkout -b type/descriptive-name origin/develop` when develop is in use (default branch is `develop`). Do not `git pull` into the current HEAD. HEAD being `main` does not override an in-use `develop` default. If develop is unused leftover (default branch is `main` / `master`), `git checkout -b type/descriptive-name origin/main` even if HEAD is `develop`. Do not force leftover develop.
 
 Print these six invariants before commit (N/A allowed only with one sentence citing the diff):
 
@@ -46,7 +46,7 @@ Print these six invariants before commit (N/A allowed only with one sentence cit
 
 ---
 
-## Stage 8a — Multi-branch MR and issue card (`glab`)
+## Stage 8a — Topic-branch MR and issue card (`glab`)
 
 If the workspace has `adapters/dot/gitlab.md` and `adapters/dot/multi-branch.md`, follow those. Otherwise:
 
@@ -59,9 +59,7 @@ git commit -m "<type>(<scope>): <summary>"
 
 2. Create a GitLab issue if none is linked (`glab issue create` with module title, scope checkboxes, `Steps to Reproduce & Testing (QA)` from `adapters/dot/gitlab.md`, expectation table, label `Ready to Test`). On a bugfix, do not leave those placeholders empty.
 
-3. Create the base MR (`glab mr create` onto the target branch, description links the issue). Issue and MR descriptions must include `Steps to Reproduce & Testing (QA)` (reproduce + how to test). On a bugfix, do not leave those placeholders empty.
-
-4. Propagate to `staging` and `develop`: fetch, branch from origin, cherry-pick the commit, re-run verification, push, open MR per environment.
+3. Open **one** MR (`glab mr create` onto the live integration base from the topic-branch rules above; description links the issue). Issue and MR descriptions must include `Steps to Reproduce & Testing (QA)` (reproduce + how to test). On a bugfix, do not leave those placeholders empty. Do not cherry-pick to `staging` or `develop` unless the user named those branches this turn. Chat `setuju` is not propagate. Do not open three MRs.
 
 ---
 
@@ -88,7 +86,7 @@ glab api "projects/:fullpath/merge_requests/<mr-id>/discussions"
 glab api "projects/:fullpath/merge_requests/<mr-id>/discussions/<discussion_id>/notes" -X POST -F "body=<text>"
 ```
 
-- VALID: fix surgically, re-verify, commit, propagate, reply with commit hash.
+- VALID: fix surgically, re-verify, commit, push to the same topic MR, reply with commit hash. Do not cherry-pick to `staging` or `develop` unless the user named those branches this turn. Chat `setuju` is not propagate.
 - HALU: do not change code; reply with file-cited technical pushback.
 
 ---

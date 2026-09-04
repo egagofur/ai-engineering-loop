@@ -14,10 +14,12 @@ flowchart TD
 
     subgraph DOTAdapter [DOT Delivery Pipeline]
         PASS --> Issue[1. GitLab Issue Card via glab]
-        Issue --> BaseMR[2. Base Merge Request via glab]
-        BaseMR --> MultiBranch[3. Multi-Branch Cherry-Pick: staging & develop]
-        MultiBranch --> CoreviewTriage[4. External @coreview-bot Review Triage]
-        CoreviewTriage --> MattermostDispatch[5. Mattermost Markdown Notification via MCP]
+        Issue --> BaseMR[2. One Merge Request via glab]
+        BaseMR --> AskPropagate{User named extra envs this turn?}
+        AskPropagate -->|No| CoreviewTriage[3. External @coreview-bot Review Triage]
+        AskPropagate -->|Yes| MultiBranch[Optional cherry-pick staging / develop]
+        MultiBranch --> CoreviewTriage
+        CoreviewTriage --> MattermostDispatch[4. Mattermost Markdown Notification via MCP]
     end
 ```
 
@@ -31,13 +33,15 @@ The DOT adapter is organized into four dedicated specification modules:
    - CLI automation with `glab`.
    - Standardized issue card templates with actual vs expected tables and QA testing steps.
    - Standardized MR descriptions linking issue IDs and change summaries.
-2. **[Multi-Branch Propagation (`multi-branch.md`)](multi-branch.md)**:
-   - Multi-environment branching model across `main`, `staging`, and `develop`.
-   - Clean cherry-picking workflow and target-specific test verification.
+2. **[Topic branch and optional propagate (`multi-branch.md`)](multi-branch.md)**:
+   - Unrelated HEAD (`main` / `develop` / `staging` / other ticket): new `type/name` branch.
+   - Related `feat/…` or `fix/…`: stay. One MR. Do not open three MRs.
+   - Base: `origin/develop` when develop is in use (default branch is `develop`), including when HEAD is `main`. HEAD being `main` does not override an in-use `develop` default. `origin/main` only when develop is unused leftover (default branch is `main` / `master`). Do not force leftover develop.
+   - Cherry-pick extra envs only if the user named them this turn. Chat `setuju` is not propagate.
 3. **[Coreview External Reviewer Triage (`coreview.md`)](coreview.md)**:
    - Ingestion of `@coreview-bot` automated PR comments.
    - Mandatory Phase 8 Triage reporting gate before Mattermost dispatch.
-   - Rigorous evaluation of bot suggestions into `VALID` (fix & propagate) vs `HALU` (false positive pushback) using principles from `gitlab-mr-feedback` and `receiving-code-review`.
+   - Rigorous evaluation of bot suggestions into `VALID` (fix on the same topic MR; do not cherry-pick unless the user named extra envs this turn) vs `HALU` (false positive pushback) using principles from `gitlab-mr-feedback` and `receiving-code-review`.
 4. **[Mattermost Notifications (`mattermost.md`)](mattermost.md)**:
    - Repository-to-channel resolution using persistent configuration.
    - MCP `mattermost_send_message` dispatch with mandatory `from: "AI Agent"` attribution.
