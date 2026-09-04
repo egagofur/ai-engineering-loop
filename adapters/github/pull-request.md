@@ -12,6 +12,21 @@ gh pr create \
 - <edge cases>
 - <tests added>
 
+## Steps to Reproduce & Testing (QA)
+### Pre-conditions
+- <environment / data / permissions>
+### Steps to Reproduce
+1. <action>
+2. <action that triggers the bug or the new path>
+### How to Test
+1. <same path after the fix, or the feature path>
+2. <what QA should click / call / assert>
+### Actual Result (before the fix)
+- <error / status / log — N/A on a pure feature>
+### Expected Result (after the fix)
+- <normal behaviour / status>
+- <no error popup, no crash, no new error logs>
+
 ## Verification
 Commands from `.ai-engineering-loop/verification.md` (exit 0).
 EOF

@@ -40,5 +40,6 @@ git push -u origin HEAD
 
 - One branch, one change request, default branch only.
 - Link the Goal Contract path in the PR/MR body (not the whole chat).
+- If the human opens a PR/MR, the body must include `Steps to Reproduce & Testing (QA)` from `adapters/github/pull-request.md` or `adapters/gitlab/merge-request.md` (reproduce + how to test).
 - No secrets, no internal hostnames, no coworker handles in the description.
 - If the forge CLI is missing, do not install it silently. Tell the user.

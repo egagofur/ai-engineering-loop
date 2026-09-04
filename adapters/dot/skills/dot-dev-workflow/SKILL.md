@@ -57,9 +57,9 @@ git add <modified-files>
 git commit -m "<type>(<scope>): <summary>"
 ```
 
-2. Create a GitLab issue if none is linked (`glab issue create` with module title, scope checkboxes, testing steps, expectation table, label `Ready to Test`).
+2. Create a GitLab issue if none is linked (`glab issue create` with module title, scope checkboxes, `Steps to Reproduce & Testing (QA)` from `adapters/dot/gitlab.md`, expectation table, label `Ready to Test`). On a bugfix, do not leave those placeholders empty.
 
-3. Create the base MR (`glab mr create` onto the target branch, description links the issue).
+3. Create the base MR (`glab mr create` onto the target branch, description links the issue). Issue and MR descriptions must include `Steps to Reproduce & Testing (QA)` (reproduce + how to test). On a bugfix, do not leave those placeholders empty.
 
 4. Propagate to `staging` and `develop`: fetch, branch from origin, cherry-pick the commit, re-run verification, push, open MR per environment.
 

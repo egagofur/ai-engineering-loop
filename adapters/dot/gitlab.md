@@ -76,11 +76,20 @@ glab issue create \
 - [x] [Component 2 modified]
 - [x] [Unit tests added in path/to/test.ts]
 
-## Testing Steps
-1. Login as [User Role / Email].
-2. Navigate to [Target Menu / URL].
-3. Perform [Action e.g. submit the form, approve the request].
-4. Verify [Expected Result].
+## Steps to Reproduce & Testing (QA)
+### Pre-conditions
+- <environment / data / permissions>
+### Steps to Reproduce
+1. <action>
+2. <action that triggers the bug or the new path>
+### How to Test
+1. <same path after the fix, or the feature path>
+2. <what QA should click / call / assert>
+### Actual Result (before the fix / sebelum fix)
+- <error / status / log — N/A on a pure feature>
+### Expected Result (after the fix / setelah fix)
+- <normal behaviour / status>
+- <no error popup, no crash, no new error logs>
 
 ## Expectation
 | Kondisi / Skenario | Logika Lama (Sebelum) | Logika Baru (Sesudah) |
@@ -119,6 +128,21 @@ glab mr create \
 - <Concise point 1 explaining root cause fix>
 - <Concise point 2 explaining edge cases handled>
 - <Concise point 3 mentioning unit test coverage>
+
+## Steps to Reproduce & Testing (QA)
+### Pre-conditions
+- <environment / data / permissions>
+### Steps to Reproduce
+1. <action>
+2. <action that triggers the bug or the new path>
+### How to Test
+1. <same path after the fix, or the feature path>
+2. <what QA should click / call / assert>
+### Actual Result (before the fix / sebelum fix)
+- <error / status / log — N/A on a pure feature>
+### Expected Result (after the fix / setelah fix)
+- <normal behaviour / status>
+- <no error popup, no crash, no new error logs>
 
 ## Screenshot / Video
 <!-- Attach screenshots, terminal test logs, or UI captures if available -->
