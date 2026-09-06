@@ -9,7 +9,9 @@
     "runId": { "type": "string", "minLength": 1 },
     "verdict": { "enum": ["PASS", "ITERATE", "ESCALATE"] },
     "reason": { "type": "string", "minLength": 1 },
-    "action": { "type": "string", "minLength": 1 }
+    "action": { "type": "string", "minLength": 1 },
+    "modelTier": { "enum": ["CHEAP_MODEL", "STRONG_MODEL", "HUMAN"] },
+    "humanApproved": { "type": "boolean" }
   },
   "additionalProperties": true
 }

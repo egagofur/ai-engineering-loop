@@ -50,6 +50,9 @@ const {
   scoreEvaluationResults,
   catalogSummary
 } = require('../lib/evaluation.js');
+const {
+  assessRunEscalation
+} = require('../lib/escalation.js');
 
 const VERSION = '1.0.21';
 const CWD = process.cwd();
@@ -926,6 +929,25 @@ function handleEval() {
   }
 }
 
+function handleEscalation() {
+  const runId = argValue('--run');
+  const json = process.argv.includes('--json');
+  try {
+    const assessment = assessRunEscalation(CWD, { runId });
+    if (json) console.log(JSON.stringify({ ok: true, ...assessment }));
+    else {
+      console.log(`Required model tier: ${assessment.requiredTier}`);
+      for (const reason of assessment.reasons) {
+        console.log(`- ${reason.code}: ${reason.detail}`);
+      }
+    }
+  } catch (err) {
+    if (json) console.log(JSON.stringify({ ok: false, code: err.code || 'ESCALATION_FAILED', error: err.message }));
+    else log.error(err.message);
+    process.exit(1);
+  }
+}
+
 // Help Menu
 function printHelp() {
   console.log(`
@@ -953,6 +975,9 @@ Commands:
                --results <dir>  score host-generated JSON results
                --cases <dir>    use another compatible fixture catalog
                --json           print machine-readable metrics
+  escalation   Compute the minimum Judge model tier from deterministic risk signals
+               --run <id>  target a non-current run
+               --json      print machine-readable reasons
   sync-hosts   Copy package skills/agents/commands into ~/.claude ~/.grok ~/.gemini ~/.agents
                (only hosts that already exist; DOT skills only if already installed)
                --dry-run  print the plan without writing
@@ -995,6 +1020,9 @@ switch (command) {
     break;
   case 'eval':
     handleEval();
+    break;
+  case 'escalation':
+    handleEscalation();
     break;
   case 'sync-hosts':
     handleSyncHosts();
