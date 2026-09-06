@@ -83,7 +83,7 @@ const {
   sandboxStatus
 } = require('../lib/sandbox.js');
 
-const VERSION = '1.2.0';
+const VERSION = '1.2.1';
 const CWD = process.cwd();
 const CONTEXT_DIR = path.join(CWD, '.ai-engineering-loop');
 
@@ -337,7 +337,7 @@ function generateContextFiles(rootDir, discovery, trigger = 'init', impact = 'IN
 
   // 0. metadata.json (Baseline)
   const metadataJson = {
-    contextVersion: '1.2.0',
+    contextVersion: '1.2.1',
     generatedAt: new Date().toISOString(),
     repositoryRevision: currentRevision,
     projectProfile: discovery.profile,

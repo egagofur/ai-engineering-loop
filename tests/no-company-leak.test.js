@@ -4,31 +4,9 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
+const { listPackageFiles } = require('../lib/package-audit.js');
 
 const ROOT = path.join(__dirname, '..');
-
-const SKIP_DIR = new Set([
-  '.git',
-  'node_modules',
-  '.serena',
-  '.DS_Store'
-]);
-
-function walk(dir, out = []) {
-  for (const name of fs.readdirSync(dir)) {
-    if (SKIP_DIR.has(name)) continue;
-    const abs = path.join(dir, name);
-    const st = fs.lstatSync(abs);
-    if (st.isSymbolicLink()) continue;
-    if (st.isDirectory()) walk(abs, out);
-    else if (st.isFile()) out.push(abs);
-  }
-  return out;
-}
-
-function rel(abs) {
-  return path.relative(ROOT, abs).split(path.sep).join('/');
-}
 
 const FINGERPRINTS = [
   { re: /dotify/i, label: 'dotify' },
@@ -47,13 +25,10 @@ const FINGERPRINTS = [
 ];
 
 test('packaged files do not embed real client tickets, schema, or machine paths', () => {
-  const files = walk(ROOT).filter((abs) => {
-    const r = rel(abs);
-    return !r.startsWith('tests/no-company-leak.test.js');
-  });
+  const files = listPackageFiles(ROOT);
   const hits = [];
-  for (const abs of files) {
-    const r = rel(abs);
+  for (const r of files) {
+    const abs = path.join(ROOT, r);
     let text;
     try {
       text = fs.readFileSync(abs, 'utf8');
