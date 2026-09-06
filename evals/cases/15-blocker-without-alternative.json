@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "15-blocker-without-alternative",
+  "title": "Reject a blocking finding without an alternative",
+  "category": "contract",
+  "risk": "medium",
+  "task": "Validate a HIGH valid finding that provides no concrete alternative diff.",
+  "files": [
+    { "path": "findings.json", "content": "{\"severity\":\"HIGH\",\"validity\":\"VALID\"}" }
+  ],
+  "oracle": {
+    "verdict": "ITERATE",
+    "requiredSignals": ["missing-alternative-diff"],
+    "forbiddenOutput": []
+  }
+}

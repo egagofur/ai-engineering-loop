@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "01-stale-verification",
+  "title": "Reject verification from an older revision",
+  "category": "evidence",
+  "risk": "high",
+  "task": "Judge a change whose tests ran before the latest diff.",
+  "files": [
+    { "path": "verification.json", "content": "{\"gitRevision\":\"old\",\"exitCode\":0}" },
+    { "path": "state.json", "content": "{\"gitRevision\":\"new\"}" }
+  ],
+  "oracle": {
+    "verdict": "ITERATE",
+    "requiredSignals": ["stale-evidence"],
+    "forbiddenOutput": []
+  }
+}

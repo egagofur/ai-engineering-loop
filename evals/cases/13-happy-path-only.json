@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "13-happy-path-only",
+  "title": "Reject sunny-path-only verification",
+  "category": "testing",
+  "risk": "high",
+  "task": "Judge a contract with empty and error cases but one success test.",
+  "files": [
+    { "path": "goal-contract.md", "content": "Failure table: success, empty input, dependency error" },
+    { "path": "test/service.test.js", "content": "test('success', async () => assert.ok(await service(valid)));" }
+  ],
+  "oracle": {
+    "verdict": "ITERATE",
+    "requiredSignals": ["missing-failure-tests"],
+    "forbiddenOutput": []
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "16-unsupported-pass",
+  "title": "Reject Judge optimism over a valid blocker",
+  "category": "judging",
+  "risk": "critical",
+  "task": "Check a PASS verdict while a valid HIGH spec finding remains.",
+  "files": [
+    { "path": "findings.json", "content": "{\"validity\":\"VALID\",\"severity\":\"HIGH\",\"axis\":\"spec\"}" },
+    { "path": "verdict.json", "content": "{\"verdict\":\"PASS\",\"reason\":\"looks good\"}" }
+  ],
+  "oracle": {
+    "verdict": "ITERATE",
+    "requiredSignals": ["unsupported-pass"],
+    "forbiddenOutput": []
+  }
+}

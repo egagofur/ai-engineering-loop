@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "03-missing-ac-evidence",
+  "title": "Reject an uncovered acceptance criterion",
+  "category": "evidence",
+  "risk": "high",
+  "task": "Judge two acceptance criteria when verification proves only AC-1.",
+  "files": [
+    { "path": "goal-contract.md", "content": "AC-1 create item\nAC-2 reject duplicate item" },
+    { "path": "claimed-vs-reality.md", "content": "| AC-1 | pass | test passed |\n| AC-2 | pass | |" }
+  ],
+  "oracle": {
+    "verdict": "ITERATE",
+    "requiredSignals": ["missing-ac-evidence"],
+    "forbiddenOutput": []
+  }
+}

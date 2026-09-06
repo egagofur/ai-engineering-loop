@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "04-hallucinated-citation",
+  "title": "Reject a finding that cites a nonexistent file",
+  "category": "hallucination",
+  "risk": "high",
+  "task": "Validate a reviewer finding against the provided repository.",
+  "files": [
+    { "path": "src/service.js", "content": "module.exports = () => true;" },
+    { "path": "findings.json", "content": "{\"location\":\"src/missing.js#L99\"}" }
+  ],
+  "oracle": {
+    "verdict": "ITERATE",
+    "requiredSignals": ["hallucinated-citation"],
+    "forbiddenOutput": []
+  }
+}

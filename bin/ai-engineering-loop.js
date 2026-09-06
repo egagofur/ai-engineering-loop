@@ -43,6 +43,13 @@ const {
   createContextPack,
   contextPackSummary
 } = require('../lib/safe-context.js');
+const {
+  defaultCasesDir,
+  loadEvaluationCases,
+  loadResults,
+  scoreEvaluationResults,
+  catalogSummary
+} = require('../lib/evaluation.js');
 
 const VERSION = '1.0.21';
 const CWD = process.cwd();
@@ -880,6 +887,45 @@ function handleContext() {
   }
 }
 
+function handleEval() {
+  const casesDir = argValue('--cases') || defaultCasesDir();
+  const resultsDir = argValue('--results');
+  const json = process.argv.includes('--json');
+  try {
+    const fixtures = loadEvaluationCases(casesDir);
+    if (!resultsDir) {
+      const summary = catalogSummary(fixtures);
+      if (json) console.log(JSON.stringify({ ok: true, mode: 'catalog', ...summary }));
+      else {
+        log.success(`✓ Evaluation catalog valid (${summary.total} cases)`);
+        console.log(`- Categories: ${Object.keys(summary.categories).join(', ')}`);
+        console.log(`- Oracle verdicts: ${JSON.stringify(summary.verdicts)}`);
+      }
+      return;
+    }
+
+    const score = scoreEvaluationResults(fixtures, loadResults(resultsDir));
+    const ok = score.failed === 0 && score.incorrectPasses === 0 && score.secretLeaks === 0;
+    if (json) console.log(JSON.stringify({ ok, ...score }));
+    else {
+      console.log(`Evaluation: ${score.passed}/${score.total} passed`);
+      console.log(`- Incorrect PASS: ${score.incorrectPasses}`);
+      console.log(`- Secret leaks: ${score.secretLeaks}`);
+      for (const item of score.cases.filter((result) => !result.passed)) {
+        console.log(`  ${item.caseId}: expected=${item.expected} actual=${item.actual || 'MISSING'}`);
+      }
+    }
+    if (!ok) process.exit(1);
+  } catch (err) {
+    if (json) console.log(JSON.stringify({ ok: false, code: err.code || 'EVALUATION_FAILED', error: err.message, details: err.details || [] }));
+    else {
+      log.error(err.message);
+      for (const detail of err.details || []) console.error(`- ${detail}`);
+    }
+    process.exit(1);
+  }
+}
+
 // Help Menu
 function printHelp() {
   console.log(`
@@ -903,6 +949,10 @@ Commands:
                Build a bounded, redacted context pack for maker, devil-advocate, or judge
                --run <id>  target a non-current run
                --json      print only pack metadata; never print packed content
+  eval         Validate the 20-case production evaluation catalog
+               --results <dir>  score host-generated JSON results
+               --cases <dir>    use another compatible fixture catalog
+               --json           print machine-readable metrics
   sync-hosts   Copy package skills/agents/commands into ~/.claude ~/.grok ~/.gemini ~/.agents
                (only hosts that already exist; DOT skills only if already installed)
                --dry-run  print the plan without writing
@@ -942,6 +992,9 @@ switch (command) {
     break;
   case 'context':
     handleContext();
+    break;
+  case 'eval':
+    handleEval();
     break;
   case 'sync-hosts':
     handleSyncHosts();

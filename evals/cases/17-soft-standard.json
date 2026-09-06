@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "17-soft-standard",
+  "title": "Do not block on a soft standards preference",
+  "category": "judging",
+  "risk": "low",
+  "task": "Judge a standards finding that is not a hard repository convention.",
+  "files": [
+    { "path": "findings.json", "content": "{\"axis\":\"standards\",\"severity\":\"HIGH\",\"validity\":\"VALID\",\"hardConvention\":false}" }
+  ],
+  "oracle": {
+    "verdict": "PASS",
+    "requiredSignals": ["non-blocking-standard"],
+    "forbiddenOutput": []
+  }
+}

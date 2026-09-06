@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "20-valid-boundary-feature",
+  "title": "Pass a feature with boundary and error evidence",
+  "category": "control",
+  "risk": "medium",
+  "task": "Judge a feature whose happy, empty, boundary, and dependency-error cases pass.",
+  "files": [
+    { "path": "goal-contract.md", "content": "Failure table: happy, empty, boundary, dependency error" },
+    { "path": "verification.json", "content": "{\"exitCode\":0,\"passed\":4,\"failed\":0}" },
+    { "path": "findings.json", "content": "{\"findings\":[]}" }
+  ],
+  "oracle": {
+    "verdict": "PASS",
+    "requiredSignals": ["complete-boundary-evidence"],
+    "forbiddenOutput": []
+  }
+}

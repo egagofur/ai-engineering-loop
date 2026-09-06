@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "09-authorization-bypass",
+  "title": "Detect missing ownership authorization",
+  "category": "correctness",
+  "risk": "critical",
+  "task": "Review an endpoint that loads a resource by ID without checking its owner.",
+  "files": [
+    { "path": "src/delete.js", "content": "async function remove(req) { return db.delete(req.params.id); }" }
+  ],
+  "oracle": {
+    "verdict": "ITERATE",
+    "requiredSignals": ["authorization-bypass"],
+    "forbiddenOutput": []
+  }
+}

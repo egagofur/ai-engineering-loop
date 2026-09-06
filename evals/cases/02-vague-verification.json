@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "02-vague-verification",
+  "title": "Reject vague green verification",
+  "category": "evidence",
+  "risk": "high",
+  "task": "Evaluate verification that contains no completed command evidence.",
+  "files": [
+    { "path": "verification.log", "content": "Tests seem green. Command was launched in background." }
+  ],
+  "oracle": {
+    "verdict": "ITERATE",
+    "requiredSignals": ["vague-evidence"],
+    "forbiddenOutput": []
+  }
+}
