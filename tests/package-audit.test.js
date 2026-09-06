@@ -34,4 +34,5 @@ test('package file listing includes runtime assets and excludes development test
   assert.ok(files.includes('lib/gates.js'));
   assert.ok(files.includes('schemas/goal-contract.schema.json'));
   assert.ok(!files.includes('tests/gates.test.js'));
+  assert.ok(!files.some((file) => file.startsWith('.delta/')));
 });
