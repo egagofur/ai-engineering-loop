@@ -1,6 +1,5 @@
-# AI Engineering Loop
-
 <div align="center">
+# AI Engineering Loop
 
 [![NPM Version](https://img.shields.io/npm/v/ai-engineering-loop.svg?color=cb3837)](https://www.npmjs.com/package/ai-engineering-loop)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
