@@ -33,6 +33,9 @@ const {
   workflowMarkdown,
   lessonsMarkdown
 } = require('../lib/generate-workflow.js');
+const {
+  createOrResumeRun
+} = require('../lib/run-state.js');
 
 const VERSION = '1.0.21';
 const CWD = process.cwd();
@@ -725,6 +728,19 @@ function handleRun() {
 
   syncHostsQuiet();
 
+  const runArgs = process.argv.slice(3);
+  const forceNew = runArgs.includes('--new');
+  const task = runArgs.filter((arg) => arg !== '--new').join(' ').trim();
+  let runResult;
+  try {
+    runResult = createOrResumeRun(CWD, { task, forceNew });
+  } catch (err) {
+    log.error(err.message);
+    process.exit(1);
+  }
+  console.log(`- Run: ${runResult.run.runId} (${runResult.resumed ? 'resumed' : 'created'})`);
+  console.log(`- State: ${runResult.run.state}, iteration ${runResult.run.iteration}`);
+
   const grok = detectGrokHost();
 
   console.log('\n------------------------------------------------------------');
@@ -791,7 +807,8 @@ Commands:
   init         Bootstrap .ai-engineering-loop/ context from repository discovery
   status       Check the validity, readiness, and baseline freshness of context
   refresh      Reconcile drifted context against repository non-destructively
-  run          Verify context readiness, sync host skills, and instruct the agent
+  run [task]   Start or resume a stateful engineering run, sync hosts, and instruct the agent
+               --new  start a new run even when another run is active
   sync-hosts   Copy package skills/agents/commands into ~/.claude ~/.grok ~/.gemini ~/.agents
                (only hosts that already exist; DOT skills only if already installed)
                --dry-run  print the plan without writing
