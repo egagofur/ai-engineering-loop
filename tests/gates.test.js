@@ -5,7 +5,7 @@ const os = require('os');
 const path = require('path');
 
 const { applyGate, artifactPath, hashFile } = require('../lib/gates.js');
-const { RUN_STATES, createRun, getGitRevision, loadRun } = require('../lib/run-state.js');
+const { RUN_MODES, RUN_STATES, createRun, getGitRevision, loadRun } = require('../lib/run-state.js');
 
 function tempRepo() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-gates-'));
@@ -91,9 +91,50 @@ test('all valid gates advance a run to delivered', () => {
     schemaVersion: 1,
     runId: 'run-001',
     destination: 'https://example.test/pull/1',
-    summary: 'Opened pull request'
+    summary: 'Opened pull request',
+    humanApproved: true
   });
   assert.strictEqual(applyGate(root, 'delivery').state, RUN_STATES.DELIVERED);
+});
+
+test('report-only mode terminates with a report and cannot enter Maker', () => {
+  const root = tempRepo();
+  fs.rmSync(path.join(root, '.ai-engineering-loop', 'runs'), { recursive: true });
+  createRun(root, { runId: 'run-001', task: 'audit only', mode: RUN_MODES.REPORT_ONLY });
+  writeArtifact(root, 'goal-contract.json', goal());
+  applyGate(root, 'goal');
+  writeArtifact(root, 'diff.patch', 'should never be accepted');
+  assert.throws(() => applyGate(root, 'maker'), /REPORT_ONLY/);
+  writeArtifact(root, 'report.json', {
+    schemaVersion: 1,
+    runId: 'run-001',
+    summary: 'No repository mutation was performed',
+    recommendations: ['Add an integration test']
+  });
+  assert.strictEqual(applyGate(root, 'report').state, RUN_STATES.REPORTED);
+});
+
+test('assisted mode requires explicit human approval for delivery', () => {
+  const root = tempRepo();
+  advanceToReviewed(root);
+  writeArtifact(root, 'verdict.json', {
+    schemaVersion: 1,
+    runId: 'run-001',
+    verdict: 'PASS',
+    reason: 'Evidence supports delivery',
+    action: 'Request approval'
+  });
+  applyGate(root, 'judge');
+  writeArtifact(root, 'delivery.json', {
+    schemaVersion: 1,
+    runId: 'run-001',
+    destination: 'https://example.test/pull/2',
+    summary: 'Awaiting human approval'
+  });
+  assert.throws(
+    () => applyGate(root, 'delivery'),
+    (err) => err.code === 'GATE_FAILED' && err.details.some((detail) => detail.includes('humanApproved'))
+  );
 });
 
 test('goal gate rejects contracts without a failure table', () => {

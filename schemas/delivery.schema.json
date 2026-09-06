@@ -8,7 +8,8 @@
     "schemaVersion": { "const": 1 },
     "runId": { "type": "string", "minLength": 1 },
     "destination": { "type": "string", "minLength": 1 },
-    "summary": { "type": "string", "minLength": 1 }
+    "summary": { "type": "string", "minLength": 1 },
+    "humanApproved": { "type": "boolean" }
   },
   "additionalProperties": true
 }

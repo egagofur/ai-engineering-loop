@@ -34,10 +34,19 @@ const {
   lessonsMarkdown
 } = require('../lib/generate-workflow.js');
 const {
+  RUN_MODES,
+  TERMINAL_STATES,
   createOrResumeRun,
   getCurrentRun,
   loadRun
 } = require('../lib/run-state.js');
+const {
+  DEFAULT_POLICY,
+  assertModeAllowed,
+  loadPolicy,
+  normalizeMode,
+  updatePolicy
+} = require('../lib/runtime-policy.js');
 const {
   applyGate
 } = require('../lib/gates.js');
@@ -58,8 +67,23 @@ const {
 const {
   runDoctor
 } = require('../lib/doctor.js');
+const {
+  assertBudgetAvailable,
+  budgetStatus,
+  recordTokenUsage,
+  setKillSwitch
+} = require('../lib/budget.js');
+const {
+  PRIVATE_RUNTIME_GITIGNORE
+} = require('../lib/runtime-files.js');
+const {
+  abortSandbox,
+  captureSandbox,
+  createSandbox,
+  sandboxStatus
+} = require('../lib/sandbox.js');
 
-const VERSION = '1.1.0';
+const VERSION = '1.2.0';
 const CWD = process.cwd();
 const CONTEXT_DIR = path.join(CWD, '.ai-engineering-loop');
 
@@ -313,7 +337,7 @@ function generateContextFiles(rootDir, discovery, trigger = 'init', impact = 'IN
 
   // 0. metadata.json (Baseline)
   const metadataJson = {
-    contextVersion: '1.1.0',
+    contextVersion: '1.2.0',
     generatedAt: new Date().toISOString(),
     repositoryRevision: currentRevision,
     projectProfile: discovery.profile,
@@ -454,8 +478,13 @@ What becomes easier, harder, or forbidden.
   writeContextFile(path.join(targetDir, 'workflow.md'), workflowMarkdown(), { overwrite: false });
   writeContextFile(path.join(targetDir, 'lessons.md'), lessonsMarkdown(), { overwrite: false });
   writeContextFile(
+    path.join(targetDir, 'runtime-policy.json'),
+    `${JSON.stringify(DEFAULT_POLICY, null, 2)}\n`,
+    { overwrite: false }
+  );
+  writeContextFile(
     path.join(targetDir, '.gitignore'),
-    '# Runtime artifacts may contain source excerpts and verification logs.\nruns/\ntasks/current.diff\ntasks/*.log\n',
+    PRIVATE_RUNTIME_GITIGNORE,
     { overwrite: false }
   );
 }
@@ -757,29 +786,54 @@ function handleRun() {
 
   const runArgs = process.argv.slice(3);
   const forceNew = runArgs.includes('--new');
-  const task = runArgs.filter((arg) => arg !== '--new').join(' ').trim();
+  const modeArg = argValue('--mode');
+  const taskParts = [];
+  for (let index = 0; index < runArgs.length; index++) {
+    if (runArgs[index] === '--new') continue;
+    if (runArgs[index] === '--mode') {
+      index += 1;
+      continue;
+    }
+    taskParts.push(runArgs[index]);
+  }
+  const task = taskParts.join(' ').trim();
   let runResult;
   try {
-    runResult = createOrResumeRun(CWD, { task, forceNew });
+    const current = getCurrentRun(CWD);
+    const policy = loadPolicy(CWD);
+    const startsNewRun = forceNew || !current || TERMINAL_STATES.has(current.state);
+    const mode = modeArg ? normalizeMode(modeArg) : (startsNewRun ? policy.defaultMode : null);
+    if (mode) assertModeAllowed(CWD, mode);
+    runResult = createOrResumeRun(CWD, { task, forceNew, mode });
+    assertBudgetAvailable(CWD, { runId: runResult.run.runId });
   } catch (err) {
     log.error(err.message);
     process.exit(1);
   }
   console.log(`- Run: ${runResult.run.runId} (${runResult.resumed ? 'resumed' : 'created'})`);
   console.log(`- State: ${runResult.run.state}, iteration ${runResult.run.iteration}`);
+  console.log(`- Mode: ${runResult.run.mode || RUN_MODES.ASSISTED}`);
 
   const grok = detectGrokHost();
 
   console.log('\n------------------------------------------------------------');
   log.bold('AI Agent Ready:');
   console.log('1. Grill if needed, then freeze Goal Contract (core/grill-policy.md, core/goal-contract.md)');
-  console.log('2. Root Cause Analysis (core/root-cause-analysis.md) & Plan');
-  console.log('3. Maker TDD at named seams (policies/tdd-policy.md)');
-  console.log('4. Run Deterministic Verification');
-  console.log('5. Execute Devil\'s Advocate Adversarial Review');
-  console.log('6. Judge Agent evaluates DoD and issues PASS verdict');
-  console.log('7. Context Impact Assessment (NONE / TARGETED / MAJOR)');
-  console.log('8. Delivery Adapter creates MR/PR');
+  if (runResult.run.mode === RUN_MODES.REPORT_ONLY) {
+    console.log('2. Analyze evidence without changing repository files');
+    console.log('3. Write report.json and finish with `ai-engineering-loop gate report`');
+  } else {
+    console.log('2. Root Cause Analysis (core/root-cause-analysis.md) & Plan');
+    console.log('3. Maker TDD at named seams (policies/tdd-policy.md)');
+    console.log('4. Run Deterministic Verification');
+    console.log('5. Execute Devil\'s Advocate Adversarial Review');
+    console.log('6. Judge Agent evaluates DoD and issues PASS verdict');
+    console.log('7. Context Impact Assessment (NONE / TARGETED / MAJOR)');
+    console.log('8. Delivery Adapter creates MR/PR');
+    if (runResult.run.mode === RUN_MODES.ASSISTED) {
+      console.log('9. Human approval is required before the delivery gate');
+    }
+  }
 
   if (grok && grok.host === 'grok-cli') {
     console.log('------------------------------------------------------------');
@@ -824,6 +878,141 @@ function handleRun() {
 function argValue(name) {
   const index = process.argv.indexOf(name);
   return index === -1 ? null : process.argv[index + 1] || null;
+}
+
+function parseBooleanArg(name, value) {
+  if (!['true', 'false'].includes(String(value))) {
+    const err = new Error(`${name} must be true or false`);
+    err.code = 'INVALID_POLICY_VALUE';
+    throw err;
+  }
+  return value === 'true';
+}
+
+function parsePositiveIntegerArg(name, value) {
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    const err = new Error(`${name} must be a positive integer`);
+    err.code = 'INVALID_POLICY_VALUE';
+    throw err;
+  }
+  return parsed;
+}
+
+function parseNonNegativeIntegerArg(name, value) {
+  if (value == null) {
+    const err = new Error(`${name} is required`);
+    err.code = 'INVALID_USAGE';
+    throw err;
+  }
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    const err = new Error(`${name} must be a non-negative integer`);
+    err.code = 'INVALID_USAGE';
+    throw err;
+  }
+  return parsed;
+}
+
+function handlePolicy() {
+  const action = process.argv[3] || 'show';
+  const json = process.argv.includes('--json');
+  try {
+    let policy;
+    if (action === 'show') {
+      policy = loadPolicy(CWD);
+    } else if (action === 'set') {
+      const changes = {};
+      const mode = argValue('--default-mode');
+      const allowUnattended = argValue('--allow-unattended');
+      const requireSandbox = argValue('--require-sandbox');
+      const perRunLimit = argValue('--per-run-token-limit');
+      const dailyLimit = argValue('--daily-token-limit');
+      if (mode != null) changes.defaultMode = normalizeMode(mode);
+      if (allowUnattended != null) {
+        changes.allowUnattended = parseBooleanArg('--allow-unattended', allowUnattended);
+      }
+      if (requireSandbox != null) {
+        changes.requireSandboxForUnattended = parseBooleanArg('--require-sandbox', requireSandbox);
+      }
+      if (perRunLimit != null) {
+        changes.perRunTokenLimit = parsePositiveIntegerArg('--per-run-token-limit', perRunLimit);
+      }
+      if (dailyLimit != null) {
+        changes.dailyTokenLimit = parsePositiveIntegerArg('--daily-token-limit', dailyLimit);
+      }
+      if (Object.keys(changes).length === 0) {
+        throw new Error('No policy changes provided');
+      }
+      policy = updatePolicy(CWD, changes);
+    } else {
+      throw new Error('Unknown policy action. Use show|set');
+    }
+    if (json) console.log(JSON.stringify(policy));
+    else {
+      log.success(action === 'set' ? '✓ Runtime policy updated' : 'Runtime policy');
+      console.log(JSON.stringify(policy, null, 2));
+    }
+  } catch (err) {
+    if (json) console.log(JSON.stringify({ ok: false, code: err.code || 'POLICY_ERROR', error: err.message }));
+    else log.error(err.message);
+    process.exit(1);
+  }
+}
+
+function handleBudget() {
+  const action = process.argv[3] || 'status';
+  const json = process.argv.includes('--json');
+  const runId = argValue('--run');
+  try {
+    let result;
+    if (action === 'status') {
+      result = budgetStatus(CWD, { runId });
+    } else if (action === 'record') {
+      result = recordTokenUsage(CWD, {
+        runId,
+        inputTokens: parseNonNegativeIntegerArg('--input', argValue('--input')),
+        outputTokens: parseNonNegativeIntegerArg('--output', argValue('--output')),
+        model: argValue('--model')
+      });
+    } else if (action === 'pause' || action === 'resume') {
+      result = setKillSwitch(CWD, action === 'pause');
+    } else {
+      throw new Error('Unknown budget action. Use status|record|pause|resume');
+    }
+    if (json) console.log(JSON.stringify(result));
+    else {
+      log.success(action === 'record' ? '✓ Token usage recorded' : `Token budget: ${action}`);
+      console.log(JSON.stringify(result, null, 2));
+    }
+  } catch (err) {
+    if (json) console.log(JSON.stringify({ ok: false, code: err.code || 'BUDGET_ERROR', error: err.message }));
+    else log.error(err.message);
+    process.exit(1);
+  }
+}
+
+function handleSandbox() {
+  const action = process.argv[3] || 'status';
+  const json = process.argv.includes('--json');
+  const runId = argValue('--run');
+  try {
+    let result;
+    if (action === 'create') result = createSandbox(CWD, { runId });
+    else if (action === 'capture') result = captureSandbox(CWD, { runId });
+    else if (action === 'abort') result = abortSandbox(CWD, { runId });
+    else if (action === 'status') result = sandboxStatus(CWD, { runId });
+    else throw new Error('Unknown sandbox action. Use create|capture|abort|status');
+    if (json) console.log(JSON.stringify(result));
+    else {
+      log.success(`✓ Sandbox ${action}`);
+      console.log(JSON.stringify(result, null, 2));
+    }
+  } catch (err) {
+    if (json) console.log(JSON.stringify({ ok: false, code: err.code || 'SANDBOX_ERROR', error: err.message }));
+    else log.error(err.message);
+    process.exit(1);
+  }
 }
 
 function handleGate() {
@@ -1006,13 +1195,25 @@ Commands:
   refresh      Reconcile drifted context against repository non-destructively
   run [task]   Start or resume a stateful engineering run, sync hosts, and instruct the agent
                --new  start a new run even when another run is active
+               --mode report-only|assisted|unattended
   state        Inspect the current run ledger
                --run <id>  target a non-current run
                --json      print the complete machine-readable ledger
   gate <name>  Validate an artifact and advance the current run
-               goal | maker | verification | review | judge | delivery
+               goal | report | maker | verification | review | judge | delivery
                --run <id>  target a non-current run
                --json      print machine-readable gate output
+  policy       Inspect or update fail-closed runtime controls
+               show [--json]
+               set [--default-mode <mode>] [--allow-unattended true|false]
+                   [--require-sandbox true|false]
+                   [--per-run-token-limit <n>] [--daily-token-limit <n>]
+  budget       Enforce actual provider-reported token usage and emergency pause
+               status [--run <id>] [--json]
+               record --input <n> --output <n> --model <id> [--run <id>]
+               pause | resume
+  sandbox      Isolate Maker changes in a locked disposable Git worktree
+               create | capture | abort | status [--run <id>] [--json]
   context <stage> <files...>
                Build a bounded, redacted context pack for maker, devil-advocate, or judge
                --run <id>  target a non-current run
@@ -1065,6 +1266,15 @@ switch (command) {
     break;
   case 'gate':
     handleGate();
+    break;
+  case 'policy':
+    handlePolicy();
+    break;
+  case 'budget':
+    handleBudget();
+    break;
+  case 'sandbox':
+    handleSandbox();
     break;
   case 'context':
     handleContext();

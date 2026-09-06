@@ -6,7 +6,7 @@ The Verification Loop is the deterministic machine gate of the AI Engineering Lo
 
 > **"Code cannot enter Devil's Advocate review until it achieves 100% green machine verification backed by explicit, verifiable execution evidence."**
 
-Maker reaches that green via [TDD Policy](file:///Users/egagofur/Development/work/ai-engineering-loop/policies/tdd-policy.md): red at a named seam, then green. "We did TDD" without logs is not a PASS.
+Maker reaches that green via [TDD Policy](../policies/tdd-policy.md): red at a named seam, then green. "We did TDD" without logs is not a PASS.
 
 ---
 

@@ -26,7 +26,7 @@
 
 ## 4. Active Review Domains for Devil's Advocate
 
-When reviewing diffs in a `monorepo` project, the [Devil's Advocate](file:///Users/egagofur/Development/work/ai-engineering-loop/agents/devil-advocate.md) activates these targeted checks:
+When reviewing diffs in a `monorepo` project, the [Devil's Advocate](../agents/devil-advocate.md) activates these targeted checks:
 
 ```mermaid
 flowchart LR

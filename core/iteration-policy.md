@@ -2,7 +2,7 @@
 
 ## 1. Overview & Objectives
 
-The **Iteration Policy** governs autonomous retry loops within the AI Engineering Loop. When deterministic tests fail or the [Devil's Advocate](file:///Users/egagofur/Development/work/ai-engineering-loop/agents/devil-advocate.md) identifies valid blocking findings, the system initiates an **autonomous iteration cycle**.
+The **Iteration Policy** governs autonomous retry loops within the AI Engineering Loop. When deterministic tests fail or the [Devil's Advocate](../agents/devil-advocate.md) identifies valid blocking findings, the system initiates an **autonomous iteration cycle**.
 
 The objective of this policy is to enable **reliable self-correction** while strictly guarding against infinite loops, cognitive drift, and resource exhaustion.
 
@@ -54,14 +54,14 @@ stateDiagram-v2
    - Increments iteration counter $K \leftarrow K + 1$.
    - Verifies $K \le \text{MAX\_ITERATIONS}$. If $K > \text{MAX\_ITERATIONS}$, immediately triggers `ESCALATE`.
 2. **Maker Refinement**:
-   - The [Maker Agent](file:///Users/egagofur/Development/work/ai-engineering-loop/agents/maker.md) receives the prior iteration's triaged findings and Judge directives.
+   - The [Maker Agent](../agents/maker.md) receives the prior iteration's triaged findings and Judge directives.
    - Maker applies targeted code fixes and updates test suites.
 3. **Deterministic Re-verification**:
    - All tests, typecheck, lint, and build checks are re-executed from scratch.
 4. **Adversarial Differential Review**:
-   - The [Devil's Advocate](file:///Users/egagofur/Development/work/ai-engineering-loop/agents/devil-advocate.md) evaluates the updated diff against previously raised findings and checks for new regressions.
+   - The [Devil's Advocate](../agents/devil-advocate.md) evaluates the updated diff against previously raised findings and checks for new regressions.
 5. **Judge Evaluation & Progression**:
-   - The [Judge Agent](file:///Users/egagofur/Development/work/ai-engineering-loop/agents/judge.md) compares findings from Iteration $K$ with Iteration $K-1$.
+   - The [Judge Agent](../agents/judge.md) compares findings from Iteration $K$ with Iteration $K-1$.
    - If progress is verified and all criteria met $\rightarrow$ `PASS`.
    - If new valid findings emerge but progress is demonstrated $\rightarrow$ `ITERATE` (if $K < \text{MAX\_ITERATIONS}$).
    - If repeated findings or no progress detected $\rightarrow$ `ESCALATE`.

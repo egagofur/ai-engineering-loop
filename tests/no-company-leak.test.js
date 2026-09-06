@@ -69,9 +69,11 @@ test('packaged files do not embed real client tickets, schema, or machine paths'
       hits.push(`${r}: gitlab.dot.co.id with a path (ticket URL)`);
     }
 
-    const inSensitiveTree = r.startsWith('adapters/') || r.startsWith('examples/');
-    if (inSensitiveTree && /\/Users\/egagofur/.test(text)) {
+    if (/\/Users\/egagofur/.test(text)) {
       hits.push(`${r}: /Users/egagofur`);
+    }
+    if (!['lib/package-audit.js', 'tests/package-audit.test.js'].includes(r) && /file:\/\/\//.test(text)) {
+      hits.push(`${r}: local file URL`);
     }
 
     for (const { re, label } of FINGERPRINTS) {

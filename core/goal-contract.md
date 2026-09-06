@@ -11,7 +11,7 @@ The Goal Contract establishes:
 - **Where** the boundaries are set (preventing scope creep).
 - **When** the work is strictly considered complete.
 
-Alignment before freeze follows [Grill Policy](file:///Users/egagofur/Development/work/ai-engineering-loop/core/grill-policy.md). Terms come from `.ai-engineering-loop/glossary.md`.
+Alignment before freeze follows [Grill Policy](./grill-policy.md). Terms come from `.ai-engineering-loop/glossary.md`.
 
 ---
 
@@ -77,7 +77,7 @@ Each AC is one row that can **fail**. Happy path alone is not a contract (`polic
 
 1. **Pre-Implementation Freezing**:
    - The Goal Contract is authored and frozen *before* any production code edits.
-   - If the task is ambiguous and a human is present, run the [Grill Policy](file:///Users/egagofur/Development/work/ai-engineering-loop/core/grill-policy.md) until the design-tree frontier is empty, then freeze.
+   - If the task is ambiguous and a human is present, run the [Grill Policy](./grill-policy.md) until the design-tree frontier is empty, then freeze.
    - If the task is unambiguous, waived, or headless with testable AC, skip grill and freeze immediately.
 2. **Immutability During Iteration**:
    - Neither the Maker Agent nor the Devil's Advocate Agent may alter Acceptance Criteria during an iteration loop to make tests pass or bypass critique.

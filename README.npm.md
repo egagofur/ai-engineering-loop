@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![GitHub](https://img.shields.io/badge/GitHub-Repository-black.svg)](https://github.com/egagofur/ai-engineering-loop)
 
-**A Reusable, Framework-Agnostic AI Engineering Operating System for Autonomous Coding Agents**
+**A Reusable, Framework-Agnostic AI Engineering Operating System for Safe Coding Agents**
 
 Move beyond linear AI pipelines and optimistic self-evaluation toward contract-driven execution, deterministic machine verification, independent adversarial review, and living project context.
 
@@ -27,6 +27,13 @@ npx ai-engineering-loop refresh
 # 4. Verify context readiness and begin engineering loop
 npx ai-engineering-loop run
 
+# Optional: analysis without repository mutation
+npx ai-engineering-loop run --mode report-only "audit this repository"
+
+# Inspect spend controls; ASSISTED is the default
+npx ai-engineering-loop policy show
+npx ai-engineering-loop budget status
+
 # 5. Copy package host skills into ~/.claude ~/.grok ~/.gemini ~/.agents
 npx ai-engineering-loop sync-hosts
 ```
@@ -40,6 +47,7 @@ npx ai-engineering-loop sync-hosts
 3. **Multi-Agent Triad**: Coordinates **Maker** (surgical diffs & tests), **Devil's Advocate** (independent adversarial review), and **Judge** (impartial evaluation & PASS certification).
 4. **Context Impact Assessment**: Evaluates completed tasks (`NONE`, `TARGETED`, `MAJOR`) to keep project context fresh without expensive whole-repo re-analysis.
 5. **Grok CLI host**: Native `spawn_subagent` for Devil's Advocate and Judge (`TRUE_INDEPENDENT_AGENT`). Disabled by `GROK_SUBAGENTS=0`.
+6. **Production runtime controls**: `REPORT_ONLY`, human-approved `ASSISTED`, opt-in `UNATTENDED`, actual token ledgers, a persistent kill switch, and locked disposable Maker worktrees.
 
 ---
 

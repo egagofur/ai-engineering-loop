@@ -5,6 +5,7 @@ const os = require('os');
 const path = require('path');
 
 const {
+  RUN_MODES,
   RUN_STATES,
   createRun,
   createOrResumeRun,
@@ -28,6 +29,7 @@ test('createRun persists a private current run ledger', () => {
   });
 
   assert.strictEqual(run.state, RUN_STATES.STARTED);
+  assert.strictEqual(run.mode, RUN_MODES.ASSISTED);
   assert.strictEqual(run.iteration, 1);
   assert.strictEqual(getCurrentRun(root).runId, 'run-001');
   if (process.platform !== 'win32') {
@@ -46,6 +48,25 @@ test('createOrResumeRun resumes the active task and rejects silent task replacem
     () => createOrResumeRun(root, { task: 'different task' }),
     (err) => err.code === 'ACTIVE_RUN'
   );
+});
+
+test('a run mode is immutable while the run is active', () => {
+  const root = tempRepo();
+  createRun(root, { task: 'safe task', runId: 'run-001', mode: RUN_MODES.REPORT_ONLY });
+  assert.throws(
+    () => createOrResumeRun(root, { task: 'safe task', mode: RUN_MODES.ASSISTED }),
+    (err) => err.code === 'RUN_MODE_MISMATCH'
+  );
+});
+
+test('reported is a terminal state that permits a fresh run', () => {
+  const root = tempRepo();
+  createRun(root, { runId: 'run-001', mode: RUN_MODES.REPORT_ONLY });
+  transitionRun(root, 'run-001', RUN_STATES.GOAL_FROZEN, { gate: 'goal' });
+  transitionRun(root, 'run-001', RUN_STATES.REPORTED, { gate: 'report' });
+  const next = createOrResumeRun(root, { task: 'next task' });
+  assert.strictEqual(next.resumed, false);
+  assert.notStrictEqual(next.run.runId, 'run-001');
 });
 
 test('transitionRun enforces the workflow order', () => {

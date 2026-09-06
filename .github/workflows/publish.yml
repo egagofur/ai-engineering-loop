@@ -1,0 +1,31 @@
+name: Publish npm
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    if: startsWith(github.event.release.tag_name, 'v')
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.14.0
+          registry-url: https://registry.npmjs.org
+      - name: Install OIDC-capable npm CLI
+        run: npm install --global npm@11.6.2
+      - name: Verify release identity
+        run: node scripts/verify-release.js "${{ github.event.release.tag_name }}"
+      - name: Validate package
+        run: npm run prepublishOnly
+      - name: Publish with provenance
+        run: npm publish --access public --provenance
