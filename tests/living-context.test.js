@@ -23,14 +23,17 @@ test('init writes glossary.md and adrs/README.md', () => {
   const adr = path.join(dir, '.ai-engineering-loop', 'adrs', 'README.md');
   const workflow = path.join(dir, '.ai-engineering-loop', 'workflow.md');
   const lessons = path.join(dir, '.ai-engineering-loop', 'lessons.md');
+  const runtimeIgnore = path.join(dir, '.ai-engineering-loop', '.gitignore');
   assert.ok(fs.existsSync(glossary));
   assert.ok(fs.existsSync(adr));
   assert.ok(fs.existsSync(workflow));
   assert.ok(fs.existsSync(lessons));
+  assert.ok(fs.existsSync(runtimeIgnore));
   assert.match(fs.readFileSync(glossary, 'utf8'), /Ubiquitous Language/);
   assert.match(fs.readFileSync(adr, 'utf8'), /Architecture Decision Records/);
   assert.match(fs.readFileSync(workflow, 'utf8'), /before_grill/);
   assert.match(fs.readFileSync(lessons, 'utf8'), /# Lessons/);
+  assert.match(fs.readFileSync(runtimeIgnore, 'utf8'), /^runs\/$/m);
 });
 
 test('repair fills missing glossary without overwriting a filled glossary or architecture', () => {

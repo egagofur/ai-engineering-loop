@@ -156,3 +156,25 @@ test('unsupported PASS is rejected and a blocking finding iterates', () => {
   assert.strictEqual(iterated.iteration, 2);
   assert.strictEqual(loadRun(root, 'run-001').state, RUN_STATES.GOAL_FROZEN);
 });
+
+test('downstream gates reject artifacts changed after validation', () => {
+  const root = tempRepo();
+  advanceToReviewed(root);
+  writeArtifact(root, 'findings.json', {
+    schemaVersion: 1,
+    runId: 'run-001',
+    diffHash: 'tampered',
+    findings: []
+  });
+  writeArtifact(root, 'verdict.json', {
+    schemaVersion: 1,
+    runId: 'run-001',
+    verdict: 'PASS',
+    reason: 'Optimistic result after tampering',
+    action: 'Deliver'
+  });
+  assert.throws(
+    () => applyGate(root, 'judge'),
+    /findings artifact changed after its gate/
+  );
+});

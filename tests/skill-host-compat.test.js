@@ -6,7 +6,7 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 
 function readRepo(rel) {
-  return fs.readFileSync(path.join(ROOT, rel), 'utf8');
+  return fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/\r\n?/g, '\n');
 }
 
 function parseFrontmatter(content, label) {
@@ -299,6 +299,27 @@ test('Host skills Stage 0 runs sync-hosts before status', () => {
   ]) {
     const text = readRepo(rel);
     assert.match(text, /sync-hosts/, rel);
+  }
+});
+
+test('Every host enforces state, evidence, bounded context, escalation, and delivery gates', () => {
+  for (const rel of [
+    '.claude/skills/ai-engineering-loop/SKILL.md',
+    '.grok/skills/ai-engineering-loop/SKILL.md',
+    '.gemini/skills/ai-engineering-loop/SKILL.md',
+    '.agents/workflows/ai-engineering-loop.md'
+  ]) {
+    const text = readRepo(rel);
+    assert.match(text, /state --json/, rel);
+    assert.match(text, /gate goal/, rel);
+    assert.match(text, /gate maker/, rel);
+    assert.match(text, /gate verification/, rel);
+    assert.match(text, /context devil-advocate/, rel);
+    assert.match(text, /gate review/, rel);
+    assert.match(text, /escalation --json/, rel);
+    assert.match(text, /gate judge/, rel);
+    assert.match(text, /gate delivery/, rel);
+    assert.match(text, /raw logs, or credentials/, rel);
   }
 });
 

@@ -30,7 +30,9 @@ test('createRun persists a private current run ledger', () => {
   assert.strictEqual(run.state, RUN_STATES.STARTED);
   assert.strictEqual(run.iteration, 1);
   assert.strictEqual(getCurrentRun(root).runId, 'run-001');
-  assert.strictEqual(fs.statSync(path.join(root, '.ai-engineering-loop/runs/run-001/state.json')).mode & 0o777, 0o600);
+  if (process.platform !== 'win32') {
+    assert.strictEqual(fs.statSync(path.join(root, '.ai-engineering-loop/runs/run-001/state.json')).mode & 0o777, 0o600);
+  }
 });
 
 test('createOrResumeRun resumes the active task and rejects silent task replacement', () => {

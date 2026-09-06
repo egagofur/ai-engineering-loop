@@ -51,7 +51,9 @@ test('context pack is stage-bounded, redacted, private, and transcript-free', ()
   assert.strictEqual(result.pack.transcriptInherited, false);
   assert.strictEqual(summary.files, 1);
   assert.ok(summary.redactions >= 1);
-  assert.strictEqual(fs.statSync(path.join(root, result.path)).mode & 0o777, 0o600);
+  if (process.platform !== 'win32') {
+    assert.strictEqual(fs.statSync(path.join(root, result.path)).mode & 0o777, 0o600);
+  }
 });
 
 test('sensitive files and repository escapes are blocked', () => {
@@ -61,7 +63,7 @@ test('sensitive files and repository escapes are blocked', () => {
   assert.throws(() => resolveSafeRepoFile(root, '../outside'), /escapes the repository/);
 });
 
-test('symlinks cannot escape the repository', () => {
+test('symlinks cannot escape the repository', { skip: process.platform === 'win32' }, () => {
   const root = tempRepo();
   const outside = path.join(os.tmpdir(), `ael-outside-${process.pid}.txt`);
   fs.writeFileSync(outside, 'outside');
