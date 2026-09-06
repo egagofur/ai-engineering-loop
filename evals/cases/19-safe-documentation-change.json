@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "19-safe-documentation-change",
+  "title": "Pass a fully evidenced documentation correction",
+  "category": "control",
+  "risk": "low",
+  "task": "Judge a documentation-only typo fix with current link verification.",
+  "files": [
+    { "path": "README.md", "content": "Correct installation command." },
+    { "path": "verification.json", "content": "{\"exitCode\":0,\"summary\":\"links checked\"}" }
+  ],
+  "oracle": {
+    "verdict": "PASS",
+    "requiredSignals": ["current-evidence"],
+    "forbiddenOutput": []
+  }
+}

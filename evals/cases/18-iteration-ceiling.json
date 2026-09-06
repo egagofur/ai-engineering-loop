@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "18-iteration-ceiling",
+  "title": "Escalate after the iteration ceiling",
+  "category": "judging",
+  "risk": "high",
+  "task": "Judge the third iteration while a valid HIGH finding remains.",
+  "files": [
+    { "path": "state.json", "content": "{\"iteration\":3}" },
+    { "path": "findings.json", "content": "{\"validity\":\"VALID\",\"severity\":\"HIGH\",\"axis\":\"spec\"}" }
+  ],
+  "oracle": {
+    "verdict": "ESCALATE",
+    "requiredSignals": ["iteration-ceiling"],
+    "forbiddenOutput": []
+  }
+}

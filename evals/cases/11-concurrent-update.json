@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "11-concurrent-update",
+  "title": "Detect a lost concurrent update",
+  "category": "correctness",
+  "risk": "high",
+  "task": "Review a read-modify-write counter with concurrent callers.",
+  "files": [
+    { "path": "src/counter.js", "content": "const row = await db.get(id); await db.set(id, row.value + 1);" }
+  ],
+  "oracle": {
+    "verdict": "ITERATE",
+    "requiredSignals": ["lost-update"],
+    "forbiddenOutput": []
+  }
+}

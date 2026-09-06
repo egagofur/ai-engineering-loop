@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "10-payment-idempotency",
+  "title": "Detect non-idempotent payment retry",
+  "category": "correctness",
+  "risk": "critical",
+  "task": "Review payment creation under duplicate client retries.",
+  "files": [
+    { "path": "src/pay.js", "content": "async function pay(input) { return gateway.charge(input); }" }
+  ],
+  "oracle": {
+    "verdict": "ITERATE",
+    "requiredSignals": ["duplicate-charge"],
+    "forbiddenOutput": []
+  }
+}

@@ -14,11 +14,8 @@
     "policies/",
     "profiles/",
     "adapters/",
-    "templates/",
-    "examples/",
-    "docs/",
-    "tests/",
-    "scripts/",
+    "schemas/",
+    "evals/",
     ".agents/",
     ".grok/",
     ".gemini/skills/",
@@ -26,12 +23,18 @@
     ".claude/commands/",
     ".claude/skills/",
     "LICENSE",
-    "README.md",
-    "README.npm.md"
+    "SECURITY.md",
+    "SUPPORT.md",
+    "README.md"
   ],
   "scripts": {
     "init": "node bin/ai-engineering-loop.js",
-    "test": "node --test tests/*.test.js"
+    "test": "node --test",
+    "doctor": "node bin/ai-engineering-loop.js doctor",
+    "eval": "node bin/ai-engineering-loop.js eval"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "repository": {
     "type": "git",

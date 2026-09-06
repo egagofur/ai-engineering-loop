@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
+const path = require('path');
 const {
   EXECUTION_MODES,
   EXECUTION_MODE_ALIASES,
@@ -44,9 +45,10 @@ test('Grok spawn_subagent with full execution proof selects TRUE_INDEPENDENT_AGE
 });
 
 test('GROK_SUBAGENTS=0 disables invocation even when grok binary exists', () => {
-  const grokBin = '/tmp/fake-grok-home/bin/grok';
+  const grokHome = path.join('tmp', 'fake-grok-home');
+  const grokBin = path.join(grokHome, 'bin', 'grok');
   const runtime = detectGrokRuntime(
-    { GROK_HOME: '/tmp/fake-grok-home', GROK_SUBAGENTS: '0', HOME: '/tmp' },
+    { GROK_HOME: grokHome, GROK_SUBAGENTS: '0', HOME: path.join('tmp') },
     fakeFs([grokBin])
   );
 
@@ -72,9 +74,10 @@ test('GROK_SUBAGENTS=0 disables invocation even when grok binary exists', () => 
 });
 
 test('Grok binary present with default subagents maps to INVOCATION_AVAILABLE, not execution proven', () => {
-  const grokBin = '/tmp/fake-grok-home/bin/grok';
+  const grokHome = path.join('tmp', 'fake-grok-home');
+  const grokBin = path.join(grokHome, 'bin', 'grok');
   const runtime = detectGrokRuntime(
-    { GROK_HOME: '/tmp/fake-grok-home', HOME: '/tmp' },
+    { GROK_HOME: grokHome, HOME: path.join('tmp') },
     fakeFs([grokBin])
   );
 
@@ -96,6 +99,19 @@ test('Grok binary present with default subagents maps to INVOCATION_AVAILABLE, n
 
   assert.strictEqual(evidence.classification, 'INVOCATION_AVAILABLE');
   assert.strictEqual(selected.id, EXECUTION_MODES.CONTEXT_ISOLATION_ONLY.id);
+});
+
+test('Grok runtime recognizes Windows command shims', () => {
+  const grokHome = path.join('tmp', 'fake-grok-home');
+  const grokBin = path.join(grokHome, 'bin', 'grok.cmd');
+  const runtime = detectGrokRuntime(
+    { GROK_HOME: grokHome },
+    fakeFs([grokBin])
+  );
+
+  assert.strictEqual(runtime.host, 'grok-cli');
+  assert.strictEqual(runtime.grokBin, grokBin);
+  assert.strictEqual(runtime.invocationAvailable, true);
 });
 
 test('resume_from Maker transcript cannot activate TRUE_INDEPENDENT_AGENT', () => {

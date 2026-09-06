@@ -10,7 +10,7 @@
 
 **A Reusable, Framework-Agnostic AI Engineering Operating System for Autonomous Coding Agents**
 
-*Featuring living project context, strict verification evidence contracts, 3-stage capability lifecycle registry, and dual-axis Judge evaluation.*
+*Featuring living project context, deterministic artifact gates, bounded secret-redacted context, cheap-model escalation, and dual-axis Judge evaluation.*
 
 [Overview](#overview--philosophy) • [Stage techniques](#stage-techniques) • [Runtime Capability Registry](#runtime-capability-registry--execution-modes) • [Verification Evidence](#verification-evidence-contract) • [CLI Commands](#cli-interface--commands) • [Grok CLI](#grok-cli-integration) • [Claude Code](#claude-code-integration) • [Antigravity](#antigravity-agent-integration) • [Lifecycle](#lifecycle-stages) • [Architecture](#architecture--5-layer-configuration) • [Project Profiles](#project-profiles) • [Repository Structure](#repository-structure) • [Reference Examples](#reference-examples) • [Contributing](#contributing)
 
@@ -71,6 +71,7 @@ The 8-stage loop stays one OS. These techniques sit **inside** existing stages (
 | 4–5 | Red-green at named **seams**; failure table (not happy path only); coverage is a map; no grep/tautology | `policies/tdd-policy.md` |
 | 5 | **Claimed vs Reality** table before DA. Missing file or empty Reality blocks Devil's Advocate. "Seems green" is not Reality. | `core/verification-loop.md` |
 | 6–7 | Spec vs Standards reported separately. Standards BLOCKER/HIGH iterate only when `hardConvention` is true | `policies/finding-policy.md` |
+| 0–8 | Stateful run ledger and deterministic artifact transitions; model claims cannot advance a stage | `core/artifact-gates.md` |
 | any | Mid-loop stop writes `.ai-engineering-loop/tasks/handoff.md` | `core/handoff-policy.md` |
 | any | **Compact map** (host guidance, not a second OS): Specify (stages 0-1), Make (stages 2-4), Review (stages 5-7), Deliver (stage 8). Keep the 8-stage numbers. Do not skip Goal Contract, verification, Devil's Advocate, or Judge. | host skills |
 
@@ -178,8 +179,28 @@ npx ai-engineering-loop status
 # Reconcile drifted context against repository non-destructively
 npx ai-engineering-loop refresh
 
-# Verify context readiness and begin engineering loop
+# Start or resume a stateful engineering run
 npx ai-engineering-loop run
+
+# Inspect the run ledger
+npx ai-engineering-loop state --json
+
+# Validate artifacts and advance stages
+npx ai-engineering-loop gate goal
+npx ai-engineering-loop gate maker
+npx ai-engineering-loop gate verification
+npx ai-engineering-loop gate review
+npx ai-engineering-loop escalation --json
+npx ai-engineering-loop gate judge
+npx ai-engineering-loop gate delivery
+
+# Build bounded model-visible context
+npx ai-engineering-loop context devil-advocate <files...>
+npx ai-engineering-loop context judge <files...>
+
+# Validate installation and the production evaluation catalog
+npx ai-engineering-loop doctor
+npx ai-engineering-loop eval
 
 # Copy package skills/agents/commands into ~/.claude ~/.grok ~/.gemini ~/.agents
 npx ai-engineering-loop sync-hosts
@@ -192,6 +213,8 @@ npx ai-engineering-loop generate-adapter --type github
 npx ai-engineering-loop generate-workflow
 npx ai-engineering-loop generate-workflow --write
 ```
+
+Every full run stores private local artifacts under `.ai-engineering-loop/runs/<run-id>/`. Markdown remains the human contract; JSON sidecars follow the shipped `schemas/` and make stage claims deterministic. See [`core/artifact-gates.md`](core/artifact-gates.md), [`SECURITY.md`](SECURITY.md), and [`SUPPORT.md`](SUPPORT.md).
 
 Shipped adapters (Stage 8 only, after Judge PASS): `standard`, `github`, `gitlab`, `dot`. Catalog: `adapters/README.md`. Each team generates its own; do not copy a neighbour's pipeline.
 

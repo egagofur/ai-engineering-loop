@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/egagofur/ai-engineering-loop/schemas/finding-ledger.schema.json",
+  "title": "AI Engineering Loop Finding Ledger",
+  "type": "object",
+  "required": ["schemaVersion", "runId", "diffHash", "findings"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "runId": { "type": "string", "minLength": 1 },
+    "diffHash": { "type": "string", "minLength": 1 },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "location", "failureScenario", "evidence", "severity", "validity", "disposition"],
+        "properties": {
+          "axis": { "enum": ["spec", "standards"] },
+          "severity": { "enum": ["BLOCKER", "HIGH", "MEDIUM", "LOW"] },
+          "validity": { "enum": ["VALID", "INVALID"] },
+          "disposition": { "enum": ["STRONG", "ACCEPTABLE", "WEAK"] }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

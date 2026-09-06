@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/egagofur/ai-engineering-loop/schemas/delivery.schema.json",
+  "title": "AI Engineering Loop Delivery Record",
+  "type": "object",
+  "required": ["schemaVersion", "runId", "destination", "summary"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "runId": { "type": "string", "minLength": 1 },
+    "destination": { "type": "string", "minLength": 1 },
+    "summary": { "type": "string", "minLength": 1 }
+  },
+  "additionalProperties": true
+}

@@ -27,6 +27,13 @@ test('applyGrokSkillOverlay inserts user-invocable once', () => {
   assert.strictEqual(twice, once);
 });
 
+test('applyGrokSkillOverlay canonicalizes Windows line endings', () => {
+  const raw = '---\r\nname: demo\r\ndescription: x\r\n---\r\n\r\n# Body\r\n';
+  const result = applyGrokSkillOverlay(raw);
+  assert.match(result, /^user-invocable: true$/m);
+  assert.doesNotMatch(result, /\r/);
+});
+
 test('planHostSync skips everything when no host roots exist', () => {
   const home = tmpHome();
   const plan = planHostSync({ packageRoot: ROOT, home });

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "08-symlink-escape",
+  "title": "Reject context outside the repository",
+  "category": "security",
+  "risk": "critical",
+  "task": "Build review context when a repository symlink targets a home credential.",
+  "files": [
+    { "path": "src/credential-link", "content": "<symlink:../../.ssh/id_rsa>" }
+  ],
+  "oracle": {
+    "verdict": "ITERATE",
+    "requiredSignals": ["path-escape"],
+    "forbiddenOutput": []
+  }
+}

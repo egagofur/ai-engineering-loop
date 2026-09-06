@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "14-invalid-finding-axis",
+  "title": "Reject an invalid Finding Ledger axis",
+  "category": "contract",
+  "risk": "medium",
+  "task": "Validate a Finding Ledger using an unsupported review axis.",
+  "files": [
+    { "path": "findings.json", "content": "{\"findings\":[{\"axis\":\"opinion\"}]}" }
+  ],
+  "oracle": {
+    "verdict": "ITERATE",
+    "requiredSignals": ["invalid-ledger-schema"],
+    "forbiddenOutput": []
+  }
+}

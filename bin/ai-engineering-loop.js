@@ -33,6 +33,31 @@ const {
   workflowMarkdown,
   lessonsMarkdown
 } = require('../lib/generate-workflow.js');
+const {
+  createOrResumeRun,
+  getCurrentRun,
+  loadRun
+} = require('../lib/run-state.js');
+const {
+  applyGate
+} = require('../lib/gates.js');
+const {
+  createContextPack,
+  contextPackSummary
+} = require('../lib/safe-context.js');
+const {
+  defaultCasesDir,
+  loadEvaluationCases,
+  loadResults,
+  scoreEvaluationResults,
+  catalogSummary
+} = require('../lib/evaluation.js');
+const {
+  assessRunEscalation
+} = require('../lib/escalation.js');
+const {
+  runDoctor
+} = require('../lib/doctor.js');
 
 const VERSION = '1.0.21';
 const CWD = process.cwd();
@@ -428,6 +453,11 @@ What becomes easier, harder, or forbidden.
 
   writeContextFile(path.join(targetDir, 'workflow.md'), workflowMarkdown(), { overwrite: false });
   writeContextFile(path.join(targetDir, 'lessons.md'), lessonsMarkdown(), { overwrite: false });
+  writeContextFile(
+    path.join(targetDir, '.gitignore'),
+    '# Runtime artifacts may contain source excerpts and verification logs.\nruns/\ntasks/current.diff\ntasks/*.log\n',
+    { overwrite: false }
+  );
 }
 
 /**
@@ -725,6 +755,19 @@ function handleRun() {
 
   syncHostsQuiet();
 
+  const runArgs = process.argv.slice(3);
+  const forceNew = runArgs.includes('--new');
+  const task = runArgs.filter((arg) => arg !== '--new').join(' ').trim();
+  let runResult;
+  try {
+    runResult = createOrResumeRun(CWD, { task, forceNew });
+  } catch (err) {
+    log.error(err.message);
+    process.exit(1);
+  }
+  console.log(`- Run: ${runResult.run.runId} (${runResult.resumed ? 'resumed' : 'created'})`);
+  console.log(`- State: ${runResult.run.state}, iteration ${runResult.run.iteration}`);
+
   const grok = detectGrokHost();
 
   console.log('\n------------------------------------------------------------');
@@ -778,6 +821,176 @@ function handleRun() {
   console.log('------------------------------------------------------------\n');
 }
 
+function argValue(name) {
+  const index = process.argv.indexOf(name);
+  return index === -1 ? null : process.argv[index + 1] || null;
+}
+
+function handleGate() {
+  const gate = process.argv[3];
+  const runId = argValue('--run');
+  const json = process.argv.includes('--json');
+  try {
+    const run = applyGate(CWD, gate, { runId });
+    if (json) {
+      console.log(JSON.stringify({
+        ok: true,
+        runId: run.runId,
+        state: run.state,
+        iteration: run.iteration,
+        gate
+      }));
+    } else {
+      log.success(`✓ ${gate} gate passed`);
+      console.log(`- Run: ${run.runId}`);
+      console.log(`- State: ${run.state}, iteration ${run.iteration}`);
+    }
+  } catch (err) {
+    if (json) {
+      console.log(JSON.stringify({
+        ok: false,
+        code: err.code || 'GATE_FAILED',
+        error: err.message,
+        details: err.details || []
+      }));
+    } else {
+      log.error(err.message);
+      for (const detail of err.details || []) console.error(`- ${detail}`);
+    }
+    process.exit(1);
+  }
+}
+
+function commandFiles(startIndex, optionsWithValues = []) {
+  const files = [];
+  for (let index = startIndex; index < process.argv.length; index++) {
+    const value = process.argv[index];
+    if (optionsWithValues.includes(value)) {
+      index += 1;
+      continue;
+    }
+    if (!value.startsWith('--')) files.push(value);
+  }
+  return files;
+}
+
+function handleContext() {
+  const stage = process.argv[3];
+  const runId = argValue('--run');
+  const json = process.argv.includes('--json');
+  const files = commandFiles(4, ['--run']);
+  try {
+    const result = createContextPack(CWD, { runId, stage, files });
+    const summary = contextPackSummary(result);
+    if (json) {
+      console.log(JSON.stringify({ ok: true, ...summary }));
+    } else {
+      log.success(`✓ ${stage} context pack created`);
+      console.log(`- Path: ${summary.path}`);
+      console.log(`- Files: ${summary.files}, estimated tokens: ${summary.estimatedTokens}`);
+      console.log(`- Redactions: ${summary.redactions}, truncated files: ${summary.truncatedFiles}`);
+    }
+  } catch (err) {
+    if (json) {
+      console.log(JSON.stringify({ ok: false, code: err.code || 'UNSAFE_CONTEXT', error: err.message }));
+    } else {
+      log.error(err.message);
+    }
+    process.exit(1);
+  }
+}
+
+function handleEval() {
+  const casesDir = argValue('--cases') || defaultCasesDir();
+  const resultsDir = argValue('--results');
+  const json = process.argv.includes('--json');
+  try {
+    const fixtures = loadEvaluationCases(casesDir);
+    if (!resultsDir) {
+      const summary = catalogSummary(fixtures);
+      if (json) console.log(JSON.stringify({ ok: true, mode: 'catalog', ...summary }));
+      else {
+        log.success(`✓ Evaluation catalog valid (${summary.total} cases)`);
+        console.log(`- Categories: ${Object.keys(summary.categories).join(', ')}`);
+        console.log(`- Oracle verdicts: ${JSON.stringify(summary.verdicts)}`);
+      }
+      return;
+    }
+
+    const score = scoreEvaluationResults(fixtures, loadResults(resultsDir));
+    const ok = score.failed === 0 && score.incorrectPasses === 0 && score.secretLeaks === 0;
+    if (json) console.log(JSON.stringify({ ok, ...score }));
+    else {
+      console.log(`Evaluation: ${score.passed}/${score.total} passed`);
+      console.log(`- Incorrect PASS: ${score.incorrectPasses}`);
+      console.log(`- Secret leaks: ${score.secretLeaks}`);
+      for (const item of score.cases.filter((result) => !result.passed)) {
+        console.log(`  ${item.caseId}: expected=${item.expected} actual=${item.actual || 'MISSING'}`);
+      }
+    }
+    if (!ok) process.exit(1);
+  } catch (err) {
+    if (json) console.log(JSON.stringify({ ok: false, code: err.code || 'EVALUATION_FAILED', error: err.message, details: err.details || [] }));
+    else {
+      log.error(err.message);
+      for (const detail of err.details || []) console.error(`- ${detail}`);
+    }
+    process.exit(1);
+  }
+}
+
+function handleEscalation() {
+  const runId = argValue('--run');
+  const json = process.argv.includes('--json');
+  try {
+    const assessment = assessRunEscalation(CWD, { runId });
+    if (json) console.log(JSON.stringify({ ok: true, ...assessment }));
+    else {
+      console.log(`Required model tier: ${assessment.requiredTier}`);
+      for (const reason of assessment.reasons) {
+        console.log(`- ${reason.code}: ${reason.detail}`);
+      }
+    }
+  } catch (err) {
+    if (json) console.log(JSON.stringify({ ok: false, code: err.code || 'ESCALATION_FAILED', error: err.message }));
+    else log.error(err.message);
+    process.exit(1);
+  }
+}
+
+function handleState() {
+  const runId = argValue('--run');
+  const json = process.argv.includes('--json');
+  try {
+    const run = runId ? loadRun(CWD, runId) : getCurrentRun(CWD);
+    if (!run) throw new Error('No current run. Start one with `ai-engineering-loop run`.');
+    if (json) console.log(JSON.stringify({ ok: true, ...run }));
+    else {
+      console.log(`Run: ${run.runId}`);
+      console.log(`State: ${run.state}`);
+      console.log(`Iteration: ${run.iteration}`);
+      console.log(`Artifacts: ${Object.keys(run.artifacts).join(', ') || 'none'}`);
+    }
+  } catch (err) {
+    if (json) console.log(JSON.stringify({ ok: false, code: err.code || 'STATE_FAILED', error: err.message }));
+    else log.error(err.message);
+    process.exit(1);
+  }
+}
+
+function handleDoctor() {
+  const json = process.argv.includes('--json');
+  const result = runDoctor(path.join(__dirname, '..'));
+  if (json) console.log(JSON.stringify(result));
+  else {
+    console.log(`AI Engineering Loop doctor: ${result.ok ? 'READY' : 'NOT READY'}`);
+    for (const check of result.checks) {
+      console.log(`${check.passed ? '✓' : '✗'} ${check.id}: ${check.detail}`);
+    }
+  }
+  if (!result.ok) process.exit(1);
+}
+
 // Help Menu
 function printHelp() {
   console.log(`
@@ -791,7 +1004,28 @@ Commands:
   init         Bootstrap .ai-engineering-loop/ context from repository discovery
   status       Check the validity, readiness, and baseline freshness of context
   refresh      Reconcile drifted context against repository non-destructively
-  run          Verify context readiness, sync host skills, and instruct the agent
+  run [task]   Start or resume a stateful engineering run, sync hosts, and instruct the agent
+               --new  start a new run even when another run is active
+  state        Inspect the current run ledger
+               --run <id>  target a non-current run
+               --json      print the complete machine-readable ledger
+  gate <name>  Validate an artifact and advance the current run
+               goal | maker | verification | review | judge | delivery
+               --run <id>  target a non-current run
+               --json      print machine-readable gate output
+  context <stage> <files...>
+               Build a bounded, redacted context pack for maker, devil-advocate, or judge
+               --run <id>  target a non-current run
+               --json      print only pack metadata; never print packed content
+  eval         Validate the 20-case production evaluation catalog
+               --results <dir>  score host-generated JSON results
+               --cases <dir>    use another compatible fixture catalog
+               --json           print machine-readable metrics
+  escalation   Compute the minimum Judge model tier from deterministic risk signals
+               --run <id>  target a non-current run
+               --json      print machine-readable reasons
+  doctor       Check runtime, schemas, host assets, package contents, and eval catalog
+               --json      print machine-readable diagnostics
   sync-hosts   Copy package skills/agents/commands into ~/.claude ~/.grok ~/.gemini ~/.agents
                (only hosts that already exist; DOT skills only if already installed)
                --dry-run  print the plan without writing
@@ -825,6 +1059,24 @@ switch (command) {
     break;
   case 'run':
     handleRun();
+    break;
+  case 'state':
+    handleState();
+    break;
+  case 'gate':
+    handleGate();
+    break;
+  case 'context':
+    handleContext();
+    break;
+  case 'eval':
+    handleEval();
+    break;
+  case 'escalation':
+    handleEscalation();
+    break;
+  case 'doctor':
+    handleDoctor();
     break;
   case 'sync-hosts':
     handleSyncHosts();

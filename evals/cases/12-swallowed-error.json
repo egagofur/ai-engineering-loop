@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "12-swallowed-error",
+  "title": "Detect a swallowed production error",
+  "category": "correctness",
+  "risk": "high",
+  "task": "Review an operation that reports success after an exception.",
+  "files": [
+    { "path": "src/save.js", "content": "try { await db.save(value); } catch (error) {} return { ok: true };" }
+  ],
+  "oracle": {
+    "verdict": "ITERATE",
+    "requiredSignals": ["swallowed-error"],
+    "forbiddenOutput": []
+  }
+}
