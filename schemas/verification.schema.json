@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/egagofur/ai-engineering-loop/schemas/verification.schema.json",
+  "title": "AI Engineering Loop Verification Evidence",
+  "type": "object",
+  "required": ["schemaVersion", "runId", "gitRevision", "diffHash", "commands"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "runId": { "type": "string", "minLength": 1 },
+    "gitRevision": { "type": "string", "minLength": 1 },
+    "diffHash": { "type": "string", "minLength": 1 },
+    "commands": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["command", "executionIdentity", "startTime", "endTime", "exitCode", "stdout", "timeoutStatus"],
+        "properties": {
+          "command": { "type": "string", "minLength": 1 },
+          "executionIdentity": { "type": "string", "minLength": 1 },
+          "startTime": { "type": "string", "minLength": 1 },
+          "endTime": { "type": "string", "minLength": 1 },
+          "exitCode": { "const": 0 },
+          "stdout": { "type": "string", "minLength": 1 },
+          "timeoutStatus": { "const": "COMPLETED" }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

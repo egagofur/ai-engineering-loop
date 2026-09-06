@@ -36,6 +36,9 @@ const {
 const {
   createOrResumeRun
 } = require('../lib/run-state.js');
+const {
+  applyGate
+} = require('../lib/gates.js');
 
 const VERSION = '1.0.21';
 const CWD = process.cwd();
@@ -794,6 +797,46 @@ function handleRun() {
   console.log('------------------------------------------------------------\n');
 }
 
+function argValue(name) {
+  const index = process.argv.indexOf(name);
+  return index === -1 ? null : process.argv[index + 1] || null;
+}
+
+function handleGate() {
+  const gate = process.argv[3];
+  const runId = argValue('--run');
+  const json = process.argv.includes('--json');
+  try {
+    const run = applyGate(CWD, gate, { runId });
+    if (json) {
+      console.log(JSON.stringify({
+        ok: true,
+        runId: run.runId,
+        state: run.state,
+        iteration: run.iteration,
+        gate
+      }));
+    } else {
+      log.success(`✓ ${gate} gate passed`);
+      console.log(`- Run: ${run.runId}`);
+      console.log(`- State: ${run.state}, iteration ${run.iteration}`);
+    }
+  } catch (err) {
+    if (json) {
+      console.log(JSON.stringify({
+        ok: false,
+        code: err.code || 'GATE_FAILED',
+        error: err.message,
+        details: err.details || []
+      }));
+    } else {
+      log.error(err.message);
+      for (const detail of err.details || []) console.error(`- ${detail}`);
+    }
+    process.exit(1);
+  }
+}
+
 // Help Menu
 function printHelp() {
   console.log(`
@@ -809,6 +852,10 @@ Commands:
   refresh      Reconcile drifted context against repository non-destructively
   run [task]   Start or resume a stateful engineering run, sync hosts, and instruct the agent
                --new  start a new run even when another run is active
+  gate <name>  Validate an artifact and advance the current run
+               goal | maker | verification | review | judge | delivery
+               --run <id>  target a non-current run
+               --json      print machine-readable gate output
   sync-hosts   Copy package skills/agents/commands into ~/.claude ~/.grok ~/.gemini ~/.agents
                (only hosts that already exist; DOT skills only if already installed)
                --dry-run  print the plan without writing
@@ -842,6 +889,9 @@ switch (command) {
     break;
   case 'run':
     handleRun();
+    break;
+  case 'gate':
+    handleGate();
     break;
   case 'sync-hosts':
     handleSyncHosts();

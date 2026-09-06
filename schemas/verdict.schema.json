@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/egagofur/ai-engineering-loop/schemas/verdict.schema.json",
+  "title": "AI Engineering Loop Judge Verdict",
+  "type": "object",
+  "required": ["schemaVersion", "runId", "verdict", "reason", "action"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "runId": { "type": "string", "minLength": 1 },
+    "verdict": { "enum": ["PASS", "ITERATE", "ESCALATE"] },
+    "reason": { "type": "string", "minLength": 1 },
+    "action": { "type": "string", "minLength": 1 }
+  },
+  "additionalProperties": true
+}
