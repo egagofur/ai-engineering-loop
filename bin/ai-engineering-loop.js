@@ -39,6 +39,10 @@ const {
 const {
   applyGate
 } = require('../lib/gates.js');
+const {
+  createContextPack,
+  contextPackSummary
+} = require('../lib/safe-context.js');
 
 const VERSION = '1.0.21';
 const CWD = process.cwd();
@@ -837,6 +841,45 @@ function handleGate() {
   }
 }
 
+function commandFiles(startIndex, optionsWithValues = []) {
+  const files = [];
+  for (let index = startIndex; index < process.argv.length; index++) {
+    const value = process.argv[index];
+    if (optionsWithValues.includes(value)) {
+      index += 1;
+      continue;
+    }
+    if (!value.startsWith('--')) files.push(value);
+  }
+  return files;
+}
+
+function handleContext() {
+  const stage = process.argv[3];
+  const runId = argValue('--run');
+  const json = process.argv.includes('--json');
+  const files = commandFiles(4, ['--run']);
+  try {
+    const result = createContextPack(CWD, { runId, stage, files });
+    const summary = contextPackSummary(result);
+    if (json) {
+      console.log(JSON.stringify({ ok: true, ...summary }));
+    } else {
+      log.success(`✓ ${stage} context pack created`);
+      console.log(`- Path: ${summary.path}`);
+      console.log(`- Files: ${summary.files}, estimated tokens: ${summary.estimatedTokens}`);
+      console.log(`- Redactions: ${summary.redactions}, truncated files: ${summary.truncatedFiles}`);
+    }
+  } catch (err) {
+    if (json) {
+      console.log(JSON.stringify({ ok: false, code: err.code || 'UNSAFE_CONTEXT', error: err.message }));
+    } else {
+      log.error(err.message);
+    }
+    process.exit(1);
+  }
+}
+
 // Help Menu
 function printHelp() {
   console.log(`
@@ -856,6 +899,10 @@ Commands:
                goal | maker | verification | review | judge | delivery
                --run <id>  target a non-current run
                --json      print machine-readable gate output
+  context <stage> <files...>
+               Build a bounded, redacted context pack for maker, devil-advocate, or judge
+               --run <id>  target a non-current run
+               --json      print only pack metadata; never print packed content
   sync-hosts   Copy package skills/agents/commands into ~/.claude ~/.grok ~/.gemini ~/.agents
                (only hosts that already exist; DOT skills only if already installed)
                --dry-run  print the plan without writing
@@ -892,6 +939,9 @@ switch (command) {
     break;
   case 'gate':
     handleGate();
+    break;
+  case 'context':
+    handleContext();
     break;
   case 'sync-hosts':
     handleSyncHosts();
