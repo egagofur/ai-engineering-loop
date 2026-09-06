@@ -47,9 +47,9 @@ flowchart TD
 - **Command**: `npx ai-engineering-loop run` (or `/ai-engineering-loop [task]`).
 - **Boundaries**:
   - The Agent reads `.ai-engineering-loop/` (triggering auto-init if missing).
-  - Formulates the [Goal Contract](file:///Users/egagofur/Development/work/ai-engineering-loop/core/goal-contract.md).
+  - Formulates the [Goal Contract](./goal-contract.md).
   - Performs Root Cause Analysis (RCA) and Implementation Planning.
-  - Executes surgical diffs, runs deterministic test suites, conducts independent adversarial review via the [Devil's Advocate](file:///Users/egagofur/Development/work/ai-engineering-loop/agents/devil-advocate.md), and obtains certification from the [Judge Agent](file:///Users/egagofur/Development/work/ai-engineering-loop/agents/judge.md).
+  - Executes surgical diffs, runs deterministic test suites, conducts independent adversarial review via the [Devil's Advocate](../agents/devil-advocate.md), and obtains certification from the [Judge Agent](../agents/judge.md).
 
 ---
 

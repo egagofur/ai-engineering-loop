@@ -30,7 +30,7 @@ flowchart TD
 ### 2. Can the main agent pass context to a sub-agent?
 - **Status**: **YES**.
 - **Mechanism**: The spawning task payload allows passing:
-  - The [Goal Contract](file:///Users/egagofur/Development/work/ai-engineering-loop/core/goal-contract.md).
+  - The [Goal Contract](../core/goal-contract.md).
   - Target base branch name (`main`, `develop`).
   - Active iteration index and finding ledger history.
 
@@ -40,11 +40,11 @@ flowchart TD
 
 ### 4. Can the sub-agent return structured findings?
 - **Status**: **YES**.
-- **Mechanism**: The sub-agent is instructed to output strictly formatted YAML/Markdown compliant with the [Finding Policy](file:///Users/egagofur/Development/work/ai-engineering-loop/policies/finding-policy.md). Upon task completion, the structured output is delivered directly back into the primary agent's context.
+- **Mechanism**: The sub-agent is instructed to output strictly formatted YAML/Markdown compliant with the [Finding Policy](../policies/finding-policy.md). Upon task completion, the structured output is delivered directly back into the primary agent's context.
 
 ### 5. Can the main agent consume those findings?
 - **Status**: **YES**.
-- **Mechanism**: The primary agent parses the returned Finding Ledger, updates the iteration state artifact, and feeds the findings into the [Judge Agent](file:///Users/egagofur/Development/work/ai-engineering-loop/agents/judge.md).
+- **Mechanism**: The primary agent parses the returned Finding Ledger, updates the iteration state artifact, and feeds the findings into the [Judge Agent](../agents/judge.md).
 
 ### 6. Can the loop be repeated automatically?
 - **Status**: **YES**.

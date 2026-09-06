@@ -35,10 +35,10 @@ flowchart TD
 ### Layer 2: Engineering Core (`core/`)
 - **Authority**: AI Engineering Operating System specification.
 - **Scope**: Mandatory engineering invariants:
-  - No code changes without a formalized [Goal Contract](file:///Users/egagofur/Development/work/ai-engineering-loop/core/goal-contract.md).
+  - No code changes without a formalized [Goal Contract](./goal-contract.md).
   - Deterministic checks must pass 100% before adversarial review.
   - Review findings require reproducible evidence (Level 1–3) to be valid.
-  - Only the [Judge Agent](file:///Users/egagofur/Development/work/ai-engineering-loop/agents/judge.md) can issue a `PASS` verdict.
+  - Only the [Judge Agent](../agents/judge.md) can issue a `PASS` verdict.
 - **Overridability**: Invariant. Downstream layers cannot skip verification or eliminate agent roles.
 
 ### Layer 3: Project Type Profile (`profiles/`)
@@ -55,7 +55,7 @@ flowchart TD
   - Layer definitions in `architecture.md`.
   - Architectural constraints and forbidden patterns in `conventions.md`.
   - Configured delivery adapter (DOT, GitHub, GitLab) in `adapter.md`.
-- **Auto-Discovery**: Automatically generated if missing via [Project Initialization](file:///Users/egagofur/Development/work/ai-engineering-loop/core/project-initialization.md).
+- **Auto-Discovery**: Automatically generated if missing via [Project Initialization](./project-initialization.md).
 - **Overridability**: Overrides Layer 3 defaults for this specific codebase.
 
 ### Layer 5: Task Contract
@@ -99,4 +99,4 @@ def resolve_config_key(key: str, context: ExecutionContext) -> Any:
    - *Refinement (Allowed)*: Profile says "Run unit tests"; Repo config specifies `pnpm run test:unit`. $\rightarrow$ Valid refinement.
    - *Contradiction (Escalate)*: Core requires deterministic verification; Task contract requests skipping tests to merge faster. $\rightarrow$ **Forbidden**. The engine rejects the override and flags a policy violation.
 2. **Unresolvable Contradictions**:
-   - If repository configuration directly contradicts an established platform invariant (e.g. a command requires root sudo or drops protected tables), the system halts and triggers [Human Escalation](file:///Users/egagofur/Development/work/ai-engineering-loop/core/escalation-policy.md).
+   - If repository configuration directly contradicts an established platform invariant (e.g. a command requires root sudo or drops protected tables), the system halts and triggers [Human Escalation](./escalation-policy.md).

@@ -6,11 +6,11 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/egagofur/ai-engineering-loop/pulls)
 [![AI Engineering](https://img.shields.io/badge/AI-Engineering%20Loop-orange.svg)](https://github.com/egagofur/ai-engineering-loop)
-[![Release](https://img.shields.io/badge/release-v1.1.0-purple.svg)](https://github.com/egagofur/ai-engineering-loop/releases)
+[![Release](https://img.shields.io/badge/release-v1.2.0-purple.svg)](https://github.com/egagofur/ai-engineering-loop/releases)
 
 **A Reusable, Framework-Agnostic AI Engineering Operating System for Autonomous Coding Agents**
 
-*Featuring living project context, deterministic artifact gates, bounded secret-redacted context, cheap-model escalation, and dual-axis Judge evaluation.*
+*Featuring graduated safety modes, token budgets, isolated Maker worktrees, deterministic artifact gates, bounded secret-redacted context, and cheap-model escalation.*
 
 [Overview](#overview--philosophy) • [Stage techniques](#stage-techniques) • [Runtime Capability Registry](#runtime-capability-registry--execution-modes) • [Verification Evidence](#verification-evidence-contract) • [CLI Commands](#cli-interface--commands) • [Grok CLI](#grok-cli-integration) • [Claude Code](#claude-code-integration) • [Antigravity](#antigravity-agent-integration) • [Lifecycle](#lifecycle-stages) • [Architecture](#architecture--5-layer-configuration) • [Project Profiles](#project-profiles) • [Repository Structure](#repository-structure) • [Reference Examples](#reference-examples) • [Contributing](#contributing)
 
@@ -72,6 +72,7 @@ The 8-stage loop stays one OS. These techniques sit **inside** existing stages (
 | 5 | **Claimed vs Reality** table before DA. Missing file or empty Reality blocks Devil's Advocate. "Seems green" is not Reality. | `core/verification-loop.md` |
 | 6–7 | Spec vs Standards reported separately. Standards BLOCKER/HIGH iterate only when `hardConvention` is true | `policies/finding-policy.md` |
 | 0–8 | Stateful run ledger and deterministic artifact transitions; model claims cannot advance a stage | `core/artifact-gates.md` |
+| 0–8 | `REPORT_ONLY`, human-approved `ASSISTED`, opt-in `UNATTENDED`; actual token budgets, kill switch, and locked Maker worktrees | `core/runtime-safety.md` |
 | any | Mid-loop stop writes `.ai-engineering-loop/tasks/handoff.md` | `core/handoff-policy.md` |
 | any | **Compact map** (host guidance, not a second OS): Specify (stages 0-1), Make (stages 2-4), Review (stages 5-7), Deliver (stage 8). Keep the 8-stage numbers. Do not skip Goal Contract, verification, Devil's Advocate, or Judge. | host skills |
 
@@ -181,12 +182,28 @@ npx ai-engineering-loop refresh
 
 # Start or resume a stateful engineering run
 npx ai-engineering-loop run
+npx ai-engineering-loop run --mode report-only "audit this repository"
 
 # Inspect the run ledger
 npx ai-engineering-loop state --json
 
+# Inspect policy, opt into unattended, and operate the token kill switch
+npx ai-engineering-loop policy show
+npx ai-engineering-loop policy set --allow-unattended true
+npx ai-engineering-loop budget status
+npx ai-engineering-loop budget pause
+npx ai-engineering-loop budget resume
+
+# Record actual provider-reported usage after each model response
+npx ai-engineering-loop budget record --input 1200 --output 300 --model provider/model-id
+
+# Isolate unattended Maker, then capture only its diff
+npx ai-engineering-loop sandbox create
+npx ai-engineering-loop sandbox capture
+
 # Validate artifacts and advance stages
 npx ai-engineering-loop gate goal
+npx ai-engineering-loop gate report
 npx ai-engineering-loop gate maker
 npx ai-engineering-loop gate verification
 npx ai-engineering-loop gate review
@@ -214,7 +231,7 @@ npx ai-engineering-loop generate-workflow
 npx ai-engineering-loop generate-workflow --write
 ```
 
-Every full run stores private local artifacts under `.ai-engineering-loop/runs/<run-id>/`. Markdown remains the human contract; JSON sidecars follow the shipped `schemas/` and make stage claims deterministic. See [`core/artifact-gates.md`](core/artifact-gates.md), [`SECURITY.md`](SECURITY.md), and [`SUPPORT.md`](SUPPORT.md).
+Every full run stores private local artifacts under `.ai-engineering-loop/runs/<run-id>/`. Usage, worktrees, locks, context packs, and logs are Git-ignored. Markdown remains the human contract; JSON sidecars follow the shipped `schemas/` and make stage claims deterministic. `ASSISTED` is the default and requires explicit human delivery approval. `UNATTENDED` is disabled until a human enables it. See [`core/runtime-safety.md`](core/runtime-safety.md), [`core/artifact-gates.md`](core/artifact-gates.md), [`SECURITY.md`](SECURITY.md), and [`SUPPORT.md`](SUPPORT.md).
 
 Shipped adapters (Stage 8 only, after Judge PASS): `standard`, `github`, `gitlab`, `dot`. Catalog: `adapters/README.md`. Each team generates its own; do not copy a neighbour's pipeline.
 

@@ -323,6 +323,26 @@ test('Every host enforces state, evidence, bounded context, escalation, and deli
   }
 });
 
+test('Every host enforces runtime mode, token accounting, sandbox, and approval controls', () => {
+  for (const rel of [
+    '.claude/skills/ai-engineering-loop/SKILL.md',
+    '.grok/skills/ai-engineering-loop/SKILL.md',
+    '.gemini/skills/ai-engineering-loop/SKILL.md',
+    '.agents/workflows/ai-engineering-loop.md'
+  ]) {
+    const text = readRepo(rel);
+    assert.match(text, /REPORT_ONLY/, rel);
+    assert.match(text, /ASSISTED/, rel);
+    assert.match(text, /UNATTENDED/, rel);
+    assert.match(text, /budget status/, rel);
+    assert.match(text, /budget record/, rel);
+    assert.match(text, /sandbox create/, rel);
+    assert.match(text, /sandbox capture/, rel);
+    assert.match(text, /humanApproved: true/, rel);
+    assert.match(text, /never infer/, rel);
+  }
+});
+
 test('Sloppy prompt drafts a Goal Contract; claimed-vs-reality gates DA', () => {
   const grill = readRepo('core/grill-policy.md');
   assert.match(grill, /Sloppy \/ underspecified prompts/);

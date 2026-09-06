@@ -92,7 +92,7 @@ flowchart TD
 
 ## 4. Devil's Advocate & Judge Drift Interaction
 
-During task review, the [Devil's Advocate](file:///Users/egagofur/Development/work/ai-engineering-loop/agents/devil-advocate.md) may discover that the codebase has drifted from the documented architecture:
+During task review, the [Devil's Advocate](../agents/devil-advocate.md) may discover that the codebase has drifted from the documented architecture:
 
 > *Example Review Finding*: "The implementation assumes `user-service` connects directly to Postgres, but the codebase has migrated to an asynchronous event queue in `src/events/`."
 

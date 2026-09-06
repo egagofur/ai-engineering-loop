@@ -23,11 +23,11 @@ flowchart TD
 
 | Profile | Target Archetype | Primary Verification Focus | Active Review Domains |
 |---|---|---|---|
-| **[`web-app`](file:///Users/egagofur/Development/work/ai-engineering-loop/profiles/web-app.md)** | Single-Page Apps, SSR/SSG websites, Admin Portals | DOM rendering, browser responsiveness, bundle size, CSS/tokens | Responsive layout, accessibility (a11y), client state, Core Web Vitals |
-| **[`backend-api`](file:///Users/egagofur/Development/work/ai-engineering-loop/profiles/backend-api.md)** | REST / GraphQL / gRPC Microservices, Background Workers | Unit tests, database migrations, schema contracts | Auth/Authz, SQL injection, concurrency, transactions, API contracts |
-| **[`mobile-app`](file:///Users/egagofur/Development/work/ai-engineering-loop/profiles/mobile-app.md)** | iOS, Android, React Native, Flutter | Platform builds, simulator smoke tests, widget tests | Offline sync, device permissions, lifecycle transitions, network resilience |
-| **[`library`](file:///Users/egagofur/Development/work/ai-engineering-loop/profiles/library.md)** | Reusable SDKs, packages, shared utilities | Broad runtime compatibility, zero external dependencies | Public API stability, semver breaking changes, bundle tree-shaking |
-| **[`monorepo`](file:///Users/egagofur/Development/work/ai-engineering-loop/profiles/monorepo.md)** | Turborepo, Nx, Lerna, Yarn/pnpm Workspaces | Workspace scope tests, affected package compilation | Cross-package boundaries, circular dependencies, dependency isolation |
+| **[`web-app`](./web-app.md)** | Single-Page Apps, SSR/SSG websites, Admin Portals | DOM rendering, browser responsiveness, bundle size, CSS/tokens | Responsive layout, accessibility (a11y), client state, Core Web Vitals |
+| **[`backend-api`](./backend-api.md)** | REST / GraphQL / gRPC Microservices, Background Workers | Unit tests, database migrations, schema contracts | Auth/Authz, SQL injection, concurrency, transactions, API contracts |
+| **[`mobile-app`](./mobile-app.md)** | iOS, Android, React Native, Flutter | Platform builds, simulator smoke tests, widget tests | Offline sync, device permissions, lifecycle transitions, network resilience |
+| **[`library`](./library.md)** | Reusable SDKs, packages, shared utilities | Broad runtime compatibility, zero external dependencies | Public API stability, semver breaking changes, bundle tree-shaking |
+| **[`monorepo`](./monorepo.md)** | Turborepo, Nx, Lerna, Yarn/pnpm Workspaces | Workspace scope tests, affected package compilation | Cross-package boundaries, circular dependencies, dependency isolation |
 
 ---
 

@@ -26,7 +26,7 @@ flowchart LR
 ```
 
 ### Pillar 1: Contract Satisfaction
-- 100% of Acceptance Criteria defined in the [Goal Contract](file:///Users/egagofur/Development/work/ai-engineering-loop/core/goal-contract.md) are demonstrably met.
+- 100% of Acceptance Criteria defined in the [Goal Contract](./goal-contract.md) are demonstrably met.
 - Zero out-of-scope files or unauthorized modules were modified.
 - All technical constraints (e.g. backward compatibility, no unapproved dependencies) are preserved.
 
@@ -45,12 +45,12 @@ flowchart LR
 - **Null & Boundary Safety**: Explicit handling of `null`, `undefined`, empty collections, and error paths.
 
 ### Pillar 4: Adversarial Consensus
-- Independent [Devil's Advocate Review](file:///Users/egagofur/Development/work/ai-engineering-loop/agents/devil-advocate.md) has been executed across all 6 core review domains.
+- Independent [Devil's Advocate Review](../agents/devil-advocate.md) has been executed across all 6 core review domains.
 - **Zero Unresolved Blocking Findings**: No open `SEV-1 (Critical)` or `SEV-2 (High)` findings.
 - **Evidence-Based Triage**: Every raised finding has been formally triaged with reproducible evidence as `VALID` (and resolved in code) or `INVALID` (with technical proof of why it is a false positive).
 
 ### Pillar 5: Judge Certified PASS
-- The [Judge Agent](file:///Users/egagofur/Development/work/ai-engineering-loop/agents/judge.md) has evaluated the complete execution trace, verified the evidence, confirmed no-progress limits were not violated, and issued a signed `PASS` verdict.
+- The [Judge Agent](../agents/judge.md) has evaluated the complete execution trace, verified the evidence, confirmed no-progress limits were not violated, and issued a signed `PASS` verdict.
 
 ---
 

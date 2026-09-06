@@ -31,7 +31,7 @@ flowchart TD
 - **Rationale**: Prolonged retries indicate either an incorrect fundamental strategy or a hidden architectural obstacle.
 
 ### Trigger 2: No-Progress / Stagnation Detected
-- **Condition**: Two consecutive iterations produce identical or semantically equivalent finding signatures without demonstrable code convergence (see [No-Progress Policy](file:///Users/egagofur/Development/work/ai-engineering-loop/policies/no-progress-policy.md)).
+- **Condition**: Two consecutive iterations produce identical or semantically equivalent finding signatures without demonstrable code convergence (see [No-Progress Policy](../policies/no-progress-policy.md)).
 - **Rationale**: Prevents thrashing where the agent modifies code without resolving the underlying flaw.
 
 ### Trigger 3: Contradictory or Inconsistent Acceptance Criteria
@@ -93,7 +93,7 @@ Instead, it must render an **Actionable Escalation Report** following this struc
 
 ## 4. Resumption Protocol
 
-Once the human engineer provides guidance or amends the [Goal Contract](file:///Users/egagofur/Development/work/ai-engineering-loop/core/goal-contract.md):
+Once the human engineer provides guidance or amends the [Goal Contract](./goal-contract.md):
 1. The iteration counter is reset: $K \leftarrow 1$.
 2. The agent incorporates the human's decision into the Goal Contract constraints.
 3. The loop resumes at the **Maker Agent** phase with clean validation.

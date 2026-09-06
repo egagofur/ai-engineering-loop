@@ -2,12 +2,12 @@
 
 ## 1. Purpose & Core Philosophy
 
-The **Finding Policy** defines the standardized schema, severity definitions, validity rules, and lifecycle states for all issues identified by review agents (such as the [Devil's Advocate](file:///Users/egagofur/Development/work/ai-engineering-loop/agents/devil-advocate.md) or external review bots).
+The **Finding Policy** defines the standardized schema, severity definitions, validity rules, and lifecycle states for all issues identified by review agents (such as the [Devil's Advocate](../agents/devil-advocate.md) or external review bots).
 
 A standardized finding schema ensures that:
 1. Every criticism is actionable, localized, and backed by factual code evidence.
 2. Review findings can be parsed, hashed, and tracked across autonomous iterations.
-3. The [Judge Agent](file:///Users/egagofur/Development/work/ai-engineering-loop/agents/judge.md) can evaluate findings deterministically based on **Validity + Severity** without subjective bias.
+3. The [Judge Agent](../agents/judge.md) can evaluate findings deterministically based on **Validity + Severity** without subjective bias.
 
 ---
 

@@ -4,7 +4,7 @@
 
 A major risk in autonomous AI agent loops is **thrashing (stagnation)**: the agent modifies code repeatedly across iterations without actually resolving the underlying defect, oscillating between two broken states, or generating the same unresolved findings repeatedly.
 
-The **No-Progress Policy** defines an algorithmic mechanism to detect stagnation early and halt the loop with a [Human Escalation](file:///Users/egagofur/Development/work/ai-engineering-loop/core/escalation-policy.md) rather than wasting tokens and computational cycles.
+The **No-Progress Policy** defines an algorithmic mechanism to detect stagnation early and halt the loop with a [Human Escalation](../core/escalation-policy.md) rather than wasting tokens and computational cycles.
 
 ```mermaid
 flowchart LR
@@ -89,4 +89,4 @@ def check_stagnation(
 When `check_stagnation` returns `True`:
 1. The Judge Agent immediately sets the verdict to **`ESCALATE`**.
 2. Autonomous iteration stops.
-3. The agent generates the standardized [Human Escalation Report](file:///Users/egagofur/Development/work/ai-engineering-loop/core/escalation-policy.md) highlighting the recurring signature and exact blocking contradiction.
+3. The agent generates the standardized [Human Escalation Report](../core/escalation-policy.md) highlighting the recurring signature and exact blocking contradiction.
