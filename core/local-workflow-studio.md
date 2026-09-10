@@ -18,12 +18,23 @@ The canvas loads built-in and project recipes through the same APIs as the CLI:
 
 1. Select a recipe.
 2. Fork a protected built-in by changing its ID.
-3. Add or edit allowlisted node types.
-4. Connect nodes with dependency IDs.
-5. Review graph validation and hashes for every compatible mode.
-6. Install only after explicit confirmation.
+3. Drag allowlisted node types from the library or click to add them at the viewport center.
+4. Move nodes freely and drag an output port onto another node to create a dependency.
+5. Pan, zoom, fit, auto-layout, and use undo/redo without changing recipe semantics.
+6. Review graph validation and hashes for every compatible mode.
+7. Install only after explicit confirmation.
 
 Installation writes a private temporary candidate, invokes the existing atomic installer, and removes the candidate. Built-ins cannot be overwritten. Replacing a project recipe still requires the version policy enforced by `recipe install --replace`.
+
+Canvas positions and viewport state are not recipe fields and never contribute to the graph hash. Studio stores them under private `.ai-engineering-loop/studio-layouts/` files, validates IDs and coordinate bounds, rejects symlinks, and writes atomically. This keeps visual organization independent from execution semantics.
+
+Visual connections are real `dependsOn` edges. Studio rejects a connection that would introduce a cycle, then the recipe compiler applies the complete safety-backbone and mode validation before installation. Selecting and deleting a node removes its incoming references; undo remains available until the recipe is changed or reloaded.
+
+## Stage 8 delivery adapter
+
+The default canvas labels the lifecycle coverage from Stage 1 through Stage 8; Maker contains the Stage 2–4 diagnosis, planning, and implementation sequence. Delivery nodes expose the project-level Stage 8 adapter selected in `.ai-engineering-loop/adapter.md`. Studio can select the shipped `standard`, `github`, `gitlab`, or `dot` adapters and shows the adapter inferred from the repository remote.
+
+An adapter belongs to the project, not to one delivery node. For a custom adapter, **Custom with AI** copies a bounded builder request that tells an agent to use the existing `generate-adapter` Q1–Q5 protocol, preserve Stages 0–7, require Judge `PASS`, and keep credentials out of configuration. Once that agent writes `.ai-engineering-loop/adapter.md`, Studio discovers the custom adapter on refresh. The browser never accepts arbitrary adapter code or executes delivery commands.
 
 ## Live execution
 
@@ -73,5 +84,7 @@ Studio improves authoring and observability; it does not weaken runtime gates:
 - graph validation does not imply execution permission;
 - command nodes remain disabled;
 - approvals remain explicit state transitions;
+- connector edits cannot bypass the required safety backbone;
+- delivery adapters cannot run before Judge `PASS`;
 - token data comes only from the provider-recorded usage ledger;
 - handoff integrity proves the bundle has not changed after export, not that every original claim was true.

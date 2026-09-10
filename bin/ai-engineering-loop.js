@@ -118,7 +118,7 @@ const {
 } = require('../lib/handoff.js');
 const { createStudioServer } = require('../lib/studio-server.js');
 
-const VERSION = '1.6.0';
+const VERSION = '1.7.0';
 const CWD = process.cwd();
 const CONTEXT_DIR = path.join(CWD, '.ai-engineering-loop');
 
@@ -372,7 +372,7 @@ function generateContextFiles(rootDir, discovery, trigger = 'init', impact = 'IN
 
   // 0. metadata.json (Baseline)
   const metadataJson = {
-    contextVersion: '1.6.0',
+    contextVersion: '1.7.0',
     generatedAt: new Date().toISOString(),
     repositoryRevision: currentRevision,
     projectProfile: discovery.profile,

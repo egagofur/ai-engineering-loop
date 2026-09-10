@@ -7,25 +7,89 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <header><b class="mark">A</b><div><strong>AEL / WORKFLOW STUDIO</strong><small>LOCAL CONTROL PLANE</small></div>
-    <select id="recipe" aria-label="Recipe"></select><span class="secure">● LOCALHOST / SECURE</span>
-    <button id="copy">COPY BRIEF</button><button id="download">EXPORT HANDOFF</button><button class="primary" id="review">REVIEW & INSTALL</button>
+  <header class="appbar">
+    <b class="mark">A</b>
+    <select id="recipe" aria-label="Workflow"></select>
+    <button id="workflow-settings" class="quiet">Workflow settings</button>
+    <span id="run-summary" class="run-summary">No active run</span>
+    <span class="secure">● Local</span>
+    <button id="toggle-execution" class="quiet">Executions</button>
+    <details class="more-menu">
+      <summary aria-label="More actions">•••</summary>
+      <div><button id="copy">Copy developer brief</button><button id="download">Export agent handoff</button></div>
+    </details>
+    <button class="primary" id="review">Save workflow</button>
   </header>
   <main>
-    <aside class="library"><label>WORKFLOW VIEW</label><div class="nav active">Canvas</div><div class="run-state">Current recipe and active run are read directly from the local runtime ledger.</div>
-      <hr><label>NODE LIBRARY</label><div id="palette"></div><hr><label>GRAPH INTEGRITY</label><output id="integrity">LOADING</output>
+    <nav class="rail" aria-label="Workflow tools">
+      <button id="toggle-library" class="add-node" title="Add node" aria-label="Add node">+</button>
+      <button id="fit-view-rail" title="Fit workflow" aria-label="Fit workflow">⌗</button>
+      <span></span>
+      <output id="integrity" title="Graph integrity">…</output>
+    </nav>
+
+    <aside class="library" id="library-panel">
+      <div class="panel-head"><div><h2>Add a node</h2><p>Drag onto the canvas or click to add.</p></div><button id="close-library" aria-label="Close">×</button></div>
+      <div id="palette"></div>
     </aside>
-    <section class="canvas" id="canvas"><div class="canvas-head"><span id="mode">WORKFLOW / EDIT MODE</span><span>AUTO-LAYOUT / DAG</span></div><svg id="edges" aria-hidden="true"><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"></path></marker></defs><g id="edge-paths"></g></svg><div id="nodes"></div></section>
-    <aside class="inspector"><label id="inspector-label">NODE INSPECTOR</label><div id="details"></div>
-      <section class="live"><label>LIVE EXECUTION</label><h2 id="active-stage">No active run</h2><p id="activity">Waiting for a recipe-bound workflow.</p>
-        <label>CONTEXT BUDGET</label><div class="meter"><i id="meter"></i></div><p class="mono" id="budget">—</p>
-        <label>EVIDENCE STREAM</label><div id="events"></div>
-        <label>DECISION MEMORY</label><input id="decision-summary" maxlength="160" placeholder="Decision summary"><textarea id="decision-rationale" maxlength="1000" placeholder="Why this choice was made"></textarea><button id="record-decision">RECORD DECISION</button>
-      </section>
-      <div id="message"></div>
+
+    <section class="canvas" id="canvas" tabindex="0" aria-label="Workflow canvas">
+      <div class="canvas-toolbar" aria-label="Canvas controls">
+        <button id="undo" title="Undo (Ctrl/Cmd+Z)">↶</button>
+        <button id="redo" title="Redo (Ctrl/Cmd+Shift+Z)">↷</button>
+        <span></span>
+        <button id="auto-layout">Tidy up</button>
+        <button id="fit-view">Fit</button>
+        <button id="zoom-out" aria-label="Zoom out">−</button>
+        <output id="zoom-level">100%</output>
+        <button id="zoom-in" aria-label="Zoom in">+</button>
+      </div>
+      <div id="scene">
+        <svg id="edges" aria-hidden="true">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z"></path>
+            </marker>
+          </defs>
+          <g id="edge-paths"></g>
+          <path id="preview-edge"></path>
+        </svg>
+        <div id="nodes"></div>
+      </div>
+      <div class="canvas-help"><kbd>Space</kbd> pan · scroll move · <kbd>Ctrl/⌘</kbd> + scroll zoom · <kbd>Del</kbd> remove</div>
+      <button id="quick-add" class="quick-add" aria-label="Add node">+</button>
+    </section>
+
+    <aside class="inspector" id="inspector-panel">
+      <div class="panel-head"><div><small id="inspector-label">NODE</small><h2 id="inspector-title">Settings</h2></div><button id="close-inspector" aria-label="Close">×</button></div>
+      <div id="details"></div>
     </aside>
+
+    <aside class="execution-panel" id="execution-panel">
+      <div class="panel-head"><div><small>LIVE EXECUTION</small><h2 id="active-stage">No active run</h2></div><button id="close-execution" aria-label="Close">×</button></div>
+      <p id="activity">Waiting for a recipe-bound workflow.</p>
+      <div class="budget-line"><span>Context budget</span><span class="mono" id="budget">—</span></div>
+      <div class="meter"><i id="meter"></i></div>
+      <details>
+        <summary>Evidence stream</summary>
+        <div id="events"></div>
+      </details>
+      <details>
+        <summary>Record a decision</summary>
+        <input id="decision-summary" maxlength="160" placeholder="What was decided?">
+        <textarea id="decision-rationale" maxlength="1000" placeholder="Why?"></textarea>
+        <button id="record-decision">Record decision</button>
+      </details>
+    </aside>
+    <div id="message"></div>
   </main>
-  <dialog id="confirm"><h2>Review installation</h2><pre id="review-data"></pre><p>Validation must pass. Built-in recipes must be forked to a new ID; replacing a project recipe requires a higher version.</p><button id="cancel">CANCEL</button><button class="primary" id="install">INSTALL RECIPE</button></dialog>
+  <dialog id="confirm">
+    <h2>Save workflow?</h2>
+    <pre id="review-data"></pre>
+    <p>Only validated workflows can be installed. Built-in workflows are saved as a fork.</p>
+    <button id="cancel">Cancel</button>
+    <button class="primary" id="install">Save</button>
+  </dialog>
   <script type="module" src="/app.js"></script>
 </body>
 </html>

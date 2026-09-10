@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/egagofur/ai-engineering-loop/pulls)
 [![AI Engineering](https://img.shields.io/badge/AI-Engineering%20Loop-orange.svg)](https://github.com/egagofur/ai-engineering-loop)
-[![Release](https://img.shields.io/badge/release-v1.6.0-purple.svg)](https://github.com/egagofur/ai-engineering-loop/releases)
+[![Release](https://img.shields.io/badge/release-v1.7.0-purple.svg)](https://github.com/egagofur/ai-engineering-loop/releases)
 
 **A Reusable, Framework-Agnostic AI Engineering Operating System for Autonomous Coding Agents**
 
@@ -234,7 +234,7 @@ Every full run stores private local artifacts under `.ai-engineering-loop/runs/<
 
 Declarative recipes let an AI or future visual editor author a workflow graph without weakening the safety gates. Built-in presets and project recipes can be validated, explained, graphed, and simulated deterministically. `run --recipe` opts into an immutable, resumable DAG scheduler; legacy runs remain unchanged. See [`core/workflow-recipes.md`](core/workflow-recipes.md) and [`core/controlled-workflow-runtime.md`](core/controlled-workflow-runtime.md).
 
-The deterministic recipe builder scaffolds from safe presets, validates candidates before atomic installation, and preserves replaced versions locally. Workflow Studio is a thin local interface over that compiler and controlled runtime: animated DAG state, live activity and budget telemetry, explicit approval/retry controls, decision memory, and integrity-bound handoff export—without model or shell execution in the browser. See [`core/local-workflow-studio.md`](core/local-workflow-studio.md). The host-neutral agent protocol remains available in [`agents/recipe-builder.md`](agents/recipe-builder.md).
+The deterministic recipe builder scaffolds from safe presets, validates candidates before atomic installation, and preserves replaced versions locally. Workflow Studio is a thin local interface over that compiler and controlled runtime: a pannable and zoomable DAG canvas, drag-and-drop nodes, guarded visual connections, undo/redo, private per-project layouts, Stage 8 adapter selection, live activity and budget telemetry, explicit approval/retry controls, decision memory, and integrity-bound handoff export—without model or shell execution in the browser. See [`core/local-workflow-studio.md`](core/local-workflow-studio.md). The host-neutral agent protocol remains available in [`agents/recipe-builder.md`](agents/recipe-builder.md).
 
 Shipped adapters (Stage 8 only, after Judge PASS): `standard`, `github`, `gitlab`, `dot`. Catalog: `adapters/README.md`. Each team generates its own; do not copy a neighbour's pipeline.
 
