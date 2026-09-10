@@ -9,10 +9,11 @@ const { execFileSync } = require('node:child_process');
 
 const CLI = path.join(__dirname, '..', 'bin', 'ai-engineering-loop.js');
 
-function runCli(root, args) {
+function runCli(root, args, env = {}) {
   return execFileSync(process.execPath, [CLI, ...args], {
     cwd: root,
     encoding: 'utf8',
+    env: { ...process.env, ...env },
     stdio: ['ignore', 'pipe', 'pipe']
   }).trim();
 }
@@ -56,4 +57,19 @@ test('CLI explains, graphs, and simulates without executing workflow nodes', () 
   assert.equal(simulation.executionPerformed, false);
   assert.equal(simulation.capabilities.repositoryMutations, 0);
   assert.deepEqual(simulation.terminalNodes, ['report']);
+});
+
+test('CLI run binds a recipe snapshot and node status reads its scheduler state', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-cli-recipe-run-'));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-cli-home-'));
+  runCli(root, ['init'], { AEL_HOME: home });
+  const output = runCli(root, ['run', '--recipe', 'audit', 'audit this repository'], { AEL_HOME: home });
+  assert.match(output, /Recipe: audit/);
+  assert.match(output, /Mode: REPORT_ONLY/);
+  const status = JSON.parse(runCli(root, ['node', 'status', '--json'], { AEL_HOME: home }));
+  assert.equal(status.recipe.id, 'audit');
+  assert.equal(status.nodes.find((node) => node.id === 'goal').status, 'READY');
+  const runDirectory = path.join(root, '.ai-engineering-loop', 'runs', status.runId);
+  assert.equal(fs.existsSync(path.join(runDirectory, 'plan.json')), true);
+  assert.equal(fs.existsSync(path.join(runDirectory, 'events.jsonl')), true);
 });

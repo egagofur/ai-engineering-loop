@@ -38,7 +38,8 @@ const {
   TERMINAL_STATES,
   createOrResumeRun,
   getCurrentRun,
-  loadRun
+  loadRun,
+  newRunId
 } = require('../lib/run-state.js');
 const {
   DEFAULT_POLICY,
@@ -91,8 +92,18 @@ const {
   simulatePlan,
   validateRecipe
 } = require('../lib/recipe.js');
+const {
+  applyWorkflowGate,
+  approveWorkflowNode,
+  completeWorkflowNode,
+  createWorkflowBundle,
+  failWorkflowNode,
+  retryWorkflowNode,
+  startWorkflowNode,
+  workflowStatus
+} = require('../lib/workflow-runtime.js');
 
-const VERSION = '1.3.0';
+const VERSION = '1.4.0';
 const CWD = process.cwd();
 const CONTEXT_DIR = path.join(CWD, '.ai-engineering-loop');
 
@@ -346,7 +357,7 @@ function generateContextFiles(rootDir, discovery, trigger = 'init', impact = 'IN
 
   // 0. metadata.json (Baseline)
   const metadataJson = {
-    contextVersion: '1.3.0',
+    contextVersion: '1.4.0',
     generatedAt: new Date().toISOString(),
     repositoryRevision: currentRevision,
     projectProfile: discovery.profile,
@@ -796,10 +807,15 @@ function handleRun() {
   const runArgs = process.argv.slice(3);
   const forceNew = runArgs.includes('--new');
   const modeArg = argValue('--mode');
+  const recipeArg = argValue('--recipe');
   const taskParts = [];
   for (let index = 0; index < runArgs.length; index++) {
     if (runArgs[index] === '--new') continue;
     if (runArgs[index] === '--mode') {
+      index += 1;
+      continue;
+    }
+    if (runArgs[index] === '--recipe') {
       index += 1;
       continue;
     }
@@ -811,9 +827,42 @@ function handleRun() {
     const current = getCurrentRun(CWD);
     const policy = loadPolicy(CWD);
     const startsNewRun = forceNew || !current || TERMINAL_STATES.has(current.state);
-    const mode = modeArg ? normalizeMode(modeArg) : (startsNewRun ? policy.defaultMode : null);
+    let mode = modeArg ? normalizeMode(modeArg) : (startsNewRun ? policy.defaultMode : null);
+    let workflow = null;
+    let requestedRunId = null;
+    if (recipeArg) {
+      const { recipe } = loadRecipe(CWD, recipeArg);
+      if (!mode && current) mode = current.mode;
+      if (startsNewRun && !modeArg && !recipe.compatibleModes.includes(mode)) {
+        if (recipe.compatibleModes.length !== 1) {
+          throw new Error(`Recipe ${recipe.id} requires an explicit compatible --mode.`);
+        }
+        mode = recipe.compatibleModes[0];
+      }
+      const plan = compileRecipe(recipe, { mode });
+      if (startsNewRun) {
+        requestedRunId = newRunId();
+        workflow = createWorkflowBundle(plan, requestedRunId, {
+          run: {
+            runId: requestedRunId,
+            mode,
+            state: 'STARTED',
+            iteration: 1,
+            task
+          }
+        });
+      } else {
+        workflow = { plan };
+      }
+    }
     if (mode) assertModeAllowed(CWD, mode);
-    runResult = createOrResumeRun(CWD, { task, forceNew, mode });
+    runResult = createOrResumeRun(CWD, {
+      task,
+      forceNew,
+      mode,
+      workflow,
+      ...(requestedRunId ? { runId: requestedRunId } : {})
+    });
     assertBudgetAvailable(CWD, { runId: runResult.run.runId });
   } catch (err) {
     log.error(err.message);
@@ -822,6 +871,14 @@ function handleRun() {
   console.log(`- Run: ${runResult.run.runId} (${runResult.resumed ? 'resumed' : 'created'})`);
   console.log(`- State: ${runResult.run.state}, iteration ${runResult.run.iteration}`);
   console.log(`- Mode: ${runResult.run.mode || RUN_MODES.ASSISTED}`);
+  if (runResult.run.workflow) {
+    const runtime = workflowStatus(CWD, { runId: runResult.run.runId });
+    const ready = runtime.plan.nodes
+      .filter((node) => runtime.state.nodes[node.id].status === 'READY')
+      .map((node) => node.id);
+    console.log(`- Recipe: ${runResult.run.workflow.recipeId} (${runResult.run.workflow.graphHash})`);
+    console.log(`- Ready nodes: ${ready.join(', ') || 'none'}`);
+  }
 
   const grok = detectGrokHost();
 
@@ -973,13 +1030,21 @@ function handleBudget() {
   const action = process.argv[3] || 'status';
   const json = process.argv.includes('--json');
   const runId = argValue('--run');
+  const nodeId = argValue('--node');
   try {
     let result;
     if (action === 'status') {
-      result = budgetStatus(CWD, { runId });
+      result = budgetStatus(CWD, {
+        runId,
+        nodeId,
+        estimatedTokens: argValue('--estimate') == null
+          ? 0
+          : parseNonNegativeIntegerArg('--estimate', argValue('--estimate'))
+      });
     } else if (action === 'record') {
       result = recordTokenUsage(CWD, {
         runId,
+        nodeId,
         inputTokens: parseNonNegativeIntegerArg('--input', argValue('--input')),
         outputTokens: parseNonNegativeIntegerArg('--output', argValue('--output')),
         model: argValue('--model')
@@ -1029,7 +1094,11 @@ function handleGate() {
   const runId = argValue('--run');
   const json = process.argv.includes('--json');
   try {
-    const run = applyGate(CWD, gate, { runId });
+    const target = runId ? loadRun(CWD, runId) : getCurrentRun(CWD);
+    if (!target) throw new Error('No current run. Start one with `ai-engineering-loop run`.');
+    const run = target.workflow
+      ? applyWorkflowGate(CWD, gate, { runId: target.runId }).run
+      : applyGate(CWD, gate, { runId: target.runId });
     if (json) {
       console.log(JSON.stringify({
         ok: true,
@@ -1048,6 +1117,78 @@ function handleGate() {
       console.log(JSON.stringify({
         ok: false,
         code: err.code || 'GATE_FAILED',
+        error: err.message,
+        details: err.details || []
+      }));
+    } else {
+      log.error(err.message);
+      for (const detail of err.details || []) console.error(`- ${detail}`);
+    }
+    process.exit(1);
+  }
+}
+
+function handleNode() {
+  const action = process.argv[3] || 'status';
+  const nodeId = process.argv[4];
+  const runId = argValue('--run');
+  const json = process.argv.includes('--json');
+  try {
+    if (action === 'status') {
+      const workflow = workflowStatus(CWD, { runId });
+      const result = {
+        ok: true,
+        runId: workflow.run.runId,
+        recipe: workflow.plan.recipe,
+        graphHash: workflow.plan.graphHash,
+        nodes: workflow.plan.nodes.map((node) => ({
+          id: node.id,
+          type: node.type,
+          order: node.order,
+          ...workflow.state.nodes[node.id]
+        }))
+      };
+      if (json) console.log(JSON.stringify(result));
+      else {
+        console.log(`Workflow: ${workflow.plan.recipe.id} (${workflow.plan.graphHash})`);
+        for (const node of result.nodes) {
+          console.log(`${String(node.order).padStart(2)} ${node.id}: ${node.status}`);
+        }
+      }
+      return;
+    }
+    if (!nodeId || nodeId.startsWith('-')) throw new Error(`node ${action} requires a node id`);
+    let workflow;
+    if (action === 'start') {
+      workflow = startWorkflowNode(CWD, nodeId, { runId });
+    } else if (action === 'complete') {
+      workflow = completeWorkflowNode(CWD, nodeId, { runId, artifact: argValue('--artifact') });
+    } else if (action === 'fail') {
+      workflow = failWorkflowNode(CWD, nodeId, {
+        runId,
+        reason: argValue('--reason') || 'node execution failed'
+      });
+    } else if (action === 'retry') {
+      workflow = retryWorkflowNode(CWD, nodeId, { runId });
+    } else if (action === 'approve') {
+      if (!process.argv.includes('--yes')) {
+        throw new Error('Approval requires explicit --yes confirmation');
+      }
+      workflow = approveWorkflowNode(CWD, nodeId, {
+        runId,
+        approvedBy: argValue('--by') || 'human'
+      });
+    } else {
+      throw new Error(`Unknown node action: ${action}`);
+    }
+    const node = workflow.state.nodes[nodeId];
+    if (json) console.log(JSON.stringify({ ok: true, nodeId, ...node }));
+    else log.success(`✓ Node ${nodeId}: ${node.status}`);
+  } catch (err) {
+    if (json) {
+      console.log(JSON.stringify({
+        ok: false,
+        code: err.code || 'NODE_FAILED',
         error: err.message,
         details: err.details || []
       }));
@@ -1281,6 +1422,7 @@ Commands:
   run [task]   Start or resume a stateful engineering run, sync hosts, and instruct the agent
                --new  start a new run even when another run is active
                --mode report-only|assisted|unattended
+               --recipe <id>  bind an immutable compiled workflow plan
   state        Inspect the current run ledger
                --run <id>  target a non-current run
                --json      print the complete machine-readable ledger
@@ -1288,14 +1430,21 @@ Commands:
                goal | report | maker | verification | review | judge | delivery
                --run <id>  target a non-current run
                --json      print machine-readable gate output
+  node         Operate custom nodes in a recipe-bound run
+               status [--run <id>] [--json]
+               start <id> [--run <id>] [--json]
+               complete <id> [--artifact <repository-relative-path>] [--json]
+               fail <id> [--reason <text>] [--json]
+               retry <id> [--json]
+               approve <id> --yes [--by <name>] [--json]
   policy       Inspect or update fail-closed runtime controls
                show [--json]
                set [--default-mode <mode>] [--allow-unattended true|false]
                    [--require-sandbox true|false]
                    [--per-run-token-limit <n>] [--daily-token-limit <n>]
   budget       Enforce actual provider-reported token usage and emergency pause
-               status [--run <id>] [--json]
-               record --input <n> --output <n> --model <id> [--run <id>]
+               status [--run <id>] [--node <id>] [--estimate <n>] [--json]
+               record --input <n> --output <n> --model <id> [--run <id>] [--node <id>]
                pause | resume
   sandbox      Isolate Maker changes in a locked disposable Git worktree
                create | capture | abort | status [--run <id>] [--json]
@@ -1356,6 +1505,9 @@ switch (command) {
     break;
   case 'gate':
     handleGate();
+    break;
+  case 'node':
+    handleNode();
     break;
   case 'policy':
     handlePolicy();
