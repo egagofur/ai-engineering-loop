@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-labelledby="title description">
+  <title id="title">AI Engineering Loop overview</title>
+  <desc id="description">A user task passes through context preparation, Specify, Make, Review, and Deliver. Failed verification and Judge ITERATE decisions return to Maker. Only a Judge PASS reaches delivery.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0 0L10 5L0 10Z" fill="#59616d"/>
+    </marker>
+    <marker id="arrow-orange" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0 0L10 5L0 10Z" fill="#e95d37"/>
+    </marker>
+    <style>
+      .title{font:700 38px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#17191d}
+      .subtitle{font:400 18px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#59616d}
+      .phase{font:700 14px system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:2px;fill:#59616d}
+      .number{font:700 16px ui-monospace,SFMono-Regular,Consolas,monospace;fill:#ffffff}
+      .node-title{font:700 19px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#17191d}
+      .node-copy{font:400 14px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#59616d}
+      .gate{font:700 13px system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:1px;fill:#17191d}
+      .label{font:700 13px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#59616d}
+      .small{font:400 13px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#6d7480}
+      .line{fill:none;stroke:#59616d;stroke-width:3;marker-end:url(#arrow)}
+      .feedback{fill:none;stroke:#e95d37;stroke-width:3;stroke-dasharray:8 7;marker-end:url(#arrow-orange)}
+    </style>
+  </defs>
+
+  <rect width="1440" height="900" rx="24" fill="#f5f2eb"/>
+  <text class="title" x="70" y="72">From task to trusted delivery</text>
+  <text class="subtitle" x="70" y="106">One workflow. Eight stages. Evidence advances the work—not AI confidence.</text>
+
+  <rect x="70" y="145" width="1300" height="98" rx="14" fill="#ffffff" stroke="#d8d3c9" stroke-width="2"/>
+  <rect x="94" y="170" width="154" height="48" rx="24" fill="#17191d"/>
+  <text x="171" y="200" text-anchor="middle" style="font:700 16px system-ui,-apple-system,'Segoe UI',sans-serif;fill:#fff">USER TASK</text>
+  <path class="line" d="M250 194H328"/>
+  <text class="node-title" x="355" y="188">Stage 0 · Prepare context</text>
+  <text class="node-copy" x="355" y="213">Initialize missing context or reconcile drift before reasoning begins.</text>
+  <path class="line" d="M920 194H1120"/>
+  <rect x="1132" y="166" width="204" height="56" rx="9" fill="#fff4e8" stroke="#e95d37" stroke-width="2"/>
+  <text class="gate" x="1234" y="190" text-anchor="middle">CONTEXT READY</text>
+  <text class="small" x="1234" y="210" text-anchor="middle">deterministic check</text>
+
+  <text class="phase" x="70" y="298">SPECIFY</text>
+  <text class="phase" x="380" y="298">MAKE</text>
+  <text class="phase" x="835" y="298">REVIEW</text>
+  <text class="phase" x="1190" y="298">DELIVER</text>
+
+  <rect x="70" y="320" width="270" height="322" rx="16" fill="#fff8ef" stroke="#e6b083" stroke-width="2"/>
+  <circle cx="104" cy="365" r="18" fill="#e95d37"/><text class="number" x="104" y="371" text-anchor="middle">1</text>
+  <text class="node-title" x="135" y="362">Goal Contract</text>
+  <text class="node-copy" x="104" y="398">Freeze explicit acceptance</text>
+  <text class="node-copy" x="104" y="419">criteria and failure cases.</text>
+  <line x1="104" y1="451" x2="306" y2="451" stroke="#e6b083"/>
+  <text class="gate" x="104" y="484">OUTPUT</text>
+  <text class="node-copy" x="104" y="513">A shared definition of done</text>
+  <text class="node-copy" x="104" y="534">that machines can verify.</text>
+  <rect x="104" y="570" width="202" height="44" rx="8" fill="#ffffff" stroke="#e6b083"/>
+  <text class="gate" x="205" y="597" text-anchor="middle">GOAL GATE</text>
+
+  <rect x="380" y="320" width="415" height="322" rx="16" fill="#f1f6fb" stroke="#94b5d2" stroke-width="2"/>
+  <circle cx="414" cy="365" r="18" fill="#467da8"/><text class="number" x="414" y="371" text-anchor="middle">2</text>
+  <text class="node-title" x="445" y="362">Root cause</text>
+  <text class="node-copy" x="414" y="394">Reproduce and explain the real problem.</text>
+  <path d="M414 422H760" stroke="#b8cad9" stroke-width="2"/>
+  <circle cx="414" cy="463" r="18" fill="#467da8"/><text class="number" x="414" y="469" text-anchor="middle">3</text>
+  <text class="node-title" x="445" y="460">Implementation plan</text>
+  <text class="node-copy" x="414" y="492">Choose seams, tests, and the smallest coherent change.</text>
+  <path d="M414 520H760" stroke="#b8cad9" stroke-width="2"/>
+  <circle cx="414" cy="561" r="18" fill="#467da8"/><text class="number" x="414" y="567" text-anchor="middle">4</text>
+  <text class="node-title" x="445" y="558">Maker</text>
+  <text class="node-copy" x="414" y="590">Implement surgical changes with red → green tests.</text>
+  <rect x="643" y="550" width="117" height="44" rx="8" fill="#ffffff" stroke="#94b5d2"/>
+  <text class="gate" x="701" y="577" text-anchor="middle">DIFF + TESTS</text>
+
+  <rect x="835" y="320" width="315" height="322" rx="16" fill="#f5f0fa" stroke="#b49bcb" stroke-width="2"/>
+  <circle cx="869" cy="365" r="18" fill="#765596"/><text class="number" x="869" y="371" text-anchor="middle">5</text>
+  <text class="node-title" x="900" y="362">Verify</text>
+  <text class="node-copy" x="869" y="394">Run commands; capture exact evidence.</text>
+  <path d="M869 422H1115" stroke="#c9bad7" stroke-width="2"/>
+  <circle cx="869" cy="463" r="18" fill="#765596"/><text class="number" x="869" y="469" text-anchor="middle">6</text>
+  <text class="node-title" x="900" y="460">Devil’s Advocate</text>
+  <text class="node-copy" x="869" y="492">Challenge claims against reality.</text>
+  <path d="M869 520H1115" stroke="#c9bad7" stroke-width="2"/>
+  <circle cx="869" cy="561" r="18" fill="#765596"/><text class="number" x="869" y="567" text-anchor="middle">7</text>
+  <text class="node-title" x="900" y="558">Judge</text>
+  <text class="node-copy" x="869" y="590">PASS, ITERATE, or ESCALATE.</text>
+
+  <rect x="1190" y="320" width="180" height="322" rx="16" fill="#eef8f1" stroke="#81b994" stroke-width="2"/>
+  <circle cx="1224" cy="365" r="18" fill="#39885a"/><text class="number" x="1224" y="371" text-anchor="middle">8</text>
+  <text class="node-title" x="1255" y="362">Deliver</text>
+  <text class="node-copy" x="1224" y="404">Refresh context.</text>
+  <text class="node-copy" x="1224" y="428">Require approval.</text>
+  <text class="node-copy" x="1224" y="452">Publish through</text>
+  <text class="node-copy" x="1224" y="476">the adapter.</text>
+  <rect x="1216" y="550" width="128" height="64" rx="9" fill="#39885a"/>
+  <text x="1280" y="576" text-anchor="middle" style="font:700 13px system-ui,-apple-system,'Segoe UI',sans-serif;fill:#fff">TARGET</text>
+  <text x="1280" y="596" text-anchor="middle" style="font:400 13px system-ui,-apple-system,'Segoe UI',sans-serif;fill:#fff">REPOSITORY</text>
+
+  <path class="line" d="M340 365H380"/>
+  <path class="line" d="M795 561H815V365H835"/>
+  <path class="line" d="M1150 561H1170V365H1190"/>
+  <rect x="1139" y="505" width="62" height="28" rx="14" fill="#39885a"/>
+  <text x="1170" y="524" text-anchor="middle" style="font:700 12px system-ui,-apple-system,'Segoe UI',sans-serif;fill:#fff">PASS</text>
+
+  <path class="feedback" d="M869 365C810 365 820 700 650 700H590C515 700 500 636 500 610"/>
+  <rect x="656" y="676" width="137" height="28" rx="14" fill="#f5f2eb"/>
+  <text class="label" x="724" y="695" text-anchor="middle">FAIL → FIX</text>
+  <path class="feedback" d="M869 561C815 561 835 770 665 770H575C470 770 455 650 455 610"/>
+  <rect x="665" y="746" width="175" height="28" rx="14" fill="#f5f2eb"/>
+  <text class="label" x="752" y="765" text-anchor="middle">ITERATE → MAKER</text>
+
+  <rect x="70" y="815" width="1300" height="48" rx="10" fill="#17191d"/>
+  <circle cx="101" cy="839" r="7" fill="#e95d37"/>
+  <text x="119" y="845" style="font:600 14px system-ui,-apple-system,'Segoe UI',sans-serif;fill:#fff">Safety invariant:</text>
+  <text x="245" y="845" style="font:400 14px system-ui,-apple-system,'Segoe UI',sans-serif;fill:#d5d8dd">a model can propose work, but only contracts, artifacts, verification evidence, and gates can advance the run.</text>
+</svg>

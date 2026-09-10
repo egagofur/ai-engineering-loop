@@ -19,41 +19,9 @@
 
 ## Overview & Philosophy
 
-The AI Engineering Loop enforces clean architectural separation across three core layers:
+The AI Engineering Loop keeps one understandable path across four phases. Deterministic gates—not model confidence—decide when work can advance:
 
-```mermaid
-flowchart TD
-    Start([User Task in Workspace]) --> PreCheck{Pre-Task Drift Check: metadata.json}
-    
-    PreCheck -->|Context Missing| AutoInit[Stage 0: Bootstrap .ai-engineering-loop/]
-    PreCheck -->|Drift Detected| Reconcile[Stage 0: Reconcile Drifted Context]
-    PreCheck -->|Context Fresh| GC[Stage 1: Goal Contract: Explicit Acceptance Criteria]
-    
-    AutoInit --> GC
-    Reconcile --> GC
-    
-    subgraph CoreEngine [AI ENGINEERING OPERATING SYSTEM]
-        GC --> RCA[Stage 2: Root Cause Analysis]
-        RCA --> Plan[Stage 3: Implementation Plan]
-        Plan --> MA[Stage 4: Maker Agent: Surgical Diff & Tests]
-        MA --> DV{Stage 5: Deterministic Verification<br>Evidence Contract: Exit Code 0 & Full Logs}
-        
-        DV -->|Fail| MA
-        DV -->|Pass| DA[Stage 6: Devil's Advocate Review<br>Capability Registry & Artifact Barrier]
-        
-        DA --> JD[Stage 7: Judge Agent: Impartial Magistrate<br>Validity + Severity Decision Matrix]
-    end
-    
-    JD -->|VALID BLOCKER / HIGH: ITERATE| MA
-    JD -->|INVALID: Dismissed / VALID LOW: Tradeoff| CheckDoD{All ACs Verified?}
-    
-    CheckDoD -->|Yes: PASS| ImpactEval{Post-Task Context Impact Assessment}
-    ImpactEval -->|NONE: Typo, UI tweak| Adapter[Stage 8: Delivery Adapter: GitLab / GitHub]
-    ImpactEval -->|TARGETED: Dep/route changed| PartialRefresh[Surgical Context Update] --> Adapter
-    ImpactEval -->|MAJOR: Framework migration| FullRefresh[Full Context Reconciliation] --> Adapter
-    
-    Adapter --> TargetRepo[(Target Repository)]
-```
+[![AI Engineering Loop: task and context preparation flow into Specify, Make, Review, and Deliver phases. Failed verification or an ITERATE verdict returns work to Maker; PASS reaches delivery.](docs/images/engineering-loop-overview.svg)](docs/images/engineering-loop-overview.svg)
 
 ---
 
