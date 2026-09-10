@@ -9,8 +9,10 @@ const workflow = fs.readFileSync(
   'utf8'
 );
 
-test('release workflow uses pinned OIDC-capable tooling without a long-lived npm token', () => {
-  assert.match(workflow, /release:\s*\n\s*types: \[published\]/);
+test('manual publish workflow uses pinned OIDC-capable tooling without a long-lived npm token', () => {
+  assert.match(workflow, /workflow_dispatch:/);
+  assert.match(workflow, /tag:\s*\n\s*description:/);
+  assert.doesNotMatch(workflow, /types: \[published\]/);
   assert.match(workflow, /id-token: write/);
   assert.match(workflow, /node-version: 22\.14\.0/);
   assert.match(workflow, /npm install --global npm@11\.6\.2/);
