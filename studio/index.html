@@ -8,22 +8,34 @@
 </head>
 <body>
   <header class="appbar">
-    <b class="mark">A</b>
-    <select id="recipe" aria-label="Workflow"></select>
-    <button id="workflow-settings" class="quiet">Workflow settings</button>
+    <b class="mark" aria-label="AI Engineering Loop">A</b>
+    <nav class="workspace-tabs" aria-label="Studio sections">
+      <button id="show-workflows" class="workspace-tab active" aria-current="page">Workflows</button>
+      <button id="show-runs" class="workspace-tab">Runs</button>
+    </nav>
+    <div id="workflow-context" class="workflow-context">
+      <select id="recipe" aria-label="Workflow"></select>
+      <button id="workflow-settings" class="quiet">Workflow settings</button>
+    </div>
     <span id="run-summary" class="run-summary">No active run</span>
     <span class="secure">● Local</span>
     <button id="toggle-execution" class="quiet">Executions</button>
     <details class="more-menu">
       <summary aria-label="More actions">•••</summary>
-      <div><button id="copy">Copy developer brief</button><button id="download">Export agent handoff</button></div>
+      <div>
+        <button id="import-json">Import workflow JSON</button>
+        <button id="export-json">Export workflow JSON</button>
+        <button id="copy">Copy developer brief</button>
+        <button id="download">Export agent handoff</button>
+      </div>
     </details>
     <button class="primary" id="review">Save workflow</button>
   </header>
   <main>
     <nav class="rail" aria-label="Workflow tools">
-      <button id="toggle-library" class="add-node" title="Add node" aria-label="Add node">+</button>
-      <button id="fit-view-rail" title="Fit workflow" aria-label="Fit workflow">⌗</button>
+      <button id="toggle-library" class="add-node rail-icon" title="Add node" aria-label="Add node"><span aria-hidden="true">+</span></button>
+      <button id="fit-view-rail" class="rail-icon" title="Fit workflow" aria-label="Fit workflow"><span aria-hidden="true">⌗</span></button>
+      <button id="open-goal" class="rail-icon" title="Goal Contract" aria-label="Goal Contract"><span aria-hidden="true">◎</span></button>
       <span></span>
       <output id="integrity" title="Graph integrity">…</output>
     </nav>
@@ -31,6 +43,7 @@
     <aside class="library" id="library-panel">
       <div class="panel-head"><div><h2>Add a node</h2><p>Drag onto the canvas or click to add.</p></div><button id="close-library" aria-label="Close">×</button></div>
       <div id="palette"></div>
+      <button id="create-custom" class="custom-node-action">Create Custom Agent</button>
     </aside>
 
     <section class="canvas" id="canvas" tabindex="0" aria-label="Workflow canvas">
@@ -54,10 +67,33 @@
           <g id="edge-paths"></g>
           <path id="preview-edge"></path>
         </svg>
+        <div id="edge-controls"></div>
         <div id="nodes"></div>
+        <div id="selection-marquee" aria-hidden="true"></div>
+      </div>
+      <div id="selection-actions" class="selection-actions" role="toolbar" aria-label="Selected nodes" hidden>
+        <span id="selection-count"></span>
+        <button id="duplicate-selection">Duplicate</button>
+        <button id="delete-selection" class="danger">Delete</button>
       </div>
       <div class="canvas-help"><kbd>Space</kbd> pan · scroll move · <kbd>Ctrl/⌘</kbd> + scroll zoom · <kbd>Del</kbd> remove</div>
-      <button id="quick-add" class="quick-add" aria-label="Add node">+</button>
+    </section>
+
+    <section id="runs-view" class="runs-view" aria-labelledby="runs-heading" hidden>
+      <header class="runs-header">
+        <div><small>LOCAL RUNTIME</small><h1 id="runs-heading">Run History</h1><p>Read-only records from this repository.</p></div>
+        <div class="run-filters">
+          <label class="run-search"><span>Search runs</span><input id="run-search" type="search" placeholder="Name, task, node, artifact…" autocomplete="off"></label>
+          <label><span>Status</span><select id="run-status"><option value="">All</option><option>STARTED</option><option>GOAL_FROZEN</option><option>MAKER_COMPLETE</option><option>VERIFIED</option><option>REVIEWED</option><option>JUDGED_PASS</option><option>DELIVERED</option><option>REPORTED</option><option>ESCALATED</option></select></label>
+          <label><span>Mode</span><select id="run-mode"><option value="">All</option><option>ASSISTED</option><option>REPORT_ONLY</option><option>UNATTENDED</option></select></label>
+          <label><span>From</span><input id="run-from" type="date"></label>
+          <label><span>To</span><input id="run-to" type="date"></label>
+        </div>
+      </header>
+      <div class="runs-layout">
+        <div id="run-list" class="run-list" role="list" aria-live="polite"></div>
+        <article id="run-detail" class="run-detail"><div class="empty-state"><h2>Select a run</h2><p>Technical IDs, evidence, decisions, artifacts, and events appear here without changing runtime state.</p></div></article>
+      </div>
     </section>
 
     <aside class="inspector" id="inspector-panel">
@@ -89,6 +125,58 @@
     <p>Only validated workflows can be installed. Built-in workflows are saved as a fork.</p>
     <button id="cancel">Cancel</button>
     <button class="primary" id="install">Save</button>
+  </dialog>
+  <dialog id="import-dialog" class="wide-dialog">
+    <form method="dialog">
+      <header><div><small>WORKFLOW JSON</small><h2>Import and preview</h2></div><button value="cancel" aria-label="Close">×</button></header>
+      <label for="import-file">Choose JSON file</label>
+      <input id="import-file" type="file" accept="application/json,.json">
+      <label for="import-source">Paste recipe JSON</label>
+      <textarea id="import-source" spellcheck="false" placeholder="{ &quot;id&quot;: &quot;my-workflow&quot;, … }"></textarea>
+      <button type="button" id="preview-import" class="primary">Validate preview</button>
+      <div id="import-preview" class="import-preview" aria-live="polite"></div>
+      <footer id="import-choices" hidden>
+        <button value="cancel">Cancel</button>
+        <button type="button" id="merge-import">Merge &amp; rename conflicts</button>
+        <button type="button" id="replace-import" class="primary">Replace canvas</button>
+      </footer>
+    </form>
+  </dialog>
+  <dialog id="custom-dialog">
+    <form id="custom-form">
+      <header><div><small>CUSTOM AGENT</small><h2>Create a waiting agent node</h2></div><button type="button" data-close="custom-dialog" aria-label="Close">×</button></header>
+      <label for="custom-name">Display Name</label><input id="custom-name" maxlength="80" required placeholder="Release reviewer">
+      <label for="custom-prompt">Basic prompt</label><textarea id="custom-prompt" maxlength="12000" required placeholder="Review the release evidence and report blockers."></textarea>
+      <div class="field-grid"><label>Capabilities<input id="custom-capabilities" placeholder="repository-read, artifact-write"></label><label>MCP references<input id="custom-mcp" placeholder="github-read"></label></div>
+      <div class="field-grid thirds"><label>Token limit<input id="custom-tokens" type="number" min="1" max="200000" value="4000"></label><label>Timeout (sec)<input id="custom-timeout" type="number" min="1" max="1800" value="900"></label><label>Maximum attempts<input id="custom-retries" type="number" min="1" max="10" value="2"></label></div>
+      <label for="custom-inputs">Input artifacts</label><input id="custom-inputs" placeholder="goal-contract, implementation">
+      <label for="custom-output">Output artifact</label><input id="custom-output" placeholder="agent-report">
+      <p class="hint">Custom Agents wait at READY for an external agent or operator. No shell, secret values, unrestricted filesystem, or undeclared network authority is granted.</p>
+      <footer><button type="button" data-close="custom-dialog">Cancel</button><button class="primary" type="submit">Create Custom Agent</button></footer>
+    </form>
+  </dialog>
+  <dialog id="goal-dialog" class="wide-dialog">
+    <form id="goal-form">
+      <header><div><small>GOAL CONTRACT <span id="goal-version">V1</span></small><h2>Execution gate</h2></div><button type="button" data-close="goal-dialog" aria-label="Close">×</button></header>
+      <div id="goal-state" class="goal-state draft">Draft · editing allowed</div>
+      <div class="field-grid">
+        <label for="goal-task">Task<input id="goal-task" maxlength="2000" placeholder="Improve Workflow Studio canvas"></label>
+        <label for="goal-run-name">Run Display Name<input id="goal-run-name" maxlength="100" placeholder="Studio canvas upgrade"></label>
+      </div>
+      <label for="goal-text">Objective</label><textarea id="goal-text" maxlength="12000" placeholder="Describe the outcome this run must deliver."></textarea>
+      <label for="goal-criteria">Acceptance failure table</label>
+      <textarea id="goal-criteria" class="criteria-editor" placeholder="One row per line:&#10;Canvas supports edge deletion | DOM and graph tests | A sibling edge changes"></textarea>
+      <p class="hint">Each line uses: statement | evidence required | failure case. A happy path alone cannot be frozen.</p>
+      <div id="goal-validation" class="validation-message" aria-live="polite"></div>
+      <section id="goal-review" class="goal-review" hidden></section>
+      <div id="unfreeze-fields" hidden><label for="unfreeze-reason">Reason for unfreezing</label><textarea id="unfreeze-reason" maxlength="500"></textarea></div>
+      <footer>
+        <button type="button" id="save-goal">Save draft</button>
+        <button type="button" id="unfreeze-goal" hidden>Unfreeze…</button>
+        <button type="button" id="review-goal">Review &amp; Freeze</button>
+        <button type="button" id="confirm-freeze" class="primary" hidden>Confirm freeze</button>
+      </footer>
+    </form>
   </dialog>
   <script type="module" src="/app.js"></script>
 </body>

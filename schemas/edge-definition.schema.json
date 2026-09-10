@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/egagofur/ai-engineering-loop/schemas/edge-definition.schema.json",
+  "title": "AI Engineering Loop Edge Definition",
+  "type": "object",
+  "required": ["id", "from", "to"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+    "from": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+    "to": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" }
+  },
+  "additionalProperties": false
+}

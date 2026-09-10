@@ -120,3 +120,196 @@ test('Studio selects only a shipped Stage 8 delivery adapter', async () => {
     assert.equal((await rejected.json()).code, 'UNKNOWN_ADAPTER');
   });
 });
+
+test('Studio creates, freezes, executes, and inspects a named local run through run-scoped APIs', async () => {
+  await withServer(async (base, token, root) => {
+    const headers = { 'x-ael-studio-token': token, 'content-type': 'application/json' };
+    const created = await fetch(`${base}/api/runs`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        task: 'Improve workflow canvas interactions',
+        displayName: 'Canvas interaction upgrade',
+        recipeId: 'default',
+        mode: 'ASSISTED'
+      })
+    });
+    assert.equal(created.status, 201);
+    const run = (await created.json()).run;
+    assert.equal(run.displayName, 'Canvas interaction upgrade');
+    assert.match(run.runId, /^\d{8}T\d{6}Z-[a-f0-9]{8}$/);
+
+    const blocked = await fetch(`${base}/api/runs/${run.runId}/execute`, {
+      method: 'POST',
+      headers,
+      body: '{}'
+    });
+    assert.equal(blocked.status, 400);
+    assert.equal((await blocked.json()).code, 'GOAL_NOT_FROZEN');
+
+    const contract = {
+      schemaVersion: 1,
+      runId: run.runId,
+      objective: 'Improve workflow canvas interactions.',
+      acceptanceCriteria: [{
+        id: 'AC-1',
+        statement: 'Canvas interaction is observable.',
+        evidenceRequired: 'Studio integration test passes.',
+        failureCases: ['The interaction remains unavailable.']
+      }]
+    };
+    const saved = await fetch(`${base}/api/runs/${run.runId}/goal`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ goal: contract })
+    });
+    assert.equal(saved.status, 200);
+
+    const frozen = await fetch(`${base}/api/runs/${run.runId}/goal/freeze`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ actor: 'studio-user' })
+    });
+    assert.equal(frozen.status, 200);
+    assert.equal((await frozen.json()).run.goal.frozen, true);
+
+    const unfrozen = await fetch(`${base}/api/runs/${run.runId}/goal/unfreeze`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ actor: 'studio-user', reason: 'Add an isolation case' })
+    });
+    assert.equal(unfrozen.status, 200);
+    assert.equal((await unfrozen.json()).run.goal.version, 2);
+
+    contract.objective = 'Improve workflow canvas interactions with isolation.';
+    const resaved = await fetch(`${base}/api/runs/${run.runId}/goal`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ goal: contract })
+    });
+    assert.equal(resaved.status, 200);
+    const refrozen = await fetch(`${base}/api/runs/${run.runId}/goal/freeze`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ actor: 'studio-user' })
+    });
+    assert.equal(refrozen.status, 200);
+    assert.equal((await refrozen.json()).run.goal.version, 2);
+
+    const executed = await fetch(`${base}/api/runs/${run.runId}/execute`, {
+      method: 'POST',
+      headers,
+      body: '{}'
+    });
+    assert.equal(executed.status, 200);
+    const execution = await executed.json();
+    assert.equal(execution.execution.dispatch, 'LOCAL_RUNTIME_ONLY');
+    assert.equal(execution.execution.externalDispatch, false);
+
+    const reopened = await fetch(`${base}/api/runs/${run.runId}/goal/unfreeze`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ actor: 'studio-user', reason: 'Revise after the first local execution' })
+    });
+    assert.equal(reopened.status, 200);
+    contract.objective = 'Improve workflow canvas interactions after first execution.';
+    assert.equal((await fetch(`${base}/api/runs/${run.runId}/goal`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ goal: contract })
+    })).status, 200);
+    assert.equal((await fetch(`${base}/api/runs/${run.runId}/goal/freeze`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ actor: 'studio-user' })
+    })).status, 200);
+    const reexecuted = await fetch(`${base}/api/runs/${run.runId}/execute`, {
+      method: 'POST',
+      headers,
+      body: '{}'
+    });
+    assert.equal(reexecuted.status, 200);
+
+    const detail = await fetch(`${base}/api/runs/${run.runId}`, { headers });
+    assert.equal(detail.status, 200);
+    const inspectedRun = (await detail.json()).run;
+    assert.equal(inspectedRun.runId, run.runId);
+    assert.equal(inspectedRun.events.filter((event) => event.type === 'WORKFLOW_EXECUTION_STARTED').length, 2);
+    const statePath = path.join(root, '.ai-engineering-loop', 'runs', run.runId, 'state.json');
+    const stateBeforeInspection = fs.readFileSync(statePath, 'utf8');
+    const goalArtifact = inspectedRun.artifacts.goalContract.path;
+    const artifact = await fetch(
+      `${base}/api/runs/${run.runId}/artifacts?path=${encodeURIComponent(goalArtifact)}`,
+      { headers }
+    );
+    assert.equal(artifact.status, 200);
+    assert.match((await artifact.json()).artifact.content, /Improve workflow canvas/);
+    assert.equal(fs.readFileSync(statePath, 'utf8'), stateBeforeInspection);
+    const traversal = await fetch(
+      `${base}/api/runs/${run.runId}/artifacts?path=${encodeURIComponent('../outside')}`,
+      { headers }
+    );
+    assert.equal(traversal.status, 400);
+    assert.equal((await traversal.json()).code, 'UNSAFE_HISTORY_PATH');
+    const renamed = await fetch(`${base}/api/run/name`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({
+        runId: run.runId,
+        displayName: 'Canvas workflow console',
+        actor: 'studio-user'
+      })
+    });
+    assert.equal(renamed.status, 200);
+    assert.equal((await renamed.json()).run.runId, run.runId);
+
+    const history = await fetch(`${base}/api/runs?q=canvas`, { headers });
+    assert.equal(history.status, 200);
+    assert.equal((await history.json()).runs[0].displayName, 'Canvas workflow console');
+  });
+});
+
+test('Studio previews and applies recipe imports without installing them', async () => {
+  await withServer(async (base, token) => {
+    const headers = { 'x-ael-studio-token': token, 'content-type': 'application/json' };
+    const existing = (await (await fetch(`${base}/api/recipe?id=default`, { headers })).json()).recipe;
+    const imported = structuredClone(existing);
+    imported.id = 'imported';
+
+    const preview = await fetch(`${base}/api/import/preview`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ existingRecipe: existing, importedRecipe: imported, operation: 'merge' })
+    });
+    assert.equal(preview.status, 200);
+    const plan = (await preview.json()).plan;
+    assert.equal(plan.operation, 'merge');
+    assert.ok(Object.keys(plan.nodeIdMap).length > 0);
+
+    const applied = await fetch(`${base}/api/import/apply`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        existingRecipe: existing,
+        importedRecipe: imported,
+        plan: { operation: 'replace', nodeIdMap: {}, edgeIdMap: {} }
+      })
+    });
+    assert.equal(applied.status, 200);
+    const candidate = (await applied.json()).recipe;
+    assert.equal(candidate.id, 'imported');
+    assert.equal(candidate.nodes.length, existing.nodes.length);
+
+    const cancelled = await fetch(`${base}/api/import/apply`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        existingRecipe: existing,
+        importedRecipe: imported,
+        plan: { operation: 'cancel', nodeIdMap: {}, edgeIdMap: {} }
+      })
+    });
+    assert.equal(cancelled.status, 200);
+    assert.deepEqual((await cancelled.json()).recipe, existing);
+  });
+});
