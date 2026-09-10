@@ -92,7 +92,7 @@ const {
   validateRecipe
 } = require('../lib/recipe.js');
 
-const VERSION = '1.2.1';
+const VERSION = '1.3.0';
 const CWD = process.cwd();
 const CONTEXT_DIR = path.join(CWD, '.ai-engineering-loop');
 
@@ -346,7 +346,7 @@ function generateContextFiles(rootDir, discovery, trigger = 'init', impact = 'IN
 
   // 0. metadata.json (Baseline)
   const metadataJson = {
-    contextVersion: '1.2.1',
+    contextVersion: '1.3.0',
     generatedAt: new Date().toISOString(),
     repositoryRevision: currentRevision,
     projectProfile: discovery.profile,
