@@ -13,6 +13,7 @@
         "agent",
         "command",
         "condition",
+        "decision",
         "approval",
         "artifact-check",
         "maker",

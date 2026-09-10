@@ -58,6 +58,7 @@
         <button id="zoom-in" aria-label="Zoom in">+</button>
       </div>
       <div id="scene">
+        <div id="loop-groups"></div>
         <svg id="edges" aria-hidden="true">
           <defs>
             <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
@@ -73,6 +74,7 @@
       </div>
       <div id="selection-actions" class="selection-actions" role="toolbar" aria-label="Selected nodes" hidden>
         <span id="selection-count"></span>
+        <button id="create-loop-group">Create Loop Group</button>
         <button id="duplicate-selection">Duplicate</button>
         <button id="delete-selection" class="danger">Delete</button>
       </div>
@@ -84,7 +86,7 @@
         <div><small>LOCAL RUNTIME</small><h1 id="runs-heading">Run History</h1><p>Read-only records from this repository.</p></div>
         <div class="run-filters">
           <label class="run-search"><span>Search runs</span><input id="run-search" type="search" placeholder="Name, task, node, artifact…" autocomplete="off"></label>
-          <label><span>Status</span><select id="run-status"><option value="">All</option><option>STARTED</option><option>GOAL_FROZEN</option><option>MAKER_COMPLETE</option><option>VERIFIED</option><option>REVIEWED</option><option>JUDGED_PASS</option><option>DELIVERED</option><option>REPORTED</option><option>ESCALATED</option></select></label>
+          <label><span>Status</span><select id="run-status"><option value="">All</option><option>STARTED</option><option>GOAL_FROZEN</option><option>MAKER_COMPLETE</option><option>VERIFIED</option><option>REVIEWED</option><option>JUDGED_PASS</option><option>DELIVERED</option><option>REPORTED</option><option>ESCALATED</option><option>CANCELLED</option></select></label>
           <label><span>Mode</span><select id="run-mode"><option value="">All</option><option>ASSISTED</option><option>REPORT_ONLY</option><option>UNATTENDED</option></select></label>
           <label><span>From</span><input id="run-from" type="date"></label>
           <label><span>To</span><input id="run-to" type="date"></label>
@@ -179,6 +181,31 @@
         <button type="button" id="review-goal">Review &amp; Freeze</button>
         <button type="button" id="confirm-freeze" class="primary" hidden>Confirm freeze</button>
       </footer>
+    </form>
+  </dialog>
+  <dialog id="loop-dialog" class="resizable-dialog">
+    <form id="loop-form">
+      <header><div><small>ITERATION LOOP</small><h2>Repeat only the selected steps</h2></div><div class="dialog-actions"><button type="button" class="dialog-maximize" aria-label="Maximize dialog">□</button><button type="button" data-close="loop-dialog" aria-label="Close">×</button></div></header>
+      <label>Name<input id="loop-name" maxlength="80" required placeholder="Quality pass"></label>
+      <div class="field-grid">
+        <label>Entry step<select id="loop-entry" required></select></label>
+        <label>Decision step<select id="loop-decision" required></select></label>
+      </div>
+      <div class="field-grid">
+        <label>Repeat from<select id="loop-repeat-target" required></select></label>
+        <label>Continue to<select id="loop-exit-target" required></select></label>
+      </div>
+      <div class="field-grid thirds">
+        <label>Repeat when<input id="loop-repeat-outcome" maxlength="40" value="NO" required></label>
+        <label>Continue when<input id="loop-exit-outcome" maxlength="40" value="YES" required></label>
+        <label>Maximum passes<input id="loop-max" type="number" min="1" max="100" value="3" required></label>
+      </div>
+      <div class="field-grid">
+        <label>Repeat connector label<input id="loop-repeat-label" maxlength="40" value="NO · RETRY" required></label>
+        <label>Continue connector label<input id="loop-exit-label" maxlength="40" value="YES · CONTINUE" required></label>
+      </div>
+      <p class="hint">A step can belong to one Loop Group. Nested and overlapping loops stay disabled so every pass is easy to follow.</p>
+      <footer><button type="button" data-close="loop-dialog">Cancel</button><button type="submit" class="primary">Create Loop Group</button></footer>
     </form>
   </dialog>
   <script type="module" src="/app.js"></script>

@@ -25,6 +25,11 @@
       "type": "array",
       "maxItems": 256,
       "items": { "$ref": "edge-definition.schema.json" }
+    },
+    "loopGroups": {
+      "type": "array",
+      "maxItems": 16,
+      "items": { "$ref": "loop-group.schema.json" }
     }
   },
   "additionalProperties": false

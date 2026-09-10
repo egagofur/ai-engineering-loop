@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/egagofur/ai-engineering-loop/schemas/loop-group.schema.json",
+  "title": "AI Engineering Loop Loop Group",
+  "type": "object",
+  "required": [
+    "id",
+    "displayName",
+    "nodeIds",
+    "entryNodeId",
+    "decisionNodeId",
+    "repeatTargetId",
+    "exitTargetId",
+    "maxIterations",
+    "repeatOutcome",
+    "exitOutcome",
+    "repeatLabel",
+    "exitLabel"
+  ],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+    "displayName": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "nodeIds": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" }
+    },
+    "entryNodeId": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+    "decisionNodeId": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+    "repeatTargetId": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+    "exitTargetId": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+    "maxIterations": { "type": "integer", "minimum": 1, "maximum": 100 },
+    "repeatOutcome": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$" },
+    "exitOutcome": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$" },
+    "repeatLabel": { "type": "string", "minLength": 1, "maxLength": 40 },
+    "exitLabel": { "type": "string", "minLength": 1, "maxLength": 40 }
+  },
+  "additionalProperties": false
+}

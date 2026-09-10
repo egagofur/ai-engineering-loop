@@ -76,6 +76,7 @@ function normalizeDraftGraph(recipe) {
     used.add(id);
     return { ...edge, id };
   });
+  recipe.loopGroups = Array.isArray(recipe.loopGroups) ? recipe.loopGroups : [];
   syncDependencies(recipe);
   return recipe;
 }
@@ -201,6 +202,72 @@ function edgePath(from, to) {
   return `M${startX} ${startY} C${startX + bend} ${startY},${endX - bend} ${endY},${endX} ${endY}`;
 }
 
+function loopBounds(loopGroup) {
+  const points = loopGroup.nodeIds.map((nodeId) => positions.get(nodeId)).filter(Boolean);
+  if (!points.length) return null;
+  const padding = 44;
+  const left = Math.min(...points.map((point) => point.x)) - padding;
+  const top = Math.min(...points.map((point) => point.y)) - padding;
+  const right = Math.max(...points.map((point) => point.x + NODE_WIDTH)) + padding;
+  const bottom = Math.max(...points.map((point) => point.y + 108)) + padding;
+  return { left, top, right, bottom, width: right - left, height: bottom - top };
+}
+
+function renderLoopGroups() {
+  const container = byId('loop-groups');
+  container.innerHTML = '';
+  for (const loopGroup of draft?.loopGroups || []) {
+    const bounds = loopBounds(loopGroup);
+    if (!bounds) continue;
+    const runtime = catalog.live?.loopGroups?.[loopGroup.id];
+    const element = document.createElement('section');
+    element.className = `loop-group ${runtime?.status?.toLowerCase() || 'draft'}`;
+    element.style.left = `${bounds.left}px`;
+    element.style.top = `${bounds.top}px`;
+    element.style.width = `${bounds.width}px`;
+    element.style.height = `${bounds.height}px`;
+    element.innerHTML = `
+      <header>
+        <span><b>${escapeHtml(loopGroup.displayName)}</b><small>ITERATION ${escapeHtml(runtime?.iteration || 1)} / ${escapeHtml(loopGroup.maxIterations)}</small></span>
+        <button type="button" aria-label="Remove ${escapeHtml(loopGroup.displayName)} group">Ungroup</button>
+      </header>
+    `;
+    element.querySelector('button').onclick = (event) => {
+      event.stopPropagation();
+      draft.loopGroups = draft.loopGroups.filter((candidate) => candidate.id !== loopGroup.id);
+      captureHistory();
+      renderGraph();
+      validateDraft();
+    };
+    element.querySelector('header').onpointerdown = (event) => {
+      if (event.button !== 0 || event.target.closest('button')) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const world = screenToWorld(event.clientX, event.clientY);
+      interaction = {
+        type: 'group',
+        pointerId: event.pointerId,
+        groupId: loopGroup.id,
+        start: world,
+        element: byId('canvas'),
+        origins: new Map(loopGroup.nodeIds.map((nodeId) => [nodeId, { ...positions.get(nodeId) }]))
+      };
+      selectedIds = new Set(loopGroup.nodeIds);
+      selectedId = loopGroup.decisionNodeId;
+      updateSelection();
+      byId('canvas').setPointerCapture(event.pointerId);
+    };
+    container.append(element);
+  }
+}
+
+function edgeLoopLabel(edge) {
+  const loopGroup = (draft.loopGroups || []).find((candidate) =>
+    candidate.decisionNodeId === edge.from && candidate.exitTargetId === edge.to
+  );
+  return loopGroup ? loopGroup.exitLabel : '';
+}
+
 function stageLabel(node, index) {
   const stages = {
     'goal-contract': 'STAGE 01',
@@ -262,7 +329,36 @@ function renderEdges() {
     };
     control.onpointerleave = () => control.classList.remove('visible');
     controls.append(control);
+    const label = edgeLoopLabel(edge);
+    if (label) {
+      const badge = document.createElement('span');
+      badge.className = 'edge-label';
+      badge.style.left = `${midpoint.x}px`;
+      badge.style.top = `${midpoint.y - 22}px`;
+      badge.textContent = label;
+      controls.append(badge);
+    }
   });
+  for (const loopGroup of draft.loopGroups || []) {
+    const from = positions.get(loopGroup.decisionNodeId);
+    const to = positions.get(loopGroup.repeatTargetId);
+    const bounds = loopBounds(loopGroup);
+    if (!from || !to || !bounds) continue;
+    const returnPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    returnPath.setAttribute(
+      'd',
+      `M${from.x + NODE_WIDTH} ${from.y + NODE_PORT_Y} H${bounds.right + 28} V${bounds.top - 18} H${to.x - 28} V${to.y + NODE_PORT_Y} H${to.x}`
+    );
+    returnPath.setAttribute('class', 'edge loop-return');
+    returnPath.setAttribute('marker-end', 'url(#arrow)');
+    group.append(returnPath);
+    const label = document.createElement('span');
+    label.className = 'edge-label loop-label';
+    label.style.left = `${bounds.right + 28}px`;
+    label.style.top = `${bounds.top - 18}px`;
+    label.textContent = loopGroup.repeatLabel;
+    controls.append(label);
+  }
 }
 
 function nodeMarkup(node, index) {
@@ -284,6 +380,7 @@ function nodeMarkup(node, index) {
 
 function renderGraph() {
   ensurePositions();
+  renderLoopGroups();
   const container = byId('nodes');
   container.innerHTML = '';
   draft.nodes.forEach((node, index) => {
@@ -332,6 +429,11 @@ function updateSelection() {
   const actions = byId('selection-actions');
   actions.hidden = selectedIds.size < 2;
   byId('selection-count').textContent = `${selectedIds.size} nodes`;
+  const grouped = [...selectedIds].some((nodeId) =>
+    (draft?.loopGroups || []).some((group) => group.nodeIds.includes(nodeId))
+  );
+  byId('create-loop-group').disabled = grouped;
+  byId('create-loop-group').title = grouped ? 'Ungroup selected steps before creating another Loop Group' : '';
 }
 
 function renderRecipeDetails() {
@@ -651,6 +753,13 @@ function applyNodeDetails() {
 function deleteSelectedNode() {
   if (!selectedIds.size) return;
   const removed = new Set(selectedIds);
+  const containingGroup = (draft.loopGroups || []).find((group) =>
+    group.nodeIds.some((nodeId) => removed.has(nodeId))
+  );
+  if (containingGroup) {
+    notify(`Ungroup “${containingGroup.displayName}” before deleting its steps.`);
+    return;
+  }
   draft.nodes = draft.nodes.filter((node) => !removed.has(node.id));
   draft.edges = draft.edges.filter((edge) => !removed.has(edge.from) && !removed.has(edge.to));
   syncDependencies();
@@ -834,6 +943,13 @@ function handlePointerMove(event) {
       }
     });
     renderEdges();
+  } else if (interaction.type === 'group') {
+    const world = screenToWorld(event.clientX, event.clientY);
+    const delta = { x: world.x - interaction.start.x, y: world.y - interaction.start.y };
+    interaction.origins.forEach((start, id) => {
+      positions.set(id, { x: start.x + delta.x, y: start.y + delta.y });
+    });
+    renderGraph();
   } else if (interaction.type === 'lasso') {
     updateLasso(event);
   } else {
@@ -846,7 +962,7 @@ function handlePointerMove(event) {
 function finishPointer(event) {
   if (connection && connection.pointerId === event.pointerId) return finishConnection(event);
   if (!interaction || interaction.pointerId !== event.pointerId) return;
-  if (interaction.type === 'node') {
+  if (interaction.type === 'node' || interaction.type === 'group') {
     interaction.element.classList.remove('dragging');
     captureHistory();
   } else if (interaction.type === 'lasso') finishLasso();
@@ -1208,6 +1324,15 @@ async function loadRunDetail(runId) {
       const y2 = to.position.y + NODE_PORT_Y;
       return `<path d="M ${x1} ${y1} C ${x1 + 70} ${y1}, ${x2 - 70} ${y2}, ${x2} ${y2}"></path>`;
     }).join('');
+    const checkoutGroups = (checkout.loopGroups || []).map((group) => {
+      const members = checkout.nodes.filter((node) => group.nodeIds.includes(node.id));
+      if (!members.length) return '';
+      const left = Math.min(...members.map((node) => node.position.x)) - 28;
+      const top = Math.min(...members.map((node) => node.position.y)) - 36;
+      const right = Math.max(...members.map((node) => node.position.x + NODE_WIDTH)) + 28;
+      const bottom = Math.max(...members.map((node) => node.position.y + 108)) + 28;
+      return `<div class="checkout-loop status-${escapeHtml((group.runtime?.status || 'pending').toLowerCase())}" style="left:${left}px;top:${top}px;width:${right - left}px;height:${bottom - top}px"><b>${escapeHtml(group.displayName)}</b><span>Iteration ${escapeHtml(group.runtime?.iteration || 1)} / ${escapeHtml(group.maxIterations)}</span></div>`;
+    }).join('');
     byId('run-detail').innerHTML = `
       <header class="checkout-header">
         <div><button id="checkout-back" class="quiet">← Run History</button><small>READ-ONLY CHECKOUT · ${escapeHtml(run.status)}</small><h2>${escapeHtml(run.displayName)}</h2><p>${escapeHtml(run.task)}</p></div>
@@ -1216,8 +1341,9 @@ async function loadRunDetail(runId) {
       <div class="checkout-meta"><span>${escapeHtml(run.runId)}</span><span>${run.goalFrozen ? `Goal frozen V${escapeHtml(run.goalVersion)}` : 'Goal draft'}</span><span>Actual node states</span></div>
       <section class="checkout-canvas" style="--checkout-width:${maxX}px;--checkout-height:${maxY}px">
         <svg viewBox="0 0 ${maxX} ${maxY}" aria-hidden="true">${paths}</svg>
+        ${checkoutGroups}
         ${checkout.nodes.map((node) => `<button class="checkout-node status-${escapeHtml(node.status.toLowerCase())}" data-checkout-node="${escapeHtml(node.id)}" style="left:${node.position.x}px;top:${node.position.y}px">
-          <small>${escapeHtml(node.type)}</small><strong>${escapeHtml(node.displayName)}</strong><span>${escapeHtml(node.status)}</span>
+          <small>${escapeHtml(node.type)}${node.loopIteration ? ` · LOOP ${escapeHtml(node.loopIteration)}` : ''}</small><strong>${escapeHtml(node.displayName)}</strong><span>${escapeHtml(node.status)}</span>
         </button>`).join('')}
       </section>
       <section id="node-io-panel" class="node-io-panel"><div class="empty-state"><h3>Select a node</h3><p>Inspect its real Input, Output, Evidence, and Timeline.</p></div></section>
@@ -1797,6 +1923,72 @@ function notify(text) {
   setTimeout(() => { message.style.display = 'none'; }, 4000);
 }
 
+function openLoopDialog() {
+  const members = draft.nodes.filter((node) => selectedIds.has(node.id));
+  if (members.length < 2) return notify('Select at least two steps for a Loop Group.');
+  if ((draft.loopGroups || []).some((group) => group.nodeIds.some((id) => selectedIds.has(id)))) {
+    return notify('A step can only belong to one Loop Group.');
+  }
+  const options = members.map((node) =>
+    `<option value="${escapeHtml(node.id)}">${escapeHtml(displayName(node))}</option>`
+  ).join('');
+  for (const id of ['loop-entry', 'loop-decision', 'loop-repeat-target']) byId(id).innerHTML = options;
+  const incomingEntry = members.find((node) =>
+    draft.edges.some((edge) => edge.to === node.id && !selectedIds.has(edge.from))
+  ) || members[0];
+  const outgoing = draft.edges.find((edge) =>
+    selectedIds.has(edge.from) && !selectedIds.has(edge.to)
+  );
+  if (!outgoing) return notify('Connect the Loop decision step to its Continue step first.');
+  const decision = outgoing
+    ? members.find((node) => node.id === outgoing.from)
+    : members.find((node) => ['decision', 'judge', 'condition'].includes(node.type)) || members.at(-1);
+  const exitIds = new Set(draft.edges
+    .filter((edge) => selectedIds.has(edge.from) && !selectedIds.has(edge.to))
+    .map((edge) => edge.to));
+  const exitCandidates = draft.nodes.filter((node) => exitIds.has(node.id));
+  byId('loop-exit-target').innerHTML = exitCandidates.map((node) =>
+    `<option value="${escapeHtml(node.id)}">${escapeHtml(displayName(node))}</option>`
+  ).join('');
+  byId('loop-entry').value = incomingEntry.id;
+  byId('loop-repeat-target').value = incomingEntry.id;
+  byId('loop-decision').value = decision.id;
+  if (outgoing) byId('loop-exit-target').value = outgoing.to;
+  byId('loop-name').value = '';
+  byId('loop-dialog').showModal();
+}
+
+function createLoopGroupFromForm(event) {
+  event.preventDefault();
+  const display = byId('loop-name').value.trim();
+  const repeatOutcome = byId('loop-repeat-outcome').value.trim();
+  const exitOutcome = byId('loop-exit-outcome').value.trim();
+  if (repeatOutcome === exitOutcome) return notify('Repeat and Continue outcomes must be different.');
+  let id = slug(display || 'iteration-loop');
+  const occupied = new Set((draft.loopGroups || []).map((group) => group.id));
+  for (let suffix = 2; occupied.has(id); suffix += 1) id = `${slug(display || 'iteration-loop')}-${suffix}`;
+  const loopGroup = {
+    id,
+    displayName: display,
+    nodeIds: draft.nodes.filter((node) => selectedIds.has(node.id)).map((node) => node.id),
+    entryNodeId: byId('loop-entry').value,
+    decisionNodeId: byId('loop-decision').value,
+    repeatTargetId: byId('loop-repeat-target').value,
+    exitTargetId: byId('loop-exit-target').value,
+    maxIterations: Number(byId('loop-max').value),
+    repeatOutcome,
+    exitOutcome,
+    repeatLabel: byId('loop-repeat-label').value.trim(),
+    exitLabel: byId('loop-exit-label').value.trim()
+  };
+  draft.loopGroups.push(loopGroup);
+  captureHistory();
+  renderGraph();
+  validateDraft();
+  byId('loop-dialog').close();
+  notify(`Loop Group “${display}” created.`);
+}
+
 async function initialize() {
   await refreshCatalog('default');
   byId('recipe').onchange = loadRecipe;
@@ -1829,6 +2021,8 @@ async function initialize() {
   byId('unfreeze-goal').onclick = unfreezeGoalFromForm;
   byId('duplicate-selection').onclick = duplicateSelectedNode;
   byId('delete-selection').onclick = deleteSelectedNode;
+  byId('create-loop-group').onclick = openLoopDialog;
+  byId('loop-form').onsubmit = createLoopGroupFromForm;
   document.querySelectorAll('[data-close]').forEach((button) => {
     button.onclick = () => byId(button.dataset.close).close();
   });
