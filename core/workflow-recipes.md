@@ -1,6 +1,6 @@
 # Declarative Workflow Recipes
 
-Workflow recipes describe a directed acyclic graph of engineering stages in JSON. They are an additive authoring layer over the existing AI Engineering Loop: the current `run` and `gate` commands keep their established behavior, while `recipe` commands provide deterministic validation and inspection before recipe execution is introduced.
+Workflow recipes describe a directed acyclic graph of engineering stages in JSON. They are an additive authoring layer over the existing AI Engineering Loop: `recipe` commands provide deterministic validation and inspection, while `run --recipe` opts into the controlled runtime. Runs without a recipe keep their established behavior.
 
 This separation is deliberate. A visual editor or an AI agent may eventually author the JSON, but the compiler—not the authoring interface—owns safety invariants.
 
@@ -116,9 +116,9 @@ Until a visual editor exists, an AI agent can safely act as the recipe builder:
 4. Write the candidate to `.ai-engineering-loop/recipes/<id>.json`.
 5. Run `recipe validate`, `recipe explain`, `recipe graph`, and `recipe simulate`.
 6. Present the explanation, graph hash, warnings, and capability counts for human confirmation.
-7. Do not claim the recipe was executed. The v1.3 recipe interface is read-only.
+7. Do not claim execution from validation or simulation. Execution is proven only by a recipe-bound run and its validated event chain.
 
-Machine consumers should use `--json`. The compiled plan includes a canonical source hash and graph hash so later execution and audit logs can bind to the exact graph reviewed by the user.
+Machine consumers should use `--json`. The compiled plan includes a canonical source hash and graph hash so execution and audit logs bind to the exact graph reviewed by the user. Runtime behavior is specified in `core/controlled-workflow-runtime.md`.
 
 ## Schemas
 

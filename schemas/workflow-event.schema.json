@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/egagofur/ai-engineering-loop/schemas/workflow-event.schema.json",
+  "title": "AI Engineering Loop Workflow Event",
+  "type": "object",
+  "required": ["schemaVersion", "sequence", "previousHash", "at", "type", "runId", "graphHash", "hash"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "sequence": { "type": "integer", "minimum": 1 },
+    "previousHash": { "type": ["string", "null"] },
+    "at": { "type": "string", "format": "date-time" },
+    "type": {
+      "enum": [
+        "WORKFLOW_CREATED",
+        "NODE_STARTED",
+        "NODE_COMPLETED",
+        "NODE_FAILED",
+        "NODE_RETRIED",
+        "NODE_APPROVED",
+        "GATE_PASSED"
+      ]
+    },
+    "runId": { "type": "string", "minLength": 1 },
+    "graphHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+  },
+  "additionalProperties": true
+}

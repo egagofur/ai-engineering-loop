@@ -70,6 +70,22 @@ test('REPORT_ONLY rejects mutation and side-effect nodes', () => {
   assert.ok(result.errors.includes('REPORT_ONLY cannot contain mutation nodes'));
 });
 
+test('REPORT_ONLY conservatively treats command nodes as mutation-capable', () => {
+  const recipe = loadRecipe(temporaryProject(), 'audit').recipe;
+  recipe.nodes.splice(-1, 0, {
+    id: 'repository-command',
+    type: 'command',
+    dependsOn: ['repository-analysis'],
+    command: { executable: 'npm', args: ['test'] },
+    timeoutMs: 1000,
+    expectedExitCodes: [0]
+  });
+  recipe.nodes.find((node) => node.id === 'report').dependsOn = ['repository-command'];
+  const result = validateRecipe(recipe, { mode: 'REPORT_ONLY' });
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.includes('REPORT_ONLY cannot contain mutation nodes'));
+});
+
 test('mutation recipes require the complete ordered safety backbone', () => {
   const recipe = defaultRecipe();
   recipe.nodes = recipe.nodes.filter((node) => node.type !== 'devil-advocate');

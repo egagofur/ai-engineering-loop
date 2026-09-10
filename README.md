@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/egagofur/ai-engineering-loop/pulls)
 [![AI Engineering](https://img.shields.io/badge/AI-Engineering%20Loop-orange.svg)](https://github.com/egagofur/ai-engineering-loop)
-[![Release](https://img.shields.io/badge/release-v1.3.0-purple.svg)](https://github.com/egagofur/ai-engineering-loop/releases)
+[![Release](https://img.shields.io/badge/release-v1.4.0-purple.svg)](https://github.com/egagofur/ai-engineering-loop/releases)
 
 **A Reusable, Framework-Agnostic AI Engineering Operating System for Autonomous Coding Agents**
 
@@ -182,6 +182,7 @@ npx ai-engineering-loop refresh
 # Start or resume a stateful engineering run
 npx ai-engineering-loop run
 npx ai-engineering-loop run --mode report-only "audit this repository"
+npx ai-engineering-loop run --recipe bugfix --mode assisted "repair retry race"
 
 # Inspect the run ledger
 npx ai-engineering-loop state --json
@@ -195,6 +196,8 @@ npx ai-engineering-loop budget resume
 
 # Record actual provider-reported usage after each model response
 npx ai-engineering-loop budget record --input 1200 --output 300 --model provider/model-id
+npx ai-engineering-loop budget status --node root-cause --estimate 4000
+npx ai-engineering-loop budget record --node root-cause --input 3000 --output 700 --model provider/model-id
 
 # Isolate unattended Maker, then capture only its diff
 npx ai-engineering-loop sandbox create
@@ -225,6 +228,12 @@ npx ai-engineering-loop recipe explain default --mode assisted
 npx ai-engineering-loop recipe graph default --mode assisted
 npx ai-engineering-loop recipe simulate default --mode assisted
 
+# Operate a custom node in an immutable recipe-bound run
+npx ai-engineering-loop node status
+npx ai-engineering-loop node start root-cause
+npx ai-engineering-loop node complete root-cause --artifact .ai-engineering-loop/runs/<run-id>/root-cause.json
+npx ai-engineering-loop node approve delivery-approval --yes
+
 # Copy package skills/agents/commands into ~/.claude ~/.grok ~/.gemini ~/.agents
 npx ai-engineering-loop sync-hosts
 
@@ -239,7 +248,7 @@ npx ai-engineering-loop generate-workflow --write
 
 Every full run stores private local artifacts under `.ai-engineering-loop/runs/<run-id>/`. Usage, worktrees, locks, context packs, and logs are Git-ignored. Markdown remains the human contract; JSON sidecars follow the shipped `schemas/` and make stage claims deterministic. `ASSISTED` is the default and requires explicit human delivery approval. `UNATTENDED` is disabled until a human enables it. See [`core/runtime-safety.md`](core/runtime-safety.md), [`core/artifact-gates.md`](core/artifact-gates.md), [`SECURITY.md`](SECURITY.md), and [`SUPPORT.md`](SUPPORT.md).
 
-Declarative recipes let an AI or future visual editor author a workflow graph without weakening the safety gates. Built-in presets and project recipes can be validated, explained, graphed, and simulated deterministically. Recipe commands in v1.3 are intentionally read-only and do not change `run` behavior. See [`core/workflow-recipes.md`](core/workflow-recipes.md).
+Declarative recipes let an AI or future visual editor author a workflow graph without weakening the safety gates. Built-in presets and project recipes can be validated, explained, graphed, and simulated deterministically. `run --recipe` opts into an immutable, resumable DAG scheduler; legacy runs remain unchanged. See [`core/workflow-recipes.md`](core/workflow-recipes.md) and [`core/controlled-workflow-runtime.md`](core/controlled-workflow-runtime.md).
 
 Shipped adapters (Stage 8 only, after Judge PASS): `standard`, `github`, `gitlab`, `dot`. Catalog: `adapters/README.md`. Each team generates its own; do not copy a neighbour's pipeline.
 
@@ -330,7 +339,8 @@ ai-engineering-loop/
 │
 ├── lib/                                # Core orchestration & decision engine
 │   ├── orchestration.js                # 3-stage capability registry, barrier builder, Judge engine
-│   └── recipe.js                       # Declarative graph validator and deterministic compiler
+│   ├── recipe.js                       # Declarative graph validator and deterministic compiler
+│   └── workflow-runtime.js             # Resumable scheduler and hash-chained event ledger
 │
 ├── recipes/                            # Built-in workflow presets; target repos may add their own
 │   ├── default.json                    # Current production loop represented as a graph
@@ -373,6 +383,7 @@ ai-engineering-loop/
 │   ├── escalation-policy.md            # Deterministic human escalation triggers
 │   ├── judge-policy.md                 # Evaluation rules, triage audit, & verdicts
 │   ├── configuration-precedence.md     # 5-layer precedence & conflict resolution
+│   ├── controlled-workflow-runtime.md  # Immutable plan, scheduler, events, and recovery
 │   ├── workflow-recipes.md             # Recipe safety backbone and AI authoring protocol
 │   └── repo-config-schema.md           # Schema for target repo .ai-engineering-loop/
 │
