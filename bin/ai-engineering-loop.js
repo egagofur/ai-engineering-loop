@@ -102,8 +102,15 @@ const {
   startWorkflowNode,
   workflowStatus
 } = require('../lib/workflow-runtime.js');
+const {
+  cloneRecipe,
+  diffRecipes,
+  inspectRecipe,
+  installRecipe,
+  recipeCatalog
+} = require('../lib/recipe-builder.js');
 
-const VERSION = '1.4.0';
+const VERSION = '1.5.0';
 const CWD = process.cwd();
 const CONTEXT_DIR = path.join(CWD, '.ai-engineering-loop');
 
@@ -357,7 +364,7 @@ function generateContextFiles(rootDir, discovery, trigger = 'init', impact = 'IN
 
   // 0. metadata.json (Baseline)
   const metadataJson = {
-    contextVersion: '1.4.0',
+    contextVersion: '1.5.0',
     generatedAt: new Date().toISOString(),
     repositoryRevision: currentRevision,
     projectProfile: discovery.profile,
@@ -1336,6 +1343,41 @@ function handleRecipe() {
   const mode = argValue('--mode');
   const json = process.argv.includes('--json');
   try {
+    if (action === 'catalog') {
+      const result = { ok: true, nodeTypes: recipeCatalog() };
+      console.log(JSON.stringify(result, null, json ? 0 : 2));
+      return;
+    }
+    if (action === 'clone' || action === 'create') {
+      const sourceId = action === 'clone' ? id : (argValue('--from') || 'default');
+      const targetId = action === 'clone' ? process.argv[5] : id;
+      if (!sourceId || !targetId || targetId.startsWith('-')) {
+        throw new Error(`recipe ${action} requires ${action === 'clone' ? '<source> <target>' : '<id> [--from <preset>]'}`);
+      }
+      const result = cloneRecipe(CWD, sourceId, targetId, { description: argValue('--description') });
+      console.log(json ? JSON.stringify({ ok: true, ...result, path: path.relative(CWD, result.path) }) :
+        `Created ${targetId} from ${sourceId} at ${path.relative(CWD, result.path)}\nSource hash: ${result.sourceHash}`);
+      return;
+    }
+    if (action === 'install') {
+      if (!id || id.startsWith('-')) throw new Error('recipe install requires a candidate path');
+      const result = installRecipe(CWD, id, { replace: process.argv.includes('--replace') });
+      console.log(json ? JSON.stringify({ ok: true, ...result, path: path.relative(CWD, result.path) }) :
+        `Installed ${result.recipe.id} v${result.recipe.version}\nSource hash: ${result.sourceHash}`);
+      return;
+    }
+    if (action === 'diff') {
+      const rightId = process.argv[5];
+      if (!id || !rightId) throw new Error('recipe diff requires <left> <right>');
+      const result = diffRecipes(CWD, id, rightId);
+      console.log(JSON.stringify({ ok: true, ...result }, null, json ? 0 : 2));
+      return;
+    }
+    if (action === 'inspect') {
+      if (!id || id.startsWith('-')) throw new Error('recipe inspect requires an id');
+      console.log(JSON.stringify({ ok: true, ...inspectRecipe(CWD, id) }, null, json ? 0 : 2));
+      return;
+    }
     if (action === 'list') {
       const recipes = listRecipes(CWD).map((entry) => {
         const { recipe } = loadRecipe(CWD, entry.id);
@@ -1463,6 +1505,12 @@ Commands:
                --json      print machine-readable diagnostics
   recipe       Inspect and compile declarative workflow recipes (does not execute nodes)
                list [--json]
+               catalog [--json]
+               create <id> [--from <preset>] [--description <text>] [--json]
+               clone <source> <target> [--description <text>] [--json]
+               install <path> [--replace] [--json]
+               inspect <id> [--json]
+               diff <left> <right> [--json]
                show <id> [--json]
                validate <id> [--mode <mode>] [--json]
                explain | graph | simulate <id> [--mode <mode>] [--json]

@@ -73,3 +73,22 @@ test('CLI run binds a recipe snapshot and node status reads its scheduler state'
   assert.equal(fs.existsSync(path.join(runDirectory, 'plan.json')), true);
   assert.equal(fs.existsSync(path.join(runDirectory, 'events.jsonl')), true);
 });
+
+test('CLI scaffolds and inspects a project recipe for AI authoring', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-cli-builder-'));
+  const created = JSON.parse(runCli(root, [
+    'recipe',
+    'create',
+    'project-audit',
+    '--from',
+    'audit',
+    '--json'
+  ]));
+  assert.equal(created.recipe.id, 'project-audit');
+  assert.equal(created.path, '.ai-engineering-loop/recipes/project-audit.json');
+  const inspection = JSON.parse(runCli(root, ['recipe', 'inspect', 'project-audit', '--json']));
+  assert.equal(inspection.source, 'project');
+  assert.equal(inspection.modes[0].mode, 'REPORT_ONLY');
+  const difference = JSON.parse(runCli(root, ['recipe', 'diff', 'audit', 'project-audit', '--json']));
+  assert.equal(difference.metadataChanged, true);
+});
