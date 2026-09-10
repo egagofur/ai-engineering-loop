@@ -144,4 +144,5 @@ test('project recipe directories and files cannot be symlinks', { skip: process.
   fs.mkdirSync(parent, { recursive: true });
   fs.symlinkSync(outside, path.join(parent, 'recipes'));
   assert.throws(() => listRecipes(root), { code: 'UNSAFE_RECIPE_PATH' });
+  assert.throws(() => loadRecipe(root, 'outside'), { code: 'UNSAFE_RECIPE_PATH' });
 });
