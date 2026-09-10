@@ -1355,14 +1355,16 @@ function handleRecipe() {
         throw new Error(`recipe ${action} requires ${action === 'clone' ? '<source> <target>' : '<id> [--from <preset>]'}`);
       }
       const result = cloneRecipe(CWD, sourceId, targetId, { description: argValue('--description') });
-      console.log(json ? JSON.stringify({ ok: true, ...result, path: path.relative(CWD, result.path) }) :
-        `Created ${targetId} from ${sourceId} at ${path.relative(CWD, result.path)}\nSource hash: ${result.sourceHash}`);
+      const relativePath = path.relative(CWD, result.path).split(path.sep).join('/');
+      console.log(json ? JSON.stringify({ ok: true, ...result, path: relativePath }) :
+        `Created ${targetId} from ${sourceId} at ${relativePath}\nSource hash: ${result.sourceHash}`);
       return;
     }
     if (action === 'install') {
       if (!id || id.startsWith('-')) throw new Error('recipe install requires a candidate path');
       const result = installRecipe(CWD, id, { replace: process.argv.includes('--replace') });
-      console.log(json ? JSON.stringify({ ok: true, ...result, path: path.relative(CWD, result.path) }) :
+      const relativePath = path.relative(CWD, result.path).split(path.sep).join('/');
+      console.log(json ? JSON.stringify({ ok: true, ...result, path: relativePath }) :
         `Installed ${result.recipe.id} v${result.recipe.version}\nSource hash: ${result.sourceHash}`);
       return;
     }
