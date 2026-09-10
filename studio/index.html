@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AEL Workflow Studio</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header><b class="mark">A</b><div><strong>AEL / WORKFLOW STUDIO</strong><small>LOCAL CONTROL PLANE</small></div>
+    <select id="recipe" aria-label="Recipe"></select><span class="secure">● LOCALHOST / SECURE</span>
+    <button id="copy">COPY BRIEF</button><button id="download">EXPORT HANDOFF</button><button class="primary" id="review">REVIEW & INSTALL</button>
+  </header>
+  <main>
+    <aside class="library"><label>WORKFLOW VIEW</label><div class="nav active">Canvas</div><div class="run-state">Current recipe and active run are read directly from the local runtime ledger.</div>
+      <hr><label>NODE LIBRARY</label><div id="palette"></div><hr><label>GRAPH INTEGRITY</label><output id="integrity">LOADING</output>
+    </aside>
+    <section class="canvas" id="canvas"><div class="canvas-head"><span id="mode">WORKFLOW / EDIT MODE</span><span>AUTO-LAYOUT / DAG</span></div><svg id="edges" aria-hidden="true"><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"></path></marker></defs><g id="edge-paths"></g></svg><div id="nodes"></div></section>
+    <aside class="inspector"><label id="inspector-label">NODE INSPECTOR</label><div id="details"></div>
+      <section class="live"><label>LIVE EXECUTION</label><h2 id="active-stage">No active run</h2><p id="activity">Waiting for a recipe-bound workflow.</p>
+        <label>CONTEXT BUDGET</label><div class="meter"><i id="meter"></i></div><p class="mono" id="budget">—</p>
+        <label>EVIDENCE STREAM</label><div id="events"></div>
+        <label>DECISION MEMORY</label><input id="decision-summary" maxlength="160" placeholder="Decision summary"><textarea id="decision-rationale" maxlength="1000" placeholder="Why this choice was made"></textarea><button id="record-decision">RECORD DECISION</button>
+      </section>
+      <div id="message"></div>
+    </aside>
+  </main>
+  <dialog id="confirm"><h2>Review installation</h2><pre id="review-data"></pre><p>Validation must pass. Built-in recipes must be forked to a new ID; replacing a project recipe requires a higher version.</p><button id="cancel">CANCEL</button><button class="primary" id="install">INSTALL RECIPE</button></dialog>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/egagofur/ai-engineering-loop/pulls)
 [![AI Engineering](https://img.shields.io/badge/AI-Engineering%20Loop-orange.svg)](https://github.com/egagofur/ai-engineering-loop)
-[![Release](https://img.shields.io/badge/release-v1.5.0-purple.svg)](https://github.com/egagofur/ai-engineering-loop/releases)
+[![Release](https://img.shields.io/badge/release-v1.6.0-purple.svg)](https://github.com/egagofur/ai-engineering-loop/releases)
 
 **A Reusable, Framework-Agnostic AI Engineering Operating System for Autonomous Coding Agents**
 
@@ -237,8 +237,18 @@ npx ai-engineering-loop recipe install candidate-v2.json --replace
 # Operate a custom node in an immutable recipe-bound run
 npx ai-engineering-loop node status
 npx ai-engineering-loop node start root-cause
+npx ai-engineering-loop node activity root-cause --message "Comparing failing evidence"
 npx ai-engineering-loop node complete root-cause --artifact .ai-engineering-loop/runs/<run-id>/root-cause.json
 npx ai-engineering-loop node approve delivery-approval --yes
+
+# Open the local workflow canvas (localhost-only, authenticated session)
+npx ai-engineering-loop studio
+npx ai-engineering-loop studio --port 4400 --no-open
+
+# Transfer redacted knowledge to another developer or agent
+npx ai-engineering-loop handoff create --audience developer
+npx ai-engineering-loop handoff inspect <run-id>.ael-handoff.json
+npx ai-engineering-loop handoff brief <run-id>.ael-handoff.json
 
 # Copy package skills/agents/commands into ~/.claude ~/.grok ~/.gemini ~/.agents
 npx ai-engineering-loop sync-hosts
@@ -256,7 +266,7 @@ Every full run stores private local artifacts under `.ai-engineering-loop/runs/<
 
 Declarative recipes let an AI or future visual editor author a workflow graph without weakening the safety gates. Built-in presets and project recipes can be validated, explained, graphed, and simulated deterministically. `run --recipe` opts into an immutable, resumable DAG scheduler; legacy runs remain unchanged. See [`core/workflow-recipes.md`](core/workflow-recipes.md) and [`core/controlled-workflow-runtime.md`](core/controlled-workflow-runtime.md).
 
-The deterministic recipe builder scaffolds from safe presets, validates candidates before atomic installation, preserves replaced versions locally, and exposes catalog/inspect/diff JSON for AI agents and a future UI. The host-neutral agent protocol is in [`agents/recipe-builder.md`](agents/recipe-builder.md).
+The deterministic recipe builder scaffolds from safe presets, validates candidates before atomic installation, and preserves replaced versions locally. Workflow Studio is a thin local interface over that compiler and controlled runtime: animated DAG state, live activity and budget telemetry, explicit approval/retry controls, decision memory, and integrity-bound handoff export—without model or shell execution in the browser. See [`core/local-workflow-studio.md`](core/local-workflow-studio.md). The host-neutral agent protocol remains available in [`agents/recipe-builder.md`](agents/recipe-builder.md).
 
 Shipped adapters (Stage 8 only, after Judge PASS): `standard`, `github`, `gitlab`, `dot`. Catalog: `adapters/README.md`. Each team generates its own; do not copy a neighbour's pipeline.
 

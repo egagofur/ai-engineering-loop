@@ -13,7 +13,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { execSync } = require('child_process');
+const { execSync, spawn } = require('child_process');
 const {
   homeDir,
   applyHostSync,
@@ -98,6 +98,7 @@ const {
   completeWorkflowNode,
   createWorkflowBundle,
   failWorkflowNode,
+  recordWorkflowActivity,
   retryWorkflowNode,
   startWorkflowNode,
   workflowStatus
@@ -109,8 +110,15 @@ const {
   installRecipe,
   recipeCatalog
 } = require('../lib/recipe-builder.js');
+const {
+  createHandoff,
+  handoffBrief,
+  readHandoff,
+  verifyHandoff
+} = require('../lib/handoff.js');
+const { createStudioServer } = require('../lib/studio-server.js');
 
-const VERSION = '1.5.0';
+const VERSION = '1.6.0';
 const CWD = process.cwd();
 const CONTEXT_DIR = path.join(CWD, '.ai-engineering-loop');
 
@@ -364,7 +372,7 @@ function generateContextFiles(rootDir, discovery, trigger = 'init', impact = 'IN
 
   // 0. metadata.json (Baseline)
   const metadataJson = {
-    contextVersion: '1.5.0',
+    contextVersion: '1.6.0',
     generatedAt: new Date().toISOString(),
     repositoryRevision: currentRevision,
     projectProfile: discovery.profile,
@@ -1175,6 +1183,11 @@ function handleNode() {
         runId,
         reason: argValue('--reason') || 'node execution failed'
       });
+    } else if (action === 'activity') {
+      workflow = recordWorkflowActivity(CWD, nodeId, {
+        runId,
+        message: argValue('--message')
+      });
     } else if (action === 'retry') {
       workflow = retryWorkflowNode(CWD, nodeId, { runId });
     } else if (action === 'approve') {
@@ -1450,6 +1463,106 @@ function handleRecipe() {
   }
 }
 
+function safeHandoffOutput(file) {
+  const absolute = path.resolve(CWD, file);
+  const relative = path.relative(CWD, absolute);
+  if (relative === '..' || relative.startsWith(`..${path.sep}`)) {
+    throw Object.assign(new Error('Handoff output must stay inside the repository'), { code: 'UNSAFE_HANDOFF_PATH' });
+  }
+  const parent = path.dirname(absolute);
+  fs.mkdirSync(parent, { recursive: true, mode: 0o700 });
+  const realRoot = fs.realpathSync(CWD);
+  const realParent = fs.realpathSync(parent);
+  if (realParent !== realRoot && !realParent.startsWith(`${realRoot}${path.sep}`)) {
+    throw Object.assign(new Error('Handoff output escapes the repository through a symlink'), { code: 'UNSAFE_HANDOFF_PATH' });
+  }
+  return absolute;
+}
+
+function handleHandoff() {
+  const action = process.argv[3] || 'create';
+  const json = process.argv.includes('--json');
+  try {
+    if (action === 'create') {
+      const bundle = createHandoff(CWD, {
+        runId: argValue('--run'),
+        audience: argValue('--audience') || 'developer'
+      });
+      const requested = argValue('--output');
+      if (requested === '-') {
+        console.log(JSON.stringify(bundle, null, json ? 0 : 2));
+        return;
+      }
+      const output = safeHandoffOutput(requested || `${bundle.runId}.ael-handoff.json`);
+      const descriptor = fs.openSync(output, 'wx', 0o600);
+      try {
+        fs.writeFileSync(descriptor, `${JSON.stringify(bundle, null, 2)}\n`);
+        fs.fsyncSync(descriptor);
+      } finally {
+        fs.closeSync(descriptor);
+      }
+      const result = {
+        ok: true,
+        path: path.relative(CWD, output).split(path.sep).join('/'),
+        runId: bundle.runId,
+        audience: bundle.audience,
+        bundleHash: bundle.bundleHash
+      };
+      console.log(json ? JSON.stringify(result) : `Created ${result.path}\nBundle hash: ${result.bundleHash}`);
+      return;
+    }
+    const file = process.argv[4];
+    if (!file || file.startsWith('-')) throw new Error(`handoff ${action} requires a file`);
+    const bundle = readHandoff(CWD, file);
+    const verification = verifyHandoff(bundle);
+    if (action === 'inspect') {
+      console.log(JSON.stringify({ ok: true, ...verification }, null, json ? 0 : 2));
+    } else if (action === 'brief') {
+      console.log(handoffBrief(bundle));
+    } else {
+      throw new Error('Unknown handoff action. Use create|inspect|brief');
+    }
+  } catch (err) {
+    if (json) console.log(JSON.stringify({ ok: false, code: err.code || 'HANDOFF_FAILED', error: err.message }));
+    else log.error(err.message);
+    process.exitCode = 1;
+  }
+}
+
+function openStudio(url) {
+  const command = process.platform === 'darwin'
+    ? ['open', [url]]
+    : process.platform === 'win32'
+      ? ['cmd', ['/c', 'start', '', url]]
+      : ['xdg-open', [url]];
+  const child = spawn(command[0], command[1], { detached: true, stdio: 'ignore' });
+  child.on('error', () => {});
+  child.unref();
+}
+
+function handleStudio() {
+  const requestedPort = argValue('--port');
+  const port = requestedPort == null ? 4317 : Number(requestedPort);
+  if (!Number.isSafeInteger(port) || port < 0 || port > 65535) {
+    log.error('--port must be an integer from 0 to 65535');
+    process.exitCode = 1;
+    return;
+  }
+  const { server, token } = createStudioServer(CWD);
+  server.on('error', (error) => {
+    log.error(`Unable to start Studio: ${error.message}`);
+    process.exitCode = 1;
+  });
+  server.listen(port, '127.0.0.1', () => {
+    const address = server.address();
+    const url = `http://127.0.0.1:${address.port}/?token=${token}`;
+    log.success('✓ Workflow Studio is running locally');
+    console.log(url);
+    console.log('Press Ctrl+C to stop. The session token is valid only for this process.');
+    if (!process.argv.includes('--no-open')) openStudio(url);
+  });
+}
+
 // Help Menu
 function printHelp() {
   console.log(`
@@ -1479,6 +1592,7 @@ Commands:
                start <id> [--run <id>] [--json]
                complete <id> [--artifact <repository-relative-path>] [--json]
                fail <id> [--reason <text>] [--json]
+               activity <id> --message <safe progress text> [--json]
                retry <id> [--json]
                approve <id> --yes [--by <name>] [--json]
   policy       Inspect or update fail-closed runtime controls
@@ -1516,6 +1630,12 @@ Commands:
                show <id> [--json]
                validate <id> [--mode <mode>] [--json]
                explain | graph | simulate <id> [--mode <mode>] [--json]
+  studio       Open the localhost-only visual workflow editor
+               [--port <0-65535>] [--no-open]
+  handoff      Export or verify a redacted, integrity-bound knowledge transfer
+               create [--run <id>] [--audience developer|agent|auditor]
+                      [--output <repository-relative-file>|-] [--json]
+               inspect | brief <repository-relative-file> [--json]
   sync-hosts   Copy package skills/agents/commands into ~/.claude ~/.grok ~/.gemini ~/.agents
                (only hosts that already exist; DOT skills only if already installed)
                --dry-run  print the plan without writing
@@ -1582,6 +1702,12 @@ switch (command) {
     break;
   case 'recipe':
     handleRecipe();
+    break;
+  case 'studio':
+    handleStudio();
+    break;
+  case 'handoff':
+    handleHandoff();
     break;
   case 'sync-hosts':
     handleSyncHosts();
