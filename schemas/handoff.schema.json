@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/egagofur/ai-engineering-loop/schemas/handoff.schema.json",
+  "title": "AI Engineering Loop Redacted Handoff",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "audience",
+    "runId",
+    "generatedAt",
+    "finalState",
+    "redacted",
+    "sourceIncluded",
+    "redactionCategories",
+    "content",
+    "bundleHash"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "audience": { "enum": ["developer", "agent", "auditor"] },
+    "runId": { "type": "string", "minLength": 1 },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "graphHash": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+    "finalState": { "type": "string", "minLength": 1 },
+    "redacted": { "const": true },
+    "sourceIncluded": { "const": false },
+    "redactionCategories": {
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true
+    },
+    "content": { "type": "object" },
+    "bundleHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+  },
+  "additionalProperties": false
+}

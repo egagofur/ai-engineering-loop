@@ -1,6 +1,6 @@
 {
   "name": "ai-engineering-loop",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "A reusable, framework-agnostic AI Engineering Operating System for safe coding agents.",
   "main": "bin/ai-engineering-loop.js",
   "bin": {
@@ -16,6 +16,7 @@
     "adapters/",
     "recipes/",
     "schemas/",
+    "studio/",
     "evals/",
     ".agents/",
     ".grok/",

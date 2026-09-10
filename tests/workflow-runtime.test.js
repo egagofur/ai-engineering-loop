@@ -17,6 +17,7 @@ const {
   createWorkflowBundle,
   failWorkflowNode,
   loadWorkflow,
+  recordWorkflowActivity,
   retryWorkflowNode,
   startWorkflowNode
 } = require('../lib/workflow-runtime.js');
@@ -163,6 +164,24 @@ test('custom nodes support explicit start, failure blocking, and retry recovery'
   const retried = retryWorkflowNode(root, 'repository-analysis', { runId: 'run-001' });
   assert.equal(retried.state.nodes['repository-analysis'].status, NODE_STATES.READY);
   assert.equal(retried.state.nodes.report.status, NODE_STATES.PENDING);
+});
+
+test('running nodes record redacted activity in the integrity-bound event log', () => {
+  const root = tempRepo();
+  createRecipeRun(root, 'audit', 'REPORT_ONLY');
+  passGoal(root);
+  startWorkflowNode(root, 'repository-analysis', { runId: 'run-001' });
+  const updated = recordWorkflowActivity(root, 'repository-analysis', {
+    runId: 'run-001',
+    message: 'Reading evidence with token sk-live-secretvalue123456'
+  });
+  assert.equal(updated.state.nodes['repository-analysis'].status, NODE_STATES.RUNNING);
+  assert.match(updated.state.nodes['repository-analysis'].activity, /\[REDACTED API TOKEN\]/);
+  assert.equal(updated.events.at(-1).type, 'NODE_ACTIVITY');
+  assert.throws(
+    () => recordWorkflowActivity(root, 'report', { runId: 'run-001', message: 'not running' }),
+    { code: 'INVALID_NODE_TRANSITION' }
+  );
 });
 
 test('approval nodes require the dedicated explicit executor', () => {

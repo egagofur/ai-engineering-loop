@@ -13,6 +13,7 @@
       "enum": [
         "WORKFLOW_CREATED",
         "NODE_STARTED",
+        "NODE_ACTIVITY",
         "NODE_COMPLETED",
         "NODE_FAILED",
         "NODE_RETRIED",
