@@ -32,6 +32,7 @@ test('package privacy audit detects local paths and private keys', () => {
 test('package file listing includes runtime assets and excludes development tests', () => {
   const files = listPackageFiles(ROOT);
   assert.ok(files.includes('lib/gates.js'));
+  assert.ok(files.includes('recipes/default.json'));
   assert.ok(files.includes('schemas/goal-contract.schema.json'));
   assert.ok(!files.includes('tests/gates.test.js'));
   assert.ok(!files.some((file) => file.startsWith('.delta/')));

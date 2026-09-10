@@ -82,6 +82,15 @@ const {
   createSandbox,
   sandboxStatus
 } = require('../lib/sandbox.js');
+const {
+  compileRecipe,
+  explainPlan,
+  listRecipes,
+  loadRecipe,
+  mermaidPlan,
+  simulatePlan,
+  validateRecipe
+} = require('../lib/recipe.js');
 
 const VERSION = '1.2.1';
 const CWD = process.cwd();
@@ -1180,6 +1189,82 @@ function handleDoctor() {
   if (!result.ok) process.exit(1);
 }
 
+function handleRecipe() {
+  const action = process.argv[3] || 'list';
+  const id = process.argv[4];
+  const mode = argValue('--mode');
+  const json = process.argv.includes('--json');
+  try {
+    if (action === 'list') {
+      const recipes = listRecipes(CWD).map((entry) => {
+        const { recipe } = loadRecipe(CWD, entry.id);
+        return {
+          ...entry,
+          description: recipe.description,
+          compatibleModes: recipe.compatibleModes
+        };
+      });
+      if (json) console.log(JSON.stringify({ ok: true, recipes }));
+      else {
+        console.log('Workflow recipes:');
+        for (const recipe of recipes) {
+          console.log(`- ${recipe.id} [${recipe.source}] ${recipe.compatibleModes.join(', ')}`);
+          console.log(`  ${recipe.description}`);
+        }
+      }
+      return;
+    }
+
+    if (!['show', 'validate', 'explain', 'graph', 'simulate'].includes(action)) {
+      throw Object.assign(new Error(`Unknown recipe action: ${action}`), { code: 'UNKNOWN_RECIPE_ACTION' });
+    }
+    if (!id || id.startsWith('-')) {
+      throw Object.assign(new Error(`recipe ${action} requires an id`), { code: 'RECIPE_ID_REQUIRED' });
+    }
+    const loaded = loadRecipe(CWD, id);
+    if (action === 'show') {
+      console.log(JSON.stringify(loaded.recipe, null, json ? 0 : 2));
+      return;
+    }
+    if (action === 'validate') {
+      const validation = validateRecipe(loaded.recipe, mode ? { mode } : {});
+      const result = { ok: validation.valid, id, source: loaded.source, ...validation };
+      if (json) console.log(JSON.stringify(result));
+      else {
+        console.log(`Recipe ${id}: ${validation.valid ? 'VALID' : 'INVALID'}`);
+        for (const warning of validation.warnings) console.log(`! ${warning}`);
+        for (const error of validation.errors) console.log(`✗ ${error}`);
+      }
+      if (!validation.valid) process.exit(1);
+      return;
+    }
+
+    const plan = compileRecipe(loaded.recipe, mode ? { mode } : {});
+    if (action === 'explain') {
+      console.log(json ? JSON.stringify({ ok: true, source: loaded.source, plan }) : explainPlan(plan));
+    } else if (action === 'graph') {
+      const mermaid = mermaidPlan(plan);
+      console.log(json ? JSON.stringify({ ok: true, graphHash: plan.graphHash, mermaid }) : mermaid);
+    } else {
+      const simulation = simulatePlan(plan);
+      console.log(JSON.stringify({ ok: true, ...simulation }, null, json ? 0 : 2));
+    }
+  } catch (err) {
+    if (json) {
+      console.log(JSON.stringify({
+        ok: false,
+        code: err.code || 'RECIPE_FAILED',
+        error: err.message,
+        details: err.details || []
+      }));
+    } else {
+      log.error(err.message);
+      for (const detail of err.details || []) console.error(`- ${detail}`);
+    }
+    process.exit(1);
+  }
+}
+
 // Help Menu
 function printHelp() {
   console.log(`
@@ -1227,6 +1312,11 @@ Commands:
                --json      print machine-readable reasons
   doctor       Check runtime, schemas, host assets, package contents, and eval catalog
                --json      print machine-readable diagnostics
+  recipe       Inspect and compile declarative workflow recipes (does not execute nodes)
+               list [--json]
+               show <id> [--json]
+               validate <id> [--mode <mode>] [--json]
+               explain | graph | simulate <id> [--mode <mode>] [--json]
   sync-hosts   Copy package skills/agents/commands into ~/.claude ~/.grok ~/.gemini ~/.agents
                (only hosts that already exist; DOT skills only if already installed)
                --dry-run  print the plan without writing
@@ -1287,6 +1377,9 @@ switch (command) {
     break;
   case 'doctor':
     handleDoctor();
+    break;
+  case 'recipe':
+    handleRecipe();
     break;
   case 'sync-hosts':
     handleSyncHosts();
