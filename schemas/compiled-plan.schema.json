@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/egagofur/ai-engineering-loop/schemas/compiled-plan.schema.json",
+  "title": "AI Engineering Loop Compiled Plan",
+  "type": "object",
+  "required": ["schemaVersion", "compilerVersion", "recipe", "mode", "nodes", "graphHash"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "compilerVersion": { "const": 1 },
+    "recipe": {
+      "type": "object",
+      "required": ["id", "version", "sourceHash"]
+    },
+    "mode": { "enum": ["REPORT_ONLY", "ASSISTED", "UNATTENDED"] },
+    "nodes": { "type": "array", "minItems": 1, "maxItems": 64 },
+    "graphHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+  },
+  "additionalProperties": true
+}

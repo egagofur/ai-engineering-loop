@@ -14,6 +14,7 @@
     "policies/",
     "profiles/",
     "adapters/",
+    "recipes/",
     "schemas/",
     "evals/",
     ".agents/",

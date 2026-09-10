@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "audit",
+  "version": 1,
+  "description": "Read-only repository analysis with a structured report and no mutation or remote side effects.",
+  "compatibleModes": ["REPORT_ONLY"],
+  "nodes": [
+    {
+      "id": "goal",
+      "type": "goal-contract"
+    },
+    {
+      "id": "repository-analysis",
+      "type": "agent",
+      "dependsOn": ["goal"],
+      "role": "repository-auditor",
+      "context": {
+        "maxFiles": 40,
+        "maxTokens": 12000
+      },
+      "output": {
+        "artifact": "repository-analysis",
+        "schema": "schemas/report.schema.json"
+      }
+    },
+    {
+      "id": "report",
+      "type": "report",
+      "dependsOn": ["repository-analysis"]
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "id": "refactor",
+  "version": 1,
+  "description": "Behavior-preserving refactor workflow with explicit baseline analysis.",
+  "compatibleModes": ["ASSISTED", "UNATTENDED"],
+  "nodes": [
+    {
+      "id": "goal",
+      "type": "goal-contract"
+    },
+    {
+      "id": "behavior-baseline",
+      "type": "agent",
+      "dependsOn": ["goal"],
+      "role": "behavior-baseline-analyst",
+      "context": {
+        "maxFiles": 35,
+        "maxTokens": 10000
+      },
+      "output": {
+        "artifact": "behavior-baseline",
+        "schema": "schemas/report.schema.json"
+      }
+    },
+    {
+      "id": "maker",
+      "type": "maker",
+      "dependsOn": ["behavior-baseline"]
+    },
+    {
+      "id": "verification",
+      "type": "verification",
+      "dependsOn": ["maker"]
+    },
+    {
+      "id": "review",
+      "type": "devil-advocate",
+      "dependsOn": ["verification"]
+    },
+    {
+      "id": "judge",
+      "type": "judge",
+      "dependsOn": ["review"]
+    },
+    {
+      "id": "delivery-approval",
+      "type": "approval",
+      "dependsOn": ["judge"],
+      "when": {
+        "field": "run.mode",
+        "operator": "equals",
+        "value": "ASSISTED"
+      },
+      "message": "Approve the verified refactor for delivery."
+    },
+    {
+      "id": "delivery",
+      "type": "delivery",
+      "dependsOn": ["judge", "delivery-approval"]
+    }
+  ]
+}

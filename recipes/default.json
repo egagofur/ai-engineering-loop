@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "id": "default",
+  "version": 1,
+  "description": "The existing Maker, verification, Devil's Advocate, Judge, and delivery workflow.",
+  "compatibleModes": ["ASSISTED", "UNATTENDED"],
+  "nodes": [
+    {
+      "id": "goal",
+      "type": "goal-contract"
+    },
+    {
+      "id": "maker",
+      "type": "maker",
+      "dependsOn": ["goal"]
+    },
+    {
+      "id": "verification",
+      "type": "verification",
+      "dependsOn": ["maker"]
+    },
+    {
+      "id": "review",
+      "type": "devil-advocate",
+      "dependsOn": ["verification"]
+    },
+    {
+      "id": "judge",
+      "type": "judge",
+      "dependsOn": ["review"]
+    },
+    {
+      "id": "delivery-approval",
+      "type": "approval",
+      "dependsOn": ["judge"],
+      "when": {
+        "field": "run.mode",
+        "operator": "equals",
+        "value": "ASSISTED"
+      },
+      "message": "Approve the verified change for delivery."
+    },
+    {
+      "id": "delivery",
+      "type": "delivery",
+      "dependsOn": ["judge", "delivery-approval"]
+    }
+  ]
+}

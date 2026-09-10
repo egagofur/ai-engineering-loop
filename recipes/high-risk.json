@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "id": "high-risk",
+  "version": 1,
+  "description": "Change workflow with explicit blast-radius analysis and approval before mutation.",
+  "compatibleModes": ["ASSISTED", "UNATTENDED"],
+  "nodes": [
+    {
+      "id": "goal",
+      "type": "goal-contract"
+    },
+    {
+      "id": "risk-analysis",
+      "type": "agent",
+      "dependsOn": ["goal"],
+      "role": "blast-radius-analyst",
+      "context": {
+        "maxFiles": 50,
+        "maxTokens": 16000
+      },
+      "output": {
+        "artifact": "risk-analysis",
+        "schema": "schemas/report.schema.json"
+      }
+    },
+    {
+      "id": "plan-approval",
+      "type": "approval",
+      "dependsOn": ["risk-analysis"],
+      "message": "Approve the high-risk implementation plan before repository mutation."
+    },
+    {
+      "id": "maker",
+      "type": "maker",
+      "dependsOn": ["plan-approval"]
+    },
+    {
+      "id": "verification",
+      "type": "verification",
+      "dependsOn": ["maker"]
+    },
+    {
+      "id": "review",
+      "type": "devil-advocate",
+      "dependsOn": ["verification"]
+    },
+    {
+      "id": "judge",
+      "type": "judge",
+      "dependsOn": ["review"]
+    },
+    {
+      "id": "delivery-approval",
+      "type": "approval",
+      "dependsOn": ["judge"],
+      "when": {
+        "field": "run.mode",
+        "operator": "equals",
+        "value": "ASSISTED"
+      },
+      "message": "Approve the verified high-risk change for delivery."
+    },
+    {
+      "id": "delivery",
+      "type": "delivery",
+      "dependsOn": ["judge", "delivery-approval"]
+    }
+  ]
+}
