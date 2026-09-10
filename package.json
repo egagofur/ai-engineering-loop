@@ -17,6 +17,7 @@
     "recipes/",
     "schemas/",
     "studio/",
+    "docs/images/",
     "evals/",
     ".agents/",
     ".grok/",
