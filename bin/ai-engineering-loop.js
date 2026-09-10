@@ -78,6 +78,11 @@ const {
   PRIVATE_RUNTIME_GITIGNORE
 } = require('../lib/runtime-files.js');
 const {
+  appendRunAnswer,
+  appendRunQuestion,
+  listRunInteractions
+} = require('../lib/run-interactions.js');
+const {
   abortSandbox,
   captureSandbox,
   createSandbox,
@@ -140,6 +145,22 @@ function writeContextFile(filePath, content, { overwrite = true } = {}) {
     return false;
   }
   fs.writeFileSync(filePath, content);
+  return true;
+}
+
+function ignoreProjectContextOnFirstInit(rootDir) {
+  const filePath = path.join(rootDir, '.gitignore');
+  if (fs.existsSync(filePath) && fs.lstatSync(filePath).isSymbolicLink()) {
+    const error = new Error('Refusing to update a symlinked project .gitignore');
+    error.code = 'UNSAFE_GITIGNORE';
+    throw error;
+  }
+  const current = readFileSafe(filePath) || '';
+  const alreadyIgnored = current.split(/\r?\n/)
+    .some((line) => line.trim().replace(/\/+$/, '') === '.ai-engineering-loop');
+  if (alreadyIgnored) return false;
+  const separator = current && !current.endsWith('\n') ? '\n' : '';
+  fs.writeFileSync(filePath, `${current}${separator}.ai-engineering-loop/\n`);
   return true;
 }
 
@@ -633,6 +654,7 @@ function handleInit() {
   log.info('AI Engineering Loop — Project Context Bootstrap (init)');
   log.dim(`Target directory: ${CWD}`);
 
+  const firstInitialization = !fs.existsSync(CONTEXT_DIR);
   let overwriteCore = true;
   let trigger = 'init';
   let impact = 'INITIAL_BOOTSTRAP';
@@ -661,13 +683,14 @@ function handleInit() {
   log.dim(`> Package Manager: ${discovery.packageManager}`);
   log.dim(`> Unit Test Command: ${discovery.scripts.testUnit}`);
 
+  if (firstInitialization) ignoreProjectContextOnFirstInit(CWD);
   generateContextFiles(CWD, discovery, trigger, impact, { overwriteCore });
 
   const validation = validateContext(CONTEXT_DIR);
   if (validation.valid) {
     log.success('\n✓ Successfully initialized .ai-engineering-loop/ with:');
     REQUIRED_FILES.forEach((f) => console.log(`  - .ai-engineering-loop/${f}`));
-    log.dim('\nRecommendation: Commit .ai-engineering-loop/ to version control so team agents share context.');
+    log.dim('\nProject context is private by default. Remove .ai-engineering-loop/ from .gitignore if you want to share it.');
   } else {
     log.error(`\n✗ Initialization validation failed: ${validation.reason}`);
     process.exit(1);
@@ -1563,6 +1586,46 @@ function handleStudio() {
   });
 }
 
+function handleInteraction() {
+  const action = args[1] || 'list';
+  const runId = argValue('--run');
+  const message = argValue('--message');
+  const actor = argValue('--by');
+  try {
+    if (!runId) {
+      const error = new Error('interaction requires --run <id>');
+      error.code = 'INVALID_USAGE';
+      throw error;
+    }
+    let result;
+    if (action === 'list') {
+      result = listRunInteractions(CWD, runId);
+    } else if (action === 'question') {
+      result = appendRunQuestion(CWD, runId, { message, actor: actor || 'agent' });
+    } else if (action === 'answer') {
+      result = appendRunAnswer(CWD, runId, args[2], { message, actor: actor || 'human' });
+    } else {
+      const error = new Error('interaction must be list, question, or answer');
+      error.code = 'INVALID_USAGE';
+      throw error;
+    }
+    if (process.argv.includes('--json')) console.log(JSON.stringify(result, null, 2));
+    else if (action === 'list') {
+      if (result.questions.length === 0) console.log('No agent questions for this Run.');
+      for (const question of result.questions) {
+        console.log(`Q${question.number} [${question.questionId}] ${question.message}`);
+        console.log(question.answer ? `  Answer: ${question.answer.message}` : '  Waiting for an answer');
+      }
+    } else {
+      log.success(`✓ ${action === 'question' ? 'Question posted' : 'Answer recorded'}`);
+      console.log(`${result.questionId}: ${result.message}`);
+    }
+  } catch (error) {
+    log.error(`${error.code || 'INTERACTION_FAILED'}: ${error.message}`);
+    process.exitCode = 1;
+  }
+}
+
 // Help Menu
 function printHelp() {
   console.log(`
@@ -1595,6 +1658,10 @@ Commands:
                activity <id> --message <safe progress text> [--json]
                retry <id> [--json]
                approve <id> --yes [--by <name>] [--json]
+  interaction  Exchange Run-bound questions with Studio
+               list --run <id> [--json]
+               question --run <id> --message <text> [--by <agent>]
+               answer <question-id> --run <id> --message <text> [--by <name>]
   policy       Inspect or update fail-closed runtime controls
                show [--json]
                set [--default-mode <mode>] [--allow-unattended true|false]
@@ -1678,6 +1745,9 @@ switch (command) {
     break;
   case 'node':
     handleNode();
+    break;
+  case 'interaction':
+    handleInteraction();
     break;
   case 'policy':
     handlePolicy();

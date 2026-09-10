@@ -33,6 +33,7 @@ let goal = { text: '', version: 1, frozen: false };
 let activeRunId;
 let pendingImport;
 let hydratedGoalKey;
+let selectedCheckoutRun;
 
 const DISPLAY_NAME_MAX = 80;
 const ROOT_TYPES = new Set(['goal-contract', 'trigger']);
@@ -997,6 +998,7 @@ async function ensureStudioRun() {
     method: 'POST',
     body: JSON.stringify({
       task,
+      constraints: byId('goal-constraints').value.trim(),
       displayName: byId('goal-run-name').value.trim(),
       recipeId: loadedRecipeId,
       mode: draft.compatibleModes.includes('ASSISTED') ? 'ASSISTED' : draft.compatibleModes[0]
@@ -1009,6 +1011,14 @@ async function ensureStudioRun() {
 
 async function saveGoalFromForm() {
   try {
+    const task = byId('goal-task').value.trim();
+    if (!byId('goal-text').value.trim()) byId('goal-text').value = task;
+    if (!byId('goal-criteria').value.trim()) {
+      byId('goal-criteria').value = [
+        'Requested outcome works in its real workflow | Tests and Run-bound evidence demonstrate the result | The requested outcome is unavailable or misleading',
+        'Existing behavior remains reliable | Compatibility checks pass | A supported existing workflow regresses'
+      ].join('\n');
+    }
     const provisional = goalContractFromForm(activeRunId || 'pending');
     const error = validateGoalForm(provisional);
     if (error) {
@@ -1024,6 +1034,7 @@ async function saveGoalFromForm() {
     goal = { text: contract.objective, criteria: contract.acceptanceCriteria, version: goal.version, frozen: false };
     byId('goal-validation').textContent = '';
     notify('Goal draft saved. It is not frozen yet.');
+    byId('goal-dialog').close();
     return contract;
   } catch (error) {
     byId('goal-validation').textContent = error.message;
@@ -1041,6 +1052,7 @@ function renderGoalState() {
   byId('goal-text').disabled = goal.frozen;
   byId('goal-criteria').disabled = goal.frozen;
   byId('goal-task').disabled = goal.frozen;
+  byId('goal-constraints').disabled = goal.frozen;
   byId('goal-run-name').disabled = goal.frozen;
   byId('save-goal').hidden = goal.frozen;
   byId('review-goal').hidden = goal.frozen;
@@ -1051,6 +1063,8 @@ function renderGoalState() {
 async function reviewGoal() {
   const contract = await saveGoalFromForm();
   if (!contract) return;
+  byId('goal-dialog').showModal();
+  byId('goal-dialog').querySelector('.advanced-goal').open = true;
   byId('goal-review').hidden = false;
   byId('goal-review').innerHTML = `
     <strong>${escapeHtml(contract.objective)}</strong>
@@ -1076,6 +1090,7 @@ async function freezeGoalFromForm() {
     renderGoalState();
     renderGraph();
     notify('Goal frozen with an integrity-bound version.');
+    byId('goal-dialog').close();
   } catch (error) {
     byId('goal-validation').textContent = error.message;
   }
@@ -1099,6 +1114,7 @@ async function unfreezeGoalFromForm() {
     renderGoalState();
     renderGraph();
     notify('Goal unfrozen. Previous evidence remains bound to its prior version.');
+    byId('goal-dialog').close();
   } catch (error) {
     byId('goal-validation').textContent = error.message;
   }
@@ -1111,6 +1127,7 @@ function syncGoalFromLive() {
   goal.version = liveGoal.version || 1;
   goal.frozen = liveGoal.frozen === true;
   if (catalog.live.run.task) byId('goal-task').value = catalog.live.run.task;
+  if (catalog.live.run.constraints) byId('goal-constraints').value = catalog.live.run.constraints;
   if (catalog.live.run.displayName) byId('goal-run-name').value = catalog.live.run.displayName;
   renderGoalState();
 }
@@ -1171,52 +1188,157 @@ async function loadRuns() {
 
 async function loadRunDetail(runId) {
   try {
-    const result = await api(`/api/runs/${encodeURIComponent(runId)}`);
+    selectedCheckoutRun = runId;
+    const [result, checkoutResult, interactionResult] = await Promise.all([
+      api(`/api/runs/${encodeURIComponent(runId)}`),
+      api(`/api/runs/${encodeURIComponent(runId)}/checkout`),
+      api(`/api/runs/${encodeURIComponent(runId)}/interactions`)
+    ]);
     const run = result.run;
-    const artifacts = Object.values(run.artifacts || {});
+    const checkout = checkoutResult.checkout;
+    const maxX = Math.max(...checkout.nodes.map((node) => node.position.x), 0) + NODE_WIDTH + 80;
+    const maxY = Math.max(...checkout.nodes.map((node) => node.position.y), 0) + 180;
+    const paths = checkout.edges.map((edge) => {
+      const from = checkout.nodes.find((node) => node.id === edge.from);
+      const to = checkout.nodes.find((node) => node.id === edge.to);
+      if (!from || !to) return '';
+      const x1 = from.position.x + NODE_WIDTH;
+      const y1 = from.position.y + NODE_PORT_Y;
+      const x2 = to.position.x;
+      const y2 = to.position.y + NODE_PORT_Y;
+      return `<path d="M ${x1} ${y1} C ${x1 + 70} ${y1}, ${x2 - 70} ${y2}, ${x2} ${y2}"></path>`;
+    }).join('');
     byId('run-detail').innerHTML = `
-      <header><small>${escapeHtml(run.status)} · ${escapeHtml(run.mode)}</small><h2>${escapeHtml(run.displayName)}</h2><p>${escapeHtml(run.task)}</p></header>
-      <div class="run-name-editor"><label for="run-name-edit">Display Name</label><input id="run-name-edit" maxlength="100" value="${escapeHtml(run.displayName)}"><button id="save-run-name">Rename</button></div>
-      <dl><dt>Technical ID</dt><dd>${escapeHtml(run.runId)}</dd><dt>Goal</dt><dd>${run.goalFrozen ? `Frozen V${escapeHtml(run.goalVersion)}` : 'Not frozen'}</dd><dt>Evidence</dt><dd>${run.evidence.present ? 'Present' : 'Absent'}</dd></dl>
-      <h3>Artifacts</h3>
-      <div class="artifact-list">${artifacts.length ? artifacts.map((artifact) => (
-        artifact?.path ? `<button data-artifact="${escapeHtml(artifact.path)}">${escapeHtml(artifact.path)}</button>` : ''
-      )).join('') : '<p class="muted">No artifacts recorded.</p>'}</div>
-      <h3>Decisions</h3>
-      <div class="decision-list">${run.decisions?.length ? run.decisions.map((decision) => `<p><strong>${escapeHtml(decision.summary)}</strong><br><span class="muted">${escapeHtml(decision.rationale)}</span></p>`).join('') : '<p class="muted">No decisions recorded.</p>'}</div>
-      <h3>Timeline</h3>
-      <div class="timeline">${[...(run.history || []), ...(run.events || [])].sort((left, right) => String(right.at).localeCompare(String(left.at))).map((event) => `<p><time>${escapeHtml(event.at || '')}</time><strong>${escapeHtml(event.type || event.gate || event.to || 'event')}</strong>${escapeHtml(event.reason || event.changedNodes?.join(', ') || '')}</p>`).join('')}</div>
-      <pre id="artifact-content" hidden></pre>
+      <header class="checkout-header">
+        <div><button id="checkout-back" class="quiet">← Run History</button><small>READ-ONLY CHECKOUT · ${escapeHtml(run.status)}</small><h2>${escapeHtml(run.displayName)}</h2><p>${escapeHtml(run.task)}</p></div>
+        <div class="checkout-actions"><button id="copy-agent-handoff">Copy for AI Agent</button><button id="duplicate-run-workflow" class="primary">Duplicate as Workflow</button></div>
+      </header>
+      <div class="checkout-meta"><span>${escapeHtml(run.runId)}</span><span>${run.goalFrozen ? `Goal frozen V${escapeHtml(run.goalVersion)}` : 'Goal draft'}</span><span>Actual node states</span></div>
+      <section class="checkout-canvas" style="--checkout-width:${maxX}px;--checkout-height:${maxY}px">
+        <svg viewBox="0 0 ${maxX} ${maxY}" aria-hidden="true">${paths}</svg>
+        ${checkout.nodes.map((node) => `<button class="checkout-node status-${escapeHtml(node.status.toLowerCase())}" data-checkout-node="${escapeHtml(node.id)}" style="left:${node.position.x}px;top:${node.position.y}px">
+          <small>${escapeHtml(node.type)}</small><strong>${escapeHtml(node.displayName)}</strong><span>${escapeHtml(node.status)}</span>
+        </button>`).join('')}
+      </section>
+      <section id="node-io-panel" class="node-io-panel"><div class="empty-state"><h3>Select a node</h3><p>Inspect its real Input, Output, Evidence, and Timeline.</p></div></section>
+      <section class="agent-interactions"><header><div><small>LIVE AGENT INTERACTIONS</small><h3>Questions from the Agent</h3></div><span>Updates automatically</span></header><div id="interaction-list"></div></section>
     `;
-    byId('save-run-name').onclick = async () => {
+    renderInteractions(interactionResult.interactions);
+    byId('checkout-back').onclick = () => {
+      selectedCheckoutRun = null;
+      byId('run-detail').innerHTML = '<div class="empty-state"><h2>Select a run</h2><p>Open a read-only checkout to inspect actual node evidence.</p></div>';
+    };
+    byId('copy-agent-handoff').onclick = () => copyAgentHandoff(runId);
+    byId('duplicate-run-workflow').onclick = async () => {
       try {
-        await api('/api/run/name', {
-          method: 'PATCH',
-          body: JSON.stringify({
-            runId,
-            displayName: byId('run-name-edit').value,
-            actor: 'studio-user'
-          })
+        const duplicate = await api(`/api/runs/${encodeURIComponent(runId)}/duplicate`, {
+          method: 'POST',
+          body: JSON.stringify({ recipeId: `${slug(run.displayName)}-copy` })
         });
-        await Promise.all([loadRuns(), loadRunDetail(runId)]);
+        draft = normalizeDraftGraph(structuredClone(duplicate.preview.recipe));
+        positions = new Map(checkout.nodes.map((node) => [node.id, node.position]));
+        loadedRecipeId = null;
+        captureHistory({ reset: true });
+        renderGraph();
+        renderRecipeDetails();
+        validateDraft();
+        showWorkspace('workflows');
+        notify('Run duplicated into a new editable workflow. History was not changed.');
       } catch (error) {
         notify(error.message);
       }
     };
-    byId('run-detail').querySelectorAll('[data-artifact]').forEach((button) => {
+    byId('run-detail').querySelectorAll('[data-checkout-node]').forEach((button) => {
+      button.onclick = () => loadNodeIo(runId, button.dataset.checkoutNode);
+    });
+  } catch (error) {
+    byId('run-detail').innerHTML = `<p class="validation-message">${escapeHtml(error.message)}</p>`;
+  }
+}
+
+function renderArtifactPreview(artifact) {
+  if (!artifact) return '<p class="muted">No artifact was recorded for this node.</p>';
+  if (artifact.unavailable) return `<p class="validation-message">Artifact unavailable: ${escapeHtml(artifact.code)}</p>`;
+  return `<p class="artifact-path">${escapeHtml(artifact.descriptor.path)}</p><button class="artifact-download" data-artifact-download="${escapeHtml(artifact.descriptor.path)}">Download copy</button><pre>${escapeHtml(artifact.preview.content)}</pre>`;
+}
+
+async function loadNodeIo(runId, nodeId) {
+  const panel = byId('node-io-panel');
+  try {
+    const { io } = await api(`/api/runs/${encodeURIComponent(runId)}/nodes/${encodeURIComponent(nodeId)}`);
+    panel.innerHTML = `
+      <header><small>NODE I/O · ${escapeHtml(io.node.status)}</small><h3>${escapeHtml(io.node.displayName)}</h3></header>
+      <div class="io-grid">
+        <section><h4>Input</h4>${io.input.task ? `<p><b>Task</b><br>${escapeHtml(io.input.task)}</p>` : ''}${io.input.constraints ? `<p><b>Constraints</b><br>${escapeHtml(io.input.constraints)}</p>` : ''}${io.input.dependencies.length ? io.input.dependencies.map((dependency) => `<p><b>${escapeHtml(dependency.nodeId)}</b> · ${escapeHtml(dependency.status)}</p>${renderArtifactPreview(dependency.artifact)}`).join('') : '<p class="muted">Root input from this Run.</p>'}</section>
+        <section><h4>Output</h4><p><b>${escapeHtml(io.output.status)}</b>${io.output.reason ? ` · ${escapeHtml(io.output.reason)}` : ''}</p>${renderArtifactPreview(io.output.artifact)}</section>
+        <section><h4>Evidence</h4>${renderArtifactPreview(io.evidence)}</section>
+        <section><h4>Timeline</h4><div class="timeline">${io.timeline.map((event) => `<p><time>${escapeHtml(event.at)}</time><strong>${escapeHtml(event.type)}</strong></p>`).join('') || '<p class="muted">No node events yet.</p>'}</div></section>
+      </div>`;
+    panel.querySelectorAll('[data-artifact-download]').forEach((button) => {
       button.onclick = async () => {
         try {
-          const artifactResult = await api(`/api/runs/${encodeURIComponent(runId)}/artifacts?path=${encodeURIComponent(button.dataset.artifact)}`);
-          const output = byId('artifact-content');
-          output.hidden = false;
-          output.textContent = artifactResult.artifact.content;
+          const result = await api(`/api/runs/${encodeURIComponent(runId)}/artifacts?path=${encodeURIComponent(button.dataset.artifactDownload)}`);
+          const blob = new Blob([result.artifact.content], { type: 'text/plain' });
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          link.download = button.dataset.artifactDownload.split('/').at(-1);
+          link.click();
+          URL.revokeObjectURL(link.href);
         } catch (error) {
           notify(error.message);
         }
       };
     });
   } catch (error) {
-    byId('run-detail').innerHTML = `<p class="validation-message">${escapeHtml(error.message)}</p>`;
+    panel.innerHTML = `<p class="validation-message">${escapeHtml(error.message)}</p>`;
+  }
+}
+
+function renderInteractions(result) {
+  const target = byId('interaction-list');
+  if (!target) return;
+  target.innerHTML = result.questions.length ? result.questions.map((question) => `
+    <article class="agent-question ${question.answer ? 'answered' : 'pending'}">
+      <small>Q${escapeHtml(question.number)} · ${escapeHtml(question.actor)}</small>
+      <p>${escapeHtml(question.message)}</p>
+      ${question.answer ? `<div class="agent-answer"><b>Answer</b><p>${escapeHtml(question.answer.message)}</p></div>` : `<form data-answer="${escapeHtml(question.questionId)}"><textarea maxlength="8000" required placeholder="Answer so the Agent can continue…"></textarea><button class="primary">Send answer</button></form>`}
+    </article>
+  `).join('') : '<p class="muted">No questions yet. The Agent can post Q1, Q2, Q3 from the Run-bound CLI.</p>';
+  target.querySelectorAll('[data-answer]').forEach((form) => {
+    form.onsubmit = async (event) => {
+      event.preventDefault();
+      try {
+        await api(`/api/runs/${encodeURIComponent(selectedCheckoutRun)}/questions/${encodeURIComponent(form.dataset.answer)}/answer`, {
+          method: 'POST',
+          body: JSON.stringify({ message: form.querySelector('textarea').value, actor: 'studio-user' })
+        });
+        await refreshCheckoutInteractions();
+      } catch (error) {
+        notify(error.message);
+      }
+    };
+  });
+}
+
+async function refreshCheckoutInteractions() {
+  if (!selectedCheckoutRun || !byId('interaction-list')) return;
+  try {
+    const result = await api(`/api/runs/${encodeURIComponent(selectedCheckoutRun)}/interactions`);
+    renderInteractions(result.interactions);
+  } catch {
+    // Corrupt or unavailable Run data is isolated and does not affect another Run.
+  }
+}
+
+async function copyAgentHandoff(runId = activeRunId) {
+  try {
+    if (!runId) await ensureStudioRun();
+    const result = await api(`/api/runs/${encodeURIComponent(runId || activeRunId)}/agent-handoff`);
+    await navigator.clipboard.writeText(result.handoff.prompt);
+    byId('goal-dialog').close();
+    notify('Run-bound prompt copied. Paste it into your AI coding Agent.');
+  } catch (error) {
+    byId('goal-validation').textContent = error.message;
   }
 }
 
@@ -1488,6 +1610,7 @@ async function refreshLive() {
     syncGoalFromLive();
     await hydrateGoalFromLive();
     renderLive();
+    await refreshCheckoutInteractions();
   } catch {
     // A transient refresh failure must not discard the draft.
   }
@@ -1700,6 +1823,7 @@ async function initialize() {
     byId('goal-dialog').showModal();
   };
   byId('save-goal').onclick = saveGoalFromForm;
+  byId('start-agent').onclick = () => copyAgentHandoff();
   byId('review-goal').onclick = reviewGoal;
   byId('confirm-freeze').onclick = freezeGoalFromForm;
   byId('unfreeze-goal').onclick = unfreezeGoalFromForm;
@@ -1707,6 +1831,9 @@ async function initialize() {
   byId('delete-selection').onclick = deleteSelectedNode;
   document.querySelectorAll('[data-close]').forEach((button) => {
     button.onclick = () => byId(button.dataset.close).close();
+  });
+  document.querySelectorAll('.dialog-maximize').forEach((button) => {
+    button.onclick = () => button.closest('dialog').classList.toggle('maximized');
   });
   byId('workflow-settings').onclick = () => {
     selectedId = null;

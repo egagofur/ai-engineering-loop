@@ -120,15 +120,15 @@
     <div id="message"></div>
   </main>
   <dialog id="confirm">
-    <h2>Save workflow?</h2>
+    <header><h2>Save workflow?</h2><button type="button" class="dialog-maximize" aria-label="Maximize dialog">□</button></header>
     <pre id="review-data"></pre>
     <p>Only validated workflows can be installed. Built-in workflows are saved as a fork.</p>
     <button id="cancel">Cancel</button>
     <button class="primary" id="install">Save</button>
   </dialog>
-  <dialog id="import-dialog" class="wide-dialog">
+  <dialog id="import-dialog" class="wide-dialog resizable-dialog">
     <form method="dialog">
-      <header><div><small>WORKFLOW JSON</small><h2>Import and preview</h2></div><button value="cancel" aria-label="Close">×</button></header>
+      <header><div><small>WORKFLOW JSON</small><h2>Import and preview</h2></div><div class="dialog-actions"><button type="button" class="dialog-maximize" aria-label="Maximize dialog">□</button><button value="cancel" aria-label="Close">×</button></div></header>
       <label for="import-file">Choose JSON file</label>
       <input id="import-file" type="file" accept="application/json,.json">
       <label for="import-source">Paste recipe JSON</label>
@@ -142,9 +142,9 @@
       </footer>
     </form>
   </dialog>
-  <dialog id="custom-dialog">
+  <dialog id="custom-dialog" class="resizable-dialog">
     <form id="custom-form">
-      <header><div><small>CUSTOM AGENT</small><h2>Create a waiting agent node</h2></div><button type="button" data-close="custom-dialog" aria-label="Close">×</button></header>
+      <header><div><small>CUSTOM AGENT</small><h2>Create a waiting agent node</h2></div><div class="dialog-actions"><button type="button" class="dialog-maximize" aria-label="Maximize dialog">□</button><button type="button" data-close="custom-dialog" aria-label="Close">×</button></div></header>
       <label for="custom-name">Display Name</label><input id="custom-name" maxlength="80" required placeholder="Release reviewer">
       <label for="custom-prompt">Basic prompt</label><textarea id="custom-prompt" maxlength="12000" required placeholder="Review the release evidence and report blockers."></textarea>
       <div class="field-grid"><label>Capabilities<input id="custom-capabilities" placeholder="repository-read, artifact-write"></label><label>MCP references<input id="custom-mcp" placeholder="github-read"></label></div>
@@ -155,24 +155,27 @@
       <footer><button type="button" data-close="custom-dialog">Cancel</button><button class="primary" type="submit">Create Custom Agent</button></footer>
     </form>
   </dialog>
-  <dialog id="goal-dialog" class="wide-dialog">
+  <dialog id="goal-dialog" class="wide-dialog resizable-dialog">
     <form id="goal-form">
-      <header><div><small>GOAL CONTRACT <span id="goal-version">V1</span></small><h2>Execution gate</h2></div><button type="button" data-close="goal-dialog" aria-label="Close">×</button></header>
+      <header><div><small>GOAL CONTRACT <span id="goal-version">V1</span></small><h2>Start a reliable run</h2></div><div class="dialog-actions"><button type="button" class="dialog-maximize" aria-label="Maximize dialog">□</button><button type="button" data-close="goal-dialog" aria-label="Close">×</button></div></header>
       <div id="goal-state" class="goal-state draft">Draft · editing allowed</div>
-      <div class="field-grid">
-        <label for="goal-task">Task<input id="goal-task" maxlength="2000" placeholder="Improve Workflow Studio canvas"></label>
-        <label for="goal-run-name">Run Display Name<input id="goal-run-name" maxlength="100" placeholder="Studio canvas upgrade"></label>
-      </div>
-      <label for="goal-text">Objective</label><textarea id="goal-text" maxlength="12000" placeholder="Describe the outcome this run must deliver."></textarea>
-      <label for="goal-criteria">Acceptance failure table</label>
-      <textarea id="goal-criteria" class="criteria-editor" placeholder="One row per line:&#10;Canvas supports edge deletion | DOM and graph tests | A sibling edge changes"></textarea>
-      <p class="hint">Each line uses: statement | evidence required | failure case. A happy path alone cannot be frozen.</p>
+      <label for="goal-task">What should the AI Agent deliver?</label><textarea id="goal-task" maxlength="2000" placeholder="Improve Workflow Studio canvas"></textarea>
+      <label for="goal-constraints">Anything it must keep or avoid? <span class="muted">(optional)</span></label><textarea id="goal-constraints" maxlength="8000" placeholder="Keep existing CLI behavior and do not change the page layout."></textarea>
+      <details class="advanced-goal">
+        <summary>Review the Agent's success plan</summary>
+        <label for="goal-run-name">Run Display Name</label><input id="goal-run-name" maxlength="100" placeholder="Automatically named from the task">
+        <label for="goal-text">Objective</label><textarea id="goal-text" maxlength="12000" placeholder="The Agent drafts this from your task."></textarea>
+        <label for="goal-criteria">Success checks and failure cases</label>
+        <textarea id="goal-criteria" class="criteria-editor" placeholder="One row per line: statement | evidence required | failure case"></textarea>
+        <p class="hint">The AI Agent drafts these checks. Review them before Freeze.</p>
+      </details>
       <div id="goal-validation" class="validation-message" aria-live="polite"></div>
       <section id="goal-review" class="goal-review" hidden></section>
       <div id="unfreeze-fields" hidden><label for="unfreeze-reason">Reason for unfreezing</label><textarea id="unfreeze-reason" maxlength="500"></textarea></div>
       <footer>
         <button type="button" id="save-goal">Save draft</button>
         <button type="button" id="unfreeze-goal" hidden>Unfreeze…</button>
+        <button type="button" id="start-agent" class="primary">Copy for AI Agent</button>
         <button type="button" id="review-goal">Review &amp; Freeze</button>
         <button type="button" id="confirm-freeze" class="primary" hidden>Confirm freeze</button>
       </footer>

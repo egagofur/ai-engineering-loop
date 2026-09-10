@@ -36,6 +36,22 @@ test('init writes glossary.md and adrs/README.md', () => {
   assert.match(fs.readFileSync(runtimeIgnore, 'utf8'), /^runs\/$/m);
 });
 
+test('first init privately ignores project context without overriding the user later', () => {
+  const dir = tmpRepo();
+  const projectIgnore = path.join(dir, '.gitignore');
+  fs.writeFileSync(projectIgnore, 'node_modules/\n');
+
+  execFileSync('node', [CLI, 'init'], { cwd: dir, encoding: 'utf8' });
+  assert.strictEqual(
+    fs.readFileSync(projectIgnore, 'utf8'),
+    'node_modules/\n.ai-engineering-loop/\n'
+  );
+
+  fs.writeFileSync(projectIgnore, 'node_modules/\n');
+  execFileSync('node', [CLI, 'init'], { cwd: dir, encoding: 'utf8' });
+  assert.strictEqual(fs.readFileSync(projectIgnore, 'utf8'), 'node_modules/\n');
+});
+
 test('repair fills missing glossary without overwriting a filled glossary or architecture', () => {
   const dir = tmpRepo();
   execFileSync('node', [CLI, 'init'], { cwd: dir, encoding: 'utf8' });
