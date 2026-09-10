@@ -65,6 +65,8 @@ Workflow Studio makes agent work feel like a product, not a terminal session.
 - Add the next step directly from any node
 - Rename nodes in place without breaking their identity
 - Select, move, duplicate, or delete groups of nodes
+- Turn selected steps into independent Loop Groups
+- Label repeat and continue paths in plain language
 - Import and export workflow JSON safely
 - Create your own prompt-powered Agent nodes
 
@@ -74,11 +76,33 @@ Write the task in plain language, add the outcomes that matter, and **Freeze** t
 
 ### Follow every Run
 
-Runs have human-friendly names instead of cryptic hashes. Search previous work, inspect decisions, view evidence, and see exactly where a workflow stopped.
+Runs have human-friendly names instead of cryptic hashes. Search previous work, open any Run as a read-only workflow, and see exactly where it stopped.
+
+Select a node to inspect its real **Input**, **Output**, **Evidence**, and timeline. The canvas shows the actual status of every step, so completed work, failures, approvals, and waiting nodes are easy to understand.
+
+### Continue with your AI agent
+
+Use **Copy for AI Agent** to create a ready-to-use handoff for the selected Run. The agent continues with the same Goal, workflow, and evidence instead of starting from scratch.
+
+If the agent needs clarification, its questions can appear inside Workflow Studio. You answer them there, and the answer stays attached to the Run.
+
+### Repeat only the steps that need another pass
+
+Create multiple independent Loop Groups in one workflow:
+
+- Select the steps that belong together
+- Choose where the loop starts and where the decision happens
+- Give repeat and continue paths clear labels such as `NO · RETRY` and `YES · CONTINUE`
+- Set a maximum number of passes
+- Follow a separate `Iteration 2 / 3` counter for each group
+
+When a loop reaches its limit, Workflow Studio pauses for approval. You can allow one focused extra pass, continue with the current evidence, or stop the Run safely. Nested and overlapping loops stay disabled so the workflow remains easy to read.
 
 ### Execute with confidence
 
 The Execute button lives beside the workflow trigger. A Run starts only when the Goal, workflow, mode, and safety checks are ready.
+
+> **New in v1.9.0:** Run Checkout, AI Agent handoff, live Run questions, and Multiple Loop Groups. [See the release](https://github.com/egagofur/ai-engineering-loop/releases/tag/v1.9.0).
 
 ## One workspace from idea to delivery
 
