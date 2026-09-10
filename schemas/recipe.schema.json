@@ -20,6 +20,11 @@
       "minItems": 1,
       "maxItems": 64,
       "items": { "$ref": "node-definition.schema.json" }
+    },
+    "edges": {
+      "type": "array",
+      "maxItems": 256,
+      "items": { "$ref": "edge-definition.schema.json" }
     }
   },
   "additionalProperties": false
