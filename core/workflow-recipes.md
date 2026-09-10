@@ -120,6 +120,17 @@ Until a visual editor exists, an AI agent can safely act as the recipe builder:
 
 Machine consumers should use `--json`. The compiled plan includes a canonical source hash and graph hash so execution and audit logs bind to the exact graph reviewed by the user. Runtime behavior is specified in `core/controlled-workflow-runtime.md`.
 
+The CLI supports safe scaffolding and installation:
+
+```bash
+ai-engineering-loop recipe create api-bugfix --from bugfix
+ai-engineering-loop recipe inspect api-bugfix --json
+ai-engineering-loop recipe diff bugfix api-bugfix
+ai-engineering-loop recipe install candidate-v2.json --replace
+```
+
+Creation never overwrites an existing recipe. Installation validates before writing, reserves built-in IDs, requires `--replace` plus a strictly higher version, and stores the previous document under `.ai-engineering-loop/recipes/.history/<id>/`. Candidate paths and recipe stores reject filesystem escape and symlink traversal.
+
 ## Schemas
 
 - `schemas/recipe.schema.json`: top-level authoring document
