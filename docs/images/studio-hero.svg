@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">AI Engineering Loop Workflow Studio</title>
+  <desc id="desc">A polished dark workflow canvas showing a task moving through goal, maker, review, and delivery nodes.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#111512"/>
+      <stop offset="1" stop-color="#080a09"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#28ad00" stop-opacity=".28"/>
+      <stop offset="1" stop-color="#28ad00" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#000" flood-opacity=".45"/>
+    </filter>
+    <filter id="soft">
+      <feGaussianBlur stdDeviation="55"/>
+    </filter>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#fff" stroke-opacity=".035"/>
+    </pattern>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0 0L10 5L0 10Z" fill="#5b625d"/>
+    </marker>
+    <style>
+      .ui{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+      .mono{font-family:"SFMono-Regular",Consolas,monospace}
+      .eyebrow{font-size:14px;font-weight:700;letter-spacing:2.4px;fill:#7f8881}
+      .node-title{font-size:22px;font-weight:700;fill:#f4f6f4}
+      .node-copy{font-size:14px;fill:#888f8a}
+      .tiny{font-size:12px;fill:#707873}
+      .flow{fill:none;stroke:#5b625d;stroke-width:3;marker-end:url(#arrow)}
+    </style>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <circle cx="1240" cy="70" r="330" fill="#28ad00" opacity=".12" filter="url(#soft)"/>
+  <circle cx="280" cy="880" r="260" fill="#28ad00" opacity=".08" filter="url(#soft)"/>
+
+  <g class="ui">
+    <text x="110" y="112" font-size="16" font-weight="800" letter-spacing="2" fill="#83db69">AI ENGINEERING LOOP</text>
+    <text x="110" y="188" font-size="64" font-weight="750" letter-spacing="-2.8" fill="#f7f9f7">From idea to trusted code.</text>
+    <text x="112" y="232" font-size="21" fill="#9da49f">Your AI handles the workflow. You keep the clarity and control.</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="105" y="290" width="1390" height="510" rx="24" fill="#151816" stroke="#303632"/>
+    <rect x="105" y="290" width="1390" height="64" rx="24" fill="#1b1f1c"/>
+    <path d="M105 330V354H1495V330" fill="#1b1f1c"/>
+    <circle cx="140" cy="322" r="6" fill="#4d544f"/>
+    <circle cx="160" cy="322" r="6" fill="#4d544f"/>
+    <circle cx="180" cy="322" r="6" fill="#28ad00"/>
+    <rect x="680" y="307" width="240" height="30" rx="15" fill="#111411"/>
+    <circle cx="704" cy="322" r="6" fill="#28ad00"/>
+    <text class="ui tiny" x="720" y="326">Workflow Studio</text>
+
+    <rect x="105" y="354" width="72" height="446" fill="#101311"/>
+    <rect x="123" y="381" width="36" height="36" rx="10" fill="#28ad00"/>
+    <path d="M135 393h12v12h-12zM139 389v20M131 399h20" fill="none" stroke="#fff" stroke-width="2"/>
+    <circle cx="141" cy="449" r="15" fill="#252a26"/>
+    <path d="M134 449h14M141 442v14" stroke="#818982" stroke-width="2"/>
+    <circle cx="141" cy="500" r="15" fill="#252a26"/>
+    <path d="M134 497h14M134 503h10" stroke="#818982" stroke-width="2"/>
+
+    <rect x="177" y="354" width="1318" height="446" fill="#111411"/>
+    <rect x="177" y="354" width="1318" height="446" fill="url(#grid)"/>
+    <ellipse cx="1220" cy="410" rx="300" ry="210" fill="url(#glow)"/>
+
+    <text class="ui eyebrow" x="222" y="397">WORKFLOW / PRODUCT LAUNCH</text>
+    <rect x="1180" y="375" width="262" height="42" rx="9" fill="#1d221e" stroke="#343a35"/>
+    <circle cx="1206" cy="396" r="6" fill="#28ad00"/>
+    <text class="ui tiny" x="1221" y="400">Goal frozen · ready to run</text>
+
+    <path class="flow" d="M468 555C515 555 510 486 565 486H596"/>
+    <path class="flow" d="M858 486C906 486 900 585 956 585H990"/>
+    <path class="flow" d="M1252 585C1304 585 1295 492 1343 492"/>
+
+    <g>
+      <rect x="238" y="470" width="230" height="170" rx="16" fill="#1c211d" stroke="#3b433d"/>
+      <rect x="238" y="470" width="6" height="170" rx="3" fill="#28ad00"/>
+      <text class="ui eyebrow" x="268" y="503">01 · GOAL</text>
+      <text class="ui node-title" x="268" y="543">Define success</text>
+      <text class="ui node-copy" x="268" y="572">Clear outcomes, edge cases,</text>
+      <text class="ui node-copy" x="268" y="594">and proof before coding.</text>
+      <rect x="268" y="612" width="92" height="8" rx="4" fill="#28ad00" opacity=".65"/>
+    </g>
+
+    <g>
+      <rect x="596" y="401" width="262" height="170" rx="16" fill="#1c211d" stroke="#3b433d"/>
+      <text class="ui eyebrow" x="626" y="434">02 · MAKE</text>
+      <text class="ui node-title" x="626" y="474">Build the right thing</text>
+      <text class="ui node-copy" x="626" y="503">Your agent plans, implements,</text>
+      <text class="ui node-copy" x="626" y="525">and verifies the result.</text>
+      <circle cx="816" cy="433" r="8" fill="#28ad00"/>
+    </g>
+
+    <g>
+      <rect x="990" y="500" width="262" height="170" rx="16" fill="#1c211d" stroke="#3b433d"/>
+      <text class="ui eyebrow" x="1020" y="533">03 · REVIEW</text>
+      <text class="ui node-title" x="1020" y="573">Challenge every claim</text>
+      <text class="ui node-copy" x="1020" y="602">Independent checks compare</text>
+      <text class="ui node-copy" x="1020" y="624">promises with real evidence.</text>
+      <rect x="1020" y="642" width="72" height="8" rx="4" fill="#28ad00" opacity=".65"/>
+    </g>
+
+    <g>
+      <rect x="1343" y="422" width="112" height="140" rx="16" fill="#28ad00"/>
+      <text class="ui" x="1399" y="461" text-anchor="middle" font-size="12" font-weight="800" letter-spacing="1.5" fill="#dff8d7">04</text>
+      <path d="M1378 491l14 14 30-34" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+      <text class="ui" x="1399" y="535" text-anchor="middle" font-size="14" font-weight="750" fill="#fff">DELIVER</text>
+    </g>
+
+    <rect x="224" y="730" width="1218" height="44" rx="12" fill="#191d1a" stroke="#2b312c"/>
+    <text class="mono tiny" x="248" y="757">Task</text>
+    <text class="ui" x="300" y="757" font-size="14" fill="#c7ccc8">Ship a reliable feature without babysitting every command</text>
+    <rect x="1306" y="739" width="118" height="26" rx="7" fill="#28ad00"/>
+    <text class="ui" x="1365" y="757" text-anchor="middle" font-size="12" font-weight="750" fill="#fff">EXECUTE</text>
+  </g>
+
+  <g class="ui">
+    <text x="112" y="852" font-size="15" fill="#6f7771">Visual workflows · human-friendly runs · evidence you can trust</text>
+    <text x="1488" y="852" text-anchor="end" font-size="15" font-weight="700" fill="#28ad00">OPEN SOURCE</text>
+  </g>
+</svg>
