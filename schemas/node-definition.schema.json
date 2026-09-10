@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/egagofur/ai-engineering-loop/schemas/node-definition.schema.json",
+  "title": "AI Engineering Loop Node Definition",
+  "type": "object",
+  "required": ["id", "type"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+    "type": {
+      "enum": [
+        "goal-contract",
+        "agent",
+        "command",
+        "condition",
+        "approval",
+        "artifact-check",
+        "maker",
+        "verification",
+        "devil-advocate",
+        "judge",
+        "report",
+        "delivery"
+      ]
+    },
+    "dependsOn": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" }
+    },
+    "when": { "type": "object" }
+  },
+  "additionalProperties": true
+}

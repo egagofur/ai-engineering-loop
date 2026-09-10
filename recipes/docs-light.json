@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "id": "docs-light",
+  "version": 1,
+  "description": "Documentation-focused workflow with bounded context and the standard quality gates.",
+  "compatibleModes": ["ASSISTED", "UNATTENDED"],
+  "nodes": [
+    {
+      "id": "goal",
+      "type": "goal-contract"
+    },
+    {
+      "id": "documentation-context",
+      "type": "agent",
+      "dependsOn": ["goal"],
+      "role": "documentation-planner",
+      "context": {
+        "maxFiles": 20,
+        "maxTokens": 6000
+      },
+      "output": {
+        "artifact": "documentation-plan",
+        "schema": "schemas/report.schema.json"
+      }
+    },
+    {
+      "id": "maker",
+      "type": "maker",
+      "dependsOn": ["documentation-context"]
+    },
+    {
+      "id": "verification",
+      "type": "verification",
+      "dependsOn": ["maker"]
+    },
+    {
+      "id": "review",
+      "type": "devil-advocate",
+      "dependsOn": ["verification"]
+    },
+    {
+      "id": "judge",
+      "type": "judge",
+      "dependsOn": ["review"]
+    },
+    {
+      "id": "delivery-approval",
+      "type": "approval",
+      "dependsOn": ["judge"],
+      "when": {
+        "field": "run.mode",
+        "operator": "equals",
+        "value": "ASSISTED"
+      },
+      "message": "Approve the verified documentation change for delivery."
+    },
+    {
+      "id": "delivery",
+      "type": "delivery",
+      "dependsOn": ["judge", "delivery-approval"]
+    }
+  ]
+}

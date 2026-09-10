@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "id": "bugfix",
+  "version": 1,
+  "description": "Root-cause-first repair workflow with the complete production safety backbone.",
+  "compatibleModes": ["ASSISTED", "UNATTENDED"],
+  "nodes": [
+    {
+      "id": "goal",
+      "type": "goal-contract"
+    },
+    {
+      "id": "root-cause",
+      "type": "agent",
+      "dependsOn": ["goal"],
+      "role": "root-cause-analyst",
+      "context": {
+        "maxFiles": 30,
+        "maxTokens": 10000
+      },
+      "output": {
+        "artifact": "root-cause-analysis",
+        "schema": "schemas/report.schema.json"
+      }
+    },
+    {
+      "id": "maker",
+      "type": "maker",
+      "dependsOn": ["root-cause"]
+    },
+    {
+      "id": "verification",
+      "type": "verification",
+      "dependsOn": ["maker"]
+    },
+    {
+      "id": "review",
+      "type": "devil-advocate",
+      "dependsOn": ["verification"]
+    },
+    {
+      "id": "judge",
+      "type": "judge",
+      "dependsOn": ["review"]
+    },
+    {
+      "id": "delivery-approval",
+      "type": "approval",
+      "dependsOn": ["judge"],
+      "when": {
+        "field": "run.mode",
+        "operator": "equals",
+        "value": "ASSISTED"
+      },
+      "message": "Approve the verified bug fix for delivery."
+    },
+    {
+      "id": "delivery",
+      "type": "delivery",
+      "dependsOn": ["judge", "delivery-approval"]
+    }
+  ]
+}

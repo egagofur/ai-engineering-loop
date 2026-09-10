@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/egagofur/ai-engineering-loop/pulls)
 [![AI Engineering](https://img.shields.io/badge/AI-Engineering%20Loop-orange.svg)](https://github.com/egagofur/ai-engineering-loop)
-[![Release](https://img.shields.io/badge/release-v1.2.1-purple.svg)](https://github.com/egagofur/ai-engineering-loop/releases)
+[![Release](https://img.shields.io/badge/release-v1.3.0-purple.svg)](https://github.com/egagofur/ai-engineering-loop/releases)
 
 **A Reusable, Framework-Agnostic AI Engineering Operating System for Autonomous Coding Agents**
 
@@ -218,6 +218,13 @@ npx ai-engineering-loop context judge <files...>
 npx ai-engineering-loop doctor
 npx ai-engineering-loop eval
 
+# Inspect declarative workflow recipes without executing nodes
+npx ai-engineering-loop recipe list
+npx ai-engineering-loop recipe validate default --mode assisted
+npx ai-engineering-loop recipe explain default --mode assisted
+npx ai-engineering-loop recipe graph default --mode assisted
+npx ai-engineering-loop recipe simulate default --mode assisted
+
 # Copy package skills/agents/commands into ~/.claude ~/.grok ~/.gemini ~/.agents
 npx ai-engineering-loop sync-hosts
 
@@ -231,6 +238,8 @@ npx ai-engineering-loop generate-workflow --write
 ```
 
 Every full run stores private local artifacts under `.ai-engineering-loop/runs/<run-id>/`. Usage, worktrees, locks, context packs, and logs are Git-ignored. Markdown remains the human contract; JSON sidecars follow the shipped `schemas/` and make stage claims deterministic. `ASSISTED` is the default and requires explicit human delivery approval. `UNATTENDED` is disabled until a human enables it. See [`core/runtime-safety.md`](core/runtime-safety.md), [`core/artifact-gates.md`](core/artifact-gates.md), [`SECURITY.md`](SECURITY.md), and [`SUPPORT.md`](SUPPORT.md).
+
+Declarative recipes let an AI or future visual editor author a workflow graph without weakening the safety gates. Built-in presets and project recipes can be validated, explained, graphed, and simulated deterministically. Recipe commands in v1.3 are intentionally read-only and do not change `run` behavior. See [`core/workflow-recipes.md`](core/workflow-recipes.md).
 
 Shipped adapters (Stage 8 only, after Judge PASS): `standard`, `github`, `gitlab`, `dot`. Catalog: `adapters/README.md`. Each team generates its own; do not copy a neighbour's pipeline.
 
@@ -320,7 +329,12 @@ ai-engineering-loop/
 │   └── ai-engineering-loop.js          # npx executable CLI (init, status, refresh, run, sync-hosts)
 │
 ├── lib/                                # Core orchestration & decision engine
-│   └── orchestration.js                # 3-stage capability registry, barrier builder, Judge engine
+│   ├── orchestration.js                # 3-stage capability registry, barrier builder, Judge engine
+│   └── recipe.js                       # Declarative graph validator and deterministic compiler
+│
+├── recipes/                            # Built-in workflow presets; target repos may add their own
+│   ├── default.json                    # Current production loop represented as a graph
+│   └── audit.json                      # Read-only report workflow
 │
 ├── tests/                              # Deterministic test suites
 │   ├── capability-selection.test.js    # Unit tests for capability lifecycle & truthful selection
@@ -359,6 +373,7 @@ ai-engineering-loop/
 │   ├── escalation-policy.md            # Deterministic human escalation triggers
 │   ├── judge-policy.md                 # Evaluation rules, triage audit, & verdicts
 │   ├── configuration-precedence.md     # 5-layer precedence & conflict resolution
+│   ├── workflow-recipes.md             # Recipe safety backbone and AI authoring protocol
 │   └── repo-config-schema.md           # Schema for target repo .ai-engineering-loop/
 │
 ├── profiles/                           # Project archetype profiles
