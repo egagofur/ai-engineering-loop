@@ -33,6 +33,7 @@ let goal = { text: '', version: 1, frozen: false };
 let activeRunId;
 let pendingImport;
 let hydratedGoalKey;
+let selectedCheckoutRun;
 
 const DISPLAY_NAME_MAX = 80;
 const ROOT_TYPES = new Set(['goal-contract', 'trigger']);
@@ -75,6 +76,7 @@ function normalizeDraftGraph(recipe) {
     used.add(id);
     return { ...edge, id };
   });
+  recipe.loopGroups = Array.isArray(recipe.loopGroups) ? recipe.loopGroups : [];
   syncDependencies(recipe);
   return recipe;
 }
@@ -200,6 +202,72 @@ function edgePath(from, to) {
   return `M${startX} ${startY} C${startX + bend} ${startY},${endX - bend} ${endY},${endX} ${endY}`;
 }
 
+function loopBounds(loopGroup) {
+  const points = loopGroup.nodeIds.map((nodeId) => positions.get(nodeId)).filter(Boolean);
+  if (!points.length) return null;
+  const padding = 44;
+  const left = Math.min(...points.map((point) => point.x)) - padding;
+  const top = Math.min(...points.map((point) => point.y)) - padding;
+  const right = Math.max(...points.map((point) => point.x + NODE_WIDTH)) + padding;
+  const bottom = Math.max(...points.map((point) => point.y + 108)) + padding;
+  return { left, top, right, bottom, width: right - left, height: bottom - top };
+}
+
+function renderLoopGroups() {
+  const container = byId('loop-groups');
+  container.innerHTML = '';
+  for (const loopGroup of draft?.loopGroups || []) {
+    const bounds = loopBounds(loopGroup);
+    if (!bounds) continue;
+    const runtime = catalog.live?.loopGroups?.[loopGroup.id];
+    const element = document.createElement('section');
+    element.className = `loop-group ${runtime?.status?.toLowerCase() || 'draft'}`;
+    element.style.left = `${bounds.left}px`;
+    element.style.top = `${bounds.top}px`;
+    element.style.width = `${bounds.width}px`;
+    element.style.height = `${bounds.height}px`;
+    element.innerHTML = `
+      <header>
+        <span><b>${escapeHtml(loopGroup.displayName)}</b><small>ITERATION ${escapeHtml(runtime?.iteration || 1)} / ${escapeHtml(loopGroup.maxIterations)}</small></span>
+        <button type="button" aria-label="Remove ${escapeHtml(loopGroup.displayName)} group">Ungroup</button>
+      </header>
+    `;
+    element.querySelector('button').onclick = (event) => {
+      event.stopPropagation();
+      draft.loopGroups = draft.loopGroups.filter((candidate) => candidate.id !== loopGroup.id);
+      captureHistory();
+      renderGraph();
+      validateDraft();
+    };
+    element.querySelector('header').onpointerdown = (event) => {
+      if (event.button !== 0 || event.target.closest('button')) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const world = screenToWorld(event.clientX, event.clientY);
+      interaction = {
+        type: 'group',
+        pointerId: event.pointerId,
+        groupId: loopGroup.id,
+        start: world,
+        element: byId('canvas'),
+        origins: new Map(loopGroup.nodeIds.map((nodeId) => [nodeId, { ...positions.get(nodeId) }]))
+      };
+      selectedIds = new Set(loopGroup.nodeIds);
+      selectedId = loopGroup.decisionNodeId;
+      updateSelection();
+      byId('canvas').setPointerCapture(event.pointerId);
+    };
+    container.append(element);
+  }
+}
+
+function edgeLoopLabel(edge) {
+  const loopGroup = (draft.loopGroups || []).find((candidate) =>
+    candidate.decisionNodeId === edge.from && candidate.exitTargetId === edge.to
+  );
+  return loopGroup ? loopGroup.exitLabel : '';
+}
+
 function stageLabel(node, index) {
   const stages = {
     'goal-contract': 'STAGE 01',
@@ -261,7 +329,36 @@ function renderEdges() {
     };
     control.onpointerleave = () => control.classList.remove('visible');
     controls.append(control);
+    const label = edgeLoopLabel(edge);
+    if (label) {
+      const badge = document.createElement('span');
+      badge.className = 'edge-label';
+      badge.style.left = `${midpoint.x}px`;
+      badge.style.top = `${midpoint.y - 22}px`;
+      badge.textContent = label;
+      controls.append(badge);
+    }
   });
+  for (const loopGroup of draft.loopGroups || []) {
+    const from = positions.get(loopGroup.decisionNodeId);
+    const to = positions.get(loopGroup.repeatTargetId);
+    const bounds = loopBounds(loopGroup);
+    if (!from || !to || !bounds) continue;
+    const returnPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    returnPath.setAttribute(
+      'd',
+      `M${from.x + NODE_WIDTH} ${from.y + NODE_PORT_Y} H${bounds.right + 28} V${bounds.top - 18} H${to.x - 28} V${to.y + NODE_PORT_Y} H${to.x}`
+    );
+    returnPath.setAttribute('class', 'edge loop-return');
+    returnPath.setAttribute('marker-end', 'url(#arrow)');
+    group.append(returnPath);
+    const label = document.createElement('span');
+    label.className = 'edge-label loop-label';
+    label.style.left = `${bounds.right + 28}px`;
+    label.style.top = `${bounds.top - 18}px`;
+    label.textContent = loopGroup.repeatLabel;
+    controls.append(label);
+  }
 }
 
 function nodeMarkup(node, index) {
@@ -283,6 +380,7 @@ function nodeMarkup(node, index) {
 
 function renderGraph() {
   ensurePositions();
+  renderLoopGroups();
   const container = byId('nodes');
   container.innerHTML = '';
   draft.nodes.forEach((node, index) => {
@@ -331,6 +429,11 @@ function updateSelection() {
   const actions = byId('selection-actions');
   actions.hidden = selectedIds.size < 2;
   byId('selection-count').textContent = `${selectedIds.size} nodes`;
+  const grouped = [...selectedIds].some((nodeId) =>
+    (draft?.loopGroups || []).some((group) => group.nodeIds.includes(nodeId))
+  );
+  byId('create-loop-group').disabled = grouped;
+  byId('create-loop-group').title = grouped ? 'Ungroup selected steps before creating another Loop Group' : '';
 }
 
 function renderRecipeDetails() {
@@ -650,6 +753,13 @@ function applyNodeDetails() {
 function deleteSelectedNode() {
   if (!selectedIds.size) return;
   const removed = new Set(selectedIds);
+  const containingGroup = (draft.loopGroups || []).find((group) =>
+    group.nodeIds.some((nodeId) => removed.has(nodeId))
+  );
+  if (containingGroup) {
+    notify(`Ungroup “${containingGroup.displayName}” before deleting its steps.`);
+    return;
+  }
   draft.nodes = draft.nodes.filter((node) => !removed.has(node.id));
   draft.edges = draft.edges.filter((edge) => !removed.has(edge.from) && !removed.has(edge.to));
   syncDependencies();
@@ -833,6 +943,13 @@ function handlePointerMove(event) {
       }
     });
     renderEdges();
+  } else if (interaction.type === 'group') {
+    const world = screenToWorld(event.clientX, event.clientY);
+    const delta = { x: world.x - interaction.start.x, y: world.y - interaction.start.y };
+    interaction.origins.forEach((start, id) => {
+      positions.set(id, { x: start.x + delta.x, y: start.y + delta.y });
+    });
+    renderGraph();
   } else if (interaction.type === 'lasso') {
     updateLasso(event);
   } else {
@@ -845,7 +962,7 @@ function handlePointerMove(event) {
 function finishPointer(event) {
   if (connection && connection.pointerId === event.pointerId) return finishConnection(event);
   if (!interaction || interaction.pointerId !== event.pointerId) return;
-  if (interaction.type === 'node') {
+  if (interaction.type === 'node' || interaction.type === 'group') {
     interaction.element.classList.remove('dragging');
     captureHistory();
   } else if (interaction.type === 'lasso') finishLasso();
@@ -997,6 +1114,7 @@ async function ensureStudioRun() {
     method: 'POST',
     body: JSON.stringify({
       task,
+      constraints: byId('goal-constraints').value.trim(),
       displayName: byId('goal-run-name').value.trim(),
       recipeId: loadedRecipeId,
       mode: draft.compatibleModes.includes('ASSISTED') ? 'ASSISTED' : draft.compatibleModes[0]
@@ -1009,6 +1127,14 @@ async function ensureStudioRun() {
 
 async function saveGoalFromForm() {
   try {
+    const task = byId('goal-task').value.trim();
+    if (!byId('goal-text').value.trim()) byId('goal-text').value = task;
+    if (!byId('goal-criteria').value.trim()) {
+      byId('goal-criteria').value = [
+        'Requested outcome works in its real workflow | Tests and Run-bound evidence demonstrate the result | The requested outcome is unavailable or misleading',
+        'Existing behavior remains reliable | Compatibility checks pass | A supported existing workflow regresses'
+      ].join('\n');
+    }
     const provisional = goalContractFromForm(activeRunId || 'pending');
     const error = validateGoalForm(provisional);
     if (error) {
@@ -1024,6 +1150,7 @@ async function saveGoalFromForm() {
     goal = { text: contract.objective, criteria: contract.acceptanceCriteria, version: goal.version, frozen: false };
     byId('goal-validation').textContent = '';
     notify('Goal draft saved. It is not frozen yet.');
+    byId('goal-dialog').close();
     return contract;
   } catch (error) {
     byId('goal-validation').textContent = error.message;
@@ -1041,6 +1168,7 @@ function renderGoalState() {
   byId('goal-text').disabled = goal.frozen;
   byId('goal-criteria').disabled = goal.frozen;
   byId('goal-task').disabled = goal.frozen;
+  byId('goal-constraints').disabled = goal.frozen;
   byId('goal-run-name').disabled = goal.frozen;
   byId('save-goal').hidden = goal.frozen;
   byId('review-goal').hidden = goal.frozen;
@@ -1051,6 +1179,8 @@ function renderGoalState() {
 async function reviewGoal() {
   const contract = await saveGoalFromForm();
   if (!contract) return;
+  byId('goal-dialog').showModal();
+  byId('goal-dialog').querySelector('.advanced-goal').open = true;
   byId('goal-review').hidden = false;
   byId('goal-review').innerHTML = `
     <strong>${escapeHtml(contract.objective)}</strong>
@@ -1076,6 +1206,7 @@ async function freezeGoalFromForm() {
     renderGoalState();
     renderGraph();
     notify('Goal frozen with an integrity-bound version.');
+    byId('goal-dialog').close();
   } catch (error) {
     byId('goal-validation').textContent = error.message;
   }
@@ -1099,6 +1230,7 @@ async function unfreezeGoalFromForm() {
     renderGoalState();
     renderGraph();
     notify('Goal unfrozen. Previous evidence remains bound to its prior version.');
+    byId('goal-dialog').close();
   } catch (error) {
     byId('goal-validation').textContent = error.message;
   }
@@ -1111,6 +1243,7 @@ function syncGoalFromLive() {
   goal.version = liveGoal.version || 1;
   goal.frozen = liveGoal.frozen === true;
   if (catalog.live.run.task) byId('goal-task').value = catalog.live.run.task;
+  if (catalog.live.run.constraints) byId('goal-constraints').value = catalog.live.run.constraints;
   if (catalog.live.run.displayName) byId('goal-run-name').value = catalog.live.run.displayName;
   renderGoalState();
 }
@@ -1171,52 +1304,167 @@ async function loadRuns() {
 
 async function loadRunDetail(runId) {
   try {
-    const result = await api(`/api/runs/${encodeURIComponent(runId)}`);
+    selectedCheckoutRun = runId;
+    const [result, checkoutResult, interactionResult] = await Promise.all([
+      api(`/api/runs/${encodeURIComponent(runId)}`),
+      api(`/api/runs/${encodeURIComponent(runId)}/checkout`),
+      api(`/api/runs/${encodeURIComponent(runId)}/interactions`)
+    ]);
     const run = result.run;
-    const artifacts = Object.values(run.artifacts || {});
+    const checkout = checkoutResult.checkout;
+    const maxX = Math.max(...checkout.nodes.map((node) => node.position.x), 0) + NODE_WIDTH + 80;
+    const maxY = Math.max(...checkout.nodes.map((node) => node.position.y), 0) + 180;
+    const paths = checkout.edges.map((edge) => {
+      const from = checkout.nodes.find((node) => node.id === edge.from);
+      const to = checkout.nodes.find((node) => node.id === edge.to);
+      if (!from || !to) return '';
+      const x1 = from.position.x + NODE_WIDTH;
+      const y1 = from.position.y + NODE_PORT_Y;
+      const x2 = to.position.x;
+      const y2 = to.position.y + NODE_PORT_Y;
+      return `<path d="M ${x1} ${y1} C ${x1 + 70} ${y1}, ${x2 - 70} ${y2}, ${x2} ${y2}"></path>`;
+    }).join('');
+    const checkoutGroups = (checkout.loopGroups || []).map((group) => {
+      const members = checkout.nodes.filter((node) => group.nodeIds.includes(node.id));
+      if (!members.length) return '';
+      const left = Math.min(...members.map((node) => node.position.x)) - 28;
+      const top = Math.min(...members.map((node) => node.position.y)) - 36;
+      const right = Math.max(...members.map((node) => node.position.x + NODE_WIDTH)) + 28;
+      const bottom = Math.max(...members.map((node) => node.position.y + 108)) + 28;
+      return `<div class="checkout-loop status-${escapeHtml((group.runtime?.status || 'pending').toLowerCase())}" style="left:${left}px;top:${top}px;width:${right - left}px;height:${bottom - top}px"><b>${escapeHtml(group.displayName)}</b><span>Iteration ${escapeHtml(group.runtime?.iteration || 1)} / ${escapeHtml(group.maxIterations)}</span></div>`;
+    }).join('');
     byId('run-detail').innerHTML = `
-      <header><small>${escapeHtml(run.status)} · ${escapeHtml(run.mode)}</small><h2>${escapeHtml(run.displayName)}</h2><p>${escapeHtml(run.task)}</p></header>
-      <div class="run-name-editor"><label for="run-name-edit">Display Name</label><input id="run-name-edit" maxlength="100" value="${escapeHtml(run.displayName)}"><button id="save-run-name">Rename</button></div>
-      <dl><dt>Technical ID</dt><dd>${escapeHtml(run.runId)}</dd><dt>Goal</dt><dd>${run.goalFrozen ? `Frozen V${escapeHtml(run.goalVersion)}` : 'Not frozen'}</dd><dt>Evidence</dt><dd>${run.evidence.present ? 'Present' : 'Absent'}</dd></dl>
-      <h3>Artifacts</h3>
-      <div class="artifact-list">${artifacts.length ? artifacts.map((artifact) => (
-        artifact?.path ? `<button data-artifact="${escapeHtml(artifact.path)}">${escapeHtml(artifact.path)}</button>` : ''
-      )).join('') : '<p class="muted">No artifacts recorded.</p>'}</div>
-      <h3>Decisions</h3>
-      <div class="decision-list">${run.decisions?.length ? run.decisions.map((decision) => `<p><strong>${escapeHtml(decision.summary)}</strong><br><span class="muted">${escapeHtml(decision.rationale)}</span></p>`).join('') : '<p class="muted">No decisions recorded.</p>'}</div>
-      <h3>Timeline</h3>
-      <div class="timeline">${[...(run.history || []), ...(run.events || [])].sort((left, right) => String(right.at).localeCompare(String(left.at))).map((event) => `<p><time>${escapeHtml(event.at || '')}</time><strong>${escapeHtml(event.type || event.gate || event.to || 'event')}</strong>${escapeHtml(event.reason || event.changedNodes?.join(', ') || '')}</p>`).join('')}</div>
-      <pre id="artifact-content" hidden></pre>
+      <header class="checkout-header">
+        <div><button id="checkout-back" class="quiet">← Run History</button><small>READ-ONLY CHECKOUT · ${escapeHtml(run.status)}</small><h2>${escapeHtml(run.displayName)}</h2><p>${escapeHtml(run.task)}</p></div>
+        <div class="checkout-actions"><button id="copy-agent-handoff">Copy for AI Agent</button><button id="duplicate-run-workflow" class="primary">Duplicate as Workflow</button></div>
+      </header>
+      <div class="checkout-meta"><span>${escapeHtml(run.runId)}</span><span>${run.goalFrozen ? `Goal frozen V${escapeHtml(run.goalVersion)}` : 'Goal draft'}</span><span>Actual node states</span></div>
+      <section class="checkout-canvas" style="--checkout-width:${maxX}px;--checkout-height:${maxY}px">
+        <svg viewBox="0 0 ${maxX} ${maxY}" aria-hidden="true">${paths}</svg>
+        ${checkoutGroups}
+        ${checkout.nodes.map((node) => `<button class="checkout-node status-${escapeHtml(node.status.toLowerCase())}" data-checkout-node="${escapeHtml(node.id)}" style="left:${node.position.x}px;top:${node.position.y}px">
+          <small>${escapeHtml(node.type)}${node.loopIteration ? ` · LOOP ${escapeHtml(node.loopIteration)}` : ''}</small><strong>${escapeHtml(node.displayName)}</strong><span>${escapeHtml(node.status)}</span>
+        </button>`).join('')}
+      </section>
+      <section id="node-io-panel" class="node-io-panel"><div class="empty-state"><h3>Select a node</h3><p>Inspect its real Input, Output, Evidence, and Timeline.</p></div></section>
+      <section class="agent-interactions"><header><div><small>LIVE AGENT INTERACTIONS</small><h3>Questions from the Agent</h3></div><span>Updates automatically</span></header><div id="interaction-list"></div></section>
     `;
-    byId('save-run-name').onclick = async () => {
+    renderInteractions(interactionResult.interactions);
+    byId('checkout-back').onclick = () => {
+      selectedCheckoutRun = null;
+      byId('run-detail').innerHTML = '<div class="empty-state"><h2>Select a run</h2><p>Open a read-only checkout to inspect actual node evidence.</p></div>';
+    };
+    byId('copy-agent-handoff').onclick = () => copyAgentHandoff(runId);
+    byId('duplicate-run-workflow').onclick = async () => {
       try {
-        await api('/api/run/name', {
-          method: 'PATCH',
-          body: JSON.stringify({
-            runId,
-            displayName: byId('run-name-edit').value,
-            actor: 'studio-user'
-          })
+        const duplicate = await api(`/api/runs/${encodeURIComponent(runId)}/duplicate`, {
+          method: 'POST',
+          body: JSON.stringify({ recipeId: `${slug(run.displayName)}-copy` })
         });
-        await Promise.all([loadRuns(), loadRunDetail(runId)]);
+        draft = normalizeDraftGraph(structuredClone(duplicate.preview.recipe));
+        positions = new Map(checkout.nodes.map((node) => [node.id, node.position]));
+        loadedRecipeId = null;
+        captureHistory({ reset: true });
+        renderGraph();
+        renderRecipeDetails();
+        validateDraft();
+        showWorkspace('workflows');
+        notify('Run duplicated into a new editable workflow. History was not changed.');
       } catch (error) {
         notify(error.message);
       }
     };
-    byId('run-detail').querySelectorAll('[data-artifact]').forEach((button) => {
+    byId('run-detail').querySelectorAll('[data-checkout-node]').forEach((button) => {
+      button.onclick = () => loadNodeIo(runId, button.dataset.checkoutNode);
+    });
+  } catch (error) {
+    byId('run-detail').innerHTML = `<p class="validation-message">${escapeHtml(error.message)}</p>`;
+  }
+}
+
+function renderArtifactPreview(artifact) {
+  if (!artifact) return '<p class="muted">No artifact was recorded for this node.</p>';
+  if (artifact.unavailable) return `<p class="validation-message">Artifact unavailable: ${escapeHtml(artifact.code)}</p>`;
+  return `<p class="artifact-path">${escapeHtml(artifact.descriptor.path)}</p><button class="artifact-download" data-artifact-download="${escapeHtml(artifact.descriptor.path)}">Download copy</button><pre>${escapeHtml(artifact.preview.content)}</pre>`;
+}
+
+async function loadNodeIo(runId, nodeId) {
+  const panel = byId('node-io-panel');
+  try {
+    const { io } = await api(`/api/runs/${encodeURIComponent(runId)}/nodes/${encodeURIComponent(nodeId)}`);
+    panel.innerHTML = `
+      <header><small>NODE I/O · ${escapeHtml(io.node.status)}</small><h3>${escapeHtml(io.node.displayName)}</h3></header>
+      <div class="io-grid">
+        <section><h4>Input</h4>${io.input.task ? `<p><b>Task</b><br>${escapeHtml(io.input.task)}</p>` : ''}${io.input.constraints ? `<p><b>Constraints</b><br>${escapeHtml(io.input.constraints)}</p>` : ''}${io.input.dependencies.length ? io.input.dependencies.map((dependency) => `<p><b>${escapeHtml(dependency.nodeId)}</b> · ${escapeHtml(dependency.status)}</p>${renderArtifactPreview(dependency.artifact)}`).join('') : '<p class="muted">Root input from this Run.</p>'}</section>
+        <section><h4>Output</h4><p><b>${escapeHtml(io.output.status)}</b>${io.output.reason ? ` · ${escapeHtml(io.output.reason)}` : ''}</p>${renderArtifactPreview(io.output.artifact)}</section>
+        <section><h4>Evidence</h4>${renderArtifactPreview(io.evidence)}</section>
+        <section><h4>Timeline</h4><div class="timeline">${io.timeline.map((event) => `<p><time>${escapeHtml(event.at)}</time><strong>${escapeHtml(event.type)}</strong></p>`).join('') || '<p class="muted">No node events yet.</p>'}</div></section>
+      </div>`;
+    panel.querySelectorAll('[data-artifact-download]').forEach((button) => {
       button.onclick = async () => {
         try {
-          const artifactResult = await api(`/api/runs/${encodeURIComponent(runId)}/artifacts?path=${encodeURIComponent(button.dataset.artifact)}`);
-          const output = byId('artifact-content');
-          output.hidden = false;
-          output.textContent = artifactResult.artifact.content;
+          const result = await api(`/api/runs/${encodeURIComponent(runId)}/artifacts?path=${encodeURIComponent(button.dataset.artifactDownload)}`);
+          const blob = new Blob([result.artifact.content], { type: 'text/plain' });
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          link.download = button.dataset.artifactDownload.split('/').at(-1);
+          link.click();
+          URL.revokeObjectURL(link.href);
         } catch (error) {
           notify(error.message);
         }
       };
     });
   } catch (error) {
-    byId('run-detail').innerHTML = `<p class="validation-message">${escapeHtml(error.message)}</p>`;
+    panel.innerHTML = `<p class="validation-message">${escapeHtml(error.message)}</p>`;
+  }
+}
+
+function renderInteractions(result) {
+  const target = byId('interaction-list');
+  if (!target) return;
+  target.innerHTML = result.questions.length ? result.questions.map((question) => `
+    <article class="agent-question ${question.answer ? 'answered' : 'pending'}">
+      <small>Q${escapeHtml(question.number)} · ${escapeHtml(question.actor)}</small>
+      <p>${escapeHtml(question.message)}</p>
+      ${question.answer ? `<div class="agent-answer"><b>Answer</b><p>${escapeHtml(question.answer.message)}</p></div>` : `<form data-answer="${escapeHtml(question.questionId)}"><textarea maxlength="8000" required placeholder="Answer so the Agent can continue…"></textarea><button class="primary">Send answer</button></form>`}
+    </article>
+  `).join('') : '<p class="muted">No questions yet. The Agent can post Q1, Q2, Q3 from the Run-bound CLI.</p>';
+  target.querySelectorAll('[data-answer]').forEach((form) => {
+    form.onsubmit = async (event) => {
+      event.preventDefault();
+      try {
+        await api(`/api/runs/${encodeURIComponent(selectedCheckoutRun)}/questions/${encodeURIComponent(form.dataset.answer)}/answer`, {
+          method: 'POST',
+          body: JSON.stringify({ message: form.querySelector('textarea').value, actor: 'studio-user' })
+        });
+        await refreshCheckoutInteractions();
+      } catch (error) {
+        notify(error.message);
+      }
+    };
+  });
+}
+
+async function refreshCheckoutInteractions() {
+  if (!selectedCheckoutRun || !byId('interaction-list')) return;
+  try {
+    const result = await api(`/api/runs/${encodeURIComponent(selectedCheckoutRun)}/interactions`);
+    renderInteractions(result.interactions);
+  } catch {
+    // Corrupt or unavailable Run data is isolated and does not affect another Run.
+  }
+}
+
+async function copyAgentHandoff(runId = activeRunId) {
+  try {
+    if (!runId) await ensureStudioRun();
+    const result = await api(`/api/runs/${encodeURIComponent(runId || activeRunId)}/agent-handoff`);
+    await navigator.clipboard.writeText(result.handoff.prompt);
+    byId('goal-dialog').close();
+    notify('Run-bound prompt copied. Paste it into your AI coding Agent.');
+  } catch (error) {
+    byId('goal-validation').textContent = error.message;
   }
 }
 
@@ -1488,6 +1736,7 @@ async function refreshLive() {
     syncGoalFromLive();
     await hydrateGoalFromLive();
     renderLive();
+    await refreshCheckoutInteractions();
   } catch {
     // A transient refresh failure must not discard the draft.
   }
@@ -1674,6 +1923,72 @@ function notify(text) {
   setTimeout(() => { message.style.display = 'none'; }, 4000);
 }
 
+function openLoopDialog() {
+  const members = draft.nodes.filter((node) => selectedIds.has(node.id));
+  if (members.length < 2) return notify('Select at least two steps for a Loop Group.');
+  if ((draft.loopGroups || []).some((group) => group.nodeIds.some((id) => selectedIds.has(id)))) {
+    return notify('A step can only belong to one Loop Group.');
+  }
+  const options = members.map((node) =>
+    `<option value="${escapeHtml(node.id)}">${escapeHtml(displayName(node))}</option>`
+  ).join('');
+  for (const id of ['loop-entry', 'loop-decision', 'loop-repeat-target']) byId(id).innerHTML = options;
+  const incomingEntry = members.find((node) =>
+    draft.edges.some((edge) => edge.to === node.id && !selectedIds.has(edge.from))
+  ) || members[0];
+  const outgoing = draft.edges.find((edge) =>
+    selectedIds.has(edge.from) && !selectedIds.has(edge.to)
+  );
+  if (!outgoing) return notify('Connect the Loop decision step to its Continue step first.');
+  const decision = outgoing
+    ? members.find((node) => node.id === outgoing.from)
+    : members.find((node) => ['decision', 'judge', 'condition'].includes(node.type)) || members.at(-1);
+  const exitIds = new Set(draft.edges
+    .filter((edge) => selectedIds.has(edge.from) && !selectedIds.has(edge.to))
+    .map((edge) => edge.to));
+  const exitCandidates = draft.nodes.filter((node) => exitIds.has(node.id));
+  byId('loop-exit-target').innerHTML = exitCandidates.map((node) =>
+    `<option value="${escapeHtml(node.id)}">${escapeHtml(displayName(node))}</option>`
+  ).join('');
+  byId('loop-entry').value = incomingEntry.id;
+  byId('loop-repeat-target').value = incomingEntry.id;
+  byId('loop-decision').value = decision.id;
+  if (outgoing) byId('loop-exit-target').value = outgoing.to;
+  byId('loop-name').value = '';
+  byId('loop-dialog').showModal();
+}
+
+function createLoopGroupFromForm(event) {
+  event.preventDefault();
+  const display = byId('loop-name').value.trim();
+  const repeatOutcome = byId('loop-repeat-outcome').value.trim();
+  const exitOutcome = byId('loop-exit-outcome').value.trim();
+  if (repeatOutcome === exitOutcome) return notify('Repeat and Continue outcomes must be different.');
+  let id = slug(display || 'iteration-loop');
+  const occupied = new Set((draft.loopGroups || []).map((group) => group.id));
+  for (let suffix = 2; occupied.has(id); suffix += 1) id = `${slug(display || 'iteration-loop')}-${suffix}`;
+  const loopGroup = {
+    id,
+    displayName: display,
+    nodeIds: draft.nodes.filter((node) => selectedIds.has(node.id)).map((node) => node.id),
+    entryNodeId: byId('loop-entry').value,
+    decisionNodeId: byId('loop-decision').value,
+    repeatTargetId: byId('loop-repeat-target').value,
+    exitTargetId: byId('loop-exit-target').value,
+    maxIterations: Number(byId('loop-max').value),
+    repeatOutcome,
+    exitOutcome,
+    repeatLabel: byId('loop-repeat-label').value.trim(),
+    exitLabel: byId('loop-exit-label').value.trim()
+  };
+  draft.loopGroups.push(loopGroup);
+  captureHistory();
+  renderGraph();
+  validateDraft();
+  byId('loop-dialog').close();
+  notify(`Loop Group “${display}” created.`);
+}
+
 async function initialize() {
   await refreshCatalog('default');
   byId('recipe').onchange = loadRecipe;
@@ -1700,13 +2015,19 @@ async function initialize() {
     byId('goal-dialog').showModal();
   };
   byId('save-goal').onclick = saveGoalFromForm;
+  byId('start-agent').onclick = () => copyAgentHandoff();
   byId('review-goal').onclick = reviewGoal;
   byId('confirm-freeze').onclick = freezeGoalFromForm;
   byId('unfreeze-goal').onclick = unfreezeGoalFromForm;
   byId('duplicate-selection').onclick = duplicateSelectedNode;
   byId('delete-selection').onclick = deleteSelectedNode;
+  byId('create-loop-group').onclick = openLoopDialog;
+  byId('loop-form').onsubmit = createLoopGroupFromForm;
   document.querySelectorAll('[data-close]').forEach((button) => {
     button.onclick = () => byId(button.dataset.close).close();
+  });
+  document.querySelectorAll('.dialog-maximize').forEach((button) => {
+    button.onclick = () => button.closest('dialog').classList.toggle('maximized');
   });
   byId('workflow-settings').onclick = () => {
     selectedId = null;

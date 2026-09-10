@@ -13,6 +13,11 @@
     },
     "mode": { "enum": ["REPORT_ONLY", "ASSISTED", "UNATTENDED"] },
     "nodes": { "type": "array", "minItems": 1, "maxItems": 64 },
+    "loopGroups": {
+      "type": "array",
+      "maxItems": 16,
+      "items": { "$ref": "./loop-group.schema.json" }
+    },
     "graphHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
   },
   "additionalProperties": true

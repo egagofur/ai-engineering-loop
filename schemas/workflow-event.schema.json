@@ -18,7 +18,16 @@
         "NODE_FAILED",
         "NODE_RETRIED",
         "NODE_APPROVED",
-        "GATE_PASSED"
+        "GATE_PASSED",
+        "DECISION_RESOLVED",
+        "LOOP_REPEATED",
+        "LOOP_EXITED",
+        "LOOP_LIMIT_REACHED",
+        "LOOP_LIMIT_OVERRIDE",
+        "LOOP_LIMIT_EXITED",
+        "LOOP_RUN_STOPPED",
+        "GOAL_UNFROZEN",
+        "WORKFLOW_EXECUTION_STARTED"
       ]
     },
     "runId": { "type": "string", "minLength": 1 },

@@ -53,6 +53,8 @@ npx ai-engineering-loop studio
 
 Workflow Studio opens locally in your browser. Your project and run evidence stay on your machine.
 
+On first setup, `.ai-engineering-loop/` is added to your project’s `.gitignore` so plans and Run evidence stay private by default. Want to share that context with your team? Simply remove that line from `.gitignore`.
+
 ## Meet Workflow Studio
 
 Workflow Studio makes agent work feel like a product, not a terminal session.
@@ -173,7 +175,7 @@ See the [`core/`](core/) documentation for the full runtime, evidence, recipe, s
 
 ## Works locally, delivers anywhere
 
-Your living project context and Run evidence are stored under `.ai-engineering-loop/` and kept out of normal commits. Delivery adapters support:
+Your living project context and Run evidence are stored under `.ai-engineering-loop/` and kept out of normal commits by default. You can remove its `.gitignore` entry whenever you want to share that context. Delivery adapters support:
 
 - Standard Git
 - GitHub

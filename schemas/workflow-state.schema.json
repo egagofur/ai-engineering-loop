@@ -10,6 +10,20 @@
     "graphHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
     "sequence": { "type": "integer", "minimum": 1 },
     "eventHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "loopGroups": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["status", "iteration", "maxIterations", "updatedAt"],
+        "properties": {
+          "status": { "enum": ["PENDING", "RUNNING", "BLOCKED", "EXITED", "STOPPED"] },
+          "iteration": { "type": "integer", "minimum": 1 },
+          "maxIterations": { "type": "integer", "minimum": 1, "maximum": 100 },
+          "lastOutcome": { "type": ["string", "null"] },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
     "nodes": {
       "type": "object",
       "additionalProperties": {
@@ -20,6 +34,8 @@
             "enum": ["PENDING", "READY", "RUNNING", "PASSED", "FAILED", "SKIPPED", "BLOCKED"]
           },
           "attempts": { "type": "integer", "minimum": 0 },
+          "loopGroupId": { "type": "string" },
+          "loopIteration": { "type": "integer", "minimum": 1 },
           "updatedAt": { "type": "string", "format": "date-time" }
         }
       }

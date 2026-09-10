@@ -269,6 +269,67 @@ test('Studio creates, freezes, executes, and inspects a named local run through 
   });
 });
 
+test('Studio checks out a Run and exchanges agent questions without changing history', async () => {
+  await withServer(async (base, token, root) => {
+    const headers = { 'x-ael-studio-token': token, 'content-type': 'application/json' };
+    const created = await fetch(`${base}/api/runs`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        task: 'Add Run replay',
+        constraints: 'Never mutate historical evidence',
+        recipeId: 'default'
+      })
+    });
+    const run = (await created.json()).run;
+    const statePath = path.join(root, '.ai-engineering-loop', 'runs', run.runId, 'state.json');
+    const before = fs.readFileSync(statePath, 'utf8');
+
+    const checkoutResponse = await fetch(`${base}/api/runs/${run.runId}/checkout`, { headers });
+    assert.equal(checkoutResponse.status, 200);
+    const checkout = (await checkoutResponse.json()).checkout;
+    assert.equal(checkout.readOnly, true);
+    assert.ok(checkout.edges.length > 0);
+
+    const nodeResponse = await fetch(
+      `${base}/api/runs/${run.runId}/nodes/${encodeURIComponent(checkout.nodes[0].id)}`,
+      { headers }
+    );
+    assert.equal(nodeResponse.status, 200);
+    assert.equal((await nodeResponse.json()).io.runId, run.runId);
+
+    const questionResponse = await fetch(`${base}/api/runs/${run.runId}/questions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ message: 'Q1: Which UX should I use?', actor: 'maker' })
+    });
+    assert.equal(questionResponse.status, 201);
+    const question = (await questionResponse.json()).question;
+    const answerResponse = await fetch(
+      `${base}/api/runs/${run.runId}/questions/${question.questionId}/answer`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ message: 'Use the focused view.', actor: 'studio-user' })
+      }
+    );
+    assert.equal(answerResponse.status, 201);
+    const interactions = await fetch(`${base}/api/runs/${run.runId}/interactions`, { headers });
+    assert.equal((await interactions.json()).interactions.questions[0].answer.message, 'Use the focused view.');
+
+    const duplicate = await fetch(`${base}/api/runs/${run.runId}/duplicate`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ recipeId: 'run-replay-copy' })
+    });
+    assert.equal(duplicate.status, 200);
+    assert.equal((await duplicate.json()).preview.recipe.id, 'run-replay-copy');
+    const handoff = await fetch(`${base}/api/runs/${run.runId}/agent-handoff`, { headers });
+    assert.equal((await handoff.json()).handoff.externalDispatch, false);
+    assert.equal(fs.readFileSync(statePath, 'utf8'), before);
+  });
+});
+
 test('Studio previews and applies recipe imports without installing them', async () => {
   await withServer(async (base, token) => {
     const headers = { 'x-ael-studio-token': token, 'content-type': 'application/json' };
