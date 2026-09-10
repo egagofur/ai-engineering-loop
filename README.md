@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/egagofur/ai-engineering-loop/pulls)
 [![AI Engineering](https://img.shields.io/badge/AI-Engineering%20Loop-orange.svg)](https://github.com/egagofur/ai-engineering-loop)
-[![Release](https://img.shields.io/badge/release-v1.4.0-purple.svg)](https://github.com/egagofur/ai-engineering-loop/releases)
+[![Release](https://img.shields.io/badge/release-v1.5.0-purple.svg)](https://github.com/egagofur/ai-engineering-loop/releases)
 
 **A Reusable, Framework-Agnostic AI Engineering Operating System for Autonomous Coding Agents**
 
@@ -227,6 +227,12 @@ npx ai-engineering-loop recipe validate default --mode assisted
 npx ai-engineering-loop recipe explain default --mode assisted
 npx ai-engineering-loop recipe graph default --mode assisted
 npx ai-engineering-loop recipe simulate default --mode assisted
+npx ai-engineering-loop recipe catalog --json
+npx ai-engineering-loop recipe create api-bugfix --from bugfix
+npx ai-engineering-loop recipe inspect api-bugfix --json
+npx ai-engineering-loop recipe diff bugfix api-bugfix
+npx ai-engineering-loop recipe install candidate.json
+npx ai-engineering-loop recipe install candidate-v2.json --replace
 
 # Operate a custom node in an immutable recipe-bound run
 npx ai-engineering-loop node status
@@ -249,6 +255,8 @@ npx ai-engineering-loop generate-workflow --write
 Every full run stores private local artifacts under `.ai-engineering-loop/runs/<run-id>/`. Usage, worktrees, locks, context packs, and logs are Git-ignored. Markdown remains the human contract; JSON sidecars follow the shipped `schemas/` and make stage claims deterministic. `ASSISTED` is the default and requires explicit human delivery approval. `UNATTENDED` is disabled until a human enables it. See [`core/runtime-safety.md`](core/runtime-safety.md), [`core/artifact-gates.md`](core/artifact-gates.md), [`SECURITY.md`](SECURITY.md), and [`SUPPORT.md`](SUPPORT.md).
 
 Declarative recipes let an AI or future visual editor author a workflow graph without weakening the safety gates. Built-in presets and project recipes can be validated, explained, graphed, and simulated deterministically. `run --recipe` opts into an immutable, resumable DAG scheduler; legacy runs remain unchanged. See [`core/workflow-recipes.md`](core/workflow-recipes.md) and [`core/controlled-workflow-runtime.md`](core/controlled-workflow-runtime.md).
+
+The deterministic recipe builder scaffolds from safe presets, validates candidates before atomic installation, preserves replaced versions locally, and exposes catalog/inspect/diff JSON for AI agents and a future UI. The host-neutral agent protocol is in [`agents/recipe-builder.md`](agents/recipe-builder.md).
 
 Shipped adapters (Stage 8 only, after Judge PASS): `standard`, `github`, `gitlab`, `dot`. Catalog: `adapters/README.md`. Each team generates its own; do not copy a neighbour's pipeline.
 
