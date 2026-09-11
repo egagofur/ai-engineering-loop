@@ -1168,11 +1168,12 @@ function handleGate() {
     const run = target.workflow
       ? applyWorkflowGate(CWD, gate, { runId: target.runId }).run
       : applyGate(CWD, gate, { runId: target.runId });
+    const runCompleted = run.state === 'DELIVERED' || run.state === 'REPORTED';
     appendRunLifecycle(CWD, target.runId, {
-      type: run.state === 'DELIVERED' || run.state === 'REPORTED'
+      type: runCompleted
         ? 'RUN_COMPLETED'
         : (lifecycleNode ? 'NODE_COMPLETED' : 'PHASE_COMPLETED'),
-      ...(lifecycleNode ? { nodeId: lifecycleNode.id } : {}),
+      ...(!runCompleted && lifecycleNode ? { nodeId: lifecycleNode.id } : {}),
       phase: gate,
       actor: 'agent',
       status: 'PASSED',

@@ -350,6 +350,15 @@ test('F-005 Classic Run phase completion retains Run-scoped completion semantics
   assert.equal(event.nodeId, undefined);
 });
 
+test('Stage 8 Run completion never carries a node scope', () => {
+  const cli = fs.readFileSync(
+    path.join(__dirname, '..', 'bin', 'ai-engineering-loop.js'),
+    'utf8'
+  );
+  assert.match(cli, /const runCompleted = run\.state === 'DELIVERED' \|\| run\.state === 'REPORTED'/);
+  assert.match(cli, /\.\.\.\(!runCompleted && lifecycleNode \? \{ nodeId: lifecycleNode\.id \} : \{\}\)/);
+});
+
 test('AC-14 Run Activity Dock exposes persisted Run and node focus without a fake node', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'studio', 'index.html'), 'utf8');
   const app = fs.readFileSync(path.join(__dirname, '..', 'studio', 'app.js'), 'utf8');
