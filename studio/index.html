@@ -183,6 +183,15 @@
       </footer>
     </form>
   </dialog>
+  <dialog id="active-run-dialog" class="resizable-dialog">
+    <header><div><small>ACTIVE RUN</small><h2>A Run is already in progress</h2></div></header>
+    <p id="active-run-message"></p>
+    <div class="goal-state draft">Starting a new Goal will end the current Run. Its history and evidence will remain available.</div>
+    <footer>
+      <button type="button" id="continue-active-run">Continue current Run</button>
+      <button type="button" id="replace-active-run" class="primary">End Run &amp; create new Goal</button>
+    </footer>
+  </dialog>
   <dialog id="loop-dialog" class="resizable-dialog">
     <form id="loop-form">
       <header><div><small>ITERATION LOOP</small><h2>Repeat only the selected steps</h2></div><div class="dialog-actions"><button type="button" class="dialog-maximize" aria-label="Maximize dialog">□</button><button type="button" data-close="loop-dialog" aria-label="Close">×</button></div></header>

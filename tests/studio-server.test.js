@@ -269,6 +269,47 @@ test('Studio creates, freezes, executes, and inspects a named local run through 
   });
 });
 
+test('Studio exposes the active Run and requires explicit cancellation before replacing its Goal', async () => {
+  await withServer(async (base, token) => {
+    const headers = { 'x-ael-studio-token': token, 'content-type': 'application/json' };
+    const create = (task) => fetch(`${base}/api/runs`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ task, recipeId: 'default', mode: 'ASSISTED' })
+    });
+    const firstResponse = await create('Keep the current Goal');
+    assert.equal(firstResponse.status, 201);
+    const first = (await firstResponse.json()).run;
+
+    const conflictResponse = await create('Start a different Goal');
+    assert.equal(conflictResponse.status, 400);
+    const conflict = await conflictResponse.json();
+    assert.equal(conflict.code, 'ACTIVE_RUN');
+    assert.equal(conflict.activeRun.runId, first.runId);
+    assert.equal(conflict.activeRun.task, 'Keep the current Goal');
+
+    const cancelledResponse = await fetch(`${base}/api/runs/${first.runId}/cancel`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        actor: 'studio-user',
+        reason: 'Confirmed replacement from Studio'
+      })
+    });
+    assert.equal(cancelledResponse.status, 200);
+    assert.equal((await cancelledResponse.json()).run.state, 'CANCELLED');
+
+    const replacementResponse = await create('Start a different Goal');
+    assert.equal(replacementResponse.status, 201);
+    const replacement = (await replacementResponse.json()).run;
+    assert.notEqual(replacement.runId, first.runId);
+    assert.equal(replacement.task, 'Start a different Goal');
+
+    const oldDetail = await fetch(`${base}/api/runs/${first.runId}`, { headers });
+    assert.equal((await oldDetail.json()).run.status, 'CANCELLED');
+  });
+});
+
 test('Studio checks out a Run and exchanges agent questions without changing history', async () => {
   await withServer(async (base, token, root) => {
     const headers = { 'x-ael-studio-token': token, 'content-type': 'application/json' };
