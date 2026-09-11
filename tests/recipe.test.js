@@ -46,6 +46,24 @@ test('default recipe compiles to the legacy safety gates deterministically', () 
     first.nodes.filter((node) => node.legacyGate).map((node) => node.legacyGate),
     ['goal', 'maker', 'verification', 'review', 'judge', 'delivery']
   );
+  assert.deepEqual(first.loopGroups, [{
+    id: 'engineering-loop',
+    displayName: 'Build, verify, and review',
+    nodeIds: ['maker', 'verification', 'review', 'judge'],
+    entryNodeId: 'maker',
+    decisionNodeId: 'judge',
+    repeatTargetId: 'maker',
+    exitTargetId: 'delivery-approval',
+    maxIterations: 3,
+    repeatOutcome: 'ITERATE',
+    exitOutcome: 'PASS',
+    repeatLabel: 'ITERATE · REWORK',
+    exitLabel: 'PASS · CONTINUE'
+  }]);
+  assert.deepEqual(
+    first.nodes.find((node) => node.id === 'delivery').dependsOn,
+    ['delivery-approval']
+  );
 });
 
 test('legacy dependencies migrate in memory to stable edges without changing execution semantics', () => {

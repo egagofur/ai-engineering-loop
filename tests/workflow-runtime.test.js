@@ -6,8 +6,9 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 const { budgetStatus, recordTokenUsage } = require('../lib/budget.js');
+const { hashFile } = require('../lib/gates.js');
 const { compileRecipe, loadRecipe } = require('../lib/recipe.js');
-const { createRun } = require('../lib/run-state.js');
+const { createRun, getGitRevision } = require('../lib/run-state.js');
 const {
   NODE_STATES,
   applyWorkflowGate,
@@ -61,6 +62,42 @@ function passGoal(root, runId = 'run-001') {
     }]
   });
   return applyWorkflowGate(root, 'goal', { runId });
+}
+
+function advanceDefaultToJudge(root, findings = []) {
+  passGoal(root);
+  const diffPath = path.join(root, writeJson(
+    root,
+    'run-001',
+    'diff.patch',
+    'diff --git a/a.js b/a.js\n+const value = 1;\n'
+  ));
+  applyWorkflowGate(root, 'maker', { runId: 'run-001' });
+  const diffHash = hashFile(diffPath);
+  writeJson(root, 'run-001', 'verification.json', {
+    schemaVersion: 1,
+    runId: 'run-001',
+    gitRevision: getGitRevision(root),
+    diffHash,
+    commands: [{
+      command: 'node --test',
+      executionIdentity: 'pid-123',
+      startTime: '2025-01-01T00:00:00.000Z',
+      endTime: '2025-01-01T00:00:01.000Z',
+      exitCode: 0,
+      stdout: '1 test passed',
+      timeoutStatus: 'COMPLETED',
+      testCounts: { passed: 1, failed: 0 }
+    }]
+  });
+  applyWorkflowGate(root, 'verification', { runId: 'run-001' });
+  writeJson(root, 'run-001', 'findings.json', {
+    schemaVersion: 1,
+    runId: 'run-001',
+    diffHash,
+    findings
+  });
+  applyWorkflowGate(root, 'review', { runId: 'run-001' });
 }
 
 test('recipe-bound runs persist an immutable plan and initial READY node', () => {
@@ -214,6 +251,58 @@ test('UNATTENDED condition skips delivery approval after Judge dependency resolv
   const workflow = loadWorkflow(root, 'run-001');
   assert.equal(workflow.state.nodes['delivery-approval'].status, NODE_STATES.PENDING);
   assert.equal(workflow.plan.nodes.find((node) => node.id === 'delivery-approval').when.value, 'ASSISTED');
+});
+
+test('default workflow exits its Engineering Loop only after Judge passes', () => {
+  const root = tempRepo();
+  createRecipeRun(root, 'default', 'ASSISTED');
+  advanceDefaultToJudge(root);
+  writeJson(root, 'run-001', 'verdict.json', {
+    schemaVersion: 1,
+    runId: 'run-001',
+    verdict: 'PASS',
+    reason: 'All acceptance criteria have current evidence.',
+    action: 'Continue to delivery approval.'
+  });
+
+  const result = applyWorkflowGate(root, 'judge', { runId: 'run-001' });
+
+  assert.equal(result.workflow.state.loopGroups['engineering-loop'].status, 'EXITED');
+  assert.equal(result.workflow.state.loopGroups['engineering-loop'].lastOutcome, 'PASS');
+  assert.equal(result.workflow.state.nodes['delivery-approval'].status, NODE_STATES.READY);
+  assert.equal(result.workflow.state.nodes.delivery.status, NODE_STATES.PENDING);
+});
+
+test('default workflow repeats only its Engineering Loop when Judge requests rework', () => {
+  const root = tempRepo();
+  createRecipeRun(root, 'default', 'ASSISTED');
+  advanceDefaultToJudge(root, [{
+    id: 'DA-01',
+    axis: 'spec',
+    location: 'a.js#L1',
+    failureScenario: 'The required boundary is not handled.',
+    evidence: 'Observed missing branch.',
+    severity: 'HIGH',
+    validity: 'VALID',
+    disposition: 'STRONG',
+    concreteAlternativeDiff: '+ handleBoundary();'
+  }]);
+  writeJson(root, 'run-001', 'verdict.json', {
+    schemaVersion: 1,
+    runId: 'run-001',
+    verdict: 'ITERATE',
+    reason: 'A valid HIGH finding remains.',
+    action: 'Maker applies the alternative.'
+  });
+
+  const result = applyWorkflowGate(root, 'judge', { runId: 'run-001' });
+
+  assert.equal(result.workflow.state.loopGroups['engineering-loop'].status, 'RUNNING');
+  assert.equal(result.workflow.state.loopGroups['engineering-loop'].iteration, 2);
+  assert.equal(result.workflow.state.loopGroups['engineering-loop'].lastOutcome, 'ITERATE');
+  assert.equal(result.workflow.state.nodes.maker.status, NODE_STATES.READY);
+  assert.equal(result.workflow.state.nodes.verification.status, NODE_STATES.PENDING);
+  assert.equal(result.workflow.state.nodes['delivery-approval'].status, NODE_STATES.PENDING);
 });
 
 test('event log reconstructs a tampered or stale workflow state cache', () => {
