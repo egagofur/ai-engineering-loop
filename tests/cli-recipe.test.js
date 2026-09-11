@@ -74,6 +74,29 @@ test('CLI run binds a recipe snapshot and node status reads its scheduler state'
   assert.equal(fs.existsSync(path.join(runDirectory, 'events.jsonl')), true);
 });
 
+test('CLI run automatically binds a Studio-visible workflow when no recipe is specified', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-cli-default-run-'));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-cli-home-'));
+  runCli(root, ['init'], { AEL_HOME: home });
+
+  const assisted = runCli(root, ['run', 'build a searchable settings page'], { AEL_HOME: home });
+  assert.match(assisted, /Recipe: default/);
+  let status = JSON.parse(runCli(root, ['node', 'status', '--json'], { AEL_HOME: home }));
+  assert.equal(status.recipe.id, 'default');
+
+  const reportRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-cli-report-run-'));
+  runCli(reportRoot, ['init'], { AEL_HOME: home });
+  const report = runCli(reportRoot, [
+    'run',
+    '--mode',
+    'report-only',
+    'audit this repository'
+  ], { AEL_HOME: home });
+  assert.match(report, /Recipe: audit/);
+  status = JSON.parse(runCli(reportRoot, ['node', 'status', '--json'], { AEL_HOME: home }));
+  assert.equal(status.recipe.id, 'audit');
+});
+
 test('CLI scaffolds and inspects a project recipe for AI authoring', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-cli-builder-'));
   const created = JSON.parse(runCli(root, [

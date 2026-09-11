@@ -6,6 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 const { createStudioRun } = require('../lib/studio-runtime.js');
+const { createRun } = require('../lib/run-state.js');
 const {
   duplicateRunAsRecipe,
   runCheckout,
@@ -34,6 +35,15 @@ test('Run checkout reconstructs immutable nodes, edges, honest states, and fallb
   assert.ok(checkout.nodes.every((node) => node.status !== 'PASSED'));
   assert.ok(checkout.nodes.every((node) => Number.isFinite(node.position.x)));
   assert.equal(fs.readFileSync(statePath, 'utf8'), before);
+});
+
+test('Run checkout keeps legacy Runs without a workflow observable', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-checkout-legacy-'));
+  const run = createRun(root, { task: 'Legacy terminal task' });
+  const checkout = runCheckout(root, run.runId);
+  assert.equal(checkout.workflowBound, false);
+  assert.deepEqual(checkout.nodes, []);
+  assert.equal(checkout.run.state, 'STARTED');
 });
 
 test('Node I/O exposes root input and verified node timeline without manufacturing output', () => {

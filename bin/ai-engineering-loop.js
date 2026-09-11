@@ -868,8 +868,13 @@ function handleRun() {
     let mode = modeArg ? normalizeMode(modeArg) : (startsNewRun ? policy.defaultMode : null);
     let workflow = null;
     let requestedRunId = null;
-    if (recipeArg) {
-      const { recipe } = loadRecipe(CWD, recipeArg);
+    const selectedRecipeId = recipeArg || (
+      startsNewRun
+        ? (mode === RUN_MODES.REPORT_ONLY ? 'audit' : 'default')
+        : null
+    );
+    if (selectedRecipeId) {
+      const { recipe } = loadRecipe(CWD, selectedRecipeId);
       if (!mode && current) mode = current.mode;
       if (startsNewRun && !modeArg && !recipe.compatibleModes.includes(mode)) {
         if (recipe.compatibleModes.length !== 1) {
