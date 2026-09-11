@@ -57,6 +57,20 @@
         <output id="zoom-level">100%</output>
         <button id="zoom-in" aria-label="Zoom in">+</button>
       </div>
+      <aside id="run-activity-dock" class="run-activity-dock" aria-live="polite" hidden>
+        <span class="activity-orbit" aria-hidden="true"></span>
+        <div class="run-activity-copy">
+          <small id="run-activity-scope">RUN ACTIVITY</small>
+          <strong id="run-activity-title">Waiting for activity</strong>
+          <p id="run-activity-message">Persisted Agent activity will appear here.</p>
+        </div>
+        <div class="run-activity-actions">
+          <span id="run-activity-status" class="mono">WAITING</span>
+          <button id="inspect-live-node" type="button" hidden>Inspect node</button>
+          <button id="open-live-details" type="button">Open live details</button>
+        </div>
+        <div id="run-activity-timeline" class="run-activity-timeline"></div>
+      </aside>
       <div id="scene">
         <div id="loop-groups"></div>
         <svg id="edges" aria-hidden="true">
@@ -105,8 +119,13 @@
 
     <aside class="execution-panel" id="execution-panel">
       <div class="panel-head"><div><small>LIVE EXECUTION</small><h2 id="active-stage">No active run</h2></div><button id="close-execution" aria-label="Close">×</button></div>
+      <div id="live-connection-state" class="validation-message" role="status" hidden>
+        <span id="live-connection-message"></span>
+        <button id="retry-live-connection" type="button">Retry now</button>
+      </div>
       <div class="live-controls"><span id="agent-presence" class="agent-presence unknown">Agent unavailable</span><button id="follow-execution" type="button" aria-pressed="true">Follow execution</button></div>
       <p id="activity">Waiting for a recipe-bound workflow.</p>
+      <ol id="run-journey" class="run-journey" aria-label="Run progress"></ol>
       <div class="budget-line"><span>Context budget</span><span class="mono" id="budget">—</span></div>
       <div class="meter"><i id="meter"></i></div>
       <details>
@@ -162,10 +181,11 @@
     <form id="goal-form">
       <header><div><small>GOAL CONTRACT <span id="goal-version">V1</span></small><h2>Start a reliable run</h2></div><div class="dialog-actions"><button type="button" class="dialog-maximize" aria-label="Maximize dialog">□</button><button type="button" data-close="goal-dialog" aria-label="Close">×</button></div></header>
       <div id="goal-state" class="goal-state draft">Draft · editing allowed</div>
-      <label for="goal-task">What should the AI Agent deliver?</label><textarea id="goal-task" maxlength="2000" placeholder="Improve Workflow Studio canvas"></textarea>
-      <label for="goal-constraints">Anything it must keep or avoid? <span class="muted">(optional)</span></label><textarea id="goal-constraints" maxlength="8000" placeholder="Keep existing CLI behavior and do not change the page layout."></textarea>
-      <details class="advanced-goal">
-        <summary>Review the Agent's success plan</summary>
+      <label for="goal-task">What should the AI Agent deliver?</label><textarea id="goal-task" maxlength="2000" required aria-describedby="goal-task-help" placeholder="Improve Workflow Studio canvas"></textarea>
+      <p id="goal-task-help" class="hint">Describe one task. Studio will create one Run and prepare a Run-bound handoff.</p>
+      <details id="goal-advanced" class="advanced-goal">
+        <summary>Advanced Goal options</summary>
+        <label for="goal-constraints">Anything it must keep or avoid? <span class="muted">(optional)</span></label><textarea id="goal-constraints" maxlength="8000" placeholder="Keep existing CLI behavior and do not change the page layout."></textarea>
         <label for="goal-run-name">Run Display Name</label><input id="goal-run-name" maxlength="100" placeholder="Automatically named from the task">
         <label for="goal-text">Objective</label><textarea id="goal-text" maxlength="12000" placeholder="The Agent drafts this from your task."></textarea>
         <label for="goal-criteria">Success checks and failure cases</label>
@@ -173,12 +193,16 @@
         <p class="hint">The AI Agent drafts these checks. Review them before Freeze.</p>
       </details>
       <div id="goal-validation" class="validation-message" aria-live="polite"></div>
+      <section id="agent-handoff-state" class="agent-handoff-state" aria-live="polite" hidden>
+        <strong>Prompt copied</strong>
+        <p id="agent-handoff-instructions">Paste it once into your current AI Agent terminal, then keep Studio open to follow persisted progress.</p>
+      </section>
       <section id="goal-review" class="goal-review" hidden></section>
       <div id="unfreeze-fields" hidden><label for="unfreeze-reason">Reason for unfreezing</label><textarea id="unfreeze-reason" maxlength="500"></textarea></div>
       <footer>
         <button type="button" id="save-goal">Save draft</button>
         <button type="button" id="unfreeze-goal" hidden>Unfreeze…</button>
-        <button type="button" id="start-agent" class="primary">Copy for AI Agent</button>
+        <button type="button" id="start-agent" class="primary" aria-describedby="agent-handoff-instructions">Start with AI Agent</button>
         <button type="button" id="review-goal">Review &amp; Freeze</button>
         <button type="button" id="confirm-freeze" class="primary" hidden>Confirm freeze</button>
       </footer>
@@ -189,6 +213,7 @@
     <p id="active-run-message"></p>
     <div class="goal-state draft">Starting a new Goal will end the current Run. Its history and evidence will remain available.</div>
     <footer>
+      <button type="button" id="cancel-active-run-conflict">Cancel</button>
       <button type="button" id="continue-active-run">Continue current Run</button>
       <button type="button" id="replace-active-run" class="primary">End Run &amp; create new Goal</button>
     </footer>
