@@ -6,6 +6,7 @@ const http = require('node:http');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
+const { appendRunLifecycle } = require('../lib/run-lifecycle.js');
 const { createStudioServer } = require('../lib/studio-server.js');
 
 function tempRepo() {
@@ -64,6 +65,61 @@ test('Studio rejects hostile Host headers before token authentication', async ()
       request.end();
     });
     assert.equal(status, 403);
+  });
+});
+
+test('Studio exposes ordered lifecycle updates with a reconnect cursor', async () => {
+  await withServer(async (base, token, root) => {
+    const headers = { 'x-ael-studio-token': token, 'content-type': 'application/json' };
+    const created = await fetch(`${base}/api/runs`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        task: 'Show Agent progress',
+        recipeId: 'default',
+        mode: 'ASSISTED'
+      })
+    });
+    const run = (await created.json()).run;
+    appendRunLifecycle(root, run.runId, {
+      type: 'AGENT_HEARTBEAT',
+      actor: 'agent',
+      phase: 'goal',
+      message: 'Drafting the Goal'
+    });
+    appendRunLifecycle(root, run.runId, {
+      type: 'GOAL_DRAFTING',
+      actor: 'agent',
+      phase: 'goal',
+      message: 'Writing acceptance criteria'
+    });
+
+    const first = await fetch(
+      `${base}/api/runs/${run.runId}/lifecycle?after=0&limit=1`,
+      { headers }
+    );
+    const firstBody = await first.json();
+    assert.equal(firstBody.lifecycle.events.length, 1);
+    assert.equal(firstBody.lifecycle.nextSequence, 1);
+    assert.equal(firstBody.presence.status, 'WORKING');
+
+    const second = await fetch(
+      `${base}/api/runs/${run.runId}/lifecycle?after=1&limit=100`,
+      { headers }
+    );
+    const secondBody = await second.json();
+    assert.deepEqual(secondBody.lifecycle.events.map((event) => event.sequence), [2]);
+    assert.equal(secondBody.lifecycle.nextSequence, 2);
+
+    const stream = await fetch(
+      `${base}/api/runs/${run.runId}/lifecycle/stream?after=1`,
+      { headers }
+    );
+    assert.match(stream.headers.get('content-type'), /^text\/event-stream/);
+    const reader = stream.body.getReader();
+    const chunk = new TextDecoder().decode((await reader.read()).value);
+    assert.match(chunk, /"sequence":2/);
+    await reader.cancel();
   });
 });
 
@@ -161,14 +217,33 @@ test('Studio creates, freezes, executes, and inspects a named local run through 
     const saved = await fetch(`${base}/api/runs/${run.runId}/goal`, {
       method: 'PUT',
       headers,
-      body: JSON.stringify({ goal: contract })
+      body: JSON.stringify({ goal: contract, actor: 'agent', expectedRevision: 0 })
     });
     assert.equal(saved.status, 200);
+    const draft = (await saved.json()).draft;
+    assert.equal(draft.metadata.revision, 1);
+    assert.equal(draft.metadata.actor, 'agent');
+
+    const visibleDraft = await fetch(`${base}/api/runs/${run.runId}/goal`, { headers });
+    assert.equal(visibleDraft.status, 200);
+    assert.deepEqual((await visibleDraft.json()).draft, draft);
+
+    const staleSave = await fetch(`${base}/api/runs/${run.runId}/goal`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ goal: contract, expectedRevision: 0 })
+    });
+    assert.equal(staleSave.status, 400);
+    assert.equal((await staleSave.json()).code, 'GOAL_DRAFT_CONFLICT');
 
     const frozen = await fetch(`${base}/api/runs/${run.runId}/goal/freeze`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ actor: 'studio-user' })
+      body: JSON.stringify({
+        actor: 'studio-user',
+        expectedRevision: draft.metadata.revision,
+        expectedHash: draft.metadata.contentHash
+      })
     });
     assert.equal(frozen.status, 200);
     assert.equal((await frozen.json()).run.goal.frozen, true);

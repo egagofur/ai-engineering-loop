@@ -83,6 +83,16 @@ const {
   listRunInteractions
 } = require('../lib/run-interactions.js');
 const {
+  appendRunLifecycle,
+  listRunLifecycle,
+  runAgentPresence
+} = require('../lib/run-lifecycle.js');
+const {
+  freezeGoal,
+  loadGoalDraft,
+  saveGoalDraft
+} = require('../lib/goal-runtime.js');
+const {
   abortSandbox,
   captureSandbox,
   createSandbox,
@@ -1139,9 +1149,32 @@ function handleGate() {
   try {
     const target = runId ? loadRun(CWD, runId) : getCurrentRun(CWD);
     if (!target) throw new Error('No current run. Start one with `ai-engineering-loop run`.');
+    listRunLifecycle(CWD, target.runId);
+    let lifecycleNode = null;
+    if (target.workflow) {
+      const workflow = workflowStatus(CWD, { runId: target.runId });
+      lifecycleNode = workflow.plan.nodes.find((node) => node.legacyGate === gate) || null;
+      if (lifecycleNode && workflow.state.nodes[lifecycleNode.id].status === 'READY') {
+        startWorkflowNode(CWD, lifecycleNode.id, { runId: target.runId });
+        appendRunLifecycle(CWD, target.runId, {
+          type: 'NODE_STARTED',
+          nodeId: lifecycleNode.id,
+          phase: gate,
+          actor: 'agent',
+          message: `${lifecycleNode.displayName || lifecycleNode.id} started`
+        });
+      }
+    }
     const run = target.workflow
       ? applyWorkflowGate(CWD, gate, { runId: target.runId }).run
       : applyGate(CWD, gate, { runId: target.runId });
+    appendRunLifecycle(CWD, target.runId, {
+      type: run.state === 'DELIVERED' || run.state === 'REPORTED' ? 'RUN_COMPLETED' : 'NODE_COMPLETED',
+      ...(lifecycleNode ? { nodeId: lifecycleNode.id } : {}),
+      phase: gate,
+      actor: 'agent',
+      message: `${lifecycleNode?.displayName || gate} completed`
+    });
     if (json) {
       console.log(JSON.stringify({
         ok: true,
@@ -1201,6 +1234,8 @@ function handleNode() {
       return;
     }
     if (!nodeId || nodeId.startsWith('-')) throw new Error(`node ${action} requires a node id`);
+    const beforeAction = workflowStatus(CWD, { runId });
+    listRunLifecycle(CWD, beforeAction.run.runId);
     let workflow;
     if (action === 'start') {
       workflow = startWorkflowNode(CWD, nodeId, { runId });
@@ -1230,6 +1265,32 @@ function handleNode() {
       throw new Error(`Unknown node action: ${action}`);
     }
     const node = workflow.state.nodes[nodeId];
+    const lifecycleType = {
+      start: 'NODE_STARTED',
+      activity: 'NODE_ACTIVITY',
+      complete: 'NODE_COMPLETED',
+      approve: 'NODE_COMPLETED',
+      fail: 'NODE_ACTIVITY',
+      retry: 'NODE_ACTIVITY'
+    }[action];
+    if (lifecycleType) {
+      const lifecycleMessage = {
+        start: `Node ${nodeId} started`,
+        complete: `Node ${nodeId} completed`,
+        approve: `Node ${nodeId} approved`,
+        fail: `Node ${nodeId} failed`,
+        retry: `Node ${nodeId} queued for retry`
+      }[action];
+      appendRunLifecycle(CWD, workflow.run.runId, {
+        type: lifecycleType,
+        nodeId,
+        phase: nodeId,
+        actor: action === 'approve' ? argValue('--by') || 'human' : 'agent',
+        message: action === 'activity'
+          ? argValue('--message')
+          : lifecycleMessage
+      });
+    }
     if (json) console.log(JSON.stringify({ ok: true, nodeId, ...node }));
     else log.success(`✓ Node ${nodeId}: ${node.status}`);
   } catch (err) {
@@ -1568,6 +1629,172 @@ function openStudio(url) {
   child.unref();
 }
 
+function requiredRunId(command) {
+  const runId = argValue('--run') || getCurrentRun(CWD)?.runId;
+  if (!runId) {
+    const error = new Error(`${command} requires --run <id> or a current Run`);
+    error.code = 'INVALID_USAGE';
+    throw error;
+  }
+  return runId;
+}
+
+function integerArg(name, fallback) {
+  const raw = argValue(name);
+  if (raw == null) return fallback;
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value < 0) {
+    const error = new Error(`${name} must be a non-negative integer`);
+    error.code = 'INVALID_USAGE';
+    throw error;
+  }
+  return value;
+}
+
+function requiredIntegerArg(name) {
+  const value = integerArg(name, undefined);
+  if (value == null) {
+    const error = new Error(`${name} is required`);
+    error.code = 'INVALID_USAGE';
+    throw error;
+  }
+  return value;
+}
+
+function readBoundedJsonInput(fileName) {
+  if (!fileName) {
+    const error = new Error('goal draft requires --file <json>');
+    error.code = 'INVALID_USAGE';
+    throw error;
+  }
+  const file = path.resolve(CWD, fileName);
+  const relative = path.relative(CWD, file);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    const error = new Error('Goal draft input must stay inside the repository');
+    error.code = 'UNSAFE_GOAL_PATH';
+    throw error;
+  }
+  const stat = fs.lstatSync(file);
+  if (stat.isSymbolicLink() || !stat.isFile() || stat.nlink !== 1 || stat.size > 256 * 1024) {
+    const error = new Error('Goal draft input must be a bounded regular file');
+    error.code = 'INVALID_GOAL_DRAFT';
+    throw error;
+  }
+  return JSON.parse(fs.readFileSync(file, 'utf8'));
+}
+
+function handleGoal() {
+  const action = args[1] || 'show';
+  try {
+    const runId = requiredRunId('goal');
+    let result;
+    if (action === 'show') {
+      result = loadGoalDraft(CWD, runId);
+    } else if (action === 'draft') {
+      appendRunLifecycle(CWD, runId, {
+        type: 'GOAL_DRAFTING',
+        phase: 'goal',
+        actor: argValue('--by') || 'agent',
+        message: argValue('--message') || 'Updating the Goal draft'
+      });
+      result = saveGoalDraft(CWD, runId, readBoundedJsonInput(argValue('--file')), {
+        actor: argValue('--by') || 'agent',
+        expectedRevision: requiredIntegerArg('--revision')
+      });
+      appendRunLifecycle(CWD, runId, {
+        type: 'GOAL_DRAFT_UPDATED',
+        phase: 'goal',
+        actor: argValue('--by') || 'agent',
+        message: `Goal draft revision ${result.metadata.revision} was saved`
+      });
+      appendRunLifecycle(CWD, runId, {
+        type: 'GOAL_READY',
+        phase: 'goal',
+        actor: argValue('--by') || 'agent',
+        message: `Goal draft revision ${result.metadata.revision} is ready for review`
+      });
+    } else if (action === 'freeze') {
+      const expectedHash = argValue('--hash');
+      if (!expectedHash) {
+        const error = new Error('--hash is required');
+        error.code = 'INVALID_USAGE';
+        throw error;
+      }
+      const target = loadRun(CWD, runId);
+      let goalNode = null;
+      if (target.workflow) {
+        const workflow = workflowStatus(CWD, { runId });
+        goalNode = workflow.plan.nodes.find((node) => node.legacyGate === 'goal') || null;
+        if (goalNode && workflow.state.nodes[goalNode.id].status === 'READY') {
+          startWorkflowNode(CWD, goalNode.id, { runId });
+          appendRunLifecycle(CWD, runId, {
+            type: 'NODE_STARTED',
+            nodeId: goalNode.id,
+            phase: 'goal',
+            actor: 'agent',
+            message: `${goalNode.displayName || goalNode.id} freeze started`
+          });
+        }
+      }
+      result = freezeGoal(CWD, runId, {
+        actor: argValue('--by') || 'human',
+        expectedRevision: requiredIntegerArg('--revision'),
+        expectedHash
+      });
+      appendRunLifecycle(CWD, runId, {
+        type: 'NODE_COMPLETED',
+        ...(goalNode ? { nodeId: goalNode.id } : {}),
+        phase: 'goal',
+        actor: argValue('--by') || 'human',
+        message: 'Goal Contract frozen'
+      });
+    } else {
+      const error = new Error('goal must be show, draft, or freeze');
+      error.code = 'INVALID_USAGE';
+      throw error;
+    }
+    console.log(JSON.stringify({ ok: true, runId, [action === 'show' ? 'draft' : 'result']: result }, null, 2));
+  } catch (error) {
+    log.error(`${error.code || 'GOAL_FAILED'}: ${error.message}`);
+    process.exitCode = 1;
+  }
+}
+
+function handleActivity() {
+  const aliases = {
+    'goal-drafting': 'GOAL_DRAFTING',
+    'goal-ready': 'GOAL_READY',
+    heartbeat: 'AGENT_HEARTBEAT',
+    waiting: 'AGENT_WAITING',
+    'node-started': 'NODE_STARTED',
+    'node-activity': 'NODE_ACTIVITY',
+    'node-completed': 'NODE_COMPLETED',
+    'loop-iterated': 'LOOP_ITERATED',
+    'run-completed': 'RUN_COMPLETED'
+  };
+  try {
+    const action = args[1] || 'heartbeat';
+    const type = aliases[action];
+    if (!type) throw Object.assign(new Error(`Unknown activity type: ${action}`), { code: 'INVALID_USAGE' });
+    const runId = requiredRunId('activity');
+    const nodeId = argValue('--node');
+    if (type.startsWith('NODE_') && !nodeId) {
+      throw Object.assign(new Error(`${action} requires --node <id>`), { code: 'INVALID_USAGE' });
+    }
+    const event = appendRunLifecycle(CWD, runId, {
+      type,
+      phase: argValue('--phase'),
+      nodeId,
+      actor: argValue('--by') || 'agent',
+      message: argValue('--message') || 'Agent is working'
+    });
+    console.log(JSON.stringify({ ok: true, event, presence: runAgentPresence(CWD, runId) }, null, 2));
+  } catch (error) {
+    log.error(`${error.code || 'ACTIVITY_FAILED'}: ${error.message}`);
+    process.exitCode = 1;
+  }
+}
+
 function handleStudio() {
   const requestedPort = argValue('--port');
   const port = requestedPort == null ? 4317 : Number(requestedPort);
@@ -1606,7 +1833,14 @@ function handleInteraction() {
     if (action === 'list') {
       result = listRunInteractions(CWD, runId);
     } else if (action === 'question') {
+      listRunLifecycle(CWD, runId);
       result = appendRunQuestion(CWD, runId, { message, actor: actor || 'agent' });
+      appendRunLifecycle(CWD, runId, {
+        type: 'AGENT_WAITING',
+        phase: 'goal',
+        actor: actor || 'agent',
+        message: `Waiting for answer to Q${result.number}`
+      });
     } else if (action === 'answer') {
       result = appendRunAnswer(CWD, runId, args[2], { message, actor: actor || 'human' });
     } else {
@@ -1655,6 +1889,14 @@ Commands:
                goal | report | maker | verification | review | judge | delivery
                --run <id>  target a non-current run
                --json      print machine-readable gate output
+  goal         Share one revision-bound Goal draft between the Agent and Studio
+               show [--run <id>]
+               draft --file <json> --revision <n> [--run <id>] [--by <agent>]
+               freeze --revision <n> --hash <sha256> [--run <id>] [--by <name>]
+  activity     Publish safe Run lifecycle summaries for Studio
+               goal-drafting | goal-ready | heartbeat | waiting
+               node-started | node-activity | node-completed | loop-iterated | run-completed
+               [--run <id>] [--node <id>] [--phase <id>] --message <text>
   node         Operate custom nodes in a recipe-bound run
                status [--run <id>] [--json]
                start <id> [--run <id>] [--json]
@@ -1747,6 +1989,12 @@ switch (command) {
     break;
   case 'gate':
     handleGate();
+    break;
+  case 'goal':
+    handleGoal();
+    break;
+  case 'activity':
+    handleActivity();
     break;
   case 'node':
     handleNode();
