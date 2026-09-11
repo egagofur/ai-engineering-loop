@@ -192,6 +192,29 @@ test('Studio canvas boots against its authenticated API and graph actions preser
     assert.match(elements.get('run-list').innerHTML, /No runs found/);
     vm.runInContext('showWorkspace("workflows")', context);
     assert.equal(elements.get('canvas').hidden, false);
+
+    const firstRun = await vm.runInContext(`api('/api/runs', {
+      method: 'POST',
+      body: JSON.stringify({
+        task: 'Keep this active Goal',
+        recipeId: 'default',
+        mode: 'ASSISTED'
+      })
+    })`, context);
+    elements.get('goal-task').value = 'Create a replacement Goal';
+    const continueChoice = vm.runInContext('activeRunId = null; catalog.live = null; ensureStudioRun()', context);
+    await waitFor(() => elements.get('active-run-dialog').open === true);
+    await elements.get('continue-active-run').onclick();
+    assert.equal(await continueChoice, null);
+    assert.equal(vm.runInContext('selectedCheckoutRun', context), firstRun.run.runId);
+
+    vm.runInContext('activeRunId = null; catalog.live = null', context);
+    const replaceChoice = vm.runInContext('ensureStudioRun()', context);
+    await waitFor(() => elements.get('active-run-dialog').open === true);
+    elements.get('replace-active-run').onclick();
+    const replacementRunId = await replaceChoice;
+    assert.notEqual(replacementRunId, firstRun.run.runId);
+    assert.match(elements.get('run-list').innerHTML, /Active now/);
   } finally {
     await new Promise((resolve) => instance.server.close(resolve));
   }

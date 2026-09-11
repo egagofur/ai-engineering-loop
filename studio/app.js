@@ -37,6 +37,7 @@ let selectedCheckoutRun;
 
 const DISPLAY_NAME_MAX = 80;
 const ROOT_TYPES = new Set(['goal-contract', 'trigger']);
+const TERMINAL_RUN_STATES = new Set(['DELIVERED', 'REPORTED', 'ESCALATED', 'CANCELLED']);
 
 function displayName(item) {
   return item?.displayName || item?.name || item?.id || 'Untitled';
@@ -1110,19 +1111,59 @@ async function ensureStudioRun() {
     return activeRunId;
   }
   const task = byId('goal-task').value.trim();
-  const created = await api('/api/runs', {
-    method: 'POST',
-    body: JSON.stringify({
-      task,
-      constraints: byId('goal-constraints').value.trim(),
-      displayName: byId('goal-run-name').value.trim(),
-      recipeId: loadedRecipeId,
-      mode: draft.compatibleModes.includes('ASSISTED') ? 'ASSISTED' : draft.compatibleModes[0]
-    })
-  });
+  const request = {
+    task,
+    constraints: byId('goal-constraints').value.trim(),
+    displayName: byId('goal-run-name').value.trim(),
+    recipeId: loadedRecipeId,
+    mode: draft.compatibleModes.includes('ASSISTED') ? 'ASSISTED' : draft.compatibleModes[0]
+  };
+  let created;
+  try {
+    created = await api('/api/runs', {
+      method: 'POST',
+      body: JSON.stringify(request)
+    });
+  } catch (error) {
+    if (error.payload?.code !== 'ACTIVE_RUN' || !error.payload.activeRun) throw error;
+    const action = await resolveActiveRunConflict(error.payload.activeRun);
+    if (action !== 'replace') return null;
+    await api(`/api/runs/${encodeURIComponent(error.payload.activeRun.runId)}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({
+        actor: 'human',
+        reason: 'Ended in Studio before creating a new Goal'
+      })
+    });
+    created = await api('/api/runs', {
+      method: 'POST',
+      body: JSON.stringify(request)
+    });
+  }
   activeRunId = created.run.runId;
   await refreshLive();
   return activeRunId;
+}
+
+function resolveActiveRunConflict(run) {
+  return new Promise((resolve) => {
+    const dialog = byId('active-run-dialog');
+    byId('active-run-message').textContent = `${run.displayName || run.runId} · ${run.state}`;
+    byId('continue-active-run').onclick = async () => {
+      dialog.close();
+      activeRunId = run.runId;
+      byId('goal-dialog').close();
+      showWorkspace('runs');
+      await loadRuns();
+      await loadRunDetail(run.runId);
+      resolve('continue');
+    };
+    byId('replace-active-run').onclick = () => {
+      dialog.close();
+      resolve('replace');
+    };
+    dialog.showModal();
+  });
 }
 
 async function saveGoalFromForm() {
@@ -1142,6 +1183,7 @@ async function saveGoalFromForm() {
       return null;
     }
     const runId = await ensureStudioRun();
+    if (!runId) return null;
     const contract = goalContractFromForm(runId);
     await api(`/api/runs/${encodeURIComponent(runId)}/goal`, {
       method: 'PUT',
@@ -1283,13 +1325,21 @@ async function loadRuns() {
     if (!runs.length) {
       list.innerHTML = '<div class="empty-state"><h2>No runs found</h2><p>Create a task from the workflow trigger.</p></div>';
     } else {
-      list.innerHTML = runs.map((run) => `
-        <button class="run-row" data-run-id="${escapeHtml(run.runId)}">
+      const active = runs.find((run) => !TERMINAL_RUN_STATES.has(run.status));
+      const historyRuns = runs.filter((run) => run.runId !== active?.runId);
+      const row = (run, isActive = false) => `
+        <button class="run-row${isActive ? ' active-run-row' : ''}" data-run-id="${escapeHtml(run.runId)}">
           <strong>${escapeHtml(run.displayName)}</strong>
           <span>${escapeHtml(run.status)} · ${escapeHtml(new Date(run.updatedAt).toLocaleString())}</span>
           <small>${escapeHtml(run.task)}</small>
-        </button>
-      `).join('');
+        </button>`;
+      list.innerHTML = [
+        active ? `<div class="run-list-label"><i></i>Active now</div>${row(active, true)}` : '',
+        `<div class="run-list-label history-label">History</div>`,
+        historyRuns.length
+          ? historyRuns.map((run) => row(run)).join('')
+          : '<p class="muted run-list-empty">Completed Runs will stay here.</p>'
+      ].join('');
       list.querySelectorAll('.run-row').forEach((button) => {
         button.onclick = () => loadRunDetail(button.dataset.runId);
       });
@@ -1802,6 +1852,7 @@ async function refreshLive() {
     renderLive();
     await refreshSelectedCheckout();
     await refreshCheckoutInteractions();
+    if (!byId('runs-view').hidden) await loadRuns();
   } catch {
     // A transient refresh failure must not discard the draft.
   }
