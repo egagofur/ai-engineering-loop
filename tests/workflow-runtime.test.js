@@ -113,6 +113,30 @@ test('recipe-bound runs persist an immutable plan and initial READY node', () =>
   );
 });
 
+test('legacy gate nodes can expose RUNNING before their gate completes', () => {
+  const root = tempRepo();
+  createRecipeRun(root, 'default', 'ASSISTED');
+  writeJson(root, 'run-001', 'goal-contract.json', {
+    schemaVersion: 1,
+    runId: 'run-001',
+    objective: 'Show gate progress before completion.',
+    acceptanceCriteria: [{
+      id: 'AC-1',
+      statement: 'The Goal gate enters RUNNING before it passes.',
+      evidenceRequired: 'Workflow state assertions.',
+      failureCases: ['The gate jumps directly from READY to PASSED.']
+    }]
+  });
+
+  const started = startWorkflowNode(root, 'goal', { runId: 'run-001' });
+  assert.equal(started.state.nodes.goal.status, NODE_STATES.RUNNING);
+  assert.equal(started.state.nodes.goal.attempts, 1);
+
+  const completed = applyWorkflowGate(root, 'goal', { runId: 'run-001' });
+  assert.equal(completed.workflow.state.nodes.goal.status, NODE_STATES.PASSED);
+  assert.equal(completed.workflow.state.nodes.goal.attempts, 1);
+});
+
 test('audit workflow advances through gate, validated agent artifact, and report', () => {
   const root = tempRepo();
   createRecipeRun(root, 'audit', 'REPORT_ONLY');

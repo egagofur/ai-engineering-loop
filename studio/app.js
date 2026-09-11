@@ -29,11 +29,18 @@ let layoutTimer;
 let spacePressed = false;
 let pendingConnectionSource;
 let runs = [];
-let goal = { text: '', version: 1, frozen: false };
+let goal = { text: '', version: 1, frozen: false, draftRevision: 0, draftHash: null };
 let activeRunId;
 let pendingImport;
 let hydratedGoalKey;
 let selectedCheckoutRun;
+let lifecycleRunId;
+let lifecycleSequence = 0;
+let lifecycleEvents = [];
+let agentPresence = { status: 'UNKNOWN', lastHeartbeatAt: null };
+let followExecution = true;
+let lastFollowedNode;
+let lifecycleStream;
 
 const DISPLAY_NAME_MAX = 80;
 const ROOT_TYPES = new Set(['goal-contract', 'trigger']);
@@ -295,7 +302,16 @@ function renderEdges() {
     if (!from || !to) return;
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('d', edgePath(from, to));
-    path.setAttribute('class', `${catalog.live?.nodes?.[edge.from]?.status === 'RUNNING' ? 'edge active' : 'edge'}${selectedEdgeId === edge.id ? ' selected' : ''}`);
+    const fromState = catalog.live?.nodes?.[edge.from]?.status;
+    const toState = catalog.live?.nodes?.[edge.to]?.status;
+    const liveNodeId = activeLifecycleNodeId();
+    const active = liveNodeId === edge.to && ['PASSED', 'SKIPPED'].includes(fromState);
+    const completed = ['PASSED', 'SKIPPED'].includes(fromState) &&
+      ['PASSED', 'SKIPPED', 'RUNNING'].includes(toState);
+    path.setAttribute(
+      'class',
+      `edge${active ? ' active' : ''}${completed ? ' completed' : ''}${selectedEdgeId === edge.id ? ' selected' : ''}`
+    );
     path.setAttribute('marker-end', 'url(#arrow)');
     path.dataset.edgeId = edge.id;
     group.append(path);
@@ -364,6 +380,9 @@ function renderEdges() {
 
 function nodeMarkup(node, index) {
   const runtimeNode = catalog.live?.nodes?.[node.id];
+  const lifecycleActivity = activeLifecycleNodeId() === node.id
+    ? activeLifecycleEvent()?.message
+    : '';
   const outgoing = draft.edges.some((edge) => edge.from === node.id);
   const root = rootCandidates().length === 1 && rootCandidates()[0].id === node.id;
   return `
@@ -372,11 +391,32 @@ function nodeMarkup(node, index) {
     <button class="node-title" title="Double-click to edit Display Name">${escapeHtml(displayName(node))}</button>
     <span class="technical-id">${escapeHtml(node.id)}</span>
     <span class="status">● ${escapeHtml(runtimeNode?.status || 'DRAFT')}</span>
-    ${runtimeNode?.activity ? `<p class="node-activity">${escapeHtml(runtimeNode.activity)}</p>` : ''}
+    ${runtimeNode?.activity || lifecycleActivity ? `<p class="node-activity">${escapeHtml(runtimeNode?.activity || lifecycleActivity)}</p>` : ''}
     <button class="port port-out" aria-label="Connect from ${escapeHtml(node.id)}" tabindex="-1"></button>
     ${outgoing ? '' : `<button class="output-add" title="Add connected node" aria-label="Add node connected after ${escapeHtml(displayName(node))}">+</button>`}
     ${root ? `<div class="execute-pod"><input class="task-input" aria-label="Task for this run" placeholder="Describe this run’s task" value="${escapeHtml(catalog.live?.run?.task || '')}"><button class="execute-trigger">${goal.frozen ? 'Execute' : 'Set Goal'}</button><span class="execute-hint">${goal.frozen ? 'Local runtime only' : 'Freeze Goal first'}</span></div>` : ''}
   `;
+}
+
+function activeLifecycleEvent() {
+  const latest = lifecycleEvents.at(-1) || null;
+  if (!latest || ['NODE_COMPLETED', 'RUN_COMPLETED'].includes(latest.type)) return null;
+  return latest;
+}
+
+function activeLifecycleNodeId() {
+  const event = activeLifecycleEvent();
+  if (event?.nodeId) return event.nodeId;
+  if (event?.phase) {
+    const scopedNode = draft?.nodes.find((node) =>
+      node.id === event.phase || node.type === event.phase || node.legacyGate === event.phase
+    );
+    if (scopedNode) return scopedNode.id;
+  }
+  if (event?.phase === 'goal' || event?.type?.startsWith('GOAL_')) {
+    return draft?.nodes.find((node) => node.type === 'goal-contract')?.id || null;
+  }
+  return null;
 }
 
 function renderGraph() {
@@ -389,7 +429,9 @@ function renderGraph() {
     const runtimeNode = catalog.live?.nodes?.[node.id];
     const element = document.createElement('article');
     element.dataset.nodeId = node.id;
-    element.className = `node ${runtimeNode?.status.toLowerCase() || ''} ${selectedIds.has(node.id) ? 'selected' : ''}`;
+    const lifecycleActive = activeLifecycleNodeId() === node.id &&
+      !['DISCONNECTED', 'UNKNOWN'].includes(agentPresence.status);
+    element.className = `node ${runtimeNode?.status.toLowerCase() || ''} ${lifecycleActive ? 'agent-active' : ''} ${selectedIds.has(node.id) ? 'selected' : ''}`;
     element.style.left = `${position.x}px`;
     element.style.top = `${position.y}px`;
     element.innerHTML = nodeMarkup(node, index);
@@ -409,17 +451,27 @@ function updateRuntimePresentation() {
   for (const element of document.querySelectorAll('.node')) {
     const nodeId = element.dataset.nodeId;
     const runtimeNode = catalog.live?.nodes?.[nodeId];
-    element.classList.remove('running', 'passed', 'failed', 'blocked', 'ready', 'pending', 'skipped');
+    element.classList.remove('running', 'passed', 'failed', 'blocked', 'ready', 'pending', 'skipped', 'agent-active', 'agent-idle', 'agent-disconnected');
     if (runtimeNode?.status) element.classList.add(runtimeNode.status.toLowerCase());
+    if (activeLifecycleNodeId() === nodeId) {
+      if (agentPresence.status === 'WORKING') element.classList.add('agent-active');
+      if (agentPresence.status === 'IDLE') element.classList.add('agent-idle');
+      if (agentPresence.status === 'DISCONNECTED') element.classList.add('agent-disconnected');
+    }
     element.querySelector('.status').textContent = `● ${runtimeNode?.status || 'DRAFT'}`;
     const existingActivity = element.querySelector('.node-activity');
-    if (runtimeNode?.activity) {
-      if (existingActivity) existingActivity.textContent = runtimeNode.activity;
-      else element.querySelector('.status').insertAdjacentHTML('afterend', `<p class="node-activity">${escapeHtml(runtimeNode.activity)}</p>`);
+    const lifecycleActivity = activeLifecycleNodeId() === nodeId
+      ? activeLifecycleEvent()?.message
+      : '';
+    const activity = runtimeNode?.activity || lifecycleActivity;
+    if (activity) {
+      if (existingActivity) existingActivity.textContent = activity;
+      else element.querySelector('.status').insertAdjacentHTML('afterend', `<p class="node-activity">${escapeHtml(activity)}</p>`);
     } else {
       existingActivity?.remove();
     }
   }
+  renderLoopGroups();
   renderEdges();
 }
 
@@ -882,6 +934,7 @@ function renderPalette() {
 function beginNodeInteraction(event) {
   if (event.button !== 0 || event.target.closest('.port,.output-add,.execute-pod,.node-title,.inline-rename')) return;
   event.stopPropagation();
+  setFollowExecution(false);
   const element = event.currentTarget;
   const nodeId = element.dataset.nodeId;
   if (event.shiftKey) {
@@ -908,6 +961,7 @@ function beginNodeInteraction(event) {
 function beginPan(event) {
   if (event.button !== 0 && event.button !== 1) return;
   event.preventDefault();
+  setFollowExecution(false);
   interaction = {
     type: 'pan',
     pointerId: event.pointerId,
@@ -1007,6 +1061,7 @@ function finishConnection(event) {
 }
 
 function beginLasso(event) {
+  setFollowExecution(false);
   const start = screenToWorld(event.clientX, event.clientY);
   interaction = { type: 'lasso', pointerId: event.pointerId, start, current: start, additive: event.shiftKey };
   const marquee = byId('selection-marquee');
@@ -1185,11 +1240,22 @@ async function saveGoalFromForm() {
     const runId = await ensureStudioRun();
     if (!runId) return null;
     const contract = goalContractFromForm(runId);
-    await api(`/api/runs/${encodeURIComponent(runId)}/goal`, {
+    const saved = await api(`/api/runs/${encodeURIComponent(runId)}/goal`, {
       method: 'PUT',
-      body: JSON.stringify({ goal: contract })
+      body: JSON.stringify({
+        goal: contract,
+        actor: 'studio-user',
+        expectedRevision: goal.draftRevision
+      })
     });
-    goal = { text: contract.objective, criteria: contract.acceptanceCriteria, version: goal.version, frozen: false };
+    goal = {
+      text: contract.objective,
+      criteria: contract.acceptanceCriteria,
+      version: goal.version,
+      frozen: false,
+      draftRevision: saved.draft.metadata.revision,
+      draftHash: saved.draft.metadata.contentHash
+    };
     byId('goal-validation').textContent = '';
     notify('Goal draft saved. It is not frozen yet.');
     byId('goal-dialog').close();
@@ -1235,7 +1301,11 @@ async function freezeGoalFromForm() {
   try {
     const result = await api(`/api/runs/${encodeURIComponent(activeRunId)}/goal/freeze`, {
       method: 'POST',
-      body: JSON.stringify({ actor: 'studio-user' })
+      body: JSON.stringify({
+        actor: 'studio-user',
+        expectedRevision: goal.draftRevision,
+        expectedHash: goal.draftHash
+      })
     });
     catalog.live = catalog.live || {};
     catalog.live.run = result.run;
@@ -1280,14 +1350,116 @@ async function unfreezeGoalFromForm() {
 
 function syncGoalFromLive() {
   const liveGoal = catalog.live?.run?.goal;
-  activeRunId = catalog.live?.run?.runId || null;
-  if (!liveGoal) return;
+  const nextRunId = catalog.live?.run?.runId || null;
+  if (activeRunId !== nextRunId) {
+    goal = { text: '', version: 1, frozen: false, draftRevision: 0, draftHash: null };
+    hydratedGoalKey = null;
+  }
+  activeRunId = nextRunId;
+  if (!liveGoal) {
+    renderGoalState();
+    return;
+  }
   goal.version = liveGoal.version || 1;
   goal.frozen = liveGoal.frozen === true;
   if (catalog.live.run.task) byId('goal-task').value = catalog.live.run.task;
   if (catalog.live.run.constraints) byId('goal-constraints').value = catalog.live.run.constraints;
   if (catalog.live.run.displayName) byId('goal-run-name').value = catalog.live.run.displayName;
   renderGoalState();
+}
+
+async function refreshGoalDraft(runId) {
+  if (!runId || goal.frozen) return;
+  const result = await api(`/api/runs/${encodeURIComponent(runId)}/goal`);
+  const draftEnvelope = result.draft;
+  if (!draftEnvelope || draftEnvelope.metadata.revision === goal.draftRevision) return;
+  goal.draftRevision = draftEnvelope.metadata.revision;
+  goal.draftHash = draftEnvelope.metadata.contentHash;
+  goal.text = draftEnvelope.contract.objective || '';
+  goal.criteria = draftEnvelope.contract.acceptanceCriteria || [];
+  if (!byId('goal-form').contains(document.activeElement)) {
+    byId('goal-text').value = goal.text;
+    byId('goal-criteria').value = goal.criteria.map((criterion) => (
+      `${criterion.statement} | ${criterion.evidenceRequired} | ${(criterion.failureCases || []).join(' | ')}`
+    )).join('\n');
+  }
+  renderGoalState();
+}
+
+async function refreshLifecycle(runId) {
+  if (!runId) {
+    lifecycleStream?.close();
+    lifecycleStream = null;
+    lifecycleRunId = null;
+    lifecycleSequence = 0;
+    lifecycleEvents = [];
+    agentPresence = { status: 'UNKNOWN', lastHeartbeatAt: null };
+    return;
+  }
+  if (lifecycleRunId !== runId) {
+    lifecycleStream?.close();
+    lifecycleStream = null;
+    lifecycleRunId = runId;
+    lifecycleSequence = 0;
+    lifecycleEvents = [];
+    startLifecycleStream(runId);
+  }
+  try {
+    const result = await api(
+      `/api/runs/${encodeURIComponent(runId)}/lifecycle?after=${lifecycleSequence}&limit=100`
+    );
+    lifecycleEvents = lifecycleEvents.concat(
+      result.lifecycle.events.filter((event) => event.sequence > lifecycleSequence)
+    ).slice(-100);
+    lifecycleSequence = result.lifecycle.nextSequence;
+    agentPresence = result.presence;
+  } catch {
+    agentPresence = { status: 'UNKNOWN', lastHeartbeatAt: null };
+  }
+}
+
+function startLifecycleStream(runId) {
+  if (!window.EventSource || !runId) return;
+  lifecycleStream = new window.EventSource(
+    `/api/runs/${encodeURIComponent(runId)}/lifecycle/stream?after=${lifecycleSequence}`
+  );
+  lifecycleStream.onmessage = (message) => {
+    try {
+      const result = JSON.parse(message.data);
+      lifecycleEvents = lifecycleEvents.concat(
+        result.lifecycle.events.filter((event) => event.sequence > lifecycleSequence)
+      ).slice(-100);
+      lifecycleSequence = Math.max(lifecycleSequence, result.lifecycle.nextSequence);
+      agentPresence = result.presence;
+      renderLive();
+    } catch {
+      // The regular cursor poll remains the recovery path.
+    }
+  };
+}
+
+function setFollowExecution(enabled) {
+  followExecution = enabled;
+  const button = byId('follow-execution');
+  button.classList.toggle('active', enabled);
+  button.setAttribute('aria-pressed', String(enabled));
+  button.textContent = enabled ? 'Following' : 'Follow execution';
+  if (enabled) {
+    lastFollowedNode = null;
+    followActiveNode();
+  }
+}
+
+function followActiveNode() {
+  const nodeId = activeLifecycleNodeId();
+  if (!followExecution || !nodeId || nodeId === lastFollowedNode || interaction) return;
+  const position = positions.get(nodeId);
+  if (!position) return;
+  const canvas = byId('canvas').getBoundingClientRect();
+  viewport.x = canvas.width / 2 - (position.x + NODE_WIDTH / 2) * viewport.scale;
+  viewport.y = canvas.height / 2 - (position.y + 54) * viewport.scale;
+  lastFollowedNode = nodeId;
+  applyViewport();
 }
 
 async function hydrateGoalFromLive() {
@@ -1706,6 +1878,7 @@ function zoomAt(nextScale, clientX, clientY) {
 
 function handleWheel(event) {
   event.preventDefault();
+  setFollowExecution(false);
   if (event.ctrlKey || event.metaKey) {
     zoomAt(viewport.scale * Math.exp(-event.deltaY * 0.002), event.clientX, event.clientY);
   } else {
@@ -1822,25 +1995,42 @@ function renderLive() {
     byId('events').innerHTML = '';
     byId('budget').textContent = '—';
     byId('meter').style.width = '0';
+    byId('agent-presence').textContent = 'Agent unavailable';
+    byId('agent-presence').className = 'agent-presence unknown';
     updateRuntimePresentation();
     return;
   }
-  const active = live.plan.nodes.find((node) => live.nodes[node.id].status === 'RUNNING')
+  const lifecycleNodeId = activeLifecycleNodeId();
+  const active = live.plan.nodes.find((node) => node.id === lifecycleNodeId)
+    || live.plan.nodes.find((node) => live.nodes[node.id].status === 'RUNNING')
     || live.plan.nodes.find((node) => live.nodes[node.id].status === 'READY');
   const runtimeNode = active ? live.nodes[active.id] : null;
+  const lifecycle = activeLifecycleEvent();
   byId('run-summary').textContent = active ? `${active.id} · ${runtimeNode.status}` : `Run ${live.run.state}`;
   byId('active-stage').textContent = active?.id || 'Run complete';
-  byId('activity').textContent = active ? runtimeNode.activity || `${runtimeNode.status} · attempt ${runtimeNode.attempts}` : `Final state: ${live.run.state}`;
+  byId('activity').textContent = lifecycle?.message ||
+    (active ? runtimeNode.activity || `${runtimeNode.status} · attempt ${runtimeNode.attempts}` : `Final state: ${live.run.state}`);
+  const presenceLabel = {
+    WORKING: 'Agent working',
+    IDLE: 'Agent appears idle',
+    DISCONNECTED: 'Agent disconnected',
+    UNKNOWN: 'Waiting for Agent'
+  }[agentPresence.status] || 'Waiting for Agent';
+  byId('agent-presence').textContent = presenceLabel;
+  byId('agent-presence').className = `agent-presence ${agentPresence.status.toLowerCase()}`;
   const spent = live.budget.spentThisRun;
   const limit = live.budget.perRunTokenLimit;
   byId('meter').style.width = `${Math.min(100, limit ? (spent / limit) * 100 : 0)}%`;
   byId('budget').textContent = `${spent.toLocaleString()} / ${limit.toLocaleString()} TOKENS`;
-  byId('events').innerHTML = live.events.slice(-7).reverse().map((event) => `
+  byId('events').innerHTML = lifecycleEvents.slice(-7).reverse().map((event) => `
     <p class="${event.type === 'NODE_ACTIVITY' || event.type.includes('START') ? 'event-active' : ''}">
-      ${escapeHtml(event.at.slice(11, 19))} · ${escapeHtml(event.type)} · ${escapeHtml(event.changedNodes.join(', '))}
+      ${escapeHtml(event.at.slice(11, 19))} · ${escapeHtml(event.type)} · ${escapeHtml(event.message)}
     </p>
+  `).join('') || live.events.slice(-7).reverse().map((event) => `
+    <p>${escapeHtml(event.at.slice(11, 19))} · ${escapeHtml(event.type)}</p>
   `).join('');
   updateRuntimePresentation();
+  followActiveNode();
 }
 
 async function refreshLive() {
@@ -1848,6 +2038,8 @@ async function refreshLive() {
     const result = await api('/api/live');
     catalog.live = result.live;
     syncGoalFromLive();
+    await refreshLifecycle(catalog.live?.run?.runId);
+    await refreshGoalDraft(catalog.live?.run?.runId);
     await hydrateGoalFromLive();
     renderLive();
     await refreshSelectedCheckout();
@@ -1929,6 +2121,8 @@ function bindCanvas() {
   byId('zoom-out').onclick = () => zoomAt(viewport.scale / 1.2);
   byId('undo').onclick = () => restoreHistory(historyIndex - 1);
   byId('redo').onclick = () => restoreHistory(historyIndex + 1);
+  byId('follow-execution').onclick = () => setFollowExecution(!followExecution);
+  setFollowExecution(followExecution);
 }
 
 function editableTarget(target) {
@@ -2155,6 +2349,7 @@ async function initialize() {
   byId('toggle-execution').onclick = () => byId('execution-panel').classList.toggle('open');
   byId('close-execution').onclick = () => byId('execution-panel').classList.remove('open');
   await loadRecipe();
+  await refreshLive();
   clearInterval(liveTimer);
   liveTimer = setInterval(refreshLive, 1800);
 }
