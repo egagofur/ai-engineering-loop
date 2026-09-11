@@ -8,3 +8,4 @@ tmp/
 .claude/settings.local.json
 .serena/
 .ai-engineering-loop/runs/
+.ai-engineering-loop/

@@ -41,6 +41,9 @@ let agentPresence = { status: 'UNKNOWN', lastHeartbeatAt: null };
 let followExecution = true;
 let lastFollowedNode;
 let lifecycleStream;
+let handoffCopiedRunId;
+let onboardingDismissed = false;
+let liveRenderScheduled = false;
 
 const DISPLAY_NAME_MAX = 80;
 const ROOT_TYPES = new Set(['goal-contract', 'trigger']);
@@ -302,15 +305,10 @@ function renderEdges() {
     if (!from || !to) return;
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('d', edgePath(from, to));
-    const fromState = catalog.live?.nodes?.[edge.from]?.status;
-    const toState = catalog.live?.nodes?.[edge.to]?.status;
-    const liveNodeId = activeLifecycleNodeId();
-    const active = liveNodeId === edge.to && ['PASSED', 'SKIPPED'].includes(fromState);
-    const completed = ['PASSED', 'SKIPPED'].includes(fromState) &&
-      ['PASSED', 'SKIPPED', 'RUNNING'].includes(toState);
+    const state = catalog.live?.edges?.find((candidate) => candidate.id === edge.id)?.state || 'idle';
     path.setAttribute(
       'class',
-      `edge${active ? ' active' : ''}${completed ? ' completed' : ''}${selectedEdgeId === edge.id ? ' selected' : ''}`
+      `edge edge-${state}${selectedEdgeId === edge.id ? ' selected' : ''}`
     );
     path.setAttribute('marker-end', 'url(#arrow)');
     path.dataset.edgeId = edge.id;
@@ -1196,6 +1194,7 @@ async function ensureStudioRun() {
     });
   }
   activeRunId = created.run.runId;
+  renderHandoffState();
   await refreshLive();
   return activeRunId;
 }
@@ -1203,20 +1202,31 @@ async function ensureStudioRun() {
 function resolveActiveRunConflict(run) {
   return new Promise((resolve) => {
     const dialog = byId('active-run-dialog');
+    let settled = false;
+    const finish = (outcome) => {
+      if (settled) return;
+      settled = true;
+      resolve(outcome);
+    };
     byId('active-run-message').textContent = `${run.displayName || run.runId} · ${run.state}`;
     byId('continue-active-run').onclick = async () => {
-      dialog.close();
       activeRunId = run.runId;
+      renderHandoffState();
       byId('goal-dialog').close();
       showWorkspace('runs');
       await loadRuns();
       await loadRunDetail(run.runId);
-      resolve('continue');
+      finish('continue');
+      dialog.close();
+    };
+    byId('cancel-active-run-conflict').onclick = () => {
+      dialog.close();
     };
     byId('replace-active-run').onclick = () => {
+      finish('replace');
       dialog.close();
-      resolve('replace');
     };
+    dialog.addEventListener('close', () => finish('cancel'), { once: true });
     dialog.showModal();
   });
 }
@@ -1292,7 +1302,17 @@ async function reviewGoal() {
   byId('goal-review').hidden = false;
   byId('goal-review').innerHTML = `
     <strong>${escapeHtml(contract.objective)}</strong>
-    <p>${contract.acceptanceCriteria.length} numbered acceptance failure rows are ready.</p>
+    <p class="mono">Revision ${escapeHtml(String(goal.draftRevision))} · ${escapeHtml(goal.draftHash)}</p>
+    <details>
+      <summary>Review all ${contract.acceptanceCriteria.length} criteria</summary>
+      <ol>${contract.acceptanceCriteria.map((criterion) => `
+        <li>
+          <strong>${escapeHtml(criterion.id)} · ${escapeHtml(criterion.statement)}</strong>
+          <p>Evidence: ${escapeHtml(criterion.evidenceRequired)}</p>
+          <p>Failure cases: ${criterion.failureCases.map(escapeHtml).join(' · ')}</p>
+        </li>
+      `).join('')}</ol>
+    </details>
   `;
   byId('confirm-freeze').hidden = false;
 }
@@ -1356,6 +1376,7 @@ function syncGoalFromLive() {
     hydratedGoalKey = null;
   }
   activeRunId = nextRunId;
+  renderHandoffState();
   if (!liveGoal) {
     renderGoalState();
     return;
@@ -1431,11 +1452,21 @@ function startLifecycleStream(runId) {
       ).slice(-100);
       lifecycleSequence = Math.max(lifecycleSequence, result.lifecycle.nextSequence);
       agentPresence = result.presence;
-      renderLive();
+      scheduleLiveRender();
     } catch {
       // The regular cursor poll remains the recovery path.
     }
   };
+}
+
+function scheduleLiveRender() {
+  if (liveRenderScheduled) return;
+  liveRenderScheduled = true;
+  const schedule = window.requestAnimationFrame || ((callback) => setTimeout(callback, 16));
+  schedule(() => {
+    liveRenderScheduled = false;
+    renderLive();
+  });
 }
 
 function setFollowExecution(enabled) {
@@ -1555,7 +1586,10 @@ async function loadRunDetail(runId) {
       const y1 = from.position.y + NODE_PORT_Y;
       const x2 = to.position.x;
       const y2 = to.position.y + NODE_PORT_Y;
-      return `<path d="M ${x1} ${y1} C ${x1 + 70} ${y1}, ${x2 - 70} ${y2}, ${x2} ${y2}"></path>`;
+      const state = ['idle', 'active', 'passed', 'failed', 'skipped', 'waiting'].includes(edge.state)
+        ? edge.state
+        : 'idle';
+      return `<path class="edge-${state}" d="M ${x1} ${y1} C ${x1 + 70} ${y1}, ${x2 - 70} ${y2}, ${x2} ${y2}"></path>`;
     }).join('');
     const checkoutGroups = (checkout.loopGroups || []).map((group) => {
       const members = checkout.nodes.filter((node) => group.nodeIds.includes(node.id));
@@ -1637,14 +1671,32 @@ async function loadNodeIo(runId, nodeId) {
   const panel = byId('node-io-panel');
   try {
     const { io } = await api(`/api/runs/${encodeURIComponent(runId)}/nodes/${encodeURIComponent(nodeId)}`);
+    const running = io.node.status === 'RUNNING';
+    const interactionEmpty = io.agentInteractionsAvailable === false
+      ? 'Agent Interaction is temporarily unavailable. Other node evidence remains valid.'
+      : 'No Agent Interaction was recorded for this Run.';
     panel.innerHTML = `
-      <header><small>NODE I/O · ${escapeHtml(io.node.status)}</small><h3>${escapeHtml(io.node.displayName)}</h3></header>
-      <div class="io-grid">
-        <section><h4>Input</h4>${io.input.task ? `<p><b>Task</b><br>${escapeHtml(io.input.task)}</p>` : ''}${io.input.constraints ? `<p><b>Constraints</b><br>${escapeHtml(io.input.constraints)}</p>` : ''}${io.input.dependencies.length ? io.input.dependencies.map((dependency) => `<p><b>${escapeHtml(dependency.nodeId)}</b> · ${escapeHtml(dependency.status)}</p>${renderArtifactPreview(dependency.artifact)}`).join('') : '<p class="muted">Root input from this Run.</p>'}</section>
-        <section><h4>Output</h4><p><b>${escapeHtml(io.output.status)}</b>${io.output.reason ? ` · ${escapeHtml(io.output.reason)}` : ''}</p>${renderArtifactPreview(io.output.artifact)}</section>
-        <section><h4>Evidence</h4>${renderArtifactPreview(io.evidence)}</section>
-        <section><h4>Timeline</h4><div class="timeline">${io.timeline.map((event) => `<p><time>${escapeHtml(event.at)}</time><strong>${escapeHtml(event.type)}</strong></p>`).join('') || '<p class="muted">No node events yet.</p>'}</div></section>
+      <header class="node-io-head"><div><small>NODE INSPECTOR · ${escapeHtml(io.node.status)}</small><h3>${escapeHtml(io.node.displayName)}</h3></div><p class="mono">Duration: ${io.durationMs == null ? 'Not available' : `${Number(io.durationMs)} ms`} · Loop Iteration: ${io.loopIteration == null ? 'Not available' : escapeHtml(String(io.loopIteration))}</p></header>
+      <nav class="io-tabs" role="tablist" aria-label="Node details">
+        ${['Input', 'Live Activity', 'Output', 'Evidence', 'Timeline'].map((label, index) => `<button class="io-tab" role="tab" aria-selected="${index === 0}" data-io-tab="${slug(label)}">${label}</button>`).join('')}
+      </nav>
+      <div class="node-data-grid">
+        <section class="io-pane active" data-io-pane="input"><h4>Input</h4>${io.input.task ? `<p><b>Task</b><br>${escapeHtml(io.input.task)}</p>` : ''}${io.input.constraints ? `<p><b>Constraints</b><br>${escapeHtml(io.input.constraints)}</p>` : ''}${io.input.dependencies.length ? io.input.dependencies.map((dependency) => `<p><b>${escapeHtml(dependency.nodeId)}</b> · ${escapeHtml(dependency.status)}</p>${renderArtifactPreview(dependency.artifact)}`).join('') : '<p class="muted">Root input from this Run.</p>'}</section>
+        <section class="io-pane" data-io-pane="live-activity"><h4>Live Activity</h4><p class="muted">Interaction scope: ${escapeHtml(io.agentInteractionScope || 'RUN')} — questions and answers belong to the whole Run, not only this node.</p><p class="node-progress">${running ? 'In progress · waiting for persisted output' : escapeHtml(io.node.status)}</p><div class="timeline">${io.agentInteractions.map((event) => `<p><time>${escapeHtml(event.at)}</time><strong>${escapeHtml(event.type)}</strong> ${escapeHtml(String(event.message ?? ''))}</p>`).join('') || `<p class="muted">${escapeHtml(interactionEmpty)}</p>`}</div></section>
+        <section class="io-pane" data-io-pane="output"><h4>Output</h4><p><b>${running ? 'In progress' : escapeHtml(io.output.status)}</b>${io.output.reason ? ` · ${escapeHtml(io.output.reason)}` : ''}</p>${running ? '<p class="muted">Output will appear after the Agent records a terminal node event.</p>' : renderArtifactPreview(io.output.artifact)}</section>
+        <section class="io-pane" data-io-pane="evidence"><h4>Evidence</h4>${renderArtifactPreview(io.evidence)}</section>
+        <section class="io-pane" data-io-pane="timeline"><h4>Timeline</h4><div class="timeline">${io.timeline.map((event) => `<p><time>${escapeHtml(event.at)}</time><strong>${escapeHtml(event.type)}</strong></p>`).join('') || '<p class="muted">No node events yet.</p>'}</div></section>
       </div>`;
+    panel.querySelectorAll('[data-io-tab]').forEach((button) => {
+      button.onclick = () => {
+        panel.querySelectorAll('[data-io-tab]').forEach((tab) => {
+          tab.setAttribute('aria-selected', String(tab === button));
+        });
+        panel.querySelectorAll('[data-io-pane]').forEach((pane) => {
+          pane.classList.toggle('active', pane.dataset.ioPane === button.dataset.ioTab);
+        });
+      };
+    });
     panel.querySelectorAll('[data-artifact-download]').forEach((button) => {
       button.onclick = async () => {
         try {
@@ -1744,14 +1796,25 @@ async function refreshSelectedCheckout() {
 
 async function copyAgentHandoff(runId = activeRunId) {
   try {
-    if (!runId) await ensureStudioRun();
-    const result = await api(`/api/runs/${encodeURIComponent(runId || activeRunId)}/agent-handoff`);
+    const targetRunId = runId || await ensureStudioRun();
+    if (!targetRunId) return;
+    const result = await api(`/api/runs/${encodeURIComponent(targetRunId)}/agent-handoff`);
     await navigator.clipboard.writeText(result.handoff.prompt);
-    byId('goal-dialog').close();
+    handoffCopiedRunId = targetRunId;
+    renderHandoffState();
     notify('Run-bound prompt copied. Paste it into your AI coding Agent.');
   } catch (error) {
     byId('goal-validation').textContent = error.message;
   }
+}
+
+function renderHandoffState() {
+  const copied = Boolean(handoffCopiedRunId && handoffCopiedRunId === activeRunId);
+  byId('agent-handoff-state').hidden = !copied;
+  byId('agent-handoff-instructions').textContent = copied
+    ? 'Paste it once into your current AI Agent terminal, then keep Studio open to follow persisted progress.'
+    : '';
+  byId('start-agent').textContent = copied ? 'Copy again' : 'Start with AI Agent';
 }
 
 function showWorkspace(section) {
@@ -1997,6 +2060,8 @@ function renderLive() {
     byId('meter').style.width = '0';
     byId('agent-presence').textContent = 'Agent unavailable';
     byId('agent-presence').className = 'agent-presence unknown';
+    const dock = byId('run-activity-dock');
+    if (dock) dock.hidden = true;
     updateRuntimePresentation();
     return;
   }
@@ -2010,6 +2075,23 @@ function renderLive() {
   byId('active-stage').textContent = active?.id || 'Run complete';
   byId('activity').textContent = lifecycle?.message ||
     (active ? runtimeNode.activity || `${runtimeNode.status} · attempt ${runtimeNode.attempts}` : `Final state: ${live.run.state}`);
+  const journeyStatuses = new Set(['pending', 'active', 'complete']);
+  const degradedSources = live.journey?.degradedSources || [];
+  byId('run-journey').dataset.degraded = degradedSources.join(', ');
+  byId('run-journey').innerHTML = (live.journey?.steps || []).map((step) => {
+    const status = String(step?.status || '').toLowerCase();
+    const safeStatus = journeyStatuses.has(status) ? status : 'unknown';
+    const label = String(step?.id || '').replaceAll('_', ' ');
+    const suffix = safeStatus === 'unknown' ? ' (status unavailable)' : '';
+    const blocked = step?.blocked
+      ? (live.journey?.pendingQuestions == null
+          ? ' · unanswered count unavailable'
+          : ` · ${Number(live.journey.pendingQuestions)} unanswered`)
+      : '';
+    return `<li class="${safeStatus}">${escapeHtml(label + suffix + blocked)}</li>`;
+  }).join('') + (degradedSources.length
+    ? `<li class="unknown">${escapeHtml(`${degradedSources.join(' and ')} unavailable — journey may be incomplete`)}</li>`
+    : '');
   const presenceLabel = {
     WORKING: 'Agent working',
     IDLE: 'Agent appears idle',
@@ -2029,8 +2111,32 @@ function renderLive() {
   `).join('') || live.events.slice(-7).reverse().map((event) => `
     <p>${escapeHtml(event.at.slice(11, 19))} · ${escapeHtml(event.type)}</p>
   `).join('');
+  renderRunActivityDock(live, active, runtimeNode, lifecycle);
   updateRuntimePresentation();
   followActiveNode();
+}
+
+function renderRunActivityDock(live, active, runtimeNode, lifecycle) {
+  const dock = byId('run-activity-dock');
+  if (!dock) return;
+  dock.hidden = false;
+  byId('run-activity-scope').textContent = active ? 'NODE ACTIVITY' : 'RUN ACTIVITY';
+  byId('run-activity-title').textContent = active ? displayName(active) : `Run ${live.run.state}`;
+  byId('run-activity-message').textContent = lifecycle?.message ||
+    runtimeNode?.activity || (active ? runtimeNode?.status : 'Waiting for the next persisted event.');
+  byId('run-activity-status').textContent = runtimeNode?.status || agentPresence.status || live.run.state;
+  const inspect = byId('inspect-live-node');
+  inspect.hidden = !active;
+  inspect.dataset.nodeId = active?.id || '';
+  byId('run-activity-timeline').innerHTML = lifecycleEvents.slice(-4).reverse().map((event) => `
+    <span><time>${escapeHtml(String(event.at || '').slice(11, 19))}</time>${escapeHtml(event.message || event.type)}</span>
+  `).join('');
+}
+
+function maybeOpenOnboarding() {
+  const dialog = byId('goal-dialog');
+  if (catalog.live || dialog.open || onboardingDismissed) return;
+  dialog.showModal();
 }
 
 async function refreshLive() {
@@ -2041,12 +2147,19 @@ async function refreshLive() {
     await refreshLifecycle(catalog.live?.run?.runId);
     await refreshGoalDraft(catalog.live?.run?.runId);
     await hydrateGoalFromLive();
+    byId('live-connection-state').hidden = true;
     renderLive();
     await refreshSelectedCheckout();
     await refreshCheckoutInteractions();
     if (!byId('runs-view').hidden) await loadRuns();
+    maybeOpenOnboarding();
+    return true;
   } catch {
-    // A transient refresh failure must not discard the draft.
+    // A transient refresh failure must not discard the last valid draft or Run snapshot.
+    byId('live-connection-message').textContent =
+      'Studio connection lost. Your last valid Run view is preserved.';
+    byId('live-connection-state').hidden = false;
+    return false;
   }
 }
 
@@ -2348,6 +2461,19 @@ async function initialize() {
   byId('close-inspector').onclick = () => byId('inspector-panel').classList.remove('open');
   byId('toggle-execution').onclick = () => byId('execution-panel').classList.toggle('open');
   byId('close-execution').onclick = () => byId('execution-panel').classList.remove('open');
+  byId('open-live-details').onclick = () => byId('execution-panel').classList.add('open');
+  byId('inspect-live-node').onclick = async (event) => {
+    const nodeId = event.currentTarget.dataset.nodeId;
+    if (!activeRunId || !nodeId) return;
+    showWorkspace('runs');
+    await loadRuns();
+    await loadRunDetail(activeRunId);
+    await loadNodeIo(activeRunId, nodeId);
+  };
+  byId('retry-live-connection').onclick = refreshLive;
+  byId('goal-dialog').addEventListener('close', () => {
+    onboardingDismissed = true;
+  });
   await loadRecipe();
   await refreshLive();
   clearInterval(liveTimer);

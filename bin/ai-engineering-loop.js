@@ -1169,10 +1169,13 @@ function handleGate() {
       ? applyWorkflowGate(CWD, gate, { runId: target.runId }).run
       : applyGate(CWD, gate, { runId: target.runId });
     appendRunLifecycle(CWD, target.runId, {
-      type: run.state === 'DELIVERED' || run.state === 'REPORTED' ? 'RUN_COMPLETED' : 'NODE_COMPLETED',
+      type: run.state === 'DELIVERED' || run.state === 'REPORTED'
+        ? 'RUN_COMPLETED'
+        : (lifecycleNode ? 'NODE_COMPLETED' : 'PHASE_COMPLETED'),
       ...(lifecycleNode ? { nodeId: lifecycleNode.id } : {}),
       phase: gate,
       actor: 'agent',
+      status: 'PASSED',
       message: `${lifecycleNode?.displayName || gate} completed`
     });
     if (json) {
@@ -1742,7 +1745,7 @@ function handleGoal() {
         expectedHash
       });
       appendRunLifecycle(CWD, runId, {
-        type: 'NODE_COMPLETED',
+        type: goalNode ? 'NODE_COMPLETED' : 'GOAL_FROZEN',
         ...(goalNode ? { nodeId: goalNode.id } : {}),
         phase: 'goal',
         actor: argValue('--by') || 'human',
@@ -1769,6 +1772,7 @@ function handleActivity() {
     'node-started': 'NODE_STARTED',
     'node-activity': 'NODE_ACTIVITY',
     'node-completed': 'NODE_COMPLETED',
+    'node-failed': 'NODE_FAILED',
     'loop-iterated': 'LOOP_ITERATED',
     'run-completed': 'RUN_COMPLETED'
   };
@@ -1786,7 +1790,14 @@ function handleActivity() {
       phase: argValue('--phase'),
       nodeId,
       actor: argValue('--by') || 'agent',
-      message: argValue('--message') || 'Agent is working'
+      message: argValue('--message') || 'Agent is working',
+      status: argValue('--status'),
+      ...(argValue('--evidence-path') ? {
+        evidence: {
+          path: argValue('--evidence-path'),
+          sha256: argValue('--evidence-hash')
+        }
+      } : {})
     });
     console.log(JSON.stringify({ ok: true, event, presence: runAgentPresence(CWD, runId) }, null, 2));
   } catch (error) {
