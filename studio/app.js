@@ -1302,6 +1302,17 @@ async function loadRuns() {
   }
 }
 
+function runHistoryMarkup(run) {
+  const history = run.history || [];
+  if (!history.length) return '<p class="muted">Waiting for the first Run event.</p>';
+  return history.map((entry) => `
+    <p>
+      <time>${escapeHtml(new Date(entry.at).toLocaleString())}</time>
+      <span><b>${escapeHtml(entry.to)}</b> · ${escapeHtml(entry.gate || 'run update')}</span>
+    </p>
+  `).join('');
+}
+
 async function loadRunDetail(runId) {
   try {
     selectedCheckoutRun = runId;
@@ -1331,22 +1342,34 @@ async function loadRunDetail(runId) {
       const top = Math.min(...members.map((node) => node.position.y)) - 36;
       const right = Math.max(...members.map((node) => node.position.x + NODE_WIDTH)) + 28;
       const bottom = Math.max(...members.map((node) => node.position.y + 108)) + 28;
-      return `<div class="checkout-loop status-${escapeHtml((group.runtime?.status || 'pending').toLowerCase())}" style="left:${left}px;top:${top}px;width:${right - left}px;height:${bottom - top}px"><b>${escapeHtml(group.displayName)}</b><span>Iteration ${escapeHtml(group.runtime?.iteration || 1)} / ${escapeHtml(group.maxIterations)}</span></div>`;
+      return `<div class="checkout-loop status-${escapeHtml((group.runtime?.status || 'pending').toLowerCase())}" data-checkout-loop="${escapeHtml(group.id)}" style="left:${left}px;top:${top}px;width:${right - left}px;height:${bottom - top}px"><b>${escapeHtml(group.displayName)}</b><span>Iteration ${escapeHtml(group.runtime?.iteration || 1)} / ${escapeHtml(group.maxIterations)}</span></div>`;
     }).join('');
+    const checkoutBody = checkout.workflowBound
+      ? `
+        <section class="checkout-canvas" style="--checkout-width:${maxX}px;--checkout-height:${maxY}px">
+          <svg viewBox="0 0 ${maxX} ${maxY}" aria-hidden="true">${paths}</svg>
+          ${checkoutGroups}
+          ${checkout.nodes.map((node) => `<button class="checkout-node status-${escapeHtml(node.status.toLowerCase())}" data-checkout-node="${escapeHtml(node.id)}" style="left:${node.position.x}px;top:${node.position.y}px">
+            <small>${escapeHtml(node.type)}${node.loopIteration ? ` · LOOP ${escapeHtml(node.loopIteration)}` : ''}</small><strong>${escapeHtml(node.displayName)}</strong><span data-node-status>${escapeHtml(node.status)}</span>
+          </button>`).join('')}
+        </section>
+        <section id="node-io-panel" class="node-io-panel"><div class="empty-state"><h3>Select a node</h3><p>Inspect its real Input, Output, Evidence, and Timeline.</p></div></section>
+      `
+      : `
+        <section class="classic-run">
+          <small>CLASSIC RUN · LIVE TRACKING</small>
+          <h3>This Run started before automatic workflow binding was available.</h3>
+          <p>Goal changes, stage gates, evidence, and Agent questions are still monitored here. New Runs show the full node canvas automatically.</p>
+          <div id="classic-run-timeline" class="timeline">${runHistoryMarkup(run)}</div>
+        </section>
+      `;
     byId('run-detail').innerHTML = `
       <header class="checkout-header">
-        <div><button id="checkout-back" class="quiet">← Run History</button><small>READ-ONLY CHECKOUT · ${escapeHtml(run.status)}</small><h2>${escapeHtml(run.displayName)}</h2><p>${escapeHtml(run.task)}</p></div>
-        <div class="checkout-actions"><button id="copy-agent-handoff">Copy for AI Agent</button><button id="duplicate-run-workflow" class="primary">Duplicate as Workflow</button></div>
+        <div><button id="checkout-back" class="quiet">← Run History</button><small>READ-ONLY CHECKOUT · <span id="checkout-run-status">${escapeHtml(run.status)}</span></small><h2>${escapeHtml(run.displayName)}</h2><p>${escapeHtml(run.task)}</p></div>
+        <div class="checkout-actions"><button id="copy-agent-handoff">Copy for AI Agent</button>${checkout.workflowBound ? '<button id="duplicate-run-workflow" class="primary">Duplicate as Workflow</button>' : ''}</div>
       </header>
-      <div class="checkout-meta"><span>${escapeHtml(run.runId)}</span><span>${run.goalFrozen ? `Goal frozen V${escapeHtml(run.goalVersion)}` : 'Goal draft'}</span><span>Actual node states</span></div>
-      <section class="checkout-canvas" style="--checkout-width:${maxX}px;--checkout-height:${maxY}px">
-        <svg viewBox="0 0 ${maxX} ${maxY}" aria-hidden="true">${paths}</svg>
-        ${checkoutGroups}
-        ${checkout.nodes.map((node) => `<button class="checkout-node status-${escapeHtml(node.status.toLowerCase())}" data-checkout-node="${escapeHtml(node.id)}" style="left:${node.position.x}px;top:${node.position.y}px">
-          <small>${escapeHtml(node.type)}${node.loopIteration ? ` · LOOP ${escapeHtml(node.loopIteration)}` : ''}</small><strong>${escapeHtml(node.displayName)}</strong><span>${escapeHtml(node.status)}</span>
-        </button>`).join('')}
-      </section>
-      <section id="node-io-panel" class="node-io-panel"><div class="empty-state"><h3>Select a node</h3><p>Inspect its real Input, Output, Evidence, and Timeline.</p></div></section>
+      <div class="checkout-meta"><span>${escapeHtml(run.runId)}</span><span id="checkout-goal-state">${run.goalFrozen ? `Goal frozen V${escapeHtml(run.goalVersion)}` : 'Goal draft'}</span><span>${checkout.workflowBound ? 'Actual node states' : 'Live stage history'}</span></div>
+      ${checkoutBody}
       <section class="agent-interactions"><header><div><small>LIVE AGENT INTERACTIONS</small><h3>Questions from the Agent</h3></div><span>Updates automatically</span></header><div id="interaction-list"></div></section>
     `;
     renderInteractions(interactionResult.interactions);
@@ -1355,7 +1378,7 @@ async function loadRunDetail(runId) {
       byId('run-detail').innerHTML = '<div class="empty-state"><h2>Select a run</h2><p>Open a read-only checkout to inspect actual node evidence.</p></div>';
     };
     byId('copy-agent-handoff').onclick = () => copyAgentHandoff(runId);
-    byId('duplicate-run-workflow').onclick = async () => {
+    if (checkout.workflowBound) byId('duplicate-run-workflow').onclick = async () => {
       try {
         const duplicate = await api(`/api/runs/${encodeURIComponent(runId)}/duplicate`, {
           method: 'POST',
@@ -1453,6 +1476,47 @@ async function refreshCheckoutInteractions() {
     renderInteractions(result.interactions);
   } catch {
     // Corrupt or unavailable Run data is isolated and does not affect another Run.
+  }
+}
+
+async function refreshSelectedCheckout() {
+  const runId = selectedCheckoutRun;
+  if (!runId || !byId('checkout-run-status')) return;
+  try {
+    const [detail, checkoutResult] = await Promise.all([
+      api(`/api/runs/${encodeURIComponent(runId)}`),
+      api(`/api/runs/${encodeURIComponent(runId)}/checkout`)
+    ]);
+    if (selectedCheckoutRun !== runId) return;
+    const run = detail.run;
+    const checkout = checkoutResult.checkout;
+    byId('checkout-run-status').textContent = run.status;
+    byId('checkout-goal-state').textContent = run.goalFrozen
+      ? `Goal frozen V${run.goalVersion}`
+      : 'Goal draft';
+    if (!checkout.workflowBound) {
+      const timeline = byId('classic-run-timeline');
+      if (timeline) timeline.innerHTML = runHistoryMarkup(run);
+      return;
+    }
+    for (const node of checkout.nodes) {
+      const element = document.querySelector(`[data-checkout-node="${CSS.escape(node.id)}"]`);
+      if (!element) continue;
+      for (const status of ['pending', 'ready', 'running', 'passed', 'failed', 'skipped', 'blocked']) {
+        element.classList.remove(`status-${status}`);
+      }
+      element.classList.add(`status-${node.status.toLowerCase()}`);
+      const status = element.querySelector('[data-node-status]');
+      if (status) status.textContent = node.status;
+    }
+    for (const group of checkout.loopGroups || []) {
+      const element = document.querySelector(`[data-checkout-loop="${CSS.escape(group.id)}"]`);
+      if (!element) continue;
+      const counter = element.querySelector('span');
+      if (counter) counter.textContent = `Iteration ${group.runtime?.iteration || 1} / ${group.maxIterations}`;
+    }
+  } catch {
+    // Keep the last valid checkout visible during a transient refresh failure.
   }
 }
 
@@ -1736,6 +1800,7 @@ async function refreshLive() {
     syncGoalFromLive();
     await hydrateGoalFromLive();
     renderLive();
+    await refreshSelectedCheckout();
     await refreshCheckoutInteractions();
   } catch {
     // A transient refresh failure must not discard the draft.
