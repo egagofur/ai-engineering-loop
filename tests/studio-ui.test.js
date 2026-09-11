@@ -143,6 +143,8 @@ test('Studio canvas boots against its authenticated API and graph actions preser
       { filename: 'studio/app.js' }
     );
     await waitFor(() => elements.get('integrity').textContent.startsWith('VALID'));
+    assert.equal(vm.runInContext('draft.loopGroups.length', context), 1);
+    assert.equal(vm.runInContext('draft.loopGroups[0].decisionNodeId', context), 'judge');
 
     const initialEdges = vm.runInContext('draft.edges.length', context);
     vm.runInContext('deleteEdge(draft.edges[0].id)', context);

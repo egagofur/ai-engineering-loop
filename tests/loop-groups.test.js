@@ -131,9 +131,9 @@ test('AC-14 removes group semantics without deleting nodes or Edges', () => {
   assert.deepEqual(next.edges, recipe.edges);
 });
 
-test('AC-24/25 validates Loop Groups while legacy recipes remain compatible', () => {
+test('AC-24/25 validates custom and built-in Loop Groups', () => {
   assert.equal(validateRecipe(recipeFixture(), { mode: 'ASSISTED' }).valid, true);
-  const legacy = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'recipes', 'default.json'), 'utf8'));
-  assert.equal(validateRecipe(legacy, { mode: 'ASSISTED' }).valid, true);
-  assert.equal(compileRecipe(legacy, { mode: 'ASSISTED' }).loopGroups.length, 0);
+  const builtIn = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'recipes', 'default.json'), 'utf8'));
+  assert.equal(validateRecipe(builtIn, { mode: 'ASSISTED' }).valid, true);
+  assert.equal(compileRecipe(builtIn, { mode: 'ASSISTED' }).loopGroups[0].id, 'engineering-loop');
 });

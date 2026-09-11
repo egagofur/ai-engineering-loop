@@ -1,9 +1,25 @@
 {
   "schemaVersion": 1,
   "id": "default",
-  "version": 1,
+  "version": 2,
   "description": "The existing Maker, verification, Devil's Advocate, Judge, and delivery workflow.",
   "compatibleModes": ["ASSISTED", "UNATTENDED"],
+  "loopGroups": [
+    {
+      "id": "engineering-loop",
+      "displayName": "Build, verify, and review",
+      "nodeIds": ["maker", "verification", "review", "judge"],
+      "entryNodeId": "maker",
+      "decisionNodeId": "judge",
+      "repeatTargetId": "maker",
+      "exitTargetId": "delivery-approval",
+      "maxIterations": 3,
+      "repeatOutcome": "ITERATE",
+      "exitOutcome": "PASS",
+      "repeatLabel": "ITERATE · REWORK",
+      "exitLabel": "PASS · CONTINUE"
+    }
+  ],
   "nodes": [
     {
       "id": "goal",
@@ -43,7 +59,7 @@
     {
       "id": "delivery",
       "type": "delivery",
-      "dependsOn": ["judge", "delivery-approval"]
+      "dependsOn": ["delivery-approval"]
     }
   ]
 }
