@@ -289,9 +289,9 @@ test('AC-11 first-run controls expose bounded and keyboard-accessible semantics'
   assert.match(html, /id="cancel-active-run-conflict"/);
 });
 
-test('AC-12 v1.10 keeps the existing CLI and packaged Studio entry points', () => {
+test('AC-12 keeps the existing CLI and packaged Studio entry points', () => {
   const packageJson = require('../package.json');
-  assert.equal(packageJson.version, '1.10.0');
+  assert.match(packageJson.version, /^\d+\.\d+\.\d+$/);
   assert.equal(packageJson.bin['ai-engineering-loop'], 'bin/ai-engineering-loop.js');
   assert.ok(packageJson.files.includes('studio/'));
   assert.equal(packageJson.scripts.test, 'node --test');

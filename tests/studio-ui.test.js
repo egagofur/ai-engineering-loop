@@ -244,6 +244,7 @@ test('AC-1 empty Studio opens the simple task-first experience with advanced Goa
       { filename: 'studio/app.js' }
     );
     await waitFor(() => elements.get('integrity').textContent.startsWith('VALID'));
+    await waitFor(() => elements.get('goal-dialog').open === true);
     assert.equal(elements.get('goal-dialog').open, true);
     assert.equal(elements.get('goal-task').disabled, false);
     assert.match(
