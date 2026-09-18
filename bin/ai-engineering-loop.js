@@ -57,6 +57,11 @@ const {
   contextPackSummary
 } = require('../lib/safe-context.js');
 const {
+  buildContextIndex,
+  createDiffHunkPack,
+  smartContextSummary
+} = require('../lib/smart-context.js');
+const {
   defaultCasesDir,
   loadEvaluationCases,
   loadResults,
@@ -66,6 +71,9 @@ const {
 const {
   assessRunEscalation
 } = require('../lib/escalation.js');
+const {
+  writeVerificationSummary
+} = require('../lib/verification-summary.js');
 const {
   runDoctor
 } = require('../lib/doctor.js');
@@ -1145,6 +1153,35 @@ function handleSandbox() {
   }
 }
 
+function handleVerification() {
+  const action = process.argv[3] || 'summarize';
+  const json = process.argv.includes('--json');
+  const runId = argValue('--run');
+  try {
+    if (action !== 'summarize') throw new Error('Unknown verification action. Use summarize');
+    const result = writeVerificationSummary(CWD, { runId });
+    if (json) {
+      console.log(JSON.stringify({
+        ok: true,
+        path: result.path,
+        commandCount: result.summary.commandCount,
+        exitCode: result.summary.exitCode,
+        passed: result.summary.passed,
+        testCounts: result.summary.testCounts
+      }));
+    } else {
+      log.success('✓ verification summary created');
+      console.log(`- Path: ${result.path}`);
+      console.log(`- Commands: ${result.summary.commandCount}, exit code: ${result.summary.exitCode}`);
+      console.log(`- Tests: ${JSON.stringify(result.summary.testCounts)}`);
+    }
+  } catch (err) {
+    if (json) console.log(JSON.stringify({ ok: false, code: err.code || 'VERIFICATION_ERROR', error: err.message }));
+    else log.error(err.message);
+    process.exit(1);
+  }
+}
+
 function handleGate() {
   const gate = process.argv[3];
   const runId = argValue('--run');
@@ -1333,9 +1370,36 @@ function handleContext() {
   const stage = process.argv[3];
   const runId = argValue('--run');
   const profile = argValue('--profile');
+  const base = argValue('--base') || 'HEAD';
   const json = process.argv.includes('--json');
-  const files = commandFiles(4, ['--run', '--profile']);
+  const files = commandFiles(4, ['--run', '--profile', '--base']);
   try {
+    if (stage === 'index') {
+      const result = buildContextIndex(CWD, { files });
+      const summary = smartContextSummary(result);
+      if (json) {
+        console.log(JSON.stringify({ ok: true, ...summary }));
+      } else {
+        log.success('✓ smart context index created');
+        console.log(`- Path: ${summary.path}`);
+        console.log(`- Files: ${summary.files}`);
+      }
+      return;
+    }
+    if (stage === 'diff-hunks' || stage === 'diff-pack') {
+      const result = createDiffHunkPack(CWD, { runId, base, profile });
+      const summary = smartContextSummary(result);
+      if (json) {
+        console.log(JSON.stringify({ ok: true, ...summary }));
+      } else {
+        log.success('✓ smart diff hunk pack created');
+        console.log(`- Path: ${summary.path}`);
+        console.log(`- Review profile: ${summary.reviewProfile}`);
+        console.log(`- Files: ${summary.files}, estimated tokens: ${summary.estimatedTokens}`);
+        console.log(`- Unresolved findings: ${summary.unresolvedFindings}, truncated: ${summary.truncated}`);
+      }
+      return;
+    }
     const result = createContextPack(CWD, { runId, stage, files, profile });
     const summary = contextPackSummary(result);
     if (json) {
@@ -1910,6 +1974,8 @@ Commands:
                show [--run <id>]
                draft --file <json> --revision <n> [--run <id>] [--by <agent>]
                freeze --revision <n> --hash <sha256> [--run <id>] [--by <name>]
+  verification Summarize verification.json for compact Judge context
+               summarize [--run <id>] [--json]
   activity     Publish safe Run lifecycle summaries for Studio
                goal-drafting | goal-ready | heartbeat | waiting
                node-started | node-activity | node-completed | loop-iterated | run-completed
@@ -1940,8 +2006,11 @@ Commands:
                create | capture | abort | status [--run <id>] [--json]
   context <stage> <files...>
                Build a bounded, redacted context pack for maker, devil-advocate, or judge
+               index [files...]  build a private source summary index without file bodies
+               diff-hunks        build a hunk-only review pack with unresolved findings
                --run <id>  target a non-current run
                --profile lean|standard|thorough  override runtime policy for one pack
+               --base <git-ref>  base ref for diff-hunks; default HEAD
                --json      print only pack metadata; never print packed content
   eval         Validate the 20-case production evaluation catalog
                --results <dir>  score host-generated JSON results
@@ -2026,6 +2095,9 @@ switch (command) {
     break;
   case 'budget':
     handleBudget();
+    break;
+  case 'verification':
+    handleVerification();
     break;
   case 'sandbox':
     handleSandbox();

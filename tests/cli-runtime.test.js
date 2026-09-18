@@ -89,6 +89,28 @@ test('CLI context command can override review profile for one pack', () => {
   assert.ok(thorough.estimatedTokens > lean.estimatedTokens);
 });
 
+test('CLI smart context commands emit metadata without packed content', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-cli-runtime-'));
+  execFileSync('git', ['init'], { cwd: root, stdio: 'ignore' });
+  execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: root });
+  execFileSync('git', ['config', 'user.name', 'Test User'], { cwd: root });
+  fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'src', 'app.js'), 'module.exports = 1;\n');
+  createRun(root, { runId: 'run-001' });
+  execFileSync('git', ['add', '.'], { cwd: root });
+  execFileSync('git', ['commit', '-m', 'initial'], { cwd: root, stdio: 'ignore' });
+  fs.writeFileSync(path.join(root, 'src', 'app.js'), 'module.exports = 2;\n');
+
+  const index = JSON.parse(runCli(root, ['context', 'index', 'src/app.js', '--json']));
+  const diffPack = JSON.parse(runCli(root, ['context', 'diff-hunks', '--run', 'run-001', '--json']));
+
+  assert.strictEqual(index.files, 1);
+  assert.strictEqual(diffPack.reviewProfile, 'lean');
+  assert.strictEqual(diffPack.files, 1);
+  assert.ok(diffPack.estimatedTokens > 0);
+  assert.doesNotMatch(JSON.stringify(diffPack), /module\.exports/);
+});
+
 test('CLI publishes revision-bound Goal drafts and lifecycle activity for Studio', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-cli-runtime-'));
   createRun(root, { runId: 'run-001', task: 'Observe Goal drafting' });

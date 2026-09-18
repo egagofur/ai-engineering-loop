@@ -170,6 +170,14 @@ npx ai-engineering-loop policy set --review-profile standard
 npx ai-engineering-loop policy set --review-profile thorough
 ```
 
+Smart context keeps review path-first instead of transcript-heavy. It can build a private source summary index and a hunk-only diff pack that includes unresolved findings, so reviewers start from changed hunks and open full files only when necessary:
+
+```bash
+npx ai-engineering-loop context index
+npx ai-engineering-loop context diff-hunks --run <run-id>
+npx ai-engineering-loop verification summarize --run <run-id>
+```
+
 ## For people who want the controls
 
 The friendly workflow sits on top of a complete local CLI. You can inspect recipes, budgets, evidence, nodes, gates, policies, and handoffs whenever you need to.
@@ -198,6 +206,8 @@ npx ai-engineering-loop budget status --run <run-id>
 
 # Token profile
 npx ai-engineering-loop policy set --review-profile lean
+npx ai-engineering-loop context diff-hunks --run <run-id>
+npx ai-engineering-loop verification summarize --run <run-id>
 npx ai-engineering-loop context devil-advocate --profile thorough <files...>
 
 # Emergency stop and resume

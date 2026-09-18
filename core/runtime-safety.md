@@ -60,6 +60,16 @@ Use `lean` for normal Codex/GPT Plus-style sessions, `standard` when the diff is
 npx ai-engineering-loop context devil-advocate --profile thorough <files...>
 ```
 
+Prefer smart context before opening whole files:
+
+```bash
+npx ai-engineering-loop context index
+npx ai-engineering-loop context diff-hunks --run <run-id>
+npx ai-engineering-loop verification summarize --run <run-id>
+```
+
+The index stores file summaries and hashes, never file bodies, and reuses per-hash summaries when files are unchanged. The diff-hunk pack stores bounded changed hunks, file summaries, token estimates, and unresolved blocking findings from the previous ledger. The verification summary stores command outcomes, counts, and short failure excerpts without raw stdout. Iteration 2+ reviewers should start from these compact artifacts and request full source or logs only when the hunk or summary cannot prove or disprove a finding.
+
 ## Unattended Maker isolation
 
 After `gate goal`, create the worktree:

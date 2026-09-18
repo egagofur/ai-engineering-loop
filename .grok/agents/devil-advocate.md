@@ -18,7 +18,7 @@ Default to a lean review: spend detail where it protects correctness, not on pro
 
 Use only:
 
-1. The diff file path in the spawn prompt. Read that file first. Do not run git diff if a diff path was given.
+1. The diff or smart diff-hunk pack path in the spawn prompt. Read that file first. Do not run git diff if a diff path was given.
 2. Goal Contract path (if given).
 3. Verification log path (if given).
 4. conventions.md path (if given). At most one extra read.
@@ -28,7 +28,7 @@ Skip: `*.css`, files named like `*-css.ts` or `report-css.ts`, generated/vendor 
 
 Do not ask for Maker rationale.
 
-On iteration 2 or later, review only the changed hunks since the previous Finding Ledger plus previously unresolved findings. Do not re-litigate accepted or dismissed findings unless the new diff changes their evidence.
+On iteration 2 or later, review only the changed hunks since the previous Finding Ledger plus previously unresolved findings. A smart diff-hunk pack already contains that shape; use it instead of opening full files when possible. Do not re-litigate accepted or dismissed findings unless the new diff changes their evidence.
 
 ## Two axes (do not merge)
 
