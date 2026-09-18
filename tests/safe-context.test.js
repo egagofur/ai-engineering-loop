@@ -11,6 +11,7 @@ const {
   resolveSafeRepoFile
 } = require('../lib/safe-context.js');
 const { createRun } = require('../lib/run-state.js');
+const { updatePolicy } = require('../lib/runtime-policy.js');
 
 function tempRepo() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-context-'));
@@ -78,9 +79,26 @@ test('large source files are truncated deterministically', () => {
     stage: 'maker',
     files: ['src/large.js']
   });
-  assert.strictEqual(result.pack.entries[0].includedBytes, 32_000);
+  assert.strictEqual(result.pack.reviewProfile, 'lean');
+  assert.strictEqual(result.pack.entries[0].includedBytes, 16_000);
   assert.strictEqual(result.pack.entries[0].truncated, true);
-  assert.strictEqual(result.pack.estimatedTokens, 8_000);
+  assert.strictEqual(result.pack.estimatedTokens, 4_000);
+});
+
+test('thorough review profile preserves larger context budgets as an opt-in', () => {
+  const root = tempRepo();
+  updatePolicy(root, { reviewProfile: 'thorough' });
+  fs.writeFileSync(path.join(root, 'src/large.js'), 'x'.repeat(40_000));
+  const result = createContextPack(root, {
+    stage: 'maker',
+    files: ['src/large.js']
+  });
+  const summary = contextPackSummary(result);
+
+  assert.strictEqual(result.pack.reviewProfile, 'thorough');
+  assert.strictEqual(result.pack.entries[0].includedBytes, 32_000);
+  assert.strictEqual(summary.reviewProfile, 'thorough');
+  assert.strictEqual(summary.estimatedTokens, 8_000);
 });
 
 test('judge context rejects more than three files', () => {

@@ -163,6 +163,13 @@ Choose the level of autonomy that feels right:
 
 Assisted mode is the default. Unattended mode stays off until you deliberately enable it.
 
+Token-heavy hosts are protected by a lean review profile by default. Lean mode keeps the same Goal, verification, Devil’s Advocate, Judge, and delivery gates, but sends smaller context packs and asks reviewers for compact, finding-first output instead of long audit prose. Upgrade only when the task needs it:
+
+```bash
+npx ai-engineering-loop policy set --review-profile standard
+npx ai-engineering-loop policy set --review-profile thorough
+```
+
 ## For people who want the controls
 
 The friendly workflow sits on top of a complete local CLI. You can inspect recipes, budgets, evidence, nodes, gates, policies, and handoffs whenever you need to.
@@ -187,6 +194,11 @@ npx ai-engineering-loop recipe simulate default --mode assisted
 # Inspect the active Run
 npx ai-engineering-loop state --json
 npx ai-engineering-loop node status
+npx ai-engineering-loop budget status --run <run-id>
+
+# Token profile
+npx ai-engineering-loop policy set --review-profile lean
+npx ai-engineering-loop context devil-advocate --profile thorough <files...>
 
 # Emergency stop and resume
 npx ai-engineering-loop budget pause

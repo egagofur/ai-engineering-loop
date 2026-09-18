@@ -44,6 +44,22 @@ npx ai-engineering-loop budget resume
 
 `pause` sets the persistent kill switch. It blocks new run and context/model boundaries, while `budget record` remains available so an in-flight response can still be accounted.
 
+## Review profile
+
+Context packs default to the `lean` review profile so paid conversational hosts do not exhaust tokens on repeated full-file review context. The profile changes context limits and reviewer output expectations only; it does not skip Goal Contract, verification, Devil's Advocate, Judge, or delivery gates.
+
+```bash
+npx ai-engineering-loop policy set --review-profile lean
+npx ai-engineering-loop policy set --review-profile standard
+npx ai-engineering-loop policy set --review-profile thorough
+```
+
+Use `lean` for normal Codex/GPT Plus-style sessions, `standard` when the diff is broad but still routine, and `thorough` only when the human explicitly opts into a deeper, more expensive review. A single context pack can override the policy without changing future runs:
+
+```bash
+npx ai-engineering-loop context devil-advocate --profile thorough <files...>
+```
+
 ## Unattended Maker isolation
 
 After `gate goal`, create the worktree:

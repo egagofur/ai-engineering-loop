@@ -26,11 +26,14 @@ test('CLI policy and budget commands provide machine-readable controls', () => {
     'set',
     '--allow-unattended',
     'true',
+    '--review-profile',
+    'standard',
     '--per-run-token-limit',
     '1000',
     '--json'
   ]));
   assert.strictEqual(policy.allowUnattended, true);
+  assert.strictEqual(policy.reviewProfile, 'standard');
   assert.strictEqual(policy.perRunTokenLimit, 1000);
 
   const recorded = JSON.parse(runCli(root, [
@@ -48,11 +51,42 @@ test('CLI policy and budget commands provide machine-readable controls', () => {
   ]));
   assert.strictEqual(recorded.entry.totalTokens, 15);
   assert.strictEqual(recorded.status.remainingThisRun, 985);
+  assert.strictEqual(recorded.status.reviewProfile, 'standard');
 
   JSON.parse(runCli(root, ['budget', 'pause', '--json']));
   const paused = JSON.parse(runCli(root, ['budget', 'status', '--run', 'run-001', '--json']));
   assert.strictEqual(paused.allowed, false);
   assert.ok(paused.reasons.includes('kill switch is active'));
+});
+
+test('CLI context command can override review profile for one pack', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-cli-runtime-'));
+  fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'src', 'large.js'), 'x'.repeat(40_000));
+  createRun(root, { runId: 'run-001' });
+
+  const lean = JSON.parse(runCli(root, [
+    'context',
+    'maker',
+    'src/large.js',
+    '--run',
+    'run-001',
+    '--json'
+  ]));
+  const thorough = JSON.parse(runCli(root, [
+    'context',
+    'maker',
+    'src/large.js',
+    '--run',
+    'run-001',
+    '--profile',
+    'thorough',
+    '--json'
+  ]));
+
+  assert.strictEqual(lean.reviewProfile, 'lean');
+  assert.strictEqual(thorough.reviewProfile, 'thorough');
+  assert.ok(thorough.estimatedTokens > lean.estimatedTokens);
 });
 
 test('CLI publishes revision-bound Goal drafts and lifecycle activity for Studio', () => {

@@ -46,6 +46,7 @@ const {
   assertModeAllowed,
   loadPolicy,
   normalizeMode,
+  normalizeReviewProfile,
   updatePolicy
 } = require('../lib/runtime-policy.js');
 const {
@@ -1045,9 +1046,11 @@ function handlePolicy() {
       const mode = argValue('--default-mode');
       const allowUnattended = argValue('--allow-unattended');
       const requireSandbox = argValue('--require-sandbox');
+      const reviewProfile = argValue('--review-profile');
       const perRunLimit = argValue('--per-run-token-limit');
       const dailyLimit = argValue('--daily-token-limit');
       if (mode != null) changes.defaultMode = normalizeMode(mode);
+      if (reviewProfile != null) changes.reviewProfile = normalizeReviewProfile(reviewProfile);
       if (allowUnattended != null) {
         changes.allowUnattended = parseBooleanArg('--allow-unattended', allowUnattended);
       }
@@ -1329,16 +1332,18 @@ function commandFiles(startIndex, optionsWithValues = []) {
 function handleContext() {
   const stage = process.argv[3];
   const runId = argValue('--run');
+  const profile = argValue('--profile');
   const json = process.argv.includes('--json');
-  const files = commandFiles(4, ['--run']);
+  const files = commandFiles(4, ['--run', '--profile']);
   try {
-    const result = createContextPack(CWD, { runId, stage, files });
+    const result = createContextPack(CWD, { runId, stage, files, profile });
     const summary = contextPackSummary(result);
     if (json) {
       console.log(JSON.stringify({ ok: true, ...summary }));
     } else {
       log.success(`✓ ${stage} context pack created`);
       console.log(`- Path: ${summary.path}`);
+      console.log(`- Review profile: ${summary.reviewProfile}`);
       console.log(`- Files: ${summary.files}, estimated tokens: ${summary.estimatedTokens}`);
       console.log(`- Redactions: ${summary.redactions}, truncated files: ${summary.truncatedFiles}`);
     }
@@ -1925,6 +1930,7 @@ Commands:
                show [--json]
                set [--default-mode <mode>] [--allow-unattended true|false]
                    [--require-sandbox true|false]
+                   [--review-profile lean|standard|thorough]
                    [--per-run-token-limit <n>] [--daily-token-limit <n>]
   budget       Enforce actual provider-reported token usage and emergency pause
                status [--run <id>] [--node <id>] [--estimate <n>] [--json]
@@ -1935,6 +1941,7 @@ Commands:
   context <stage> <files...>
                Build a bounded, redacted context pack for maker, devil-advocate, or judge
                --run <id>  target a non-current run
+               --profile lean|standard|thorough  override runtime policy for one pack
                --json      print only pack metadata; never print packed content
   eval         Validate the 20-case production evaluation catalog
                --results <dir>  score host-generated JSON results
