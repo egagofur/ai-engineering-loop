@@ -9,6 +9,7 @@ const {
   assertModeAllowed,
   loadPolicy,
   policyPath,
+  normalizeReviewProfile,
   updatePolicy
 } = require('../lib/runtime-policy.js');
 const { RUN_MODES } = require('../lib/run-state.js');
@@ -20,6 +21,7 @@ function tempRepo() {
 test('runtime policy defaults to assisted and denies unattended', () => {
   const root = tempRepo();
   assert.deepStrictEqual(loadPolicy(root), DEFAULT_POLICY);
+  assert.strictEqual(loadPolicy(root).reviewProfile, 'lean');
   assert.doesNotThrow(() => assertModeAllowed(root, RUN_MODES.ASSISTED));
   assert.throws(
     () => assertModeAllowed(root, RUN_MODES.UNATTENDED),
@@ -45,5 +47,15 @@ test('invalid limits fail closed', () => {
   assert.throws(
     () => updatePolicy(root, { dailyTokenLimit: 0 }),
     (err) => err.code === 'INVALID_RUNTIME_POLICY'
+  );
+});
+
+test('review profile is normalized and fail-closed', () => {
+  const root = tempRepo();
+  assert.strictEqual(normalizeReviewProfile('THOROUGH'), 'thorough');
+  assert.strictEqual(updatePolicy(root, { reviewProfile: 'standard' }).reviewProfile, 'standard');
+  assert.throws(
+    () => updatePolicy(root, { reviewProfile: 'expensive' }),
+    (err) => err.code === 'INVALID_RUNTIME_POLICY' && /reviewProfile/.test(err.message)
   );
 });

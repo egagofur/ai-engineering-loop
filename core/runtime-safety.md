@@ -44,6 +44,32 @@ npx ai-engineering-loop budget resume
 
 `pause` sets the persistent kill switch. It blocks new run and context/model boundaries, while `budget record` remains available so an in-flight response can still be accounted.
 
+## Review profile
+
+Context packs default to the `lean` review profile so paid conversational hosts do not exhaust tokens on repeated full-file review context. The profile changes context limits and reviewer output expectations only; it does not skip Goal Contract, verification, Devil's Advocate, Judge, or delivery gates.
+
+```bash
+npx ai-engineering-loop policy set --review-profile lean
+npx ai-engineering-loop policy set --review-profile standard
+npx ai-engineering-loop policy set --review-profile thorough
+```
+
+Use `lean` for normal Codex/GPT Plus-style sessions, `standard` when the diff is broad but still routine, and `thorough` only when the human explicitly opts into a deeper, more expensive review. A single context pack can override the policy without changing future runs:
+
+```bash
+npx ai-engineering-loop context devil-advocate --profile thorough <files...>
+```
+
+Prefer smart context before opening whole files:
+
+```bash
+npx ai-engineering-loop context index
+npx ai-engineering-loop context diff-hunks --run <run-id>
+npx ai-engineering-loop verification summarize --run <run-id>
+```
+
+The index stores file summaries and hashes, never file bodies, and reuses per-hash summaries when files are unchanged. The diff-hunk pack stores bounded changed hunks, file summaries, token estimates, and unresolved blocking findings from the previous ledger. The verification summary stores command outcomes, counts, and short failure excerpts without raw stdout. Iteration 2+ reviewers should start from these compact artifacts and request full source or logs only when the hunk or summary cannot prove or disprove a finding.
+
 ## Unattended Maker isolation
 
 After `gate goal`, create the worktree:

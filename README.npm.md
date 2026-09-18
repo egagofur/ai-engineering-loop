@@ -33,6 +33,9 @@ npx ai-engineering-loop run --mode report-only "audit this repository"
 # Inspect spend controls; ASSISTED is the default
 npx ai-engineering-loop policy show
 npx ai-engineering-loop budget status
+npx ai-engineering-loop policy set --review-profile lean
+npx ai-engineering-loop context diff-hunks --run <run-id>
+npx ai-engineering-loop verification summarize --run <run-id>
 
 # Author and observe deterministic workflow recipes locally
 npx ai-engineering-loop studio
@@ -53,7 +56,7 @@ npx ai-engineering-loop sync-hosts
 3. **Multi-Agent Triad**: Coordinates **Maker** (surgical diffs & tests), **Devil's Advocate** (independent adversarial review), and **Judge** (impartial evaluation & PASS certification).
 4. **Context Impact Assessment**: Evaluates completed tasks (`NONE`, `TARGETED`, `MAJOR`) to keep project context fresh without expensive whole-repo re-analysis.
 5. **Grok CLI host**: Native `spawn_subagent` for Devil's Advocate and Judge (`TRUE_INDEPENDENT_AGENT`). Disabled by `GROK_SUBAGENTS=0`.
-6. **Production runtime controls**: `REPORT_ONLY`, human-approved `ASSISTED`, opt-in `UNATTENDED`, actual token ledgers, a persistent kill switch, and locked disposable Maker worktrees.
+6. **Production runtime controls**: `REPORT_ONLY`, human-approved `ASSISTED`, opt-in `UNATTENDED`, actual token ledgers, lean/standard/thorough review profiles, smart hunk-only context packs, a persistent kill switch, and locked disposable Maker worktrees.
 7. **Local Workflow Studio**: A localhost-only authenticated DAG canvas with animated live stage state, token telemetry, explicit approvals, decision memory, atomic recipe installation, and redacted handoff export. It does not execute models or shell commands in the browser.
 
 ---

@@ -57,6 +57,37 @@ test('projected context fails closed before crossing run or daily limits', () =>
   );
 });
 
+test('budget status reports review profile and early token pressure warnings', () => {
+  const root = tempRepo();
+  const now = new Date('2025-02-03T00:00:00.000Z');
+  updatePolicy(root, { perRunTokenLimit: 100, dailyTokenLimit: 150, reviewProfile: 'lean' });
+  recordTokenUsage(root, {
+    runId: 'run-001',
+    inputTokens: 45,
+    outputTokens: 5,
+    model: 'cheap-model',
+    now
+  });
+  const status = budgetStatus(root, { runId: 'run-001', estimatedTokens: 30, now });
+
+  assert.strictEqual(status.reviewProfile, 'lean');
+  assert.deepStrictEqual(status.pressure, {
+    run: 0.8,
+    day: 0.5333333333333333
+  });
+  assert.match(status.warnings.join('\n'), /run token usage is at 80%/);
+  assert.match(status.warnings.join('\n'), /lean review profile/);
+});
+
+test('thorough review profile is surfaced as an expensive opt-in warning', () => {
+  const root = tempRepo();
+  updatePolicy(root, { reviewProfile: 'thorough' });
+  const status = budgetStatus(root, { runId: 'run-001' });
+
+  assert.strictEqual(status.reviewProfile, 'thorough');
+  assert.match(status.warnings.join('\n'), /thorough review profile increases context size/);
+});
+
 test('per-run usage carries across UTC days while the daily limit resets', () => {
   const root = tempRepo();
   updatePolicy(root, { perRunTokenLimit: 100, dailyTokenLimit: 100 });
