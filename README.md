@@ -178,9 +178,12 @@ npx ai-engineering-loop context query createStudioRun
 npx ai-engineering-loop context related lib/studio-server.js
 npx ai-engineering-loop context fast-path --json
 npx ai-engineering-loop context diff-hunks --run <run-id>
+npx ai-engineering-loop context diff-hunks --run <run-id> --include-ignored
 npx ai-engineering-loop verification summarize --run <run-id>
 npx ai-engineering-loop context compact --run <run-id>
 ```
+
+By default, smart context skips high-volume review inputs such as CSS, generated bundles, lockfiles, build output, and paths listed in `.aelcontextignore`. Use `--include-ignored` when the task is explicitly about those files.
 
 ## For people who want the controls
 

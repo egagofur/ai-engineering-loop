@@ -2077,7 +2077,6 @@ function renderLive() {
     (active ? runtimeNode.activity || `${runtimeNode.status} · attempt ${runtimeNode.attempts}` : `Final state: ${live.run.state}`);
   const journeyStatuses = new Set(['pending', 'active', 'complete']);
   const degradedSources = live.journey?.degradedSources || [];
-  byId('run-journey').dataset.degraded = degradedSources.join(', ');
   byId('run-journey').innerHTML = (live.journey?.steps || []).map((step) => {
     const status = String(step?.status || '').toLowerCase();
     const safeStatus = journeyStatuses.has(status) ? status : 'unknown';
@@ -2104,13 +2103,17 @@ function renderLive() {
   const limit = live.budget.perRunTokenLimit;
   byId('meter').style.width = `${Math.min(100, limit ? (spent / limit) * 100 : 0)}%`;
   byId('budget').textContent = `${spent.toLocaleString()} / ${limit.toLocaleString()} TOKENS`;
-  byId('events').innerHTML = lifecycleEvents.slice(-7).reverse().map((event) => `
+  const liveEventsHtml = lifecycleEvents.slice(-7).reverse().map((event) => `
     <p class="${event.type === 'NODE_ACTIVITY' || event.type.includes('START') ? 'event-active' : ''}">
       ${escapeHtml(event.at.slice(11, 19))} · ${escapeHtml(event.type)} · ${escapeHtml(event.message)}
     </p>
   `).join('') || live.events.slice(-7).reverse().map((event) => `
     <p>${escapeHtml(event.at.slice(11, 19))} · ${escapeHtml(event.type)}</p>
   `).join('');
+  const eventsDetailNote = live.summary?.eventsTruncated
+    ? '<p class="muted">Older workflow events are kept out of live polling; node detail and lifecycle stream load them on demand.</p>'
+    : '';
+  byId('events').innerHTML = liveEventsHtml + eventsDetailNote;
   renderRunActivityDock(live, active, runtimeNode, lifecycle);
   updateRuntimePresentation();
   followActiveNode();
