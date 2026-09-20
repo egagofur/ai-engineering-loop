@@ -195,6 +195,32 @@ test('task-impact-inquiry is Claude-safe and ships to Claude, Grok, and Gemini',
   assert.match(wf, /blast radius: lifecycle sketch/);
 });
 
+test('backend-development skill ships to Claude, Grok, Gemini, and Codex with reference docs', () => {
+  const hosts = [
+    '.claude/skills/backend-development',
+    '.grok/skills/backend-development',
+    '.gemini/skills/backend-development',
+    '.agents/skills/backend-development'
+  ];
+  for (const host of hosts) {
+    const skill = readRepo(`${host}/SKILL.md`);
+    const { fm } = parseFrontmatter(skill, `${host}/SKILL.md`);
+    assert.match(fm, /^name:\s*backend-development$/m, host);
+    assert.doesNotMatch(fm, /^description:\s*>-?/m, host);
+    assert.doesNotMatch(skill, /```mermaid/);
+    assert.doesNotMatch(skill, /\$\\/);
+    assert.doesNotMatch(skill, /spawn_subagent/);
+    assert.match(skill, /Boolean naming/);
+    assert.match(skill, /No magic numbers or strings/);
+    assert.match(skill, /Query and Database Best Practices/);
+    assert.match(skill, /API Design Principles/);
+    assert.match(skill, /Security/);
+    assert.match(readRepo(`${host}/references/api-design-guidelines.md`), /HTTP method semantics/i);
+    assert.match(readRepo(`${host}/references/query-and-database-best-practices.md`), /N\+1 query prevention/i);
+    assert.match(readRepo(`${host}/references/security-checklist.md`), /Common vulnerability prevention/i);
+  }
+});
+
 test('DOT router sends commit-bound work to ai-engineering-loop; workflow is Stage 8 only', () => {
   const router = readRepo('adapters/dot/skills/dot-dev-skill-router/SKILL.md');
   const delivery = readRepo('adapters/dot/skills/dot-dev-workflow/SKILL.md');

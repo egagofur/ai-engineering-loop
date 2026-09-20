@@ -75,6 +75,35 @@ test('sync upserts task-impact-inquiry onto Claude, Grok, and Gemini', () => {
   assert.match(gemini, /Business blast radius|blast radius/);
 });
 
+test('sync upserts backend-development skill and references onto Claude, Grok, Gemini, and Codex-compatible agents', () => {
+  const home = tmpHome();
+  fs.mkdirSync(path.join(home, '.claude'));
+  fs.mkdirSync(path.join(home, '.grok'));
+  fs.mkdirSync(path.join(home, '.gemini'));
+  fs.mkdirSync(path.join(home, '.agents'));
+  applyHostSync({ packageRoot: ROOT, home });
+
+  const claudeBase = path.join(home, '.claude/skills/backend-development');
+  const grokBase = path.join(home, '.grok/skills/backend-development');
+  const geminiBase = path.join(home, '.gemini/config/skills/backend-development');
+  const codexBase = path.join(home, '.agents/skills/backend-development');
+  const claude = fs.readFileSync(path.join(claudeBase, 'SKILL.md'), 'utf8');
+  const grok = fs.readFileSync(path.join(grokBase, 'SKILL.md'), 'utf8');
+  const gemini = fs.readFileSync(path.join(geminiBase, 'SKILL.md'), 'utf8');
+  const codex = fs.readFileSync(path.join(codexBase, 'SKILL.md'), 'utf8');
+
+  assert.match(claude, /name: backend-development/);
+  assert.match(claude, /Boolean naming/);
+  assert.match(grok, /^user-invocable: true$/m);
+  assert.match(gemini, /Query and Database Best Practices|Query and Database/);
+  assert.match(codex, /name: backend-development/);
+  for (const base of [claudeBase, grokBase, geminiBase, codexBase]) {
+    assert.ok(fs.existsSync(path.join(base, 'references/api-design-guidelines.md')), base);
+    assert.ok(fs.existsSync(path.join(base, 'references/query-and-database-best-practices.md')), base);
+    assert.ok(fs.existsSync(path.join(base, 'references/security-checklist.md')), base);
+  }
+});
+
 test('DOT skills update only when already installed', () => {
   const home = tmpHome();
   const dest = path.join(home, '.claude/skills/dot-dev-workflow/SKILL.md');
@@ -109,7 +138,7 @@ test('dry-run does not write; second apply is current', () => {
   assert.ok(!fs.existsSync(path.join(home, '.gemini/config/skills/ai-engineering-loop/SKILL.md')));
   applyHostSync({ packageRoot: ROOT, home });
   const again = applyHostSync({ packageRoot: ROOT, home });
-  assert.strictEqual(summarizeHostSync(again.filter((item) => item.id === 'gemini')).current, 4);
+  assert.strictEqual(summarizeHostSync(again.filter((item) => item.id === 'gemini')).current, 8);
   assert.strictEqual(summarizeHostSync(again.filter((item) => item.id === 'gemini')).copy, 0);
 });
 
