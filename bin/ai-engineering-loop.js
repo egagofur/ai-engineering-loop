@@ -84,6 +84,10 @@ const {
   runDoctor
 } = require('../lib/doctor.js');
 const {
+  checkForUpdate,
+  executeUpdatePlan
+} = require('../lib/update-manager.js');
+const {
   assertBudgetAvailable,
   budgetStatus,
   recordTokenUsage,
@@ -1568,6 +1572,59 @@ function handleDoctor() {
   if (!result.ok) process.exit(1);
 }
 
+function printUpdatePlan(plan) {
+  console.log(`Current: ${plan.currentVersion}`);
+  console.log(`Latest:  ${plan.latestVersion}`);
+  console.log(`Install: ${plan.installScope}`);
+  if (plan.updateAvailable) {
+    console.log('\nUpdate available. Recommended commands:');
+  } else {
+    console.log('\nai-engineering-loop is up to date. Sync commands remain safe to run:');
+  }
+  for (const item of plan.commands) console.log(item.display);
+}
+
+function handleUpdate() {
+  const action = process.argv[3] || 'check';
+  const json = process.argv.includes('--json');
+  const yes = process.argv.includes('--yes');
+  try {
+    const plan = checkForUpdate(path.join(__dirname, '..'));
+    if (action === 'check' || action === 'plan') {
+      if (json) console.log(JSON.stringify({ ok: true, action, ...plan }));
+      else printUpdatePlan(plan);
+      return;
+    }
+    if (action === 'apply') {
+      if (json && !yes) {
+        throw new Error('update apply requires --yes; use update plan for a dry run');
+      }
+      if (!yes) {
+        printUpdatePlan(plan);
+        throw new Error('Refusing to update without explicit confirmation. Re-run with: ai-engineering-loop update apply --yes');
+      }
+      if (!plan.updateAvailable) {
+        if (json) console.log(JSON.stringify({ ok: true, action, skipped: true, reason: 'UP_TO_DATE', ...plan }));
+        else {
+          console.log('ai-engineering-loop is already up to date.');
+          printUpdatePlan(plan);
+        }
+        return;
+      }
+      if (!json) printUpdatePlan(plan);
+      executeUpdatePlan(plan);
+      if (json) console.log(JSON.stringify({ ok: true, action, applied: true, ...plan }));
+      else log.success('✓ ai-engineering-loop updated and post-update sync completed');
+      return;
+    }
+    throw new Error(`Unknown update action: ${action}`);
+  } catch (err) {
+    if (json) console.log(JSON.stringify({ ok: false, code: err.code || 'UPDATE_FAILED', error: err.message }));
+    else log.error(err.message);
+    process.exit(1);
+  }
+}
+
 function handleRecipe() {
   const action = process.argv[3] || 'list';
   const id = process.argv[4];
@@ -2084,6 +2141,9 @@ Commands:
                --json      print machine-readable reasons
   doctor       Check runtime, schemas, host assets, package contents, and eval catalog
                --json      print machine-readable diagnostics
+  update       Check or apply the package update workflow
+               check|plan [--json]
+               apply --yes
   recipe       Inspect and compile declarative workflow recipes (does not execute nodes)
                list [--json]
                catalog [--json]
@@ -2176,6 +2236,9 @@ switch (command) {
     break;
   case 'doctor':
     handleDoctor();
+    break;
+  case 'update':
+    handleUpdate();
     break;
   case 'recipe':
     handleRecipe();

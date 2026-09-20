@@ -75,6 +75,18 @@ npx ai-engineering-loop context compact --run <run-id>
 
 The index stores file summaries and hashes, never file bodies, and reuses per-hash summaries when files are unchanged. `query` and `related` return metadata only so agents can choose the right files before reading source. `fast-path` keeps low-risk small diffs on lean review and names the reason when a task must use the standard path. The diff-hunk pack stores bounded changed hunks, file summaries, token estimates, unresolved blocking findings from the previous ledger, and a count of paths skipped by context policy. Smart context skips CSS, generated bundles, lockfiles, build output, and `.aelcontextignore` matches by default; pass `--include-ignored` only when those files are the task. The verification summary stores command outcomes, counts, and short failure excerpts without raw stdout. `context compact` writes `run-summary.md`, `run-summary.json`, and `open-findings.json` so iteration 2+ reviewers and Judge start from compact artifacts and request full source or logs only when the hunk or summary cannot prove or disprove a finding.
 
+## Package update workflow
+
+Agents may check for package updates, but must not update the user's global or project installation without explicit instruction. Use:
+
+```bash
+ai-engineering-loop update check
+ai-engineering-loop update plan
+ai-engineering-loop update apply --yes
+```
+
+`update plan` prints the exact install, `sync-hosts`, `refresh`, and `doctor` commands for the detected install scope. `update apply --yes` runs those commands explicitly; the separate `--yes` flag is the confirmation boundary.
+
 ## Unattended Maker isolation
 
 After `gate goal`, create the worktree:
