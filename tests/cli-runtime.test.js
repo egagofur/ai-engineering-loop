@@ -10,9 +10,10 @@ const { createRun } = require('../lib/run-state.js');
 
 const CLI = path.join(__dirname, '..', 'bin', 'ai-engineering-loop.js');
 
-function runCli(root, args) {
+function runCli(root, args, env = {}) {
   return execFileSync(process.execPath, [CLI, ...args], {
     cwd: root,
+    env: { ...process.env, ...env },
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe']
   }).trim();
@@ -114,6 +115,23 @@ test('CLI smart context commands emit metadata without packed content', () => {
   assert.strictEqual(fastPath.eligible, true);
   assert.ok(diffPack.estimatedTokens > 0);
   assert.doesNotMatch(JSON.stringify(diffPack), /module\.exports/);
+});
+
+test('CLI update check reports the safe post-install sync plan', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-cli-runtime-'));
+  const result = JSON.parse(runCli(root, ['update', 'check', '--json'], {
+    AEL_UPDATE_LATEST_VERSION: '9.9.9',
+    AEL_INSTALL_SCOPE: 'global'
+  }));
+
+  assert.strictEqual(result.updateAvailable, true);
+  assert.strictEqual(result.installScope, 'global');
+  assert.deepStrictEqual(result.commands.map((item) => item.display), [
+    'npm install --global ai-engineering-loop@latest',
+    'ai-engineering-loop sync-hosts',
+    'ai-engineering-loop refresh',
+    'ai-engineering-loop doctor'
+  ]);
 });
 
 test('CLI publishes revision-bound Goal drafts and lifecycle activity for Studio', () => {

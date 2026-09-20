@@ -197,6 +197,9 @@ The friendly workflow sits on top of a complete local CLI. You can inspect recip
 npx ai-engineering-loop init
 npx ai-engineering-loop status
 npx ai-engineering-loop doctor
+npx ai-engineering-loop update check
+npx ai-engineering-loop update plan
+npx ai-engineering-loop update apply --yes
 
 # Start work
 npx ai-engineering-loop run "describe the task"
