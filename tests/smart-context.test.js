@@ -6,8 +6,11 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 
 const {
+  assessSmallTaskFastPath,
   buildContextIndex,
-  createDiffHunkPack
+  createDiffHunkPack,
+  queryContextIndex,
+  relatedContextIndex
 } = require('../lib/smart-context.js');
 const { createRun } = require('../lib/run-state.js');
 const { updatePolicy } = require('../lib/runtime-policy.js');
@@ -62,6 +65,23 @@ test('context index reuses per-hash summary cache when file content is unchanged
   assert.deepStrictEqual(second.index.files[0].symbols, ['cached-alpha']);
 });
 
+test('context index query and related commands return metadata without source bodies', () => {
+  const root = tempRepo();
+  fs.mkdirSync(path.join(root, 'tests'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'src', 'payments.js'), 'function authorizePayment() { return "secret-body"; }\n');
+  fs.writeFileSync(path.join(root, 'tests', 'payments.test.js'), 'const paymentTest = true;\n');
+  buildContextIndex(root, { files: ['src/payments.js', 'tests/payments.test.js'] });
+
+  const query = queryContextIndex(root, { query: 'authorizePayment' });
+  const related = relatedContextIndex(root, { file: 'src/payments.js' });
+  const serialized = JSON.stringify({ query, related });
+
+  assert.strictEqual(query.matches[0].path, 'src/payments.js');
+  assert.deepStrictEqual(query.matches[0].symbols, ['authorizePayment']);
+  assert.strictEqual(related.matches[0].path, 'tests/payments.test.js');
+  assert.doesNotMatch(serialized, /secret-body/);
+});
+
 test('diff hunk pack sends bounded hunks and file summaries instead of whole files', () => {
   const root = tempRepo();
   fs.writeFileSync(path.join(root, 'src', 'app.js'), [
@@ -85,6 +105,8 @@ test('diff hunk pack sends bounded hunks and file summaries instead of whole fil
   const file = result.pack.files[0];
 
   assert.strictEqual(result.pack.reviewProfile, 'lean');
+  assert.strictEqual(result.pack.reviewBudget.devilAdvocateMaxFindings, 5);
+  assert.strictEqual(result.pack.reviewBudget.judgeMayReadFullDiff, false);
   assert.strictEqual(file.path, 'src/app.js');
   assert.ok(file.summary.sourceBytes > file.includedBytes);
   assert.match(file.hunks[0].content, /function changed/);
@@ -118,4 +140,22 @@ test('diff hunk pack uses review profile limits and records unresolved finding c
   assert.strictEqual(result.pack.unresolvedFindings.length, 1);
   assert.strictEqual(result.pack.unresolvedFindings[0].id, 'DA-01');
   assert.ok(result.pack.files[0].truncated);
+});
+
+test('small-task fast path stays lean only for small low-risk diffs', () => {
+  const root = tempRepo();
+  fs.writeFileSync(path.join(root, 'src', 'app.js'), 'module.exports = 1;\n');
+  commitAll(root);
+  fs.writeFileSync(path.join(root, 'src', 'app.js'), 'module.exports = 2;\n');
+
+  const eligible = assessSmallTaskFastPath(root);
+  assert.strictEqual(eligible.eligible, true);
+  assert.strictEqual(eligible.recommendedProfile, 'lean');
+
+  fs.mkdirSync(path.join(root, 'src', 'auth'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'src', 'auth', 'permissions.js'), 'module.exports = true;\n');
+  const blocked = assessSmallTaskFastPath(root);
+  assert.strictEqual(blocked.eligible, false);
+  assert.ok(blocked.reasons.includes('HIGH_RISK_PATH'));
+  assert.strictEqual(blocked.recommendedProfile, 'standard');
 });

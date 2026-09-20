@@ -103,10 +103,15 @@ test('CLI smart context commands emit metadata without packed content', () => {
 
   const index = JSON.parse(runCli(root, ['context', 'index', 'src/app.js', '--json']));
   const diffPack = JSON.parse(runCli(root, ['context', 'diff-hunks', '--run', 'run-001', '--json']));
+  const query = JSON.parse(runCli(root, ['context', 'query', 'app', '--json']));
+  const fastPath = JSON.parse(runCli(root, ['context', 'fast-path', '--json']));
 
   assert.strictEqual(index.files, 1);
   assert.strictEqual(diffPack.reviewProfile, 'lean');
   assert.strictEqual(diffPack.files, 1);
+  assert.strictEqual(diffPack.reviewBudget.devilAdvocateMaxFindings, 5);
+  assert.strictEqual(query.matches[0].path, 'src/app.js');
+  assert.strictEqual(fastPath.eligible, true);
   assert.ok(diffPack.estimatedTokens > 0);
   assert.doesNotMatch(JSON.stringify(diffPack), /module\.exports/);
 });

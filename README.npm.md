@@ -34,8 +34,11 @@ npx ai-engineering-loop run --mode report-only "audit this repository"
 npx ai-engineering-loop policy show
 npx ai-engineering-loop budget status
 npx ai-engineering-loop policy set --review-profile lean
+npx ai-engineering-loop context query createStudioRun
+npx ai-engineering-loop context fast-path --json
 npx ai-engineering-loop context diff-hunks --run <run-id>
 npx ai-engineering-loop verification summarize --run <run-id>
+npx ai-engineering-loop context compact --run <run-id>
 
 # Author and observe deterministic workflow recipes locally
 npx ai-engineering-loop studio

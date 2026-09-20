@@ -57,10 +57,16 @@ const {
   contextPackSummary
 } = require('../lib/safe-context.js');
 const {
+  assessSmallTaskFastPath,
   buildContextIndex,
   createDiffHunkPack,
+  queryContextIndex,
+  relatedContextIndex,
   smartContextSummary
 } = require('../lib/smart-context.js');
+const {
+  compactRun
+} = require('../lib/run-compaction.js');
 const {
   defaultCasesDir,
   loadEvaluationCases,
@@ -1371,8 +1377,10 @@ function handleContext() {
   const runId = argValue('--run');
   const profile = argValue('--profile');
   const base = argValue('--base') || 'HEAD';
+  const query = argValue('--query');
+  const limit = Number(argValue('--limit') || 10);
   const json = process.argv.includes('--json');
-  const files = commandFiles(4, ['--run', '--profile', '--base']);
+  const files = commandFiles(4, ['--run', '--profile', '--base', '--query', '--limit']);
   try {
     if (stage === 'index') {
       const result = buildContextIndex(CWD, { files });
@@ -1383,6 +1391,52 @@ function handleContext() {
         log.success('✓ smart context index created');
         console.log(`- Path: ${summary.path}`);
         console.log(`- Files: ${summary.files}`);
+      }
+      return;
+    }
+    if (stage === 'query') {
+      const result = queryContextIndex(CWD, { query: query || files.join(' '), limit });
+      if (json) {
+        console.log(JSON.stringify({ ok: true, ...result }));
+      } else {
+        log.success('✓ context index query complete');
+        console.log(`- Matches: ${result.matches.length}`);
+        for (const match of result.matches) console.log(`  - ${match.path}${match.symbols.length ? ` (${match.symbols.join(', ')})` : ''}`);
+      }
+      return;
+    }
+    if (stage === 'related') {
+      const result = relatedContextIndex(CWD, { file: files[0], limit });
+      if (json) {
+        console.log(JSON.stringify({ ok: true, ...result }));
+      } else {
+        log.success('✓ related context query complete');
+        console.log(`- File: ${result.file}`);
+        for (const match of result.matches) console.log(`  - ${match.path}`);
+      }
+      return;
+    }
+    if (stage === 'fast-path') {
+      const result = assessSmallTaskFastPath(CWD, { base });
+      if (json) {
+        console.log(JSON.stringify({ ok: true, ...result }));
+      } else {
+        log.success(result.eligible ? '✓ small-task fast path eligible' : 'Small-task fast path not eligible');
+        console.log(`- Profile: ${result.recommendedProfile}`);
+        console.log(`- Files: ${result.changedPaths.length}, changed lines: ${result.changedLines}`);
+        if (result.reasons.length) console.log(`- Reasons: ${result.reasons.join(', ')}`);
+      }
+      return;
+    }
+    if (stage === 'compact') {
+      const result = compactRun(CWD, { runId });
+      if (json) {
+        console.log(JSON.stringify({ ok: true, runId: result.summary.runId, paths: result.paths, openFindings: result.summary.openFindings.length }));
+      } else {
+        log.success('✓ run context compacted');
+        console.log(`- Summary: ${result.paths.markdown}`);
+        console.log(`- Machine summary: ${result.paths.summary}`);
+        console.log(`- Open findings: ${result.paths.openFindings}`);
       }
       return;
     }
@@ -2007,10 +2061,16 @@ Commands:
   context <stage> <files...>
                Build a bounded, redacted context pack for maker, devil-advocate, or judge
                index [files...]  build a private source summary index without file bodies
+               query <term>      search index paths and exported symbols without source bodies
+               related <file>    list nearby indexed files without reading source bodies
                diff-hunks        build a hunk-only review pack with unresolved findings
+               fast-path         assess whether a small task can stay on lean review
+               compact           write run-summary.md/json and open-findings.json
                --run <id>  target a non-current run
                --profile lean|standard|thorough  override runtime policy for one pack
                --base <git-ref>  base ref for diff-hunks; default HEAD
+               --query <term>    query term for context query
+               --limit <n>       bound query/related result count
                --json      print only pack metadata; never print packed content
   eval         Validate the 20-case production evaluation catalog
                --results <dir>  score host-generated JSON results
