@@ -280,6 +280,15 @@ test('Studio creates, freezes, executes, and inspects a named local run through 
     const execution = await executed.json();
     assert.equal(execution.execution.dispatch, 'LOCAL_RUNTIME_ONLY');
     assert.equal(execution.execution.externalDispatch, false);
+    const liveResponse = await fetch(`${base}/api/live`, { headers });
+    assert.equal(liveResponse.status, 200);
+    const live = (await liveResponse.json()).live;
+    assert.equal(live.summary.runId, run.runId);
+    assert.equal(live.summary.workflowEventLimit, 12);
+    assert.equal(live.summary.eventsTruncated, live.summary.workflowEventCount > live.events.length);
+    assert.ok(live.events.length <= 12);
+    assert.equal(live.summary.details.nodeIo, `/api/runs/${run.runId}/nodes/{nodeId}`);
+    assert.equal(live.summary.details.lifecycle, `/api/runs/${run.runId}/lifecycle?after={sequence}`);
 
     const reopened = await fetch(`${base}/api/runs/${run.runId}/goal/unfreeze`, {
       method: 'POST',

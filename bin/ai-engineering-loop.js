@@ -1380,10 +1380,11 @@ function handleContext() {
   const query = argValue('--query');
   const limit = Number(argValue('--limit') || 10);
   const json = process.argv.includes('--json');
+  const includeIgnored = process.argv.includes('--include-ignored');
   const files = commandFiles(4, ['--run', '--profile', '--base', '--query', '--limit']);
   try {
     if (stage === 'index') {
-      const result = buildContextIndex(CWD, { files });
+      const result = buildContextIndex(CWD, { files, includeIgnored });
       const summary = smartContextSummary(result);
       if (json) {
         console.log(JSON.stringify({ ok: true, ...summary }));
@@ -1417,7 +1418,7 @@ function handleContext() {
       return;
     }
     if (stage === 'fast-path') {
-      const result = assessSmallTaskFastPath(CWD, { base });
+      const result = assessSmallTaskFastPath(CWD, { base, includeIgnored });
       if (json) {
         console.log(JSON.stringify({ ok: true, ...result }));
       } else {
@@ -1441,7 +1442,7 @@ function handleContext() {
       return;
     }
     if (stage === 'diff-hunks' || stage === 'diff-pack') {
-      const result = createDiffHunkPack(CWD, { runId, base, profile });
+      const result = createDiffHunkPack(CWD, { runId, base, profile, includeIgnored });
       const summary = smartContextSummary(result);
       if (json) {
         console.log(JSON.stringify({ ok: true, ...summary }));
@@ -1451,6 +1452,7 @@ function handleContext() {
         console.log(`- Review profile: ${summary.reviewProfile}`);
         console.log(`- Files: ${summary.files}, estimated tokens: ${summary.estimatedTokens}`);
         console.log(`- Unresolved findings: ${summary.unresolvedFindings}, truncated: ${summary.truncated}`);
+        if (summary.ignoredPaths) console.log(`- Ignored by context policy: ${summary.ignoredPaths}`);
       }
       return;
     }
@@ -2071,6 +2073,7 @@ Commands:
                --base <git-ref>  base ref for diff-hunks; default HEAD
                --query <term>    query term for context query
                --limit <n>       bound query/related result count
+               --include-ignored include CSS, generated, lockfile, and .aelcontextignore paths
                --json      print only pack metadata; never print packed content
   eval         Validate the 20-case production evaluation catalog
                --results <dir>  score host-generated JSON results

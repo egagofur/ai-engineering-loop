@@ -116,6 +116,31 @@ test('diff hunk pack sends bounded hunks and file summaries instead of whole fil
   assert.doesNotMatch(serialized, /api_key = "sk-test/);
 });
 
+test('context ignore skips CSS, generated files, and opt-in paths unless explicitly included', () => {
+  const root = tempRepo();
+  fs.mkdirSync(path.join(root, 'studio'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'generated'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'src', 'app.js'), 'module.exports = 1;\n');
+  fs.writeFileSync(path.join(root, 'studio', 'styles.css'), '.node { animation: glow 1s; }\n');
+  fs.writeFileSync(path.join(root, 'generated', 'schema.js'), 'module.exports = "large";\n');
+  fs.writeFileSync(path.join(root, '.aelcontextignore'), 'generated/\n');
+  commitAll(root);
+  fs.writeFileSync(path.join(root, 'src', 'app.js'), 'module.exports = 2;\n');
+  fs.writeFileSync(path.join(root, 'studio', 'styles.css'), '.node { animation: none; }\n');
+  fs.writeFileSync(path.join(root, 'generated', 'schema.js'), 'module.exports = "changed";\n');
+
+  const lean = createDiffHunkPack(root, { runId: 'run-001', profile: 'lean' });
+  const full = createDiffHunkPack(root, { runId: 'run-001', profile: 'lean', includeIgnored: true });
+  const index = buildContextIndex(root);
+  const explicitIndex = buildContextIndex(root, { files: ['studio/styles.css'] });
+
+  assert.deepStrictEqual(lean.pack.files.map((file) => file.path), ['src/app.js']);
+  assert.deepStrictEqual(lean.pack.reviewDelta.ignoredPaths.sort(), ['generated/schema.js', 'studio/styles.css']);
+  assert.deepStrictEqual(full.pack.files.map((file) => file.path).sort(), ['generated/schema.js', 'src/app.js', 'studio/styles.css']);
+  assert.ok(!index.index.files.some((file) => file.path === 'studio/styles.css'));
+  assert.strictEqual(explicitIndex.index.files[0].path, 'studio/styles.css');
+});
+
 test('diff hunk pack uses review profile limits and records unresolved finding context', () => {
   const root = tempRepo();
   updatePolicy(root, { reviewProfile: 'standard' });
