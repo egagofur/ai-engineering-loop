@@ -64,11 +64,15 @@ Prefer smart context before opening whole files:
 
 ```bash
 npx ai-engineering-loop context index
+npx ai-engineering-loop context query createStudioRun
+npx ai-engineering-loop context related lib/studio-server.js
+npx ai-engineering-loop context fast-path --json
 npx ai-engineering-loop context diff-hunks --run <run-id>
 npx ai-engineering-loop verification summarize --run <run-id>
+npx ai-engineering-loop context compact --run <run-id>
 ```
 
-The index stores file summaries and hashes, never file bodies, and reuses per-hash summaries when files are unchanged. The diff-hunk pack stores bounded changed hunks, file summaries, token estimates, and unresolved blocking findings from the previous ledger. The verification summary stores command outcomes, counts, and short failure excerpts without raw stdout. Iteration 2+ reviewers should start from these compact artifacts and request full source or logs only when the hunk or summary cannot prove or disprove a finding.
+The index stores file summaries and hashes, never file bodies, and reuses per-hash summaries when files are unchanged. `query` and `related` return metadata only so agents can choose the right files before reading source. `fast-path` keeps low-risk small diffs on lean review and names the reason when a task must use the standard path. The diff-hunk pack stores bounded changed hunks, file summaries, token estimates, and unresolved blocking findings from the previous ledger. The verification summary stores command outcomes, counts, and short failure excerpts without raw stdout. `context compact` writes `run-summary.md`, `run-summary.json`, and `open-findings.json` so iteration 2+ reviewers and Judge start from compact artifacts and request full source or logs only when the hunk or summary cannot prove or disprove a finding.
 
 ## Unattended Maker isolation
 
