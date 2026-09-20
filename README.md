@@ -126,7 +126,7 @@ AI Engineering Loop is designed to work with the tools developers already use:
 - **Gemini / Antigravity**
 - Other agent hosts that can read project instructions and run local commands
 
-The project includes ready-to-use skills and reviewer roles for supported hosts. Each host follows the same Goal, verification, review, and approval rules. `sync-hosts` also installs the `backend-development` skill, a framework-agnostic backend best-practice pack with deeper references for API design, query/database work, and security reviews.
+The project includes ready-to-use skills and reviewer roles for supported hosts. Each host follows the same Goal, verification, review, and approval rules. `sync-hosts` also installs the `backend-development` skill for Claude, Grok, Gemini, and Codex-compatible `.agents/skills` hosts: a framework-agnostic backend best-practice pack with deeper references for API design, query/database work, and security reviews.
 
 ## Create workflows that fit your team
 

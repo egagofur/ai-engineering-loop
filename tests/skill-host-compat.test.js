@@ -195,11 +195,12 @@ test('task-impact-inquiry is Claude-safe and ships to Claude, Grok, and Gemini',
   assert.match(wf, /blast radius: lifecycle sketch/);
 });
 
-test('backend-development skill ships to Claude, Grok, and Gemini with reference docs', () => {
+test('backend-development skill ships to Claude, Grok, Gemini, and Codex with reference docs', () => {
   const hosts = [
     '.claude/skills/backend-development',
     '.grok/skills/backend-development',
-    '.gemini/skills/backend-development'
+    '.gemini/skills/backend-development',
+    '.agents/skills/backend-development'
   ];
   for (const host of hosts) {
     const skill = readRepo(`${host}/SKILL.md`);
