@@ -26,6 +26,7 @@
     ".claude/commands/",
     ".claude/skills/",
     "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
     "SECURITY.md",
     "SUPPORT.md",
     "README.md"
