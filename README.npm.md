@@ -47,7 +47,8 @@ npx ai-engineering-loop studio
 npx ai-engineering-loop handoff create --audience developer
 
 # 5. Copy package host skills into ~/.claude ~/.grok ~/.gemini ~/.agents
-#    Includes ai-engineering-loop plus backend-development for Claude, Grok, Gemini, and Codex-compatible .agents skills.
+#    Includes ai-engineering-loop, backend-development, and vendored design/animation skills
+#    for Claude, Grok, Gemini, and Codex-compatible .agents skills.
 npx ai-engineering-loop sync-hosts
 ```
 
