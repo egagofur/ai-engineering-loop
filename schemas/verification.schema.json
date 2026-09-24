@@ -20,9 +20,9 @@
           "executionIdentity": { "type": "string", "minLength": 1 },
           "startTime": { "type": "string", "minLength": 1 },
           "endTime": { "type": "string", "minLength": 1 },
-          "exitCode": { "const": 0 },
+          "exitCode": { "type": ["integer", "null"] },
           "stdout": { "type": "string", "minLength": 1 },
-          "timeoutStatus": { "const": "COMPLETED" }
+          "timeoutStatus": { "enum": ["COMPLETED", "TIMED_OUT", "NOT_RUN"] }
         },
         "additionalProperties": true
       }

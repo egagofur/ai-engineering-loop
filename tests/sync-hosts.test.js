@@ -180,6 +180,36 @@ test('symlink destinations are left alone', () => {
   assert.ok(fs.lstatSync(path.join(skillDir, 'SKILL.md')).isSymbolicLink());
 });
 
+test('sync skips destinations reached through a symlinked parent directory', { skip: process.platform === 'win32' }, () => {
+  const home = tmpHome();
+  const outside = path.join(home, 'outside');
+  fs.mkdirSync(path.join(home, '.claude'));
+  fs.mkdirSync(outside);
+  fs.symlinkSync(outside, path.join(home, '.claude/skills'), 'dir');
+
+  const results = applyHostSync({ packageRoot: ROOT, home });
+  const aelSkill = results.find((item) => item.dest === path.join(
+    home,
+    '.claude/skills/ai-engineering-loop/SKILL.md'
+  ));
+
+  assert.equal(aelSkill.action, 'skip');
+  assert.equal(aelSkill.reason, 'symlink-ancestor');
+  assert.equal(fs.existsSync(path.join(outside, 'ai-engineering-loop/SKILL.md')), false);
+});
+
+test('sync respects a symlinked home directory while still guarding paths below it', { skip: process.platform === 'win32' }, () => {
+  const parent = tmpHome();
+  const actualHome = path.join(parent, 'home');
+  const homeAlias = path.join(parent, 'home-alias');
+  fs.mkdirSync(path.join(actualHome, '.claude'), { recursive: true });
+  fs.symlinkSync(actualHome, homeAlias, 'dir');
+
+  applyHostSync({ packageRoot: ROOT, home: homeAlias });
+
+  assert.ok(fs.existsSync(path.join(actualHome, '.claude/skills/ai-engineering-loop/SKILL.md')));
+});
+
 test('CLI sync-hosts --dry-run respects AEL_HOME', () => {
   const home = tmpHome();
   fs.mkdirSync(path.join(home, '.agents'));

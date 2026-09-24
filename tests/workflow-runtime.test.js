@@ -297,6 +297,33 @@ test('default workflow exits its Engineering Loop only after Judge passes', () =
   assert.equal(result.workflow.state.nodes.delivery.status, NODE_STATES.PENDING);
 });
 
+test('blocked gate errors name the ready approval prerequisite and command to continue', () => {
+  const root = tempRepo();
+  createRecipeRun(root, 'default', 'ASSISTED');
+  advanceDefaultToJudge(root);
+  writeJson(root, 'run-001', 'verdict.json', {
+    schemaVersion: 1,
+    runId: 'run-001',
+    verdict: 'PASS',
+    reason: 'Evidence supports delivery.',
+    action: 'Continue to explicit delivery approval.'
+  });
+  applyWorkflowGate(root, 'judge', { runId: 'run-001' });
+
+  assert.throws(
+    () => applyWorkflowGate(root, 'delivery', { runId: 'run-001' }),
+    (err) => {
+      assert.equal(err.code, 'NODE_NOT_READY');
+      assert.match(err.message, /delivery.*PENDING/);
+      assert.ok(err.details.some((detail) => detail.includes('delivery-approval') && detail.includes('READY')));
+      assert.ok(err.details.some((detail) =>
+        detail.includes('node approve delivery-approval --yes --by <name> --run run-001')
+      ));
+      return true;
+    }
+  );
+});
+
 test('default workflow repeats only its Engineering Loop when Judge requests rework', () => {
   const root = tempRepo();
   createRecipeRun(root, 'default', 'ASSISTED');

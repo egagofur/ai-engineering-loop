@@ -70,6 +70,12 @@ The Verification Gate immediately halts and returns to the Maker if:
 
 Write `.ai-engineering-loop/tasks/claimed-vs-reality.md` after verification logs exist:
 
+```bash
+npx ai-engineering-loop context claimed-vs-reality --run <run-id>
+```
+
+This scaffolds one row per frozen acceptance criterion but leaves Claimed and Reality empty. Fill them from the implemented change and actual command output; the scaffold is not verification evidence.
+
 ```markdown
 # Claimed vs Reality
 
