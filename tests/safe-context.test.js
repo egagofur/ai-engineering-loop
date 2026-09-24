@@ -25,12 +25,13 @@ test('redactSecrets removes common credentials without returning their values', 
   const source = [
     'Authorization: Bearer eyJhbGciOiJub25l.secret',
     'api_key = "sk-test-supersecret123"',
+    '--token "private-token-value"',
     'const token = "ghp_1234567890abcdefghijkl";',
     'AKIAIOSFODNN7EXAMPLE'
   ].join('\n');
   const result = redactSecrets(source);
 
-  assert.doesNotMatch(result.text, /eyJhbGci|supersecret|ghp_123|AKIAIOS/);
+  assert.doesNotMatch(result.text, /eyJhbGci|supersecret|private-token-value|ghp_123|AKIAIOS/);
   assert.ok(result.categories.length >= 4);
 });
 
@@ -111,5 +112,27 @@ test('judge context rejects more than three files', () => {
   assert.throws(
     () => createContextPack(root, { stage: 'judge', files }),
     (err) => err.code === 'CONTEXT_FILE_LIMIT'
+  );
+});
+
+test('context token-budget errors identify the limit and the files that consumed it', () => {
+  const root = tempRepo();
+  const files = ['a', 'b'].map((name) => {
+    const rel = `src/${name}.js`;
+    fs.writeFileSync(path.join(root, rel), 'api_key=x\n'.repeat(800));
+    return rel;
+  });
+
+  assert.throws(
+    () => createContextPack(root, { stage: 'devil-advocate', files }),
+    (err) => {
+      assert.equal(err.code, 'CONTEXT_TOKEN_LIMIT');
+      assert.equal(err.budget.maxEstimatedTokens, 6_000);
+      assert.ok(err.budget.requestedTokens > 6_000);
+      assert.deepEqual(err.budget.files.map((entry) => entry.path), files);
+      assert.ok(err.budget.files.at(-1).estimatedTokens > 0);
+      assert.doesNotMatch(JSON.stringify(err.budget), /api_key|REDACTED/);
+      return true;
+    }
   );
 });

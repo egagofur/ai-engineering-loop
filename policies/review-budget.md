@@ -15,7 +15,7 @@ Host files (`.claude/agents/`, `.grok/agents/`, `.agents/`) may differ only in Y
 - Pass artifact **paths**, not Maker chat.
 - Use the runtime policy `reviewProfile` to size context packs. Default `lean` protects Codex/GPT Plus-style sessions from repeated full-file prompts while keeping all gates intact.
 - Prefer `npx ai-engineering-loop context diff-hunks --run <run-id>` for review. It writes a private hunk-only pack with file summaries and unresolved findings, so reviewers do not need full source bodies unless a cited hunk is insufficient.
-- Run `npx ai-engineering-loop verification summarize --run <run-id>` after writing `verification.json`; pass the summary path to Judge before raw logs.
+- Prefer `npx ai-engineering-loop verification record --run <run-id> -- <executable> [args...]` to capture bounded, redacted command evidence without invoking a shell implicitly; it writes `verification.json` and refreshes its summary. Run `verification summarize --run <run-id>` when evidence was authored manually, and pass the compact summary to Judge before any raw logs.
 - Spawn DA and Judge as siblings. Do not nest.
 - Prefer named types `devil-advocate` and `judge`. Use `general-purpose` only if the named type is rejected.
 - Skip `*.css`, `*report-css*`, generated/vendor. Do not run `git log`.

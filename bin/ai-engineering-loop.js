@@ -39,7 +39,8 @@ const {
   createOrResumeRun,
   getCurrentRun,
   loadRun,
-  newRunId
+  newRunId,
+  runsDir
 } = require('../lib/run-state.js');
 const {
   DEFAULT_POLICY,
@@ -80,6 +81,16 @@ const {
 const {
   writeVerificationSummary
 } = require('../lib/verification-summary.js');
+const {
+  recordVerificationCommand
+} = require('../lib/verification-recorder.js');
+const {
+  scaffoldArtifact,
+  validateArtifactFile
+} = require('../lib/agent-artifacts.js');
+const {
+  createClaimedVsRealityTemplate
+} = require('../lib/claimed-vs-reality.js');
 const {
   runDoctor
 } = require('../lib/doctor.js');
@@ -1163,12 +1174,72 @@ function handleSandbox() {
   }
 }
 
-function handleVerification() {
+async function handleVerification() {
   const action = process.argv[3] || 'summarize';
-  const json = process.argv.includes('--json');
-  const runId = argValue('--run');
+  const separatorIndex = process.argv.indexOf('--');
+  const optionArgs = action === 'record' && separatorIndex !== -1
+    ? process.argv.slice(0, separatorIndex)
+    : process.argv;
+  const readOption = (name) => {
+    const index = optionArgs.indexOf(name);
+    return index === -1 ? null : optionArgs[index + 1] || null;
+  };
+  const json = optionArgs.includes('--json');
+  const runId = readOption('--run');
   try {
-    if (action !== 'summarize') throw new Error('Unknown verification action. Use summarize');
+    if (action === 'record') {
+      if (separatorIndex === -1 || !process.argv[separatorIndex + 1]) {
+        throw Object.assign(
+          new Error('Provide an executable after `--`, for example `ai-engineering-loop verification record --run <id> -- npm test`.'),
+          { code: 'INVALID_COMMAND' }
+        );
+      }
+      const command = process.argv[separatorIndex + 1];
+      const commandArgs = process.argv.slice(separatorIndex + 2);
+      const timeoutValue = readOption('--timeout-ms');
+      const result = await recordVerificationCommand(CWD, {
+        runId,
+        command,
+        args: commandArgs,
+        shell: optionArgs.includes('--shell'),
+        timeoutMs: timeoutValue == null
+          ? undefined
+          : parsePositiveIntegerArg('--timeout-ms', timeoutValue)
+      });
+      if (json) {
+        console.log(JSON.stringify({
+          ok: result.command.exitCode === 0 && result.command.timeoutStatus === 'COMPLETED',
+          runId: result.runId,
+          path: result.path,
+          summaryPath: path.relative(CWD, path.join(runsDir(CWD), result.runId, 'verification-summary.json'))
+            .split(path.sep).join('/'),
+          command: result.command.command,
+          exitCode: result.command.exitCode,
+          timeoutStatus: result.command.timeoutStatus,
+          testCounts: result.summary.testCounts
+        }));
+      } else {
+        const passed = result.command.exitCode === 0 && result.command.timeoutStatus === 'COMPLETED';
+        if (passed) log.success('✓ Verification command recorded');
+        else log.error('Verification command recorded with a failing result');
+        console.log(`- Run: ${result.runId}`);
+        console.log(`- Command: ${result.command.command}`);
+        console.log(`- Exit code: ${result.command.exitCode}; timeout: ${result.command.timeoutStatus}`);
+        console.log(`- Evidence: ${result.path}`);
+        console.log(`- Summary: ${JSON.stringify(result.summary.testCounts)}`);
+        if (!passed) {
+          const excerpt = [result.command.stderr, result.command.stdout]
+            .map((value) => String(value || '').trim())
+            .find(Boolean);
+          if (excerpt) console.error(`- Output: ${excerpt.split('\n').slice(-3).join('\n').slice(-800)}`);
+        }
+      }
+      if (result.command.exitCode !== 0 || result.command.timeoutStatus !== 'COMPLETED') {
+        process.exitCode = result.command.exitCode > 0 ? result.command.exitCode : 1;
+      }
+      return;
+    }
+    if (action !== 'summarize') throw new Error('Unknown verification action. Use summarize|record');
     const result = writeVerificationSummary(CWD, { runId });
     if (json) {
       console.log(JSON.stringify({
@@ -1192,13 +1263,51 @@ function handleVerification() {
   }
 }
 
+function handleArtifactTool(action) {
+  const json = process.argv.includes('--json');
+  try {
+    if (action === 'scaffold') {
+      const type = process.argv[3];
+      const result = scaffoldArtifact(CWD, { type, runId: argValue('--run') });
+      if (json) console.log(JSON.stringify({ ok: true, ...result, templateOnly: true }));
+      else {
+        log.success(`✓ ${result.type} template created`);
+        console.log(`- Run: ${result.runId}`);
+        console.log(`- Path: ${result.path}`);
+        console.log('- Template is deliberately incomplete; it cannot pass its gate until replaced with observed evidence.');
+      }
+      return;
+    }
+    if (action === 'validate') {
+      const file = process.argv[3];
+      if (!file || file.startsWith('-')) throw new Error('validate requires a repository-relative JSON file');
+      const result = validateArtifactFile(CWD, { file, type: argValue('--type') });
+      if (json) console.log(JSON.stringify({ ok: result.valid, ...result }));
+      else {
+        console.log(`Artifact ${result.path}: ${result.valid ? 'VALID' : 'INVALID'}`);
+        for (const error of result.errors) console.error(`- ${error}`);
+        if (result.note) console.log(`- ${result.note}`);
+      }
+      if (!result.valid) process.exitCode = 1;
+      return;
+    }
+    throw new Error('Use scaffold <verification|findings|delivery> or validate <file>');
+  } catch (err) {
+    if (json) console.log(JSON.stringify({ ok: false, code: err.code || 'ARTIFACT_TOOL_FAILED', error: err.message }));
+    else log.error(err.message);
+    process.exit(1);
+  }
+}
+
 function handleGate() {
   const gate = process.argv[3];
   const runId = argValue('--run');
   const json = process.argv.includes('--json');
+  let targetRunId = runId;
   try {
     const target = runId ? loadRun(CWD, runId) : getCurrentRun(CWD);
     if (!target) throw new Error('No current run. Start one with `ai-engineering-loop run`.');
+    targetRunId = target.runId;
     listRunLifecycle(CWD, target.runId);
     let lifecycleNode = null;
     if (target.workflow) {
@@ -1243,16 +1352,20 @@ function handleGate() {
       console.log(`- State: ${run.state}, iteration ${run.iteration}`);
     }
   } catch (err) {
+    const retryHint = targetRunId && gate && err.code === 'GATE_FAILED'
+      ? `After correcting the reported issue, retry: npx ai-engineering-loop gate ${gate} --run ${targetRunId}`
+      : null;
+    const details = [...(err.details || []), ...(retryHint ? [retryHint] : [])];
     if (json) {
       console.log(JSON.stringify({
         ok: false,
         code: err.code || 'GATE_FAILED',
         error: err.message,
-        details: err.details || []
+        details
       }));
     } else {
       log.error(err.message);
-      for (const detail of err.details || []) console.error(`- ${detail}`);
+      for (const detail of details) console.error(`- ${detail}`);
     }
     process.exit(1);
   }
@@ -1385,7 +1498,7 @@ function handleContext() {
   const limit = Number(argValue('--limit') || 10);
   const json = process.argv.includes('--json');
   const includeIgnored = process.argv.includes('--include-ignored');
-  const files = commandFiles(4, ['--run', '--profile', '--base', '--query', '--limit']);
+  const files = commandFiles(4, ['--run', '--profile', '--base', '--query', '--limit', '--output']);
   try {
     if (stage === 'index') {
       const result = buildContextIndex(CWD, { files, includeIgnored });
@@ -1445,6 +1558,20 @@ function handleContext() {
       }
       return;
     }
+    if (stage === 'claimed-vs-reality') {
+      const result = createClaimedVsRealityTemplate(CWD, {
+        runId,
+        outputPath: argValue('--output') || undefined
+      });
+      if (json) console.log(JSON.stringify({ ok: true, ...result }));
+      else {
+        log.success('✓ Claimed-vs-reality template created from the frozen Goal');
+        console.log(`- Run: ${result.runId}`);
+        console.log(`- Path: ${result.path}`);
+        console.log('- Claimed and Reality remain blank; populate Reality only from actual command output.');
+      }
+      return;
+    }
     if (stage === 'diff-hunks' || stage === 'diff-pack') {
       const result = createDiffHunkPack(CWD, { runId, base, profile, includeIgnored });
       const summary = smartContextSummary(result);
@@ -1473,9 +1600,16 @@ function handleContext() {
     }
   } catch (err) {
     if (json) {
-      console.log(JSON.stringify({ ok: false, code: err.code || 'UNSAFE_CONTEXT', error: err.message }));
+      console.log(JSON.stringify({
+        ok: false,
+        code: err.code || 'UNSAFE_CONTEXT',
+        error: err.message,
+        details: err.details || [],
+        ...(err.budget ? { budget: err.budget } : {})
+      }));
     } else {
       log.error(err.message);
+      for (const detail of err.details || []) console.error(`- ${detail}`);
     }
     process.exit(1);
   }
@@ -2089,6 +2223,13 @@ Commands:
                freeze --revision <n> --hash <sha256> [--run <id>] [--by <name>]
   verification Summarize verification.json for compact Judge context
                summarize [--run <id>] [--json]
+               record [--run <id>] [--timeout-ms <n>] [--shell] [--json] -- <executable> [args...]
+                 Captures bounded, redacted output; updates verification.json and its summary
+                 --shell opts into a shell; pass one quoted command string, e.g. -- "npm test"
+  scaffold     Create a private, deliberately incomplete stage-artifact template
+               verification | findings | delivery [--run <id>] [--json]
+  validate     Check a verification, findings, or delivery JSON file without advancing a gate
+               <repository-relative-file> [--type verification|findings|delivery] [--json]
   activity     Publish safe Run lifecycle summaries for Studio
                goal-drafting | goal-ready | heartbeat | waiting
                node-started | node-activity | node-completed | loop-iterated | run-completed
@@ -2125,6 +2266,8 @@ Commands:
                diff-hunks        build a hunk-only review pack with unresolved findings
                fast-path         assess whether a small task can stay on lean review
                compact           write run-summary.md/json and open-findings.json
+               claimed-vs-reality  scaffold AC rows from the frozen Goal; evidence stays blank
+                 [--run <id>] [--output <repository-relative-file>]
                --run <id>  target a non-current run
                --profile lean|standard|thorough  override runtime policy for one pack
                --base <git-ref>  base ref for diff-hunks; default HEAD
@@ -2221,6 +2364,12 @@ switch (command) {
     break;
   case 'verification':
     handleVerification();
+    break;
+  case 'scaffold':
+    handleArtifactTool('scaffold');
+    break;
+  case 'validate':
+    handleArtifactTool('validate');
     break;
   case 'sandbox':
     handleSandbox();

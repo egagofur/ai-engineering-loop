@@ -55,6 +55,18 @@ Workflow Studio opens locally in your browser. Your project and run evidence sta
 
 On first setup, `.ai-engineering-loop/` is added to your project’s `.gitignore` so plans and Run evidence stay private by default. Want to share that context with your team? Simply remove that line from `.gitignore`.
 
+### Less artifact guesswork for your AI agent
+
+Agents can record test commands directly so verification evidence is tied to the current Run and gated diff:
+
+```bash
+npx ai-engineering-loop verification record --run <run-id> -- npm test
+```
+
+The command captures bounded, redacted output without invoking a shell implicitly, records failures honestly, and generates a compact test summary. For other stage artifacts, use `scaffold delivery --run <run-id>` (or `verification` / `findings`) to create a private, deliberately incomplete template. Copy or rename it to the gate's real artifact filename, fill it with observed evidence, and remove `_templateOnly`; then `validate <repository-relative-file>` reports schema and Run-binding issues without advancing a gate. Templates are never accepted as evidence. `context claimed-vs-reality --run <run-id>` creates the Goal checklist while leaving claim and evidence cells blank.
+
+When context packs exceed their budget, the CLI now reports the limit and a per-file size/token estimate so an agent can choose smaller files without trial and error. For a delivery gate blocked by a recipe approval node, inspect `node status --run <run-id>` and explicitly approve the READY prerequisite; the gate error points to the actionable command.
+
 ## Meet Workflow Studio
 
 Workflow Studio makes agent work feel like a product, not a terminal session.
