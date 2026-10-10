@@ -83,12 +83,32 @@ The index stores file summaries and hashes, never file bodies, and reuses per-ha
 
 ## Package update workflow
 
-Agents may check for package updates, but must not update the user's global or project installation without explicit instruction. Use:
+Agents never initiate package updates. They must not run `update apply`, `update auto`, `update rollback`, or `update policy`, or install a different package version, unless the user explicitly asks in this session. Agents may run `update check` and report the result.
+
+The CLI may update itself, but only under the policy the user chose (`~/.ai-engineering-loop/config.json` → `autoUpdate`):
+
+| Policy | Patch | Minor | Major |
+|---|---|---|---|
+| `off` | - | - | - |
+| `notify` (used when no policy is set) | notice | notice | notice |
+| `patch` | apply | notice | notice |
+| `minor` (first-run default answer) | apply | apply | notice |
+| `all` | apply | apply | notice (also applies prereleases on the chosen channel) |
+
+- **Check:** `run`, `status`, `init`, and `refresh` start `update auto --background` detached at most once every 24 hours (`npm view <pkg> dist-tags`, 3 s timeout). The command itself never waits. Offline or failed checks keep the cached tags and stay silent.
+- **Opt-out:** `AEL_NO_AUTO_UPDATE=1`, `CI=true`, or `update policy off`.
+- **Apply (global installs only):** acquire `~/.ai-engineering-loop/update.lock`, verify the release (registry `repository.url` must match this package, and `dist.integrity` must exist), `npm install -g <pkg>@<target>`, `sync-hosts`, then `refresh --non-destructive` in every project in `~/.ai-engineering-loop/projects.json`. User-edited context files are kept and new templates are written as `*.ael-new`. Projects with an active run are skipped and retried later. Updates are deferred entirely while any UNATTENDED run is active.
+- **Project installs (devDependency or npx):** notify only. `package.json` and lockfiles are never changed automatically.
+- **Rollback:** `update rollback --yes` reinstalls the previous version and re-syncs host skills.
+
+Manual workflow:
 
 ```bash
 ai-engineering-loop update check
 ai-engineering-loop update plan
 ai-engineering-loop update apply --yes
+ai-engineering-loop update policy minor      # or off|notify|patch|all; --pin 1.13.x, --channel next
+ai-engineering-loop projects list            # projects refreshed after an update
 ```
 
 `update plan` prints the exact install, `sync-hosts`, `refresh`, and `doctor` commands for the detected install scope. `update apply --yes` runs those commands explicitly; the separate `--yes` flag is the confirmation boundary.

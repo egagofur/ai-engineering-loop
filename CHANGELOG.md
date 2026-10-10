@@ -4,6 +4,15 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+### Auto-update and project registry (#37)
+
+- **Added:** `~/.ai-engineering-loop/projects.json`, filled by `init`/`run`/`status`/`refresh`, plus `projects list|add|remove|scan --root <dir> [--depth 4]`. Missing folders are pruned, and the scan skips `node_modules`, `.git`, and symlinks.
+- **Added:** a background version check (detached, at most every 24 h, 3 s timeout, cached in `update-check.json`) that never blocks a command, even offline.
+- **Added:** `update policy off|notify|patch|minor|all` with `--channel` and `--pin`. Majors are always notice-only. Opt out with `AEL_NO_AUTO_UPDATE=1` or `CI=true`.
+- **Added:** `update auto` for global installs. It takes a lock, verifies the release repository and integrity, then runs `npm i -g`, `sync-hosts`, and `refresh --non-destructive` for every registered project. Projects with an active run stay pending, and updates wait while any UNATTENDED run is active. `update rollback --yes` undoes the update.
+- **Added:** `refresh --non-destructive`. Files you edited are kept and new templates are written as `*.ael-new`. Generated hashes are tracked in `.ai-engineering-loop/.ael-generated.json`.
+- **Conservative defaults (open decisions):** project-scope installs are notify-only and `package.json` is never changed. With no policy set and no interactive answer, the policy is `notify`; the first-run TTY prompt suggests `minor`. Agents never initiate updates (`core/runtime-safety.md`).
+
 ### Slim skill adoption (#36)
 
 - **Added:** `project-onboarding` (core pack) fills `.ai-engineering-loop/architecture.md` and `conventions.md` from the code, citing evidence. Output is in Indonesian or English, it reads the last 100 commits (or `--since`), and it covers a wider file-type list. It never triggers automatically (`/ai-engineering-loop onboard`).

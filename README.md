@@ -77,6 +77,18 @@ npx ai-engineering-loop deliver --run <run-id> --destination pr --summary "..." 
 
 Contributors: the host `ai-engineering-loop` skills are generated. Edit `skill-src/ai-engineering-loop/`, then run `npm run build:skills` (CI checks for drift with `npm run check:skills`). `npm run measure` reports per-tier context and tool calls.
 
+### Staying up to date
+
+`run`, `status`, `init`, and `refresh` check npm in the background at most once a day; the command never waits. What happens next depends on your policy:
+
+```bash
+npx ai-engineering-loop update policy minor   # off | notify | patch | minor | all (majors are always notice-only)
+npx ai-engineering-loop projects list         # projects refreshed after an update (scan: projects scan --root ~/Development)
+npx ai-engineering-loop update rollback --yes
+```
+
+Global installs apply patch and minor releases automatically. They then re-sync host skills and refresh every registered project, keeping your edits (new templates arrive as `*.ael-new`). Project installs only show a notice, because AEL never edits your `package.json`. Opt out with `AEL_NO_AUTO_UPDATE=1`; CI is always off. There is no daemon, so other machines pick up an update the next time the CLI runs there.
+
 When context packs exceed their budget, the CLI now reports the limit and a per-file size/token estimate so an agent can choose smaller files without trial and error. For a delivery gate blocked by a recipe approval node, inspect `node status --run <run-id>` and explicitly approve the READY prerequisite; the gate error points to the actionable command.
 
 ## Meet Workflow Studio
