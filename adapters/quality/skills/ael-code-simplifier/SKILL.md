@@ -1,9 +1,9 @@
 ---
-name: code-simplifier
+name: ael-code-simplifier
 description: Use when the user explicitly asks to simplify, tidy, or de-slop a finished diff without changing behavior. Does NOT review for defects (use the Devil's Advocate), refactor architecture, rename public APIs, or run automatically after edits.
 ---
 
-# Code Simplifier
+# AEL Code Simplifier
 
 Rewrite *how* changed code reads; never *what* it does. Behavior, contracts, status codes, queries, and public names stay identical.
 

@@ -14,7 +14,7 @@ const { listPackageFiles } = require('../lib/package-audit.js');
 
 const ADOPTED = Object.freeze([
   'adapters/project-onboarding/SKILL.md',
-  'adapters/quality/skills/code-simplifier/SKILL.md',
+  'adapters/quality/skills/ael-code-simplifier/SKILL.md',
   'adapters/quality/skills/receiving-code-review/SKILL.md'
 ]);
 
@@ -60,7 +60,7 @@ test('project-onboarding ships in core; the quality pack is opt-in on every host
   for (const root of roots) {
     for (const skill of QUALITY_SKILLS) assert.ok(fs.existsSync(path.join(home, root, skill, 'SKILL.md')), `${root}/${skill}`);
   }
-  assert.match(fs.readFileSync(path.join(home, '.grok/skills/code-simplifier/SKILL.md'), 'utf8'), /^user-invocable: true$/m);
+  assert.match(fs.readFileSync(path.join(home, '.grok/skills/ael-code-simplifier/SKILL.md'), 'utf8'), /^user-invocable: true$/m);
   assert.deepStrictEqual(planHostSync({ packageRoot: ROOT, home }).packs, ['core', 'quality']);
 });
 
@@ -83,4 +83,14 @@ test('third-party notices credit every adopted source', () => {
     assert.match(notices, new RegExp(source.replace('/', '\\/')), source);
   }
   assert.match(notices, /No upstream text was copied/);
+});
+
+test('ael-code-simplifier does not clash with the dot-plugin code-simplifier skill', () => {
+  const dot = new Set(JSON.parse(read('tests/fixtures/dot-plugin-skill-names.json')).skills);
+  assert.ok(dot.has('code-simplifier'));
+  assert.ok(!dot.has('ael-code-simplifier'));
+  assert.ok(QUALITY_SKILLS.includes('ael-code-simplifier'));
+  assert.ok(!QUALITY_SKILLS.includes('code-simplifier'));
+  assert.match(read('adapters/quality/skills/ael-code-simplifier/SKILL.md'), /^name: ael-code-simplifier$/m);
+  assert.ok(!fs.existsSync(path.join(ROOT, 'adapters/quality/skills/code-simplifier')));
 });

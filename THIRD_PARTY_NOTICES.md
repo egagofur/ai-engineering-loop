@@ -34,6 +34,6 @@ The following AEL files were written fresh for AEL. No upstream text was copied.
 - Ideas adapted: evidence-first repository onboarding from structure, history, and code patterns.
 - AEL files: `adapters/project-onboarding/` (writes `.ai-engineering-loop/architecture.md` and `conventions.md`).
 
-### code-simplifier
+### ael-code-simplifier
 
-`adapters/quality/skills/code-simplifier/SKILL.md` is an original AEL text for a common "simplify the diff without changing behavior" practice.
+`adapters/quality/skills/ael-code-simplifier/SKILL.md` is an original AEL text for a common "simplify the diff without changing behavior" practice.
