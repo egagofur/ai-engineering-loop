@@ -6,7 +6,8 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 
 // Host skills are read as SKILL.md plus on-demand references (issue #35).
-const { readSkillBundle } = require('./helpers/skill-bundle.js');
+const { readSkillBundle, readHostSection } = require('./helpers/skill-bundle.js');
+const { renderAgent } = require('../lib/hosts/agent-formats.js');
 
 function readRepo(rel) {
   return readSkillBundle(rel);
@@ -24,26 +25,46 @@ function parseFrontmatter(content, label) {
   return { fm, body: content.slice(match[0].length) };
 }
 
-test('Claude Code skill is Kiro-safe: no mermaid, latex, HTML breaks, or Grok tool keys', () => {
-  const content = readRepo('.claude/skills/ai-engineering-loop/SKILL.md');
-  const { fm } = parseFrontmatter(content, 'claude skill');
+test('Core skill is Kiro-safe: no mermaid, latex, HTML breaks, or Grok tool keys in SKILL.md', () => {
+  const skill = readSkillBundle('.claude/skills/ai-engineering-loop/SKILL.md', { excludeHosts: true });
+  parseFrontmatter(skill, 'core skill');
+  assert.doesNotMatch(skill, /```mermaid/);
+  assert.doesNotMatch(skill, /\$\\/);
+  assert.doesNotMatch(skill, /<br\s*\/?>/i);
+  // Tool keys of one host never appear outside its own loop-hosts section.
+  assert.doesNotMatch(skill, /spawn_subagent|capability_mode|resume_from|invoke_subagent/);
+  assert.match(skill, /devil-advocate/);
+  assert.match(skill, /\bjudge\b/);
+  assert.match(skill, /cannot determine the safety/);
+  assert.match(skill, /current\.diff/);
+  assert.match(skill, /8 tool calls/);
+  assert.match(skill, /loop-hosts/);
+});
 
-  assert.match(fm, /^allowed-tools:/m);
-  assert.match(fm, /Bash\(npm run \*\)/);
-  assert.doesNotMatch(content, /```mermaid/);
-  assert.doesNotMatch(content, /\$\\/);
-  assert.doesNotMatch(content, /<br\s*\/?>/i);
-  assert.doesNotMatch(content, /spawn_subagent/);
-  assert.doesNotMatch(content, /capability_mode/);
-  assert.doesNotMatch(content, /resume_from/);
-  assert.match(content, /\bTask\b/);
-  assert.match(content, /subagent_type/);
-  assert.match(content, /devil-advocate/);
-  assert.match(content, /\bjudge\b/);
-  assert.match(content, /cannot determine the safety/);
-  assert.match(content, /run_in_background/);
-  assert.match(content, /current\.diff/);
-  assert.match(content, /8 tool calls/);
+test('loop-hosts: Claude section is Kiro-safe and names Task keys only', () => {
+  const claude = readHostSection('Claude Code');
+  assert.match(claude, /\bTask\b/);
+  assert.match(claude, /subagent_type/);
+  assert.match(claude, /run_in_background/);
+  assert.match(claude, /cannot determine the safety/);
+  assert.match(claude, /REQUEST_BODY_INVALID/);
+  assert.doesNotMatch(claude, /spawn_subagent|capability_mode|resume_from|invoke_subagent/);
+});
+
+test('loop-hosts: Grok section keeps spawn_subagent rules; Antigravity section keeps invoke_subagent and no browser reviewer', () => {
+  const grok = readHostSection('Grok CLI');
+  assert.match(grok, /spawn_subagent/);
+  assert.match(grok, /subagent_id/);
+  assert.match(grok, /caveman:cavecrew-reviewer/);
+  assert.match(grok, /CONTEXT_ISOLATION_ONLY/);
+  const ag = readHostSection('Antigravity');
+  assert.match(ag, /invoke_subagent/);
+  assert.match(ag, /browser_subagent/);
+  assert.match(ag, /CONTEXT_ISOLATION_ONLY/);
+  assert.doesNotMatch(ag, /spawn_subagent|capability_mode|resume_from/);
+  for (const heading of ['Gemini CLI', 'Codex CLI', 'Cursor, GitHub Copilot', 'Other hosts']) {
+    assert.match(readHostSection(heading), /CONTEXT_ISOLATION_ONLY/, heading);
+  }
 });
 
 test('Claude Code agents exist with Claude tool names and Finding Ledger / verdict contracts', () => {
@@ -66,50 +87,40 @@ test('Claude Code agents exist with Claude tool names and Finding Ledger / verdi
   assert.match(judge, /4 tool calls/);
 });
 
-test('Claude Code slash command does not embed Grok spawn keys', () => {
-  const cmd = readRepo('.claude/commands/ai-engineering-loop.md');
-  const { fm } = parseFrontmatter(cmd, 'claude command');
-  assert.match(fm, /^allowed-tools:/m);
-  assert.match(fm, /Bash\(npm run \*\)/);
-  assert.doesNotMatch(cmd, /spawn_subagent|capability_mode|resume_from/);
-  assert.match(cmd, /ai-engineering-loop/);
-});
-
-test('Grok skill may use spawn_subagent; Claude skill must not', () => {
-  const grok = readRepo('.grok/skills/ai-engineering-loop/SKILL.md');
-  const claude = readRepo('.claude/skills/ai-engineering-loop/SKILL.md');
-  assert.match(grok, /spawn_subagent/);
-  assert.doesNotMatch(claude, /spawn_subagent/);
-});
-
 function bodyAfterFrontmatter(content) {
   const match = content.match(/^---\n[\s\S]*?\n---\n+/);
   assert.ok(match, 'missing frontmatter');
   return content.slice(match[0].length).replace(/\s+$/, '');
 }
 
+function antigravityAgent(name) {
+  return renderAgent(ROOT, 'antigravity-md', name);
+}
+
 test('DA body is identical on Claude Code, Grok, and Antigravity', () => {
   const shared = readRepo('agents/shared/devil-advocate.body.md').replace(/\s+$/, '');
-  for (const rel of ['.claude/agents/devil-advocate.md', '.grok/agents/devil-advocate.md', '.agents/devil-advocate.md']) {
-    assert.strictEqual(bodyAfterFrontmatter(readRepo(rel)), shared, rel);
+  for (const [label, text] of [
+    ['.claude/agents/devil-advocate.md', readRepo('.claude/agents/devil-advocate.md')],
+    ['.grok/agents/devil-advocate.md', readRepo('.grok/agents/devil-advocate.md')],
+    ['antigravity-md', antigravityAgent('devil-advocate')]
+  ]) {
+    assert.strictEqual(bodyAfterFrontmatter(text), shared, label);
   }
 });
 
 test('Judge body is identical on Claude Code, Grok, and Antigravity', () => {
   const shared = readRepo('agents/shared/judge.body.md').replace(/\s+$/, '');
-  for (const rel of ['.claude/agents/judge.md', '.grok/agents/judge.md', '.agents/judge.md']) {
-    assert.strictEqual(bodyAfterFrontmatter(readRepo(rel)), shared, rel);
+  for (const [label, text] of [
+    ['.claude/agents/judge.md', readRepo('.claude/agents/judge.md')],
+    ['.grok/agents/judge.md', readRepo('.grok/agents/judge.md')],
+    ['antigravity-md', antigravityAgent('judge')]
+  ]) {
+    assert.strictEqual(bodyAfterFrontmatter(text), shared, label);
   }
 });
 
 test('Judge budget is the same on Claude Code, Grok, and Antigravity', () => {
-  const hosts = [
-    '.claude/agents/judge.md',
-    '.grok/agents/judge.md',
-    '.agents/judge.md'
-  ];
-  for (const rel of hosts) {
-    const body = readRepo(rel);
+  for (const body of [readRepo('.claude/agents/judge.md'), readRepo('.grok/agents/judge.md'), antigravityAgent('judge')]) {
     assert.match(body, /Budget \(hard stop\)/);
     assert.match(body, /4 tool calls/);
     assert.match(body, /Do not run git log/);
@@ -118,13 +129,22 @@ test('Judge budget is the same on Claude Code, Grok, and Antigravity', () => {
   }
 });
 
+test('Antigravity reviewer agents are invoke_subagent targets, not primary agents', () => {
+  for (const name of ['devil-advocate', 'judge']) {
+    const text = antigravityAgent(name);
+    const { fm } = parseFrontmatter(text, `antigravity ${name}`);
+    assert.match(fm, new RegExp(`^name: ${name}$`, 'm'));
+    assert.match(fm, /^subagent: true$/m);
+    assert.match(fm, /^mainAgent: false$/m);
+  }
+});
+
 test('Parent DA and Judge prompts match across hosts', () => {
   const daPrompt = 'at most 8 tool calls; read the diff file; skip css and generated files';
   const judgePrompt = 'at most 4 tool calls; ledger and contract only; skip css; do not re-review the whole diff';
   for (const rel of [
     '.claude/skills/ai-engineering-loop/SKILL.md',
-    '.grok/skills/ai-engineering-loop/SKILL.md',
-    '.agents/workflows/ai-engineering-loop.md'
+    '.agents/skills/ai-engineering-loop/SKILL.md'
   ]) {
     const text = readRepo(rel);
     assert.match(text, new RegExp(daPrompt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), rel);
@@ -132,44 +152,23 @@ test('Parent DA and Judge prompts match across hosts', () => {
   }
 });
 
-test('Antigravity workflow waits and never uses browser_subagent as reviewer', () => {
-  const wf = readRepo('.agents/workflows/ai-engineering-loop.md');
-  parseFrontmatter(wf, 'antigravity workflow');
-  assert.match(wf, /8 tool calls/);
-  assert.match(wf, /4 tool calls/);
-  assert.match(wf, /browser_subagent/);
-  assert.match(wf, /CONTEXT_ISOLATION_ONLY/);
-});
-
-test('Claude and Grok parent skills pass Judge a 4-call ledger-only prompt', () => {
-  const claude = readRepo('.claude/skills/ai-engineering-loop/SKILL.md');
-  const grok = readRepo('.grok/skills/ai-engineering-loop/SKILL.md');
-  assert.match(claude, /4 tool calls/);
-  assert.match(grok, /4 tool calls/);
-});
-
-test('Gemini Antigravity skill matches the loop and never uses Grok spawn keys or browser_subagent as reviewer', () => {
-  const gemini = readRepo('.gemini/skills/ai-engineering-loop/SKILL.md');
-  const { fm } = parseFrontmatter(gemini, 'gemini skill');
+test('Core skill passes Judge a 4-call ledger-only prompt and keeps the loop quality core', () => {
+  const core = readRepo('.agents/skills/ai-engineering-loop/SKILL.md');
+  const { fm } = parseFrontmatter(core, 'core skill');
   assert.doesNotMatch(fm, /^description:\s*>-?/m);
-  assert.doesNotMatch(gemini, /```mermaid/);
-  assert.doesNotMatch(gemini, /\$\\/);
-  assert.doesNotMatch(gemini, /spawn_subagent/);
-  assert.doesNotMatch(gemini, /capability_mode/);
-  assert.doesNotMatch(gemini, /resume_from/);
-  assert.match(gemini, /browser_subagent/);
-  assert.match(gemini, /CONTEXT_ISOLATION_ONLY/);
-  assert.match(gemini, /grill-policy/);
-  assert.match(gemini, /tdd-policy/);
-  assert.match(gemini, /glossary\.md/);
-  assert.match(gemini, /Spec and Standards/);
-  assert.match(gemini, /task-impact-inquiry/);
-  assert.match(gemini, /8 tool calls/);
-  assert.match(gemini, /4 tool calls/);
-  assert.match(gemini, /TRUE_INDEPENDENT_AGENT/);
+  assert.match(core, /4 tool calls/);
+  assert.match(core, /8 tool calls/);
+  assert.match(core, /browser_subagent/);
+  assert.match(core, /CONTEXT_ISOLATION_ONLY/);
+  assert.match(core, /grill-policy/);
+  assert.match(core, /tdd-policy/);
+  assert.match(core, /glossary\.md/);
+  assert.match(core, /Spec and Standards/);
+  assert.match(core, /task-impact-inquiry/);
+  assert.match(core, /TRUE_INDEPENDENT_AGENT/);
 });
 
-test('task-impact-inquiry is Claude-safe and ships to Claude, Grok, and Gemini', () => {
+test('task-impact-inquiry is Claude-safe and ships to Claude, the shared folder, and Antigravity', () => {
   const skill = readRepo('adapters/dot/skills/task-impact-inquiry/SKILL.md');
   const { fm } = parseFrontmatter(skill, 'task-impact-inquiry');
   assert.doesNotMatch(fm, /^description:\s*>-?/m);
@@ -187,22 +186,20 @@ test('task-impact-inquiry is Claude-safe and ships to Claude, Grok, and Gemini',
   const grill = readRepo('core/grill-policy.md');
   assert.match(grill, /Business blast radius/);
   assert.match(grill, /~\/\.claude\/skills\/task-impact-inquiry/);
-  assert.match(grill, /~\/\.grok\/skills\/task-impact-inquiry/);
+  assert.match(grill, /~\/\.agents\/skills\/task-impact-inquiry/);
   assert.match(grill, /~\/\.gemini\/config\/skills\/task-impact-inquiry/);
   const readme = readRepo('adapters/dot/README.md');
   assert.match(readme, /task-impact-inquiry/);
   assert.match(readme, /~\/\.claude\/skills\//);
   assert.doesNotMatch(readme, /not from `~\/\.claude\/skills\/`/);
-  const wf = readRepo('.agents/workflows/ai-engineering-loop.md');
+  const wf = readRepo('.agents/skills/ai-engineering-loop/SKILL.md');
   assert.match(wf, /task-impact-inquiry/);
   assert.match(wf, /blast radius: lifecycle sketch/);
 });
 
-test('backend-development skill ships to Claude, Grok, Gemini, and Codex with reference docs', () => {
+test('backend-development skill ships to Claude and the shared .agents folder with reference docs', () => {
   const hosts = [
     '.claude/skills/backend-development',
-    '.grok/skills/backend-development',
-    '.gemini/skills/backend-development',
     '.agents/skills/backend-development'
   ];
   for (const host of hosts) {
@@ -257,9 +254,7 @@ test('generate-workflow skill is Claude-safe and host skills read the overlay', 
   assert.doesNotMatch(skill, /any host-native label \(gemini-flash/);
   for (const rel of [
     '.claude/skills/ai-engineering-loop/SKILL.md',
-    '.grok/skills/ai-engineering-loop/SKILL.md',
-    '.gemini/skills/ai-engineering-loop/SKILL.md',
-    '.agents/workflows/ai-engineering-loop.md'
+    '.agents/skills/ai-engineering-loop/SKILL.md'
   ]) {
     const text = readRepo(rel);
     assert.match(text, /lessons\.md/, rel);
@@ -304,9 +299,7 @@ test('Host compact map names four buckets and keeps 8-stage numbers', () => {
   assert.doesNotMatch(grill, /Later phase \(not this loop\): host compact pipeline/);
   for (const rel of [
     '.claude/skills/ai-engineering-loop/SKILL.md',
-    '.grok/skills/ai-engineering-loop/SKILL.md',
-    '.gemini/skills/ai-engineering-loop/SKILL.md',
-    '.agents/workflows/ai-engineering-loop.md'
+    '.agents/skills/ai-engineering-loop/SKILL.md'
   ]) {
     const text = readRepo(rel);
     assert.match(text, /Specify \(stages 0-1\)/, rel);
@@ -322,9 +315,7 @@ test('Host compact map names four buckets and keeps 8-stage numbers', () => {
 test('Host skills mention sync-hosts only as a stale-host remedy, not a per-run step', () => {
   for (const rel of [
     '.claude/skills/ai-engineering-loop/SKILL.md',
-    '.grok/skills/ai-engineering-loop/SKILL.md',
-    '.gemini/skills/ai-engineering-loop/SKILL.md',
-    '.agents/workflows/ai-engineering-loop.md'
+    '.agents/skills/ai-engineering-loop/SKILL.md'
   ]) {
     const text = readRepo(rel);
     assert.match(text, /sync-hosts/, rel);
@@ -335,9 +326,7 @@ test('Host skills mention sync-hosts only as a stale-host remedy, not a per-run 
 test('Every host enforces state, evidence, bounded context, escalation, and delivery gates', () => {
   for (const rel of [
     '.claude/skills/ai-engineering-loop/SKILL.md',
-    '.grok/skills/ai-engineering-loop/SKILL.md',
-    '.gemini/skills/ai-engineering-loop/SKILL.md',
-    '.agents/workflows/ai-engineering-loop.md'
+    '.agents/skills/ai-engineering-loop/SKILL.md'
   ]) {
     const text = readRepo(rel);
     assert.match(text, /state --json/, rel);
@@ -356,9 +345,7 @@ test('Every host enforces state, evidence, bounded context, escalation, and deli
 test('Every host enforces runtime mode, token accounting, sandbox, and approval controls', () => {
   for (const rel of [
     '.claude/skills/ai-engineering-loop/SKILL.md',
-    '.grok/skills/ai-engineering-loop/SKILL.md',
-    '.gemini/skills/ai-engineering-loop/SKILL.md',
-    '.agents/workflows/ai-engineering-loop.md'
+    '.agents/skills/ai-engineering-loop/SKILL.md'
   ]) {
     const text = readRepo(rel);
     assert.match(text, /REPORT_ONLY/, rel);
@@ -385,9 +372,7 @@ test('Sloppy prompt drafts a Goal Contract; claimed-vs-reality gates DA', () => 
   assert.match(judge, /claimed-vs-reality\.md/);
   for (const rel of [
     '.claude/skills/ai-engineering-loop/SKILL.md',
-    '.grok/skills/ai-engineering-loop/SKILL.md',
-    '.gemini/skills/ai-engineering-loop/SKILL.md',
-    '.agents/workflows/ai-engineering-loop.md'
+    '.agents/skills/ai-engineering-loop/SKILL.md'
   ]) {
     const text = readRepo(rel);
     assert.match(text, /If the user prompt has no numbered AC/, rel);
@@ -413,9 +398,7 @@ test('Grill freeze gate and idea menu are in the loop, not a parallel product', 
   assert.match(tdd, /Source grep/);
   for (const rel of [
     '.claude/skills/ai-engineering-loop/SKILL.md',
-    '.grok/skills/ai-engineering-loop/SKILL.md',
-    '.gemini/skills/ai-engineering-loop/SKILL.md',
-    '.agents/workflows/ai-engineering-loop.md'
+    '.agents/skills/ai-engineering-loop/SKILL.md'
   ]) {
     const text = readRepo(rel);
     assert.match(text, /list a short menu and wait/, rel);
@@ -442,9 +425,7 @@ test('Failure table is required to freeze, TDD, verify, and Judge', () => {
   assert.match(da, /happy-path-only suite vs written failure table/);
   for (const rel of [
     '.claude/skills/ai-engineering-loop/SKILL.md',
-    '.grok/skills/ai-engineering-loop/SKILL.md',
-    '.gemini/skills/ai-engineering-loop/SKILL.md',
-    '.agents/workflows/ai-engineering-loop.md'
+    '.agents/skills/ai-engineering-loop/SKILL.md'
   ]) {
     const text = readRepo(rel);
     assert.match(text, /failure table/, rel);
@@ -457,8 +438,7 @@ test('Failure table is required to freeze, TDD, verify, and Judge', () => {
 test('Host skills absorb grill, TDD, glossary, and two-axis review without splitting the loop', () => {
   for (const rel of [
     '.claude/skills/ai-engineering-loop/SKILL.md',
-    '.grok/skills/ai-engineering-loop/SKILL.md',
-    '.agents/workflows/ai-engineering-loop.md'
+    '.agents/skills/ai-engineering-loop/SKILL.md'
   ]) {
     const text = readRepo(rel);
     assert.match(text, /grill-policy/, rel);

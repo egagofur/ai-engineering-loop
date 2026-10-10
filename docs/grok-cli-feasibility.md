@@ -24,7 +24,7 @@ Children cannot spawn children (depth 1). The parent therefore remains the orche
 | Native child session | `spawn_subagent` | `INVOCATION_AVAILABLE` | Enabled by default; disabled only when `GROK_SUBAGENTS=0` or `--disallowed-tools Agent` |
 | Child execution | child `subagent_id` + model response | `EXECUTION_PROVEN` | Proven only after the child returns; binary presence is not proof |
 | Project agents | `.grok/agents/devil-advocate.md`, `.grok/agents/judge.md` | `CONFIGURATION_SUPPORTED` | Registered as `subagent_type` values |
-| Skill + slash command | `.grok/skills/ai-engineering-loop/`, `.grok/commands/ai-engineering-loop.md` | `CONFIGURATION_SUPPORTED` | Grok discovers repo-local skills and command markdown |
+| Skill + slash command | `.agents/skills/ai-engineering-loop/` (shared; Grok also scans `.claude/skills`) | `CONFIGURATION_SUPPORTED` | Grok discovers skills in `.grok/skills`, `.claude/skills`, and `.agents/skills`; skills are user-invocable by default |
 | Headless child | `grok -p "..."` | `FRESH_PROCESS_AGENT` | Valid fallback **after** stdout contains a model response |
 | Compressed reviewer | `caveman:cavecrew-reviewer` | `GROK_COMPRESSED_REVIEW_PRESET` | **Rejected** — output schema is `path:line: emoji severity`, not the Finding Ledger |
 | Browser tools | `browser_*` | `BROWSER_AUTOMATION_TOOL` | Not an LLM reviewer |

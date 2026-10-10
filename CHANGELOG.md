@@ -4,6 +4,40 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+### Multi-agent hosts, phase 4: new agents, `hosts doctor`, generated host table (#52)
+
+- **Added:** agents installed after `setup` are detected again (stat only). With `hosts.mode: auto`, the background `update auto` of a global install enables and syncs them; a host you disabled stays disabled. With `manual` (default), `status` prints one short notice per new agent, at most once a day. Nothing is written or shown in CI, in `--json` output, or with `AEL_NO_AUTO_UPDATE=1`. `update auto --json` reports `hosts.added`.
+- **Added:** `hosts doctor [--json]`: per enabled host, how many copies of the core skill it sees across the folders it scans, whether they are identical, and which AEL files still need a sync. Read-only; exits 1 when something needs attention.
+- **Changed:** the README host table is generated from `lib/hosts/registry.js` (`npm run build:hosts-table`); `npm test` fails when it drifts.
+
+### Multi-agent hosts, phase 3: own-folder hosts (#51)
+
+- **Added:** Cline (`~/.cline/skills`), Kiro (`~/.kiro/skills`), and Qwen Code (`~/.qwen/skills`) get their own byte-identical copy of the skill, because they do not read `~/.agents/skills/`.
+- **Added:** Roo Code and JetBrains Junie, which the current docs show also read `~/.agents/skills/`, so they use the shared copy (the research report had marked this as inferred "no").
+- **Added:** reviewer subagents for Kiro (`~/.kiro/agents/*.md`, `tools: [read]`), Qwen (`~/.qwen/agents/*.md`, `approvalMode: plan`), and Junie (`~/.junie/agents/*.md`, `tools: [Read, Grep]`). Cline and Roo get none (no documented file format), so the loop runs `CONTEXT_ISOLATION_ONLY` there.
+
+### Multi-agent hosts, phase 2: shared-folder hosts (#50)
+
+- **Added:** OpenCode, Windsurf/Devin Desktop, Amp, Factory Droid, Augment (Auggie), Zed, and Goose to the host registry. All of them read the shared `~/.agents/skills/` folder, so they use the same single copy of the skill and never get a second one in their own folders.
+- **Added:** reviewer subagents where the host supports file-based ones: OpenCode `~/.config/opencode/agents/*.md` (`mode: subagent`, edits denied), Factory `~/.factory/droids/*.md` (`tools: read-only`), and Augment `~/.augment/agents/*.md`. Amp (TypeScript plugins), Zed, Goose, and Windsurf have no file-based reviewer agent, so the loop runs DA and Judge as `CONTEXT_ISOLATION_ONLY` there.
+
+### Multi-agent hosts, phase 1: host registry, setup, and `hosts` (#49)
+
+- **Added:** a data-driven host registry (`lib/hosts/registry.js`). Each entry holds detection signals, the skill folder (the shared `~/.agents/skills` or the host's own), the folders the host scans, the reviewer subagent format, official doc links, and a verification date. Tier 1 hosts: Claude Code, Codex CLI, Gemini CLI, Antigravity (IDE/2.0 and the `agy` CLI), Grok CLI, Cursor, and GitHub Copilot.
+- **Added:** detection by config folder or by an executable on `PATH`. The binary is checked with `stat` only and never executed.
+- **Added:** reviewer subagents in each host's own format, all from the same `agents/shared/*.body.md`: Codex `~/.codex/agents/*.toml` (read-only sandbox), Gemini CLI `~/.gemini/agents/*.md`, Cursor `~/.cursor/agents/*.md` (`readonly`), and Copilot `~/.copilot/agents/*.agent.md`.
+- **Added:** `setup [--yes] [--hosts a,b] [--mode auto|manual] [--json]`, which runs once and asks before writing. Without a TTY it prints the plan and writes nothing unless `--yes` is passed. Also added: `hosts list [--json]`, `hosts enable <id...>`, and `hosts disable <id...>`. Disabling removes only manifest-tracked files that AEL wrote and you did not edit. The shared folder stays while any enabled host still reads it.
+- **Added:** a first-run hint that replaces a `postinstall` hook. It appears on interactive stderr at most once a day until hosts are chosen, never in CI or `--json`, and can be silenced with `AEL_NO_SETUP_HINT=1`. The package still defines no install script.
+- Until `setup` runs, `sync-hosts` and `update auto` write only to hosts whose config folder already exists, or that an earlier sync already installed. Hosts found only on `PATH` wait for `setup`.
+
+### Multi-agent hosts, phase 0: close the host gaps (#48)
+
+- **Fixed:** the `ai-engineering-loop` skill now lands in the shared `~/.agents/skills/` folder, so Codex, Gemini CLI, and the other hosts that read it see the loop. Grok, Gemini CLI, and Codex installs trigger it.
+- **Fixed:** Gemini CLI no longer gets Antigravity's `~/.gemini/config/skills/` path. Antigravity keeps `~/.gemini/config/skills/`, and its Devil's Advocate and Judge now install as `~/.gemini/config/agents/<name>.md` subagents (`subagent: true`) instead of `~/.agents/*.md`.
+- **Changed:** one host-neutral `SKILL.md` (standard `name`/`description` frontmatter only) is generated for every host, byte-identical everywhere. Per-host spawn rules moved to `references/loop-hosts.md`. Grok no longer gets its own skill copies (it reads `~/.claude/skills` and `~/.agents/skills`), and the `user-invocable` overlay is gone (Grok's default is already `true`).
+- **Removed:** `~/.agents/workflows/ai-engineering-loop.md`, `~/.agents/{devil-advocate,judge}.md`, and the `~/.claude/commands` and `~/.grok/commands` copies. The skill already provides `/ai-engineering-loop`. `sync-hosts` deletes these files where AEL wrote them, and keeps them if you edited them.
+- **Note:** the Claude skill no longer pre-approves tools through `allowed-tools`, because other hosts (for example Copilot) treat that field as a permission grant. Claude Code may ask for permission a little more often.
+
 ### `run --abandon` for stale runs (#46)
 
 - **Added:** `run --abandon [--run <id>] --reason <text> --by <name> [--yes] [--json]`. It moves a run that will never finish to `CANCELLED`, records reason, actor, and time in the run's history ledger (recipe-bound runs also get a `RUN_CANCELLED` event), and releases `current.json` so `refresh --non-destructive` and `update auto` process the project again. Run data is kept. With `--run <id>` for a non-current run, the current pointer is left alone.

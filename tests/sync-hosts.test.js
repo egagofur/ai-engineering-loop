@@ -6,7 +6,6 @@ const path = require('path');
 const { execFileSync, spawnSync } = require('child_process');
 
 const {
-  applyGrokSkillOverlay,
   planHostSync,
   applyHostSync,
   summarizeHostSync
@@ -18,21 +17,6 @@ const CLI = path.join(ROOT, 'bin', 'ai-engineering-loop.js');
 function tmpHome() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'ael-home-'));
 }
-
-test('applyGrokSkillOverlay inserts user-invocable once', () => {
-  const raw = '---\nname: demo\ndescription: x\n---\n\n# Body\n';
-  const once = applyGrokSkillOverlay(raw);
-  assert.match(once, /user-invocable: true/);
-  const twice = applyGrokSkillOverlay(once);
-  assert.strictEqual(twice, once);
-});
-
-test('applyGrokSkillOverlay canonicalizes Windows line endings', () => {
-  const raw = '---\r\nname: demo\r\ndescription: x\r\n---\r\n\r\n# Body\r\n';
-  const result = applyGrokSkillOverlay(raw);
-  assert.match(result, /^user-invocable: true$/m);
-  assert.doesNotMatch(result, /\r/);
-});
 
 test('planHostSync skips everything when no host roots exist', () => {
   const home = tmpHome();
@@ -52,7 +36,7 @@ test('sync upserts Claude AEL files but does not invent DOT skills', () => {
   assert.ok(fs.existsSync(path.join(home, '.claude/skills/ai-engineering-loop/SKILL.md')));
   assert.ok(fs.existsSync(path.join(home, '.claude/agents/devil-advocate.md')));
   assert.ok(fs.existsSync(path.join(home, '.claude/agents/judge.md')));
-  assert.ok(fs.existsSync(path.join(home, '.claude/commands/ai-engineering-loop.md')));
+  assert.ok(!fs.existsSync(path.join(home, '.claude/commands/ai-engineering-loop.md')), 'commands retired in #48');
   assert.ok(!fs.existsSync(path.join(home, '.claude/skills/dot-dev-workflow/SKILL.md')));
   assert.ok(fs.existsSync(path.join(home, '.claude/skills/task-impact-inquiry/SKILL.md')));
   assert.ok(fs.existsSync(path.join(home, '.claude/skills/emil-design-eng/SKILL.md')));
@@ -64,15 +48,14 @@ test('sync upserts task-impact-inquiry onto Claude, Grok, and Gemini', () => {
   const home = tmpHome();
   fs.mkdirSync(path.join(home, '.claude'));
   fs.mkdirSync(path.join(home, '.grok'));
-  fs.mkdirSync(path.join(home, '.gemini'));
+  fs.mkdirSync(path.join(home, '.gemini/antigravity'), { recursive: true });
   applyHostSync({ packageRoot: ROOT, home });
   const claude = fs.readFileSync(path.join(home, '.claude/skills/task-impact-inquiry/SKILL.md'), 'utf8');
-  const grok = fs.readFileSync(path.join(home, '.grok/skills/task-impact-inquiry/SKILL.md'), 'utf8');
+  const grok = fs.readFileSync(path.join(home, '.agents/skills/task-impact-inquiry/SKILL.md'), 'utf8');
   const gemini = fs.readFileSync(path.join(home, '.gemini/config/skills/task-impact-inquiry/SKILL.md'), 'utf8');
   assert.match(claude, /name: task-impact-inquiry/);
   assert.doesNotMatch(claude, /```mermaid/);
   assert.match(claude, /New-dev briefing/);
-  assert.match(grok, /^user-invocable: true$/m);
   assert.match(grok, /Where it hits/);
   assert.match(gemini, /Business blast radius|blast radius/);
 });
@@ -81,12 +64,12 @@ test('sync upserts backend-development skill and references onto Claude, Grok, G
   const home = tmpHome();
   fs.mkdirSync(path.join(home, '.claude'));
   fs.mkdirSync(path.join(home, '.grok'));
-  fs.mkdirSync(path.join(home, '.gemini'));
+  fs.mkdirSync(path.join(home, '.gemini/antigravity'), { recursive: true });
   fs.mkdirSync(path.join(home, '.agents'));
   applyHostSync({ packageRoot: ROOT, home, packs: ['backend'] });
 
   const claudeBase = path.join(home, '.claude/skills/backend-development');
-  const grokBase = path.join(home, '.grok/skills/backend-development');
+  const grokBase = path.join(home, '.agents/skills/backend-development');
   const geminiBase = path.join(home, '.gemini/config/skills/backend-development');
   const codexBase = path.join(home, '.agents/skills/backend-development');
   const claude = fs.readFileSync(path.join(claudeBase, 'SKILL.md'), 'utf8');
@@ -96,7 +79,6 @@ test('sync upserts backend-development skill and references onto Claude, Grok, G
 
   assert.match(claude, /name: backend-development/);
   assert.match(claude, /Boolean naming/);
-  assert.match(grok, /^user-invocable: true$/m);
   assert.match(gemini, /Query and Database Best Practices|Query and Database/);
   assert.match(codex, /name: backend-development/);
   for (const base of [claudeBase, grokBase, geminiBase, codexBase]) {
@@ -110,23 +92,22 @@ test('sync upserts Emil Kowalski design skills onto Claude, Grok, Gemini, and Co
   const home = tmpHome();
   fs.mkdirSync(path.join(home, '.claude'));
   fs.mkdirSync(path.join(home, '.grok'));
-  fs.mkdirSync(path.join(home, '.gemini'));
+  fs.mkdirSync(path.join(home, '.gemini/antigravity'), { recursive: true });
   fs.mkdirSync(path.join(home, '.agents'));
   applyHostSync({ packageRoot: ROOT, home, packs: ['design'] });
 
   const claude = fs.readFileSync(path.join(home, '.claude/skills/emil-design-eng/SKILL.md'), 'utf8');
-  const grok = fs.readFileSync(path.join(home, '.grok/skills/animate/SKILL.md'), 'utf8');
+  const grok = fs.readFileSync(path.join(home, '.agents/skills/animate/SKILL.md'), 'utf8');
   const gemini = fs.readFileSync(path.join(home, '.gemini/config/skills/review-animations/SKILL.md'), 'utf8');
   const codex = fs.readFileSync(path.join(home, '.agents/skills/apple-design/SKILL.md'), 'utf8');
 
   assert.match(claude, /name: emil-design-eng/);
   assert.match(claude, /animation|design/i);
-  assert.match(grok, /^user-invocable: true$/m);
   assert.match(grok, /name: animate/);
   assert.match(gemini, /name: review-animations/);
   assert.match(codex, /name: apple-design/);
   assert.ok(fs.existsSync(path.join(home, '.claude/skills/improve-animations/PLAN-TEMPLATE.md')));
-  assert.ok(fs.existsSync(path.join(home, '.grok/skills/animate-expo/RECIPES.md')));
+  assert.ok(fs.existsSync(path.join(home, '.agents/skills/animate-expo/RECIPES.md')));
   assert.ok(fs.existsSync(path.join(home, '.agents/skills/ask-sonner/API.md')));
 });
 
@@ -141,31 +122,116 @@ test('DOT skills update only when already installed', () => {
   assert.match(fs.readFileSync(dest, 'utf8'), /Not a substitute for ai-engineering-loop/);
 });
 
-test('Grok skill overlay keeps user-invocable', () => {
+test('Grok gets the shared skill and no copy of its own; DOT skill stays byte-identical (#48)', () => {
   const home = tmpHome();
   fs.mkdirSync(path.join(home, '.grok'));
-  const dot = path.join(home, '.grok/skills/dot-dev-workflow/SKILL.md');
+  const dot = path.join(home, '.agents/skills/dot-dev-workflow/SKILL.md');
   fs.mkdirSync(path.dirname(dot), { recursive: true });
   fs.writeFileSync(dot, '---\nname: dot-dev-workflow\ndescription: old\n---\n\nold\n');
   applyHostSync({ packageRoot: ROOT, home });
-  const skill = fs.readFileSync(path.join(home, '.grok/skills/ai-engineering-loop/SKILL.md'), 'utf8');
-  const wf = fs.readFileSync(dot, 'utf8');
-  assert.match(skill, /^user-invocable: true$/m);
-  assert.match(wf, /^user-invocable: true$/m);
+  const skill = fs.readFileSync(path.join(home, '.agents/skills/ai-engineering-loop/SKILL.md'), 'utf8');
+  assert.strictEqual(skill, fs.readFileSync(path.join(ROOT, '.agents/skills/ai-engineering-loop/SKILL.md'), 'utf8').replace(/\r\n?/g, '\n'));
+  assert.ok(!fs.existsSync(path.join(home, '.grok/skills')));
+  assert.ok(fs.existsSync(path.join(home, '.grok/agents/devil-advocate.md')));
+  assert.strictEqual(fs.readFileSync(dot, 'utf8'), fs.readFileSync(path.join(ROOT, 'adapters/dot/skills/dot-dev-workflow/SKILL.md'), 'utf8').replace(/\r\n?/g, '\n'));
+});
+
+test('Gemini CLI and Codex homes get the loop through ~/.agents/skills, not ~/.gemini/config (#48)', () => {
+  for (const dir of ['.gemini', '.codex']) {
+    const home = tmpHome();
+    fs.mkdirSync(path.join(home, dir));
+    applyHostSync({ packageRoot: ROOT, home });
+    assert.ok(fs.existsSync(path.join(home, '.agents/skills/ai-engineering-loop/SKILL.md')), dir);
+    assert.ok(fs.existsSync(path.join(home, '.agents/skills/ai-engineering-loop/references/loop-hosts.md')), dir);
+    assert.ok(!fs.existsSync(path.join(home, '.gemini/config')), `${dir}: Antigravity path must not be created for Gemini CLI`);
+    assert.ok(!fs.existsSync(path.join(home, '.agents/workflows')), dir);
+  }
+});
+
+test('Antigravity gets skills in ~/.gemini/config/skills and subagents in ~/.gemini/config/agents (#48)', () => {
+  const home = tmpHome();
+  fs.mkdirSync(path.join(home, '.gemini/antigravity'), { recursive: true });
+  applyHostSync({ packageRoot: ROOT, home });
+  assert.ok(fs.existsSync(path.join(home, '.gemini/config/skills/ai-engineering-loop/SKILL.md')));
+  for (const name of ['devil-advocate', 'judge']) {
+    const agent = fs.readFileSync(path.join(home, `.gemini/config/agents/${name}.md`), 'utf8');
+    assert.match(agent, new RegExp(`^name: ${name}$`, 'm'));
+    assert.match(agent, /^subagent: true$/m);
+  }
+  assert.ok(!fs.existsSync(path.join(home, '.agents/workflows')));
+  assert.ok(!fs.existsSync(path.join(home, '.agents/judge.md')));
+});
+
+test('every host sees one copy, or byte-identical copies, of each AEL skill (#48)', () => {
+  const home = tmpHome();
+  for (const dir of ['.claude', '.grok', '.gemini/antigravity', '.agents', '.codex']) fs.mkdirSync(path.join(home, dir), { recursive: true });
+  applyHostSync({ packageRoot: ROOT, home, packs: ['backend', 'design', 'quality'] });
+  // Folders each host scans (official docs, 2026-10): Grok, Cursor, OpenCode, Amp
+  // and Augment read ~/.claude/skills next to ~/.agents/skills.
+  const reads = [
+    ['.grok/skills', '.claude/skills', '.agents/skills'],
+    ['.claude/skills'],
+    ['.agents/skills'],
+    ['.gemini/config/skills']
+  ];
+  for (const dirs of reads) {
+    const seen = new Map();
+    for (const dir of dirs) {
+      const abs = path.join(home, dir);
+      if (!fs.existsSync(abs)) continue;
+      for (const name of fs.readdirSync(abs)) {
+        const file = path.join(abs, name, 'SKILL.md');
+        if (!fs.existsSync(file)) continue;
+        const text = fs.readFileSync(file, 'utf8');
+        if (seen.has(name)) assert.strictEqual(text, seen.get(name), `${name} differs across ${dirs.join(' + ')}`);
+        else seen.set(name, text);
+      }
+    }
+    assert.ok(seen.has('ai-engineering-loop'), dirs.join(' + '));
+  }
+});
+
+test('upgrade removes retired AEL host files it wrote, keeps edited ones (#48)', () => {
+  const home = tmpHome();
+  for (const dir of ['.claude', '.grok', '.agents']) fs.mkdirSync(path.join(home, dir));
+  const { sha256, writeJsonFile, userStatePath } = require('../lib/user-state.js');
+  const retired = {
+    '.agents/workflows/ai-engineering-loop.md': 'old workflow\n',
+    '.agents/judge.md': 'old judge\n',
+    '.claude/commands/ai-engineering-loop.md': 'old command\n',
+    '.grok/commands/ai-engineering-loop.md': 'old grok command\n',
+    '.grok/skills/ai-engineering-loop/SKILL.md': 'old grok skill\n'
+  };
+  const files = {};
+  for (const [rel, text] of Object.entries(retired)) {
+    const abs = path.join(home, rel);
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.writeFileSync(abs, text);
+    files[abs] = { sha256: sha256(text), pack: 'core' };
+  }
+  // The user edited one retired file after AEL wrote it.
+  const edited = path.join(home, '.agents/devil-advocate.md');
+  fs.writeFileSync(edited, 'my own notes\n');
+  files[edited] = { sha256: sha256('what AEL wrote\n'), pack: 'core' };
+  writeJsonFile(userStatePath('host-manifest.json', home), { schemaVersion: 1, version: '1.14.0', files });
+  applyHostSync({ packageRoot: ROOT, home });
+  for (const rel of Object.keys(retired)) assert.ok(!fs.existsSync(path.join(home, rel)), `${rel} should be pruned`);
+  assert.strictEqual(fs.readFileSync(edited, 'utf8'), 'my own notes\n');
+  assert.ok(fs.existsSync(path.join(home, '.agents/skills/ai-engineering-loop/SKILL.md')));
 });
 
 test('dry-run does not write; second apply is current', () => {
   const home = tmpHome();
-  fs.mkdirSync(path.join(home, '.gemini'));
+  fs.mkdirSync(path.join(home, '.gemini/antigravity'), { recursive: true });
   const dry = applyHostSync({ packageRoot: ROOT, home, dryRun: true });
-  const gemini = dry.find((item) => item.id === 'gemini');
+  const gemini = dry.find((item) => item.id === 'antigravity');
   assert.strictEqual(gemini.action, 'copy');
   assert.ok(gemini.dryRun);
   assert.ok(!fs.existsSync(path.join(home, '.gemini/config/skills/ai-engineering-loop/SKILL.md')));
   applyHostSync({ packageRoot: ROOT, home });
   const again = applyHostSync({ packageRoot: ROOT, home });
-  assert.strictEqual(summarizeHostSync(again.filter((item) => item.id === 'gemini')).copy, 0);
-  assert.ok(summarizeHostSync(again.filter((item) => item.id === 'gemini')).current >= 4);
+  assert.strictEqual(summarizeHostSync(again.filter((item) => item.id === 'antigravity')).copy, 0);
+  assert.ok(summarizeHostSync(again.filter((item) => item.id === 'antigravity')).current >= 4);
 });
 
 test('symlink destinations are left alone', () => {
@@ -234,28 +300,26 @@ test('sync upserts generate-adapter onto Claude, Grok, and Gemini', () => {
   const home = tmpHome();
   fs.mkdirSync(path.join(home, '.claude'));
   fs.mkdirSync(path.join(home, '.grok'));
-  fs.mkdirSync(path.join(home, '.gemini'));
+  fs.mkdirSync(path.join(home, '.gemini/antigravity'), { recursive: true });
   applyHostSync({ packageRoot: ROOT, home });
   const claude = fs.readFileSync(path.join(home, '.claude/skills/generate-adapter/SKILL.md'), 'utf8');
-  const grok = fs.readFileSync(path.join(home, '.grok/skills/generate-adapter/SKILL.md'), 'utf8');
+  const grok = fs.readFileSync(path.join(home, '.agents/skills/generate-adapter/SKILL.md'), 'utf8');
   assert.match(claude, /name: generate-adapter/);
   assert.doesNotMatch(claude, /```mermaid/);
-  assert.match(grok, /^user-invocable: true$/m);
 });
 
 test('sync upserts generate-workflow onto Claude, Grok, and Gemini', () => {
   const home = tmpHome();
   fs.mkdirSync(path.join(home, '.claude'));
   fs.mkdirSync(path.join(home, '.grok'));
-  fs.mkdirSync(path.join(home, '.gemini'));
+  fs.mkdirSync(path.join(home, '.gemini/antigravity'), { recursive: true });
   applyHostSync({ packageRoot: ROOT, home });
   const claude = fs.readFileSync(path.join(home, '.claude/skills/generate-workflow/SKILL.md'), 'utf8');
-  const grok = fs.readFileSync(path.join(home, '.grok/skills/generate-workflow/SKILL.md'), 'utf8');
+  const grok = fs.readFileSync(path.join(home, '.agents/skills/generate-workflow/SKILL.md'), 'utf8');
   const gemini = fs.readFileSync(path.join(home, '.gemini/config/skills/generate-workflow/SKILL.md'), 'utf8');
   assert.match(claude, /name: generate-workflow/);
   assert.doesNotMatch(claude, /```mermaid/);
   assert.match(claude, /lessons\.md/);
-  assert.match(grok, /^user-invocable: true$/m);
   assert.match(gemini, /Do not start Maker/);
 });
 

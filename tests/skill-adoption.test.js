@@ -48,9 +48,11 @@ test('using-dot-skills is not adopted anywhere in the package', () => {
 
 test('project-onboarding ships in core; the quality pack is opt-in on every host', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-adopt-'));
-  for (const dir of ['.claude', '.grok', '.gemini', '.agents']) fs.mkdirSync(path.join(home, dir));
+  for (const dir of ['.claude', '.grok', '.gemini/antigravity', '.agents']) fs.mkdirSync(path.join(home, dir), { recursive: true });
   applyHostSync({ packageRoot: ROOT, home });
-  const roots = ['.claude/skills', '.grok/skills', '.gemini/config/skills', '.agents/skills'];
+  // Grok reads ~/.agents/skills (and ~/.claude/skills), so it gets no copy of its own (#48).
+  const roots = ['.claude/skills', '.gemini/config/skills', '.agents/skills'];
+  assert.ok(!fs.existsSync(path.join(home, '.grok/skills')));
   for (const root of roots) {
     assert.ok(fs.existsSync(path.join(home, root, 'project-onboarding/SKILL.md')), root);
     assert.ok(fs.existsSync(path.join(home, root, 'project-onboarding/references/output.md')), root);
@@ -60,7 +62,9 @@ test('project-onboarding ships in core; the quality pack is opt-in on every host
   for (const root of roots) {
     for (const skill of QUALITY_SKILLS) assert.ok(fs.existsSync(path.join(home, root, skill, 'SKILL.md')), `${root}/${skill}`);
   }
-  assert.match(fs.readFileSync(path.join(home, '.grok/skills/ael-code-simplifier/SKILL.md'), 'utf8'), /^user-invocable: true$/m);
+  // Identical bytes in every folder: no per-host overlay (Grok defaults user-invocable to true).
+  const copies = roots.map((root) => fs.readFileSync(path.join(home, root, 'ael-code-simplifier/SKILL.md'), 'utf8'));
+  assert.ok(copies.every((c) => c === copies[0]));
   assert.deepStrictEqual(planHostSync({ packageRoot: ROOT, home }).packs, ['core', 'quality']);
 });
 
@@ -72,7 +76,7 @@ test('merged rules land in their target files without growing SKILL.md', () => {
   assert.match(rca, /Three strikes/);
   assert.match(rca, /Test pollution/);
   assert.match(read('bin/ai-engineering-loop.js'), /build -> typecheck -> lint -> test_unit -> security scan/);
-  for (const rel of ['.claude/skills/ai-engineering-loop/SKILL.md', '.grok/skills/ai-engineering-loop/SKILL.md']) {
+  for (const rel of ['.claude/skills/ai-engineering-loop/SKILL.md', '.agents/skills/ai-engineering-loop/SKILL.md']) {
     assert.ok(read(rel).length <= 4000, rel);
   }
 });

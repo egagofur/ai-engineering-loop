@@ -25,9 +25,7 @@ const QA_HEADINGS = [
 
 const HOSTS = [
   '.claude/skills/ai-engineering-loop/SKILL.md',
-  '.grok/skills/ai-engineering-loop/SKILL.md',
-  '.gemini/skills/ai-engineering-loop/SKILL.md',
-  '.agents/workflows/ai-engineering-loop.md'
+  '.agents/skills/ai-engineering-loop/SKILL.md'
 ];
 
 test('AC-1 GitHub PR and GitLab MR bodies include the QA reproduce and how-to-test block', () => {

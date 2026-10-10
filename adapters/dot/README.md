@@ -60,7 +60,7 @@ On a DOT repo (`adapter_type: dot`), **run `ai-engineering-loop`**, not the old 
 | **`ai-engineering-loop`** | Engineering OS (Stages 0-7). Use this for DOT bugfix/feature/refactor. |
 | **`dot-dev-workflow`** | Stage 8 delivery only after Judge PASS. Not a parallel engineering loop. |
 | **`dot-dev-skill-router`** | Routes commit-bound DOT work to `ai-engineering-loop`, then Stage 8. |
-| **`task-impact-inquiry`** | Business blast radius (lifecycle sketch, four pillars, ASCII picture). Canonical: `adapters/dot/skills/task-impact-inquiry/`. Host copies: `~/.claude/skills/`, `~/.grok/skills/`, `~/.gemini/config/skills/`. Fills Stage 1 grill; impact-only stops after the matrix. Not a parallel OS. |
+| **`task-impact-inquiry`** | Business blast radius (lifecycle sketch, four pillars, ASCII picture). Canonical: `adapters/dot/skills/task-impact-inquiry/`. Host copies: `~/.claude/skills/`, `~/.agents/skills/` (Codex, Gemini CLI, Grok, and other shared-folder hosts), `~/.gemini/config/skills/` (Antigravity). Fills Stage 1 grill; impact-only stops after the matrix. Not a parallel OS. |
 | **`backend-development`** | Framework-agnostic backend guidelines (clean naming, database queries, security, error handling). |
 | **`backend-safety-guardrails`** | 6 architectural backend safety invariants (queue bypass, BigInt, status recalculation loops). |
 | **`devils-advocate`** | Legacy DOT pre-commit skill. On AEL, Stages 6-7 are package Devil's Advocate + Judge. Do not re-run this skill after Judge PASS. |

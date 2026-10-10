@@ -21,9 +21,7 @@
     "evals/",
     ".agents/",
     ".grok/",
-    ".gemini/skills/",
     ".claude/agents/",
-    ".claude/commands/",
     ".claude/skills/",
     "LICENSE",
     "THIRD_PARTY_NOTICES.md",
@@ -43,6 +41,7 @@
     "prepublishOnly": "npm run check:skills && npm test && npm run doctor && npm run eval && npm run audit:package",
     "build:skills": "node scripts/build-host-skills.js",
     "check:skills": "node scripts/build-host-skills.js --check",
+    "build:hosts-table": "node scripts/build-host-table.js",
     "measure": "node scripts/measure.js"
   },
   "engines": {

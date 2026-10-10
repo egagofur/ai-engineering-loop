@@ -166,14 +166,51 @@ Under the hood, these moments use eight evidence-backed stages. The rigor is the
 
 AI Engineering Loop is designed to work with the tools developers already use:
 
-- **Claude Code**
-- **Grok CLI**
-- **Gemini / Antigravity**
-- Other agent hosts that can read project instructions and run local commands
+<!-- hosts-table:start (generated from lib/hosts/registry.js; run npm run build:hosts-table) -->
+| Host | id | Skill folder | Reviewer agents | Detected by |
+|---|---|---|---|---|
+| Claude Code | `claude` | `~/.claude/skills` | `~/.claude/agents` | `~/.claude`, `claude` |
+| Codex CLI | `codex` | `~/.agents/skills` (shared) | `~/.codex/agents` | `~/.codex`, `codex` |
+| Gemini CLI | `gemini` | `~/.agents/skills` (shared) | `~/.gemini/agents` | `~/.gemini`, `gemini` |
+| Antigravity (IDE / 2.0) | `antigravity` | `~/.gemini/config/skills` | `~/.gemini/config/agents` | `~/.gemini/antigravity`, `antigravity` |
+| Antigravity CLI (agy) | `antigravity-cli` | `~/.gemini/antigravity-cli/skills` | `~/.gemini/config/agents` | `~/.gemini/antigravity-cli`, `agy` |
+| Grok CLI | `grok` | `~/.agents/skills` (shared) | `~/.grok/agents` | `~/.grok`, `grok` |
+| Cursor (editor + CLI) | `cursor` | `~/.agents/skills` (shared) | `~/.cursor/agents` | `~/.cursor`, `cursor-agent`, `cursor` |
+| GitHub Copilot (CLI / VS Code) | `copilot` | `~/.agents/skills` (shared) | `~/.copilot/agents` | `~/.copilot`, `copilot` |
+| OpenCode | `opencode` | `~/.agents/skills` (shared) | `~/.config/opencode/agents` | `~/.config/opencode`, `opencode` |
+| Windsurf / Devin Desktop | `windsurf` | `~/.agents/skills` (shared) | none (in-session review) | `~/.codeium/windsurf`, `~/.config/devin` |
+| Amp | `amp` | `~/.agents/skills` (shared) | none (in-session review) | `~/.config/amp`, `amp` |
+| Factory Droid | `factory` | `~/.agents/skills` (shared) | `~/.factory/droids` | `~/.factory`, `droid` |
+| Augment (Auggie) | `augment` | `~/.agents/skills` (shared) | `~/.augment/agents` | `~/.augment`, `auggie` |
+| Zed | `zed` | `~/.agents/skills` (shared) | none (in-session review) | `~/.config/zed`, `~/Library/Application Support/Zed`, `zed` |
+| Goose | `goose` | `~/.agents/skills` (shared) | none (in-session review) | `~/.config/goose`, `goose` |
+| Cline | `cline` | `~/.cline/skills` | none (in-session review) | `~/.cline`, `cline` |
+| Roo Code | `roo` | `~/.agents/skills` (shared) | none (in-session review) | `~/.roo` |
+| Kiro (IDE + CLI) | `kiro` | `~/.kiro/skills` | `~/.kiro/agents` | `~/.kiro`, `kiro-cli`, `kiro` |
+| Qwen Code | `qwen` | `~/.qwen/skills` | `~/.qwen/agents` | `~/.qwen`, `qwen` |
+| JetBrains Junie | `junie` | `~/.agents/skills` (shared) | `~/.junie/agents` | `~/.junie`, `junie` |
 
-The project includes ready-to-use skills and reviewer roles for supported hosts. Each host follows the same Goal, verification, review, and approval rules.
+Not supported (no native skills): Aider, Continue.
+<!-- hosts-table:end -->
 
-`sync-hosts` installs the **core** pack by default: the `ai-engineering-loop` skill, Devil's Advocate and Judge agents, commands, and the small helper skills the loop itself uses. Optional packs stay out of every session's skill index until you ask for them:
+Every host gets the **same** `ai-engineering-loop` skill (byte-identical, so an agent that scans several skill folders never sees two different versions). The few host-specific spawn rules live in its `references/loop-hosts.md`. Each host follows the same Goal, verification, review, and approval rules.
+
+Install once, then let AEL find your agents:
+
+```bash
+npm i -g ai-engineering-loop
+ai-engineering-loop setup              # detects agents (config folder or binary on PATH, never executed), asks, installs
+ai-engineering-loop hosts list         # what is detected / enabled, and where each host reads skills
+ai-engineering-loop hosts doctor       # per host: copies of the skill it sees, identical or not, files to sync
+ai-engineering-loop hosts enable cursor copilot
+ai-engineering-loop hosts disable codex    # removes the files AEL wrote there (edited files are kept)
+```
+
+There is no `postinstall` hook: npm 7+ hides its output, pnpm 10 and Bun block it, and `--ignore-scripts` skips it. Instead the first interactive command suggests `setup` (at most once a day; silence with `AEL_NO_SETUP_HINT=1`). `setup` without a terminal only prints the plan unless you pass `--yes`. Until you run `setup`, `sync-hosts` keeps the old behaviour: it writes only to hosts whose config folder already exists.
+
+Agents you install later are noticed by `status` and the background `update auto` (stat only, cheap). With `setup --mode auto`, a global install enables and syncs them on its own; with `--mode manual` (the default) you get one short notice per new agent, at most once a day. Nothing is written or shown in CI, in `--json` output, or with `AEL_NO_AUTO_UPDATE=1`.
+
+`sync-hosts` installs the **core** pack by default: the `ai-engineering-loop` skill, Devil's Advocate and Judge agents, and the small helper skills the loop itself uses. Optional packs stay out of every session's skill index until you ask for them:
 
 ```bash
 npx ai-engineering-loop sync-hosts --pack backend         # framework-agnostic backend best practices
