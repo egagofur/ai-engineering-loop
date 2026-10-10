@@ -78,8 +78,10 @@ test('sync-hosts installs references beside each host SKILL.md', () => {
     }
   }
   applyHostSync({ packageRoot: ROOT, home });
-  const installed = fs.readFileSync(path.join(home, '.claude/skills/ai-engineering-loop/references/loop-review.md'), 'utf8');
-  assert.strictEqual(installed, fs.readFileSync(path.join(ROOT, '.claude/skills/ai-engineering-loop/references/loop-review.md'), 'utf8'));
+  // sync-hosts normalizes line endings; a Windows checkout may have CRLF.
+  const lf = (file) => fs.readFileSync(file, 'utf8').replace(/\r\n?/g, '\n');
+  const installed = lf(path.join(home, '.claude/skills/ai-engineering-loop/references/loop-review.md'));
+  assert.strictEqual(installed, lf(path.join(ROOT, '.claude/skills/ai-engineering-loop/references/loop-review.md')));
 });
 
 test('gate maker --from-git captures tracked and new files, excluding .ai-engineering-loop', () => {
