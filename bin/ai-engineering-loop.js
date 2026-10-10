@@ -90,6 +90,7 @@ const {
   writeVerificationSummary
 } = require('../lib/verification-summary.js');
 const {
+  recordVerificationCommands,
   recordVerificationCommand
 } = require('../lib/verification-recorder.js');
 const {
@@ -1045,7 +1046,19 @@ function handleRun() {
       tierSource: run.tier ? run.tier.source : null,
       tierReasons: run.tier ? run.tier.reasons : [],
       subagents: run.tier ? { T0: 0, T1: 1, T2: 2 }[run.tier.current] : 2,
-      recipe: run.workflow ? run.workflow.recipeId : null
+      recipe: run.workflow ? run.workflow.recipeId : null,
+      budget: (() => {
+        try {
+          const b = budgetStatus(CWD, { runId: run.runId });
+          return { allowed: b.allowed, spentThisRun: b.spentThisRun, warnings: b.warnings || [] };
+        } catch (e) {
+          return { allowed: false, error: e.message };
+        }
+      })(),
+      hostSkills: (() => {
+        const h = hostSkillStatus({ home: homeDir(), version: VERSION });
+        return { stale: h.stale, staleFiles: h.staleFiles, installedVersion: h.installedVersion, packageVersion: VERSION };
+      })()
     }, null, 2));
     return;
   }
@@ -1412,6 +1425,44 @@ function handleArtifactTool(action) {
   }
 }
 
+// Shared by `gate` and the combined stage commands (issue #34) so both paths
+// publish identical workflow-node and Studio lifecycle events.
+function executeGate(gate, runId) {
+  const target = runId ? loadRun(CWD, runId) : getCurrentRun(CWD);
+  if (!target) throw new Error('No current run. Start one with `ai-engineering-loop run`.');
+  listRunLifecycle(CWD, target.runId);
+  let lifecycleNode = null;
+  if (target.workflow) {
+    const workflow = workflowStatus(CWD, { runId: target.runId });
+    lifecycleNode = workflow.plan.nodes.find((node) => node.legacyGate === gate) || null;
+    if (lifecycleNode && workflow.state.nodes[lifecycleNode.id].status === 'READY') {
+      startWorkflowNode(CWD, lifecycleNode.id, { runId: target.runId });
+      appendRunLifecycle(CWD, target.runId, {
+        type: 'NODE_STARTED',
+        nodeId: lifecycleNode.id,
+        phase: gate,
+        actor: 'agent',
+        message: `${lifecycleNode.displayName || lifecycleNode.id} started`
+      });
+    }
+  }
+  const run = target.workflow
+    ? applyWorkflowGate(CWD, gate, { runId: target.runId }).run
+    : applyGate(CWD, gate, { runId: target.runId });
+  const runCompleted = run.state === 'DELIVERED' || run.state === 'REPORTED';
+  appendRunLifecycle(CWD, target.runId, {
+    type: runCompleted
+      ? 'RUN_COMPLETED'
+      : (lifecycleNode ? 'NODE_COMPLETED' : 'PHASE_COMPLETED'),
+    ...(!runCompleted && lifecycleNode ? { nodeId: lifecycleNode.id } : {}),
+    phase: gate,
+    actor: 'agent',
+    status: 'PASSED',
+    message: `${lifecycleNode?.displayName || gate} completed`
+  });
+  return run;
+}
+
 function handleGate() {
   const gate = process.argv[3];
   const runId = argValue('--run');
@@ -1421,36 +1472,7 @@ function handleGate() {
     const target = runId ? loadRun(CWD, runId) : getCurrentRun(CWD);
     if (!target) throw new Error('No current run. Start one with `ai-engineering-loop run`.');
     targetRunId = target.runId;
-    listRunLifecycle(CWD, target.runId);
-    let lifecycleNode = null;
-    if (target.workflow) {
-      const workflow = workflowStatus(CWD, { runId: target.runId });
-      lifecycleNode = workflow.plan.nodes.find((node) => node.legacyGate === gate) || null;
-      if (lifecycleNode && workflow.state.nodes[lifecycleNode.id].status === 'READY') {
-        startWorkflowNode(CWD, lifecycleNode.id, { runId: target.runId });
-        appendRunLifecycle(CWD, target.runId, {
-          type: 'NODE_STARTED',
-          nodeId: lifecycleNode.id,
-          phase: gate,
-          actor: 'agent',
-          message: `${lifecycleNode.displayName || lifecycleNode.id} started`
-        });
-      }
-    }
-    const run = target.workflow
-      ? applyWorkflowGate(CWD, gate, { runId: target.runId }).run
-      : applyGate(CWD, gate, { runId: target.runId });
-    const runCompleted = run.state === 'DELIVERED' || run.state === 'REPORTED';
-    appendRunLifecycle(CWD, target.runId, {
-      type: runCompleted
-        ? 'RUN_COMPLETED'
-        : (lifecycleNode ? 'NODE_COMPLETED' : 'PHASE_COMPLETED'),
-      ...(!runCompleted && lifecycleNode ? { nodeId: lifecycleNode.id } : {}),
-      phase: gate,
-      actor: 'agent',
-      status: 'PASSED',
-      message: `${lifecycleNode?.displayName || gate} completed`
-    });
+    const run = executeGate(gate, target.runId);
     const judge = gate === 'review' && run.tier ? judgeRequirement(CWD, run) : null;
     if (json) {
       console.log(JSON.stringify({
@@ -2156,9 +2178,14 @@ function handleGoal() {
         message: `Goal draft revision ${result.metadata.revision} is ready for review`
       });
     } else if (action === 'freeze') {
-      const expectedHash = argValue('--hash');
+      const latest = process.argv.includes('--latest');
+      const latestDraft = latest ? loadGoalDraft(CWD, runId) : null;
+      if (latest && !latestDraft) {
+        throw Object.assign(new Error('No Goal draft to freeze'), { code: 'GOAL_DRAFT_MISSING' });
+      }
+      const expectedHash = latest ? latestDraft.metadata.contentHash : argValue('--hash');
       if (!expectedHash) {
-        const error = new Error('--hash is required');
+        const error = new Error('--hash is required (or --latest)');
         error.code = 'INVALID_USAGE';
         throw error;
       }
@@ -2180,7 +2207,7 @@ function handleGoal() {
       }
       result = freezeGoal(CWD, runId, {
         actor: argValue('--by') || 'human',
-        expectedRevision: requiredIntegerArg('--revision'),
+        expectedRevision: latest ? latestDraft.metadata.revision : requiredIntegerArg('--revision'),
         expectedHash
       });
       appendRunLifecycle(CWD, runId, {
@@ -2315,6 +2342,221 @@ function handleInteraction() {
   }
 }
 
+
+// ---------------------------------------------------------------------------
+// Combined stage commands (issue #34). Each replaces several agent turns with
+// one CLI call and goes through the same gates, so results are identical to
+// the long form (`verification record`... `gate verification`, etc.).
+
+function autoHeartbeat(runId, phase, message) {
+  try {
+    appendRunLifecycle(CWD, runId, { type: 'AGENT_HEARTBEAT', phase, actor: 'agent', message });
+  } catch (e) {
+    // Heartbeats are best-effort Studio telemetry; never fail a stage on them.
+  }
+}
+
+function defaultVerificationCommand() {
+  const text = readFileSafe(path.join(CONTEXT_DIR, 'verification.md')) || '';
+  const match = text.match(/\*\*test_unit\*\*:\s*`([^`]+)`/);
+  return match ? match[1].trim() : null;
+}
+
+function splitCommand(text, shell) {
+  const value = String(text || '').trim();
+  if (!value) throw Object.assign(new Error('Empty verification command'), { code: 'INVALID_COMMAND' });
+  if (shell) return { command: value, args: [], shell: true };
+  if (/[|&;<>()$`"'\\*?]/.test(value)) {
+    throw Object.assign(new Error(`"${value}" needs shell syntax; pass --shell or split it into separate --cmd values.`), { code: 'INVALID_COMMAND' });
+  }
+  const [command, ...rest] = value.split(/\s+/);
+  return { command, args: rest, shell: false };
+}
+
+function stageJsonError(err, json, code) {
+  if (json) {
+    console.log(JSON.stringify({ ok: false, code: err.code || code, error: err.message, details: err.details || [] }));
+  } else {
+    log.error(err.message);
+    for (const detail of err.details || []) console.error(`- ${detail}`);
+  }
+  process.exit(1);
+}
+
+function repeatedArg(name) {
+  const values = [];
+  const separator = process.argv.indexOf('--');
+  const scoped = separator === -1 ? process.argv : process.argv.slice(0, separator);
+  for (let index = 0; index < scoped.length; index += 1) {
+    if (scoped[index] === name && scoped[index + 1] != null) values.push(scoped[index + 1]);
+  }
+  return values;
+}
+
+async function handleVerify() {
+  const json = process.argv.includes('--json');
+  try {
+    const runId = requiredRunId('verify');
+    const shell = process.argv.includes('--shell');
+    let texts = repeatedArg('--cmd');
+    if (texts.length === 0) {
+      const fallback = defaultVerificationCommand();
+      if (!fallback) throw Object.assign(new Error('No --cmd given and no test_unit command in .ai-engineering-loop/verification.md'), { code: 'INVALID_COMMAND' });
+      texts = [fallback];
+    }
+    const timeoutValue = argValue('--timeout-ms');
+    const recorded = await recordVerificationCommands(CWD, {
+      runId,
+      commands: texts.map((text) => splitCommand(text, shell)),
+      serial: process.argv.includes('--serial'),
+      ...(timeoutValue == null ? {} : { timeoutMs: parsePositiveIntegerArg('--timeout-ms', timeoutValue) })
+    });
+    const commands = recorded.commands.map((c) => ({ command: c.command, exitCode: c.exitCode, timeoutStatus: c.timeoutStatus }));
+    if (!recorded.passed) {
+      autoHeartbeat(runId, 'verification', 'Verification failed; Maker must fix before review');
+      const result = { ok: false, code: 'VERIFICATION_FAILED', runId, commands, gate: null };
+      if (json) console.log(JSON.stringify(result));
+      else {
+        log.error('Verification failed; the gate was not attempted.');
+        for (const c of commands) console.log(`- ${c.command}: exit ${c.exitCode} (${c.timeoutStatus})`);
+      }
+      process.exitCode = 1;
+      return;
+    }
+    const run = executeGate('verification', runId);
+    const compact = compactRun(CWD, { runId });
+    let claimed = { path: '.ai-engineering-loop/tasks/claimed-vs-reality.md', created: false };
+    try {
+      claimed = { ...createClaimedVsRealityTemplate(CWD, { runId }), created: true };
+    } catch (err) {
+      if (err.code !== 'OUTPUT_EXISTS') throw err;
+    }
+    const result = {
+      ok: true,
+      runId,
+      state: run.state,
+      tier: run.tier ? run.tier.current : null,
+      commands,
+      testCounts: recorded.summary.testCounts,
+      compact: compact.paths,
+      claimedVsReality: claimed,
+      next: run.tier && run.tier.current === 'T0'
+        ? 'Fill claimed-vs-reality, then gate review and gate judge'
+        : 'Fill claimed-vs-reality, then review-pack and spawn the Devil\'s Advocate'
+    };
+    if (json) console.log(JSON.stringify(result));
+    else {
+      log.success('✓ verification recorded and gated');
+      for (const c of commands) console.log(`- ${c.command}: exit ${c.exitCode}`);
+      console.log(`- State: ${run.state}`);
+      console.log(`- Claimed-vs-reality: ${claimed.path}${claimed.created ? ' (scaffolded; fill it from the command output)' : ''}`);
+      console.log(`- Next: ${result.next}`);
+    }
+  } catch (err) {
+    stageJsonError(err, json, 'VERIFY_FAILED');
+  }
+}
+
+function handleReviewPack() {
+  const json = process.argv.includes('--json');
+  try {
+    const runId = requiredRunId('review-pack');
+    const run = loadRun(CWD, runId);
+    if (!run.artifacts?.verification) {
+      throw Object.assign(new Error('review-pack needs a passed verification gate (run verify first).'), { code: 'GATE_FAILED' });
+    }
+    const base = argValue('--base') || 'HEAD';
+    const fastPath = assessSmallTaskFastPath(CWD, { base });
+    const pack = smartContextSummary(createDiffHunkPack(CWD, { runId, base, profile: argValue('--profile') }));
+    const escalation = assessRunEscalation(CWD, { runId });
+    const tier = run.tier ? run.tier.current : null;
+    autoHeartbeat(runId, 'review', 'Review pack built');
+    const result = {
+      ok: true,
+      runId,
+      tier,
+      devilAdvocateRequired: tier !== 'T0',
+      packPath: pack.path,
+      diffPath: path.relative(CWD, path.join(runsDir(CWD), runId, 'diff.patch')).split(path.sep).join('/'),
+      reviewProfile: pack.reviewProfile,
+      estimatedTokens: pack.estimatedTokens,
+      truncated: pack.truncated,
+      unresolvedFindings: pack.unresolvedFindings,
+      fastPath: { eligible: fastPath.eligible, reasons: fastPath.reasons },
+      escalation: { requiredTier: escalation.requiredTier, reasons: escalation.reasons.map((r) => r.code) }
+    };
+    if (json) console.log(JSON.stringify(result));
+    else {
+      log.success('✓ review pack ready');
+      console.log(`- Pack: ${result.packPath} (${result.reviewProfile}, ~${result.estimatedTokens} tokens)`);
+      console.log(`- Tier: ${tier || 'none'}; Devil's Advocate ${result.devilAdvocateRequired ? 'required' : 'not used (T0)'}`);
+      console.log(`- Judge tier floor: ${result.escalation.requiredTier}${result.escalation.reasons.length ? ` (${result.escalation.reasons.join(', ')})` : ''}`);
+    }
+  } catch (err) {
+    stageJsonError(err, json, 'REVIEW_PACK_FAILED');
+  }
+}
+
+function handleDeliver() {
+  const json = process.argv.includes('--json');
+  try {
+    const runId = requiredRunId('deliver');
+    const run = loadRun(CWD, runId);
+    const mode = run.mode || RUN_MODES.ASSISTED;
+    const approve = process.argv.includes('--approve');
+    const by = argValue('--by');
+    if (mode === RUN_MODES.REPORT_ONLY) {
+      throw Object.assign(new Error('REPORT_ONLY runs finish with gate report, not deliver.'), { code: 'INVALID_USAGE' });
+    }
+    if (mode === RUN_MODES.ASSISTED && !approve) {
+      console.error('ASSISTED delivery needs the human\'s explicit approval: deliver --approve --by <name>. Nothing was written.');
+      process.exit(2);
+    }
+    if (approve && !by) {
+      throw Object.assign(new Error('--approve requires --by <name> (the approving human).'), { code: 'INVALID_USAGE' });
+    }
+    const approved = [];
+    if (approve && run.workflow) {
+      const workflow = workflowStatus(CWD, { runId });
+      for (const node of workflow.plan.nodes) {
+        if (node.type !== 'approval' || workflow.state.nodes[node.id].status !== 'READY') continue;
+        approveWorkflowNode(CWD, node.id, { runId, approvedBy: by });
+        appendRunLifecycle(CWD, runId, { type: 'NODE_COMPLETED', nodeId: node.id, phase: node.id, actor: by, message: `Node ${node.id} approved` });
+        approved.push(node.id);
+      }
+    }
+    const deliveryPath = path.join(runsDir(CWD), runId, 'delivery.json');
+    let delivery = null;
+    if (fs.existsSync(deliveryPath)) {
+      try { delivery = JSON.parse(fs.readFileSync(deliveryPath, 'utf8')); } catch (e) { delivery = null; }
+    }
+    const destination = argValue('--destination');
+    const summary = argValue('--summary');
+    if (!delivery && !(destination && summary)) {
+      throw Object.assign(new Error('Pass --destination <where> and --summary <text>, or write delivery.json first.'), { code: 'INVALID_USAGE' });
+    }
+    delivery = {
+      ...(delivery || {}),
+      schemaVersion: 1,
+      runId,
+      ...(destination ? { destination } : {}),
+      ...(summary ? { summary } : {}),
+      ...(approve ? { humanApproved: true, approvedBy: by } : {})
+    };
+    fs.writeFileSync(deliveryPath, `${JSON.stringify(delivery, null, 2)}\n`, { mode: 0o600 });
+    const next = executeGate('delivery', runId);
+    const result = { ok: true, runId, state: next.state, approvedNodes: approved, humanApproved: delivery.humanApproved === true };
+    if (json) console.log(JSON.stringify(result));
+    else {
+      log.success('✓ delivery gate passed');
+      console.log(`- State: ${next.state}`);
+      if (approved.length) console.log(`- Approved: ${approved.join(', ')} by ${by}`);
+    }
+  } catch (err) {
+    stageJsonError(err, json, 'DELIVER_FAILED');
+  }
+}
+
 // Command: docs (read-only packaged specs)
 function handleDocs() {
   const json = process.argv.includes('--json');
@@ -2369,6 +2611,7 @@ Commands:
                show [--run <id>]
                draft --file <json> --revision <n> [--run <id>] [--by <agent>]
                freeze --revision <n> --hash <sha256> [--run <id>] [--by <name>]
+               freeze --latest [--run <id>] --by <name>   freeze the newest draft (CLI resolves revision/hash)
   verification Summarize verification.json for compact Judge context
                summarize [--run <id>] [--json]
                record [--run <id>] [--timeout-ms <n>] [--shell] [--json] -- <executable> [args...]
@@ -2432,6 +2675,14 @@ Commands:
   escalation   Compute the minimum Judge model tier from deterministic risk signals
                --run <id>  target a non-current run
                --json      print machine-readable reasons
+  verify       Record verification commands, gate them, compact, and scaffold claimed-vs-reality
+               [--run <id>] [--cmd "<command>"]... [--shell] [--serial] [--timeout-ms <n>] [--json]
+               default command: test_unit from .ai-engineering-loop/verification.md; commands run in parallel
+  review-pack  Build the Devil's Advocate pack: fast-path, diff hunks, escalation floor, tier
+               [--run <id>] [--base <git-ref>] [--profile lean|standard|thorough] [--json]
+  deliver      Approve READY approval nodes, write delivery.json, and pass the delivery gate
+               [--run <id>] [--destination <where> --summary <text>] [--approve --by <name>] [--json]
+               ASSISTED requires --approve --by <name>, given only after explicit human approval
   docs         Print a packaged spec without needing the package source tree
                list [--json]
                <name> [--section <heading>] [--json]   e.g. docs grill-policy --section "When to grill"
@@ -2564,6 +2815,15 @@ switch (command) {
     break;
   case 'docs':
     handleDocs();
+    break;
+  case 'verify':
+    handleVerify();
+    break;
+  case 'review-pack':
+    handleReviewPack();
+    break;
+  case 'deliver':
+    handleDeliver();
     break;
   case 'doctor':
     handleDoctor();
