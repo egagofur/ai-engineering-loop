@@ -18,8 +18,10 @@ const {
   homeDir,
   applyHostSync,
   hostSkillStatus,
+  resolveHostSelection,
   formatHostSyncReport
 } = require('../lib/sync-hosts.js');
+const hostCommands = require('../lib/hosts/commands.js');
 const { listDocs, readDoc } = require('../lib/docs.js');
 const {
   wantsCommandHelp,
@@ -1042,6 +1044,150 @@ function handleSyncHosts() {
   }
   log.info(`AI Engineering Loop — Sync host skills (sync-hosts)${dryRun ? ' [dry-run]' : ''}`);
   console.log(formatHostSyncReport(results, { version: VERSION, dryRun }));
+}
+
+function hostSyncOrExit(selection, { dryRun = false } = {}) {
+  try {
+    return applyHostSync({ home: homeDir(), hosts: selection, dryRun, version: VERSION });
+  } catch (err) {
+    log.error(`${err.code || 'SYNC_FAILED'}: ${err.message}`);
+    process.exit(2);
+  }
+}
+
+function readTtyLine(question, fallback) {
+  process.stdout.write(question);
+  try {
+    const buffer = Buffer.alloc(64);
+    const bytes = fs.readSync(0, buffer, 0, buffer.length, null);
+    return buffer.toString('utf8', 0, bytes).trim().toLowerCase() || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+// `hosts list|enable|disable` (issue #49).
+function handleHosts() {
+  const rest = process.argv.slice(3).filter((arg) => !arg.startsWith('-'));
+  const sub = rest[0] || 'list';
+  const json = process.argv.includes('--json');
+  const home = homeDir();
+  const selection = resolveHostSelection(home);
+  if (sub === 'list') {
+    const rows = hostCommands.listHosts({ home, selection });
+    if (json) {
+      console.log(JSON.stringify({ ok: true, source: selection.source, mode: selection.mode, hosts: rows }, null, 2));
+      return;
+    }
+    console.log(hostCommands.formatHostsList(rows, selection));
+    if (selection.source !== 'config') console.log('Run "ai-engineering-loop setup" to choose hosts explicitly.');
+    return;
+  }
+  if (sub !== 'enable' && sub !== 'disable') {
+    log.error(`Unknown hosts subcommand "${sub}". Use: list, enable <id...>, disable <id...>. Nothing was written.`);
+    process.exit(2);
+  }
+  let ids;
+  try {
+    ids = hostCommands.parseHostIds(rest.slice(1));
+  } catch (err) {
+    log.error(`${err.code}: ${err.message}. Nothing was written.`);
+    process.exit(2);
+  }
+  if (!ids.length) {
+    log.error(`hosts ${sub} needs at least one host id. Nothing was written.`);
+    process.exit(2);
+  }
+  const next = hostCommands.changeHosts({ home, selection, [sub]: ids });
+  const results = hostSyncOrExit(next);
+  if (json) {
+    console.log(JSON.stringify({ ok: true, [sub === 'enable' ? 'enabled' : 'disabled']: ids, hosts: [...next.enabled], files: results.map(({ content, ...item }) => item) }, null, 2));
+    return;
+  }
+  log.info(`AI Engineering Loop — hosts ${sub} ${ids.join(', ')}`);
+  console.log(formatHostSyncReport(results, { version: VERSION }));
+}
+
+// `setup` (issue #49): the one-time, explicit replacement for a postinstall
+// hook. Detects agents (config folder or PATH binary, never executed), asks,
+// then syncs. Without a TTY it only prints the plan unless --yes is given.
+function handleSetup() {
+  const home = homeDir();
+  const json = process.argv.includes('--json');
+  const yes = process.argv.includes('--yes');
+  const hostsArg = argValue('--hosts');
+  const modeArg = argValue('--mode');
+  if (modeArg && !['auto', 'manual'].includes(modeArg)) {
+    log.error('--mode must be auto or manual. Nothing was written.');
+    process.exit(2);
+  }
+  const selection = resolveHostSelection(home);
+  const rows = hostCommands.listHosts({ home, selection });
+  let ids;
+  try {
+    ids = hostsArg ? hostCommands.parseHostIds(hostsArg) : rows.filter((row) => row.detected).map((row) => row.id);
+  } catch (err) {
+    log.error(`${err.code}: ${err.message}. Nothing was written.`);
+    process.exit(2);
+  }
+  const interactive = process.stdin.isTTY && process.stdout.isTTY && !json && autoUpdate.autoUpdateAllowedHere();
+  if (!yes && !interactive) {
+    const plan = { ok: true, wrote: false, detected: rows.filter((row) => row.detected).map((row) => row.id), wouldEnable: ids };
+    if (json) console.log(JSON.stringify(plan, null, 2));
+    else {
+      console.log(hostCommands.formatHostsList(rows, selection));
+      console.log(`Would enable: ${ids.join(', ') || '(none detected)'}`);
+      console.log('Nothing was written. Run "ai-engineering-loop setup --yes" (optionally --hosts a,b --mode auto|manual) to install.');
+    }
+    return;
+  }
+  let mode = modeArg || 'manual';
+  if (!yes) {
+    console.log(hostCommands.formatHostsList(rows, selection));
+    if (!ids.length) {
+      console.log('No AI agent detected. Install one, or pick hosts with "setup --hosts <id,...>".');
+      return;
+    }
+    const ok = readTtyLine(`Install the loop for ${ids.join(', ')}? [Y/n] `, 'y');
+    if (!['y', 'yes'].includes(ok)) {
+      console.log('Nothing was written.');
+      return;
+    }
+    if (!modeArg) {
+      const auto = readTtyLine('Enable agents you install later automatically (on status / update auto)? [Y/n] ', 'y');
+      mode = ['y', 'yes'].includes(auto) ? 'auto' : 'manual';
+    }
+  }
+  const next = hostCommands.applySetup({ home, ids, mode });
+  const results = hostSyncOrExit(next);
+  if (json) {
+    console.log(JSON.stringify({ ok: true, wrote: true, enabled: [...next.enabled], mode: next.mode, files: results.map(({ content, ...item }) => item) }, null, 2));
+    return;
+  }
+  log.info(`AI Engineering Loop — setup (${next.enabled.size} host${next.enabled.size === 1 ? '' : 's'}, mode ${next.mode})`);
+  console.log(formatHostSyncReport(results, { version: VERSION }));
+}
+
+// First-run hint (issue #49): no postinstall writes to HOME, so the first
+// interactive CLI use suggests `setup` once a day until hosts are chosen.
+function maybeSetupHint() {
+  try {
+    if (process.env.AEL_NO_SETUP_HINT === '1' || process.argv.includes('--json')) return;
+    if (!process.stderr.isTTY || !autoUpdate.autoUpdateAllowedHere()) return;
+    const home = homeDir();
+    if (hostCommands.savedHosts(home)) return;
+    const userState = require('../lib/user-state.js');
+    const stampFile = userState.userStatePath('setup-hint.json', home);
+    const last = userState.readJsonFile(stampFile, {});
+    if (last.at && Date.now() - Date.parse(last.at) < 24 * 60 * 60 * 1000) return;
+    const rows = hostCommands.listHosts({ home, selection: resolveHostSelection(home) });
+    const detected = rows.filter((row) => row.detected).map((row) => row.id);
+    if (!detected.length) return;
+    userState.writeJsonFile(stampFile, { at: new Date().toISOString() });
+    process.stderr.write(`ai-engineering-loop: detected ${detected.join(', ')}. Run "ai-engineering-loop setup" once to install the loop for them (silence: AEL_NO_SETUP_HINT=1).\n`);
+  } catch {
+    // A hint never breaks a command.
+  }
 }
 
 function handleGenerateAdapter() {
@@ -3255,6 +3401,11 @@ Commands:
                create [--run <id>] [--audience developer|agent|auditor]
                       [--output <repository-relative-file>|-] [--json]
                inspect | brief <repository-relative-file> [--json]
+  setup        One-time: detect AI agents (config folder or PATH binary, never run) and install for them
+               --yes  skip the prompt   --hosts <id,...>  pick hosts   --mode auto|manual   --json
+               Without a TTY and without --yes it only prints the plan
+  hosts        Show or change which AI agent hosts get the loop
+               list [--json]  |  enable <id...>  |  disable <id...> (removes unedited AEL files)
   sync-hosts   Install the loop skill and reviewer agents into every detected AI agent host
                (only hosts that already exist; DOT skills only if already installed)
                --dry-run       print the plan without writing
@@ -3310,6 +3461,8 @@ if (['init', 'run', 'status', 'refresh'].includes(command)) {
   if (command === 'init') askAutoUpdatePolicyOnce();
   maybeAutoUpdate();
 }
+
+if (!['setup', 'hosts', 'sync-hosts', '-h', '--help', '-v', '--version'].includes(command)) maybeSetupHint();
 
 switch (command) {
   case 'init':
@@ -3404,6 +3557,12 @@ switch (command) {
     break;
   case 'sync-hosts':
     handleSyncHosts();
+    break;
+  case 'hosts':
+    handleHosts();
+    break;
+  case 'setup':
+    handleSetup();
     break;
   case 'generate-adapter':
     handleGenerateAdapter();

@@ -85,7 +85,7 @@ test('every loop-* reference named by a skill exists beside it and through docs'
 
 test('sync-hosts installs references beside each host SKILL.md', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-skill-refs-'));
-  for (const dir of ['.claude', '.grok', '.gemini/config']) fs.mkdirSync(path.join(home, dir), { recursive: true });
+  for (const dir of ['.claude', '.grok', '.gemini/antigravity']) fs.mkdirSync(path.join(home, dir), { recursive: true });
   const plan = planHostSync({ packageRoot: ROOT, home });
   for (const skillDir of ['.claude/skills/ai-engineering-loop', '.agents/skills/ai-engineering-loop', '.gemini/config/skills/ai-engineering-loop']) {
     for (const file of LOOP_REFERENCE_FILES) {

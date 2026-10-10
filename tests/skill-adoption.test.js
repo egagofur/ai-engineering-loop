@@ -48,7 +48,7 @@ test('using-dot-skills is not adopted anywhere in the package', () => {
 
 test('project-onboarding ships in core; the quality pack is opt-in on every host', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-adopt-'));
-  for (const dir of ['.claude', '.grok', '.gemini/config', '.agents']) fs.mkdirSync(path.join(home, dir), { recursive: true });
+  for (const dir of ['.claude', '.grok', '.gemini/antigravity', '.agents']) fs.mkdirSync(path.join(home, dir), { recursive: true });
   applyHostSync({ packageRoot: ROOT, home });
   // Grok reads ~/.agents/skills (and ~/.claude/skills), so it gets no copy of its own (#48).
   const roots = ['.claude/skills', '.gemini/config/skills', '.agents/skills'];

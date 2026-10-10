@@ -4,6 +4,15 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+### Multi-agent hosts, phase 1: host registry, setup, and `hosts` (#49)
+
+- **Added:** a data-driven host registry (`lib/hosts/registry.js`). Each entry holds detection signals, the skill folder (the shared `~/.agents/skills` or the host's own), the folders the host scans, the reviewer subagent format, official doc links, and a verification date. Tier 1 hosts: Claude Code, Codex CLI, Gemini CLI, Antigravity (IDE/2.0 and the `agy` CLI), Grok CLI, Cursor, and GitHub Copilot.
+- **Added:** detection by config folder or by an executable on `PATH`. The binary is checked with `stat` only and never executed.
+- **Added:** reviewer subagents in each host's own format, all from the same `agents/shared/*.body.md`: Codex `~/.codex/agents/*.toml` (read-only sandbox), Gemini CLI `~/.gemini/agents/*.md`, Cursor `~/.cursor/agents/*.md` (`readonly`), and Copilot `~/.copilot/agents/*.agent.md`.
+- **Added:** `setup [--yes] [--hosts a,b] [--mode auto|manual] [--json]`, which runs once and asks before writing. Without a TTY it prints the plan and writes nothing unless `--yes` is passed. Also added: `hosts list [--json]`, `hosts enable <id...>`, and `hosts disable <id...>`. Disabling removes only manifest-tracked files that AEL wrote and you did not edit. The shared folder stays while any enabled host still reads it.
+- **Added:** a first-run hint that replaces a `postinstall` hook. It appears on interactive stderr at most once a day until hosts are chosen, never in CI or `--json`, and can be silenced with `AEL_NO_SETUP_HINT=1`. The package still defines no install script.
+- Until `setup` runs, `sync-hosts` and `update auto` write only to hosts whose config folder already exists, or that an earlier sync already installed. Hosts found only on `PATH` wait for `setup`.
+
 ### Multi-agent hosts, phase 0: close the host gaps (#48)
 
 - **Fixed:** the `ai-engineering-loop` skill now lands in the shared `~/.agents/skills/` folder, so Codex, Gemini CLI, and the other hosts that read it see the loop. Grok, Gemini CLI, and Codex installs trigger it.

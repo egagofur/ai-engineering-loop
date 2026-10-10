@@ -173,6 +173,18 @@ AI Engineering Loop is designed to work with the tools developers already use:
 
 Every host gets the **same** `ai-engineering-loop` skill (byte-identical, so an agent that scans several skill folders never sees two different versions). The few host-specific spawn rules live in its `references/loop-hosts.md`. Each host follows the same Goal, verification, review, and approval rules.
 
+Install once, then let AEL find your agents:
+
+```bash
+npm i -g ai-engineering-loop
+ai-engineering-loop setup              # detects agents (config folder or binary on PATH, never executed), asks, installs
+ai-engineering-loop hosts list         # what is detected / enabled, and where each host reads skills
+ai-engineering-loop hosts enable cursor copilot
+ai-engineering-loop hosts disable codex    # removes the files AEL wrote there (edited files are kept)
+```
+
+There is no `postinstall` hook: npm 7+ hides its output, pnpm 10 and Bun block it, and `--ignore-scripts` skips it. Instead the first interactive command suggests `setup` (at most once a day; silence with `AEL_NO_SETUP_HINT=1`). `setup` without a terminal only prints the plan unless you pass `--yes`. Until you run `setup`, `sync-hosts` keeps the old behaviour: it writes only to hosts whose config folder already exists.
+
 `sync-hosts` installs the **core** pack by default: the `ai-engineering-loop` skill, Devil's Advocate and Judge agents, and the small helper skills the loop itself uses. Optional packs stay out of every session's skill index until you ask for them:
 
 ```bash

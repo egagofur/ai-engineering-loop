@@ -48,7 +48,7 @@ test('sync upserts task-impact-inquiry onto Claude, Grok, and Gemini', () => {
   const home = tmpHome();
   fs.mkdirSync(path.join(home, '.claude'));
   fs.mkdirSync(path.join(home, '.grok'));
-  fs.mkdirSync(path.join(home, '.gemini/config'), { recursive: true });
+  fs.mkdirSync(path.join(home, '.gemini/antigravity'), { recursive: true });
   applyHostSync({ packageRoot: ROOT, home });
   const claude = fs.readFileSync(path.join(home, '.claude/skills/task-impact-inquiry/SKILL.md'), 'utf8');
   const grok = fs.readFileSync(path.join(home, '.agents/skills/task-impact-inquiry/SKILL.md'), 'utf8');
@@ -64,7 +64,7 @@ test('sync upserts backend-development skill and references onto Claude, Grok, G
   const home = tmpHome();
   fs.mkdirSync(path.join(home, '.claude'));
   fs.mkdirSync(path.join(home, '.grok'));
-  fs.mkdirSync(path.join(home, '.gemini/config'), { recursive: true });
+  fs.mkdirSync(path.join(home, '.gemini/antigravity'), { recursive: true });
   fs.mkdirSync(path.join(home, '.agents'));
   applyHostSync({ packageRoot: ROOT, home, packs: ['backend'] });
 
@@ -92,7 +92,7 @@ test('sync upserts Emil Kowalski design skills onto Claude, Grok, Gemini, and Co
   const home = tmpHome();
   fs.mkdirSync(path.join(home, '.claude'));
   fs.mkdirSync(path.join(home, '.grok'));
-  fs.mkdirSync(path.join(home, '.gemini/config'), { recursive: true });
+  fs.mkdirSync(path.join(home, '.gemini/antigravity'), { recursive: true });
   fs.mkdirSync(path.join(home, '.agents'));
   applyHostSync({ packageRoot: ROOT, home, packs: ['design'] });
 
@@ -164,7 +164,7 @@ test('Antigravity gets skills in ~/.gemini/config/skills and subagents in ~/.gem
 
 test('every host sees one copy, or byte-identical copies, of each AEL skill (#48)', () => {
   const home = tmpHome();
-  for (const dir of ['.claude', '.grok', '.gemini/config', '.agents', '.codex']) fs.mkdirSync(path.join(home, dir), { recursive: true });
+  for (const dir of ['.claude', '.grok', '.gemini/antigravity', '.agents', '.codex']) fs.mkdirSync(path.join(home, dir), { recursive: true });
   applyHostSync({ packageRoot: ROOT, home, packs: ['backend', 'design', 'quality'] });
   // Folders each host scans (official docs, 2026-10): Grok, Cursor, OpenCode, Amp
   // and Augment read ~/.claude/skills next to ~/.agents/skills.
@@ -222,7 +222,7 @@ test('upgrade removes retired AEL host files it wrote, keeps edited ones (#48)',
 
 test('dry-run does not write; second apply is current', () => {
   const home = tmpHome();
-  fs.mkdirSync(path.join(home, '.gemini/config'), { recursive: true });
+  fs.mkdirSync(path.join(home, '.gemini/antigravity'), { recursive: true });
   const dry = applyHostSync({ packageRoot: ROOT, home, dryRun: true });
   const gemini = dry.find((item) => item.id === 'antigravity');
   assert.strictEqual(gemini.action, 'copy');
@@ -300,7 +300,7 @@ test('sync upserts generate-adapter onto Claude, Grok, and Gemini', () => {
   const home = tmpHome();
   fs.mkdirSync(path.join(home, '.claude'));
   fs.mkdirSync(path.join(home, '.grok'));
-  fs.mkdirSync(path.join(home, '.gemini/config'), { recursive: true });
+  fs.mkdirSync(path.join(home, '.gemini/antigravity'), { recursive: true });
   applyHostSync({ packageRoot: ROOT, home });
   const claude = fs.readFileSync(path.join(home, '.claude/skills/generate-adapter/SKILL.md'), 'utf8');
   const grok = fs.readFileSync(path.join(home, '.agents/skills/generate-adapter/SKILL.md'), 'utf8');
@@ -312,7 +312,7 @@ test('sync upserts generate-workflow onto Claude, Grok, and Gemini', () => {
   const home = tmpHome();
   fs.mkdirSync(path.join(home, '.claude'));
   fs.mkdirSync(path.join(home, '.grok'));
-  fs.mkdirSync(path.join(home, '.gemini/config'), { recursive: true });
+  fs.mkdirSync(path.join(home, '.gemini/antigravity'), { recursive: true });
   applyHostSync({ packageRoot: ROOT, home });
   const claude = fs.readFileSync(path.join(home, '.claude/skills/generate-workflow/SKILL.md'), 'utf8');
   const grok = fs.readFileSync(path.join(home, '.agents/skills/generate-workflow/SKILL.md'), 'utf8');
