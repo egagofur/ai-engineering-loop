@@ -47,9 +47,13 @@ npx ai-engineering-loop studio
 npx ai-engineering-loop handoff create --audience developer
 
 # 5. Copy package host skills into ~/.claude ~/.grok ~/.gemini ~/.agents
-#    Includes ai-engineering-loop, backend-development, and vendored design/animation skills
-#    for Claude, Grok, Gemini, and Codex-compatible .agents skills.
+#    Default: core pack (ai-engineering-loop skill, DA/Judge agents, commands).
+#    Optional: --pack backend,design (saved for later syncs); --prune removes them again.
 npx ai-engineering-loop sync-hosts
+npx ai-engineering-loop sync-hosts --pack backend,design
+
+# Read one packaged spec instead of the whole package source
+npx ai-engineering-loop docs grill-policy --section "When to grill"
 ```
 
 ---

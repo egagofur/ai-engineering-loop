@@ -138,7 +138,21 @@ AI Engineering Loop is designed to work with the tools developers already use:
 - **Gemini / Antigravity**
 - Other agent hosts that can read project instructions and run local commands
 
-The project includes ready-to-use skills and reviewer roles for supported hosts. Each host follows the same Goal, verification, review, and approval rules. `sync-hosts` also installs the `backend-development` skill for Claude, Grok, Gemini, and Codex-compatible `.agents/skills` hosts: a framework-agnostic backend best-practice pack with deeper references for API design, query/database work, and security reviews. It also vendors Emil Kowalski’s MIT-licensed design and animation skills so local agents can review motion, interaction taste, Apple-style interface principles, UI library choices, Swift, and React Native/Expo animation work without requiring a separate skills install.
+The project includes ready-to-use skills and reviewer roles for supported hosts. Each host follows the same Goal, verification, review, and approval rules.
+
+`sync-hosts` installs the **core** pack by default: the `ai-engineering-loop` skill, Devil's Advocate and Judge agents, commands, and the small helper skills the loop itself uses. Optional packs stay out of every session's skill index until you ask for them:
+
+```bash
+npx ai-engineering-loop sync-hosts --pack backend         # framework-agnostic backend best practices
+npx ai-engineering-loop sync-hosts --pack backend,design  # plus Emil Kowalski's MIT-licensed design/animation skills
+npx ai-engineering-loop sync-hosts --pack core --prune    # drop unmodified optional-pack files again
+```
+
+The choice is saved in `~/.ai-engineering-loop/config.json` and reused by later syncs. Existing installs keep any optional pack that is already on disk. Host files you edited by hand are backed up to `<file>.ael-backup` before they are overwritten, and `--help` or an unknown flag never writes anything.
+
+Runs do not touch your home directory: `run` no longer syncs hosts. `status` (and `status --json`) reports when host skills are behind the package so you can sync and start a new session.
+
+Specs such as the grill, TDD, and runtime-safety policies ship inside the package. Agents read only the one they need with `npx ai-engineering-loop docs <name> [--section <heading>]`.
 
 ## Create workflows that fit your team
 

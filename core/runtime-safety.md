@@ -21,7 +21,7 @@ The repository policy lives at `.ai-engineering-loop/runtime-policy.json`. Inval
 
 ## Token budget and emergency stop
 
-Check the budget before every model call and record provider-reported usage immediately afterward:
+Check the budget once after `run` and again before each new iteration, and record provider-reported usage whenever the host returns it:
 
 ```bash
 npx ai-engineering-loop budget status --run <run-id>
@@ -31,7 +31,12 @@ npx ai-engineering-loop budget record --run <run-id> \
   --model <provider-model-id>
 ```
 
-Never convert byte estimates into "actual" usage. If the host does not expose provider usage, `UNATTENDED` must stop and escalate to a human. In `ASSISTED`, disclose that accounting is unavailable and require the human to decide whether to continue.
+Never convert byte estimates into "actual" usage. If the host does not expose provider usage:
+
+- `ASSISTED`: run `npx ai-engineering-loop budget record --unavailable --run <run-id>` once, continue, and disclose the gap in the delivery summary. Do not stop to ask the human; a human is already present at Goal freeze and delivery approval.
+- `UNATTENDED`: the same command fails with `USAGE_UNAVAILABLE_UNATTENDED`. Stop and escalate to a human.
+
+Gaps are written to `.ai-engineering-loop/usage/unavailable-<UTC-day>.jsonl`, separate from the strict token ledger, so they never undercount or corrupt actual usage. Run, daily, and kill-switch limits are unchanged.
 
 The per-run limit spans UTC days. The daily limit resets on the next UTC day. Ledgers are append-only JSONL under `.ai-engineering-loop/usage/` and are ignored by Git. A malformed ledger blocks execution rather than undercounting.
 
