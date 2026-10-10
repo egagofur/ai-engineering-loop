@@ -4,6 +4,10 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+_No changes yet._
+
+## 1.14.0 - 2026-10-10
+
 ### Auto-update and project registry (#37)
 
 - **Added:** `~/.ai-engineering-loop/projects.json`, filled by `init`/`run`/`status`/`refresh`, plus `projects list|add|remove|scan --root <dir> [--depth 4]`. Missing folders are pruned, and the scan skips `node_modules`, `.git`, and symlinks.

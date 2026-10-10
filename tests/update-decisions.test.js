@@ -184,3 +184,12 @@ test('update plan inserts migrate right after the install only when crossing a m
   assert.notStrictEqual(cli(dir, env, 'migrate', '--bogus').status, 0);
   assert.deepStrictEqual(migrations.loadMigrations(), [], 'no migration ships in 1.x');
 });
+
+test('the shipped CHANGELOG yields 2-4 notice highlights for the current release', () => {
+  const { changelogHighlights } = require('../lib/update-notice.js');
+  const { version } = require('../package.json');
+  const [major, minor] = version.split('.').map(Number);
+  const previous = minor > 0 ? `${major}.${minor - 1}.0` : `${major - 1}.0.0`;
+  const items = changelogHighlights(read(path.join(ROOT, 'CHANGELOG.md')), { current: previous, target: version });
+  assert.ok(items.length >= 2 && items.length <= 4, JSON.stringify(items));
+});
