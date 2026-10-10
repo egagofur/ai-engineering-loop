@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+### Multi-agent hosts, phase 3: own-folder hosts (#51)
+
+- **Added:** Cline (`~/.cline/skills`), Kiro (`~/.kiro/skills`), and Qwen Code (`~/.qwen/skills`) get their own byte-identical copy of the skill, because they do not read `~/.agents/skills/`.
+- **Added:** Roo Code and JetBrains Junie, which the current docs show also read `~/.agents/skills/`, so they use the shared copy (the research report had marked this as inferred "no").
+- **Added:** reviewer subagents for Kiro (`~/.kiro/agents/*.md`, `tools: [read]`), Qwen (`~/.qwen/agents/*.md`, `approvalMode: plan`), and Junie (`~/.junie/agents/*.md`, `tools: [Read, Grep]`). Cline and Roo get none (no documented file format), so the loop runs `CONTEXT_ISOLATION_ONLY` there.
+
 ### Multi-agent hosts, phase 2: shared-folder hosts (#50)
 
 - **Added:** OpenCode, Windsurf/Devin Desktop, Amp, Factory Droid, Augment (Auggie), Zed, and Goose to the host registry. All of them read the shared `~/.agents/skills/` folder, so they use the same single copy of the skill and never get a second one in their own folders.

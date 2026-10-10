@@ -281,3 +281,20 @@ test('phase 2 (#50): shared-folder hosts are detected and get no private skill c
     assert.ok(!fs.existsSync(path.join(home, none)), `${none}: host has no file-based subagents`);
   }
 });
+
+test('phase 3 (#51): own-folder hosts get one copy in their folder; Roo and Junie use the shared one', () => {
+  const home = tmp('ael-phase3-');
+  for (const dir of ['.cline', '.roo', '.kiro', '.qwen', '.junie']) fs.mkdirSync(path.join(home, dir));
+  const detected = detectHosts({ home, env: { PATH: '' } }).filter((d) => d.detected).map((d) => d.id);
+  assert.deepStrictEqual(detected.sort(), ['cline', 'junie', 'kiro', 'qwen', 'roo']);
+  applyHostSync({ packageRoot: ROOT, home });
+  const shared = fs.readFileSync(path.join(home, '.agents/skills/ai-engineering-loop/SKILL.md'));
+  for (const own of ['.cline/skills', '.kiro/skills', '.qwen/skills']) {
+    assert.ok(shared.equals(fs.readFileSync(path.join(home, own, 'ai-engineering-loop/SKILL.md'))), `${own} copy is byte-identical`);
+  }
+  for (const none of ['.roo/skills', '.junie/skills']) assert.ok(!fs.existsSync(path.join(home, none)), `${none}: reads the shared folder`);
+  assert.match(fs.readFileSync(path.join(home, '.qwen/agents/judge.md'), 'utf8'), /^approvalMode: plan$/m);
+  assert.match(fs.readFileSync(path.join(home, '.kiro/agents/devil-advocate.md'), 'utf8'), /^tools:\n {2}- read$/m);
+  assert.match(fs.readFileSync(path.join(home, '.junie/agents/judge.md'), 'utf8'), /^name: judge$/m);
+  assert.ok(!fs.existsSync(path.join(home, '.cline/agents')), 'Cline: no documented reviewer agent file');
+});

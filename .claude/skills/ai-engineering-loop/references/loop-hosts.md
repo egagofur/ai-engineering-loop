@@ -33,12 +33,12 @@ Strict proxies (including Kiro) return HTTP 400 `REQUEST_BODY_INVALID` on unknow
 1. Custom agents `devil-advocate` and `judge` live in `~/.codex/agents/*.toml` after `sync-hosts`; spawn them as sibling agents when the session has a spawn tool, and wait for each result.
 2. Otherwise `CONTEXT_ISOLATION_ONLY`. Models: the host catalog; never type a model name.
 
-## Cursor, GitHub Copilot, OpenCode, Factory Droid, Augment, Qwen Code, Kiro
+## Cursor, GitHub Copilot, OpenCode, Factory Droid, Augment, Qwen Code, Kiro, Junie
 
-1. `sync-hosts` installs `devil-advocate` and `judge` in the host's own agent format. Delegate with the host's subagent tool by that name (Cursor subagents, Copilot custom agents, OpenCode `@devil-advocate`, Droid Task `subagent_type`, Auggie subagents, Qwen `/agents`, Kiro custom agents), one at a time, and wait.
+1. `sync-hosts` installs `devil-advocate` and `judge` in the host's own agent format. Delegate with the host's subagent tool by that name (Cursor subagents, Copilot custom agents, OpenCode `@devil-advocate`, Droid Task `subagent_type`, Auggie subagents, Qwen `/agents`, Kiro custom agents, Junie subagents), one at a time, and wait.
 2. No subagent tool, or the agent is missing: `CONTEXT_ISOLATION_ONLY`.
 
-## Other hosts (Windsurf/Devin, Amp, Zed, Goose, Cline, Roo, Junie, unknown)
+## Other hosts (Windsurf/Devin, Amp, Zed, Goose, Cline, Roo, unknown)
 
 1. Use a native subagent only if it can run the DA or Judge prompt with a fresh context and return its own result; read-only research subagents qualify only for DA.
 2. Otherwise run DA and Judge in this session as `CONTEXT_ISOLATION_ONLY`, disclosed, with the same budgets.
