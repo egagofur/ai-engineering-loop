@@ -17,9 +17,15 @@ const { execSync, spawn } = require('child_process');
 const {
   homeDir,
   applyHostSync,
-  planHostSync,
+  hostSkillStatus,
   formatHostSyncReport
 } = require('../lib/sync-hosts.js');
+const { listDocs, readDoc } = require('../lib/docs.js');
+const {
+  wantsCommandHelp,
+  unknownWriterArgs,
+  commandHelp
+} = require('../lib/cli-args.js');
 const {
   detectAdapterHints,
   writeShippedAdapter,
@@ -102,6 +108,7 @@ const {
   assertBudgetAvailable,
   budgetStatus,
   recordTokenUsage,
+  recordUsageUnavailable,
   setKillSwitch
 } = require('../lib/budget.js');
 const {
@@ -738,7 +745,40 @@ function handleInit() {
 }
 
 // Command: status
+function statusJson() {
+  const result = {
+    ok: false,
+    status: 'NOT_INITIALIZED',
+    packageVersion: VERSION,
+    project: path.basename(CWD),
+    hostSkills: hostSkillStatus({ home: homeDir(), version: VERSION })
+  };
+  if (fs.existsSync(CONTEXT_DIR)) {
+    const validation = validateContext(CONTEXT_DIR);
+    if (!validation.valid) {
+      result.status = 'INCOMPLETE';
+      result.reason = validation.reason;
+    } else {
+      let metadata = {};
+      try { metadata = JSON.parse(readFileSafe(path.join(CONTEXT_DIR, 'metadata.json')) || '{}'); } catch (e) {}
+      const drift = evaluateDrift(CWD, CONTEXT_DIR);
+      result.ok = true;
+      result.status = 'READY';
+      result.contextVersion = metadata.contextVersion || null;
+      result.projectProfile = metadata.projectProfile || null;
+      result.freshness = { status: drift.status, reason: drift.reason, level: drift.level || null };
+    }
+  }
+  return result;
+}
+
 function handleStatus() {
+  if (command === 'status' && process.argv.includes('--json')) {
+    const result = statusJson();
+    console.log(JSON.stringify(result, null, 2));
+    if (!result.ok) process.exitCode = 1;
+    return;
+  }
   log.info('AI Engineering Loop — Project Context Status (status)');
   log.dim(`Target directory: ${CWD}`);
 
@@ -768,14 +808,12 @@ function handleStatus() {
   console.log(`- Living Freshness: \x1b[32m${drift.status}\x1b[0m (${drift.reason})`);
   console.log(`- Context Files: ${REQUIRED_FILES.length}/${REQUIRED_FILES.length} verified (including metadata.json, glossary.md, adrs/)`);
 
-  const hostPlan = planHostSync({ home: homeDir() });
-  const hostCopy = hostPlan.filter((item) => item.action === 'copy').length;
-  if (hostCopy > 0) {
-    log.warn(`- Host skills: STALE (${hostCopy} file(s) behind package v${VERSION})`);
-    log.dim('  Run "npx ai-engineering-loop sync-hosts" then start a new session.');
+  const hosts = hostSkillStatus({ home: homeDir(), version: VERSION });
+  if (hosts.stale) {
+    log.warn(`- Host skills: STALE (${hosts.staleFiles} file(s) behind package v${VERSION}${hosts.installedVersion ? `, installed v${hosts.installedVersion}` : ''})`);
+    log.dim('  Run "npx ai-engineering-loop sync-hosts" (or "update apply --yes" after a package upgrade), then start a new session.');
   } else {
-    const hostCurrent = hostPlan.filter((item) => item.action === 'current').length;
-    console.log(`- Host skills: CURRENT (${hostCurrent} managed file(s) match v${VERSION})`);
+    console.log(`- Host skills: CURRENT (${hosts.managedFiles} managed file(s) match v${VERSION}; packs: ${hosts.packs.join(', ')})`);
   }
 }
 
@@ -813,17 +851,36 @@ function handleRefresh() {
   handleStatus();
 }
 
-function syncHostsQuiet() {
-  const results = applyHostSync({ home: homeDir(), dryRun: false });
-  const copied = results.filter((item) => item.action === 'copy').length;
-  if (copied === 0) return;
-  console.log(formatHostSyncReport(results, { version: VERSION }));
-}
-
 function handleSyncHosts() {
   const dryRun = process.argv.includes('--dry-run');
+  const prune = process.argv.includes('--prune');
+  const json = process.argv.includes('--json');
+  const packArg = argValue('--pack');
+  let results;
+  try {
+    results = applyHostSync({
+      home: homeDir(),
+      dryRun,
+      prune,
+      packs: packArg == null ? null : packArg,
+      version: VERSION
+    });
+  } catch (err) {
+    log.error(`${err.code || 'SYNC_FAILED'}: ${err.message}`);
+    process.exit(2);
+  }
+  if (json) {
+    console.log(JSON.stringify({
+      ok: true,
+      version: VERSION,
+      dryRun,
+      packs: results.packs,
+      packSource: results.packSource,
+      files: results.map(({ content, ...item }) => item)
+    }, null, 2));
+    return;
+  }
   log.info(`AI Engineering Loop — Sync host skills (sync-hosts)${dryRun ? ' [dry-run]' : ''}`);
-  const results = applyHostSync({ home: homeDir(), dryRun });
   console.log(formatHostSyncReport(results, { version: VERSION, dryRun }));
 }
 
@@ -879,8 +936,6 @@ function handleRun() {
   } else {
     handleStatus();
   }
-
-  syncHostsQuiet();
 
   const runArgs = process.argv.slice(3);
   const forceNew = runArgs.includes('--new');
@@ -967,13 +1022,13 @@ function handleRun() {
 
   console.log('\n------------------------------------------------------------');
   log.bold('AI Agent Ready:');
-  console.log('1. Grill if needed, then freeze Goal Contract (core/grill-policy.md, core/goal-contract.md)');
+  console.log('1. Grill if needed (docs grill-policy), then freeze a failure-table Goal Contract');
   if (runResult.run.mode === RUN_MODES.REPORT_ONLY) {
     console.log('2. Analyze evidence without changing repository files');
     console.log('3. Write report.json and finish with `ai-engineering-loop gate report`');
   } else {
-    console.log('2. Root Cause Analysis (core/root-cause-analysis.md) & Plan');
-    console.log('3. Maker TDD at named seams (policies/tdd-policy.md)');
+    console.log('2. Root Cause Analysis (docs root-cause-analysis) & Plan');
+    console.log('3. Maker TDD at named seams (docs tdd-policy)');
     console.log('4. Run Deterministic Verification');
     console.log('5. Execute Devil\'s Advocate Adversarial Review');
     console.log('6. Judge Agent evaluates DoD and issues PASS verdict');
@@ -1126,6 +1181,8 @@ function handleBudget() {
           ? 0
           : parseNonNegativeIntegerArg('--estimate', argValue('--estimate'))
       });
+    } else if (action === 'record' && process.argv.includes('--unavailable')) {
+      result = recordUsageUnavailable(CWD, { runId, nodeId });
     } else if (action === 'record') {
       result = recordTokenUsage(CWD, {
         runId,
@@ -2193,9 +2250,32 @@ function handleInteraction() {
   }
 }
 
+// Command: docs (read-only packaged specs)
+function handleDocs() {
+  const json = process.argv.includes('--json');
+  const target = process.argv[3] && !process.argv[3].startsWith('--') ? process.argv[3] : 'list';
+  if (target === 'list') {
+    const docs = listDocs();
+    if (json) {
+      console.log(JSON.stringify({ ok: true, docs }, null, 2));
+      return;
+    }
+    for (const doc of docs) console.log(`${doc.name.padEnd(44)} ${String(doc.bytes).padStart(6)} B  ${doc.rel}`);
+    return;
+  }
+  try {
+    const doc = readDoc(target, { section: argValue('--section') });
+    if (json) console.log(JSON.stringify({ ok: true, ...doc }, null, 2));
+    else process.stdout.write(`${doc.text}\n`);
+  } catch (err) {
+    log.error(`${err.code || 'DOCS_FAILED'}: ${err.message}`);
+    process.exitCode = 1;
+  }
+}
+
 // Help Menu
-function printHelp() {
-  console.log(`
+function helpText() {
+  return (`
 AI Engineering Loop CLI (v${VERSION})
 A reusable, framework-agnostic AI Engineering Operating System.
 
@@ -2205,8 +2285,9 @@ Usage:
 Commands:
   init         Bootstrap .ai-engineering-loop/ context from repository discovery
   status       Check the validity, readiness, and baseline freshness of context
+               --json  print context and host-skill freshness as JSON (no writes)
   refresh      Reconcile drifted context against repository non-destructively
-  run [task]   Start or resume a stateful engineering run, sync hosts, and instruct the agent
+  run [task]   Start or resume a stateful engineering run and instruct the agent (never writes to home)
                --new  start a new run even when another run is active
                --mode report-only|assisted|unattended
                --recipe <id>  bind an immutable compiled workflow plan
@@ -2255,6 +2336,8 @@ Commands:
   budget       Enforce actual provider-reported token usage and emergency pause
                status [--run <id>] [--node <id>] [--estimate <n>] [--json]
                record --input <n> --output <n> --model <id> [--run <id>] [--node <id>]
+               record --unavailable [--run <id>] [--node <id>]
+                 host exposed no usage: ASSISTED notes it and continues; UNATTENDED fails
                pause | resume
   sandbox      Isolate Maker changes in a locked disposable Git worktree
                create | capture | abort | status [--run <id>] [--json]
@@ -2282,6 +2365,9 @@ Commands:
   escalation   Compute the minimum Judge model tier from deterministic risk signals
                --run <id>  target a non-current run
                --json      print machine-readable reasons
+  docs         Print a packaged spec without needing the package source tree
+               list [--json]
+               <name> [--section <heading>] [--json]   e.g. docs grill-policy --section "When to grill"
   doctor       Check runtime, schemas, host assets, package contents, and eval catalog
                --json      print machine-readable diagnostics
   update       Check or apply the package update workflow
@@ -2306,7 +2392,11 @@ Commands:
                inspect | brief <repository-relative-file> [--json]
   sync-hosts   Copy package skills/agents/commands into ~/.claude ~/.grok ~/.gemini ~/.agents
                (only hosts that already exist; DOT skills only if already installed)
-               --dry-run  print the plan without writing
+               --dry-run       print the plan without writing
+               --pack <list>   core (always), backend, design; saved for later syncs
+               --prune         remove unmodified files of packs that are not selected
+               --json          print machine-readable results
+               User-edited host files are backed up to <file>.ael-backup before overwrite
   generate-adapter  Print detected forge and grill protocol for Stage 8
                --type standard|github|gitlab|dot  write .ai-engineering-loop/adapter.md (skip grill)
   generate-workflow Print grill protocol for a loop overlay (hooks + intern + lessons.md)
@@ -2321,9 +2411,31 @@ Documentation:
 `);
 }
 
+function printHelp() {
+  console.log(helpText());
+}
+
 // CLI Router
 const args = process.argv.slice(2);
 const command = args[0] || 'init';
+
+// Side-effect guard (issue #25): help never executes a command, and writer
+// commands reject unknown flags before touching any file.
+if (!['-h', '--help', '-v', '--version'].includes(command)) {
+  if (wantsCommandHelp(command, args.slice(1))) {
+    const block = commandHelp(helpText(), command);
+    console.log(block
+      ? `Usage: npx ai-engineering-loop ${block.trim()}`
+      : helpText());
+    process.exit(0);
+  }
+  const unknown = unknownWriterArgs(command, args.slice(1));
+  if (unknown.length > 0) {
+    log.error(`Unknown argument(s) for "${command}": ${unknown.join(' ')}. Nothing was written.`);
+    console.log(`Run "npx ai-engineering-loop ${command} --help" for usage.`);
+    process.exit(2);
+  }
+}
 
 switch (command) {
   case 'init':
@@ -2382,6 +2494,9 @@ switch (command) {
     break;
   case 'escalation':
     handleEscalation();
+    break;
+  case 'docs':
+    handleDocs();
     break;
   case 'doctor':
     handleDoctor();

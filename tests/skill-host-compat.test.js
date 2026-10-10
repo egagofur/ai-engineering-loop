@@ -316,7 +316,7 @@ test('Host compact map names four buckets and keeps 8-stage numbers', () => {
   }
 });
 
-test('Host skills Stage 0 runs sync-hosts before status', () => {
+test('Host skills mention sync-hosts only as a stale-host remedy, not a per-run step', () => {
   for (const rel of [
     '.claude/skills/ai-engineering-loop/SKILL.md',
     '.grok/skills/ai-engineering-loop/SKILL.md',
@@ -325,6 +325,7 @@ test('Host skills Stage 0 runs sync-hosts before status', () => {
   ]) {
     const text = readRepo(rel);
     assert.match(text, /sync-hosts/, rel);
+    assert.match(text, /Do not run `sync-hosts` per run/, rel);
   }
 });
 
