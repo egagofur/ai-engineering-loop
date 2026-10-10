@@ -4,10 +4,6 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
-### Multi-agent hosts: Gemini CLI detection by binary only (#54 follow-up)
-
-- **Changed:** Gemini CLI is detected only when a `gemini` executable is on `PATH` (stat only, never run). `~/.gemini` alone no longer counts, because Antigravity creates it too. Antigravity detection is unchanged. A home that already has AEL-written files in `~/.gemini/agents` keeps Gemini CLI enabled until `setup`/`hosts disable`.
-
 ### Multi-agent hosts, phase 4: new agents, `hosts doctor`, generated host table (#52)
 
 - **Added:** agents installed after `setup` are detected again (stat only). With `hosts.mode: auto`, the background `update auto` of a global install enables and syncs them; a host you disabled stays disabled. With `manual` (default), `status` prints one short notice per new agent, at most once a day. Nothing is written or shown in CI, in `--json` output, or with `AEL_NO_AUTO_UPDATE=1`. `update auto --json` reports `hosts.added`.
