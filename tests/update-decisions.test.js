@@ -120,23 +120,27 @@ test('sync-hosts removes obsolete AEL host files from its manifest (renamed skil
   const manifest = JSON.parse(read(manifestFile));
   const sha = (text) => require('crypto').createHash('sha256').update(text).digest('hex');
   const oldSkill = path.join(home, '.claude/skills/code-simplifier/SKILL.md');
+  const oldReview = path.join(home, '.claude/skills/receiving-code-review/SKILL.md');
   const edited = path.join(home, '.claude/skills/old-edited/SKILL.md');
   const userSkill = path.join(home, '.claude/skills/my-own/SKILL.md');
-  for (const [file, text] of [[oldSkill, 'old ael skill\n'], [edited, 'user changed\n'], [userSkill, 'mine\n']]) {
+  for (const [file, text] of [[oldSkill, 'old ael skill\n'], [oldReview, 'old ael review skill\n'], [edited, 'user changed\n'], [userSkill, 'mine\n']]) {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, text);
   }
   manifest.files[oldSkill] = { sha256: sha('old ael skill\n'), pack: 'quality' };
+  manifest.files[oldReview] = { sha256: sha('old ael review skill\n'), pack: 'quality' };
   manifest.files[edited] = { sha256: sha('original\n'), pack: 'quality' };
   manifest.files[path.join(home, '.claude/skills/gone/SKILL.md')] = { sha256: 'x', pack: 'core' };
   fs.writeFileSync(manifestFile, JSON.stringify(manifest));
   const applied = applyHostSync({ home });
   assert.ok(applied.some((i) => i.dest === oldSkill && i.action === 'prune' && i.reason === 'obsolete'));
   assert.ok(!fs.existsSync(path.dirname(oldSkill)), 'empty skill dir removed');
+  assert.ok(applied.some((i) => i.dest === oldReview && i.action === 'prune' && i.reason === 'obsolete'));
+  assert.ok(!fs.existsSync(path.dirname(oldReview)), 'old receiving-code-review dir removed');
   assert.ok(fs.existsSync(edited));
   assert.strictEqual(read(userSkill), 'mine\n');
   const after = JSON.parse(read(manifestFile)).files;
-  assert.ok(!after[oldSkill] && !after[path.join(home, '.claude/skills/gone/SKILL.md')]);
+  assert.ok(!after[oldSkill] && !after[oldReview] && !after[path.join(home, '.claude/skills/gone/SKILL.md')]);
   assert.ok(after[edited], 'edited obsolete file stays tracked');
 });
 
