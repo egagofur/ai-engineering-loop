@@ -524,6 +524,7 @@ ${discovery.topLevelDirs.map((d) => `- \`${d}/\``).join('\n') || '- Flat directo
 ${discovery.scripts.e2e ? `- **e2e**: \`${discovery.scripts.e2e}\`` : ''}
 
 ## Verification Protocol
+- Default order, cheapest first, stop at the first failure: build -> typecheck -> lint -> test_unit -> security scan (for example \`npm audit --omit=dev\`) -> e2e (optional).
 - 100% deterministic checks must pass before Devil's Advocate review.
 - Unit tests must cover boundary cases, null safety, and error paths.
 `;
@@ -2740,7 +2741,7 @@ Commands:
   sync-hosts   Copy package skills/agents/commands into ~/.claude ~/.grok ~/.gemini ~/.agents
                (only hosts that already exist; DOT skills only if already installed)
                --dry-run       print the plan without writing
-               --pack <list>   core (always), backend, design; saved for later syncs
+               --pack <list>   core (always), backend, design, quality; saved for later syncs
                --prune         remove unmodified files of packs that are not selected
                --json          print machine-readable results
                User-edited host files are backed up to <file>.ael-backup before overwrite

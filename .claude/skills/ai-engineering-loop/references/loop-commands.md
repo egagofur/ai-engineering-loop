@@ -1,6 +1,7 @@
 # Loop commands and Studio
 
 - `init` / `status` / `refresh` / `sync-hosts`: run `npx ai-engineering-loop <command>` in the repo. `sync-hosts` installs the core pack into hosts that already exist; `--pack backend|design` opts in, and user-edited files are backed up first. Do not commit unless asked.
+- `onboard`: load skill `project-onboarding` to fill `.ai-engineering-loop/architecture.md` and `conventions.md` from the code with evidence. Never automatic.
 - `generate-adapter`: load skill `generate-adapter` if present. Grill Q1-Q5, then write `.ai-engineering-loop/adapter.md`. Do not start Maker.
 - `generate-workflow`: load skill `generate-workflow` if present. Grill Q1-Q6. Q6 Maker intern: list numbered options from the host model catalog (see Host rules) plus `none`; if there is no catalog, offer only `none`. Do not type a model name. Write `.ai-engineering-loop/workflow.md` and an empty `lessons.md` if missing. Do not start Maker. Missing `maker_intern` means INVOCATION_UNAVAILABLE.
 

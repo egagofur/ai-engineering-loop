@@ -7,3 +7,4 @@
 - Emit `npx ai-engineering-loop activity goal-drafting --run <runId> --message <summary>`, write the contract JSON to a repository-local temporary file, then `npx ai-engineering-loop goal draft --run <runId> --file <file> --revision <currentRevision>` so Studio shows the exact draft.
 - Wait for the explicit human freeze, then `npx ai-engineering-loop goal freeze --latest --run <runId> --by human` (or `--revision <r> --hash <h>`). T0 may write `RUN_DIR/goal-contract.json` and run `gate goal` directly.
 - Do not edit production code until the Goal gate passes.
+- After the freeze, work from the frozen contract (`goal show --run <runId>`), not the drafting chat; compact the conversation there if the host supports it.

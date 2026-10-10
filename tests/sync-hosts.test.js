@@ -48,7 +48,7 @@ test('sync upserts Claude AEL files but does not invent DOT skills', () => {
   fs.mkdirSync(path.join(home, '.claude'));
   const results = applyHostSync({ packageRoot: ROOT, home, packs: ['backend', 'design'] });
   const claude = results.filter((item) => item.id === 'claude');
-  assert.ok(claude.every((item) => item.action === 'copy'));
+  assert.ok(claude.every((item) => item.action === 'copy' || item.reason === 'pack-not-selected'));
   assert.ok(fs.existsSync(path.join(home, '.claude/skills/ai-engineering-loop/SKILL.md')));
   assert.ok(fs.existsSync(path.join(home, '.claude/agents/devil-advocate.md')));
   assert.ok(fs.existsSync(path.join(home, '.claude/agents/judge.md')));
@@ -357,7 +357,7 @@ test('default sync installs only the core pack; packs are opt-in, saved, and pru
   assert.ok(!fs.existsSync(path.join(home, '.claude/skills/emil-design-eng')));
   assert.ok(!fs.existsSync(path.join(home, '.claude/skills/backend-development')));
   const skippedPacks = new Set(results.filter((item) => item.reason === 'pack-not-selected').map((item) => item.pack));
-  assert.deepStrictEqual([...skippedPacks].sort(), ['backend', 'design']);
+  assert.deepStrictEqual([...skippedPacks].sort(), ['backend', 'design', 'quality']);
 
   applyHostSync({ packageRoot: ROOT, home, packs: 'design' });
   assert.ok(fs.existsSync(path.join(home, '.claude/skills/emil-design-eng/SKILL.md')));
