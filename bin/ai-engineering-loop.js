@@ -19,6 +19,7 @@ const {
   applyHostSync,
   hostSkillStatus,
   resolveHostSelection,
+  planHostSync,
   formatHostSyncReport
 } = require('../lib/sync-hosts.js');
 const hostCommands = require('../lib/hosts/commands.js');
@@ -1066,7 +1067,7 @@ function readTtyLine(question, fallback) {
   }
 }
 
-// `hosts list|enable|disable` (issue #49).
+// `hosts list|doctor|enable|disable` (issues #49, #52).
 function handleHosts() {
   const rest = process.argv.slice(3).filter((arg) => !arg.startsWith('-'));
   const sub = rest[0] || 'list';
@@ -1083,8 +1084,15 @@ function handleHosts() {
     if (selection.source !== 'config') console.log('Run "ai-engineering-loop setup" to choose hosts explicitly.');
     return;
   }
+  if (sub === 'doctor') {
+    const { hostsDoctor, formatHostsDoctor } = require('../lib/hosts/doctor.js');
+    const report = hostsDoctor({ home, selection, plan: planHostSync({ home, hosts: selection }) });
+    console.log(json ? JSON.stringify(report, null, 2) : formatHostsDoctor(report));
+    if (!report.ok) process.exitCode = 1;
+    return;
+  }
   if (sub !== 'enable' && sub !== 'disable') {
-    log.error(`Unknown hosts subcommand "${sub}". Use: list, enable <id...>, disable <id...>. Nothing was written.`);
+    log.error(`Unknown hosts subcommand "${sub}". Use: list, doctor, enable <id...>, disable <id...>. Nothing was written.`);
     process.exit(2);
   }
   let ids;
@@ -1187,6 +1195,18 @@ function maybeSetupHint() {
     process.stderr.write(`ai-engineering-loop: detected ${detected.join(', ')}. Run "ai-engineering-loop setup" once to install the loop for them (silence: AEL_NO_SETUP_HINT=1).\n`);
   } catch {
     // A hint never breaks a command.
+  }
+}
+
+// New agents after setup (issue #52): `status` prints a short, rate-limited
+// notice in manual mode; auto mode is handled by the background `update auto`.
+function maybeNewHostsNotice() {
+  try {
+    if (process.argv.includes('--json') || !process.stderr.isTTY || !autoUpdate.autoUpdateAllowedHere()) return;
+    const message = require('../lib/hosts/redetect.js').newHostsNotice({ home: homeDir() });
+    if (message) process.stderr.write(`${message}\n`);
+  } catch {
+    // A notice never breaks a command.
   }
 }
 
@@ -2418,6 +2438,17 @@ function handleUpdateAuto() {
     // Best effort.
   }
   const decision = autoUpdate.decideUpdate({ current: VERSION, distTags: cache.distTags, ...policy });
+  // Agents installed after setup (#52): auto mode enables and syncs them here.
+  let hostsResult = { added: [] };
+  try {
+    hostsResult = require('../lib/hosts/redetect.js').autoEnableNewHosts({ home: homeDir(), scope });
+    if (hostsResult.added.length && decision.action !== 'apply') {
+      const synced = applyHostSync({ home: homeDir(), hosts: resolveHostSelection(homeDir()), version: VERSION });
+      hostsResult = { ...hostsResult, synced: synced.filter((item) => item.action === 'copy').length };
+    }
+  } catch (err) {
+    hostsResult = { added: [], error: err.message };
+  }
   const projects = projectRegistry.listProjects().projects;
   let result = null;
   if (decision.action === 'apply') {
@@ -2436,7 +2467,7 @@ function handleUpdateAuto() {
   const held = result && Array.isArray(result.pending) && result.pending.length
     ? { pendingHint: `Projects skipped because a run is active. If a run is abandoned, run in that project: ${require('../lib/run-abandon.js').abandonCommand()}` }
     : {};
-  out({ ok: true, policy: policy.policy, policySource: policy.source, scope, offline: cache.error || null, decision, result, ...held });
+  out({ ok: true, policy: policy.policy, policySource: policy.source, scope, offline: cache.error || null, decision, result, hosts: hostsResult, ...held });
   cacheUpdateHighlights({ ...cache, scope }, decision, packageName).catch(() => {});
 }
 
@@ -3405,7 +3436,7 @@ Commands:
                --yes  skip the prompt   --hosts <id,...>  pick hosts   --mode auto|manual   --json
                Without a TTY and without --yes it only prints the plan
   hosts        Show or change which AI agent hosts get the loop
-               list [--json]  |  enable <id...>  |  disable <id...> (removes unedited AEL files)
+               list [--json]  |  doctor [--json]  |  enable <id...>  |  disable <id...> (removes unedited AEL files)
   sync-hosts   Install the loop skill and reviewer agents into every detected AI agent host
                (only hosts that already exist; DOT skills only if already installed)
                --dry-run       print the plan without writing
@@ -3463,6 +3494,7 @@ if (['init', 'run', 'status', 'refresh'].includes(command)) {
 }
 
 if (!['setup', 'hosts', 'sync-hosts', '-h', '--help', '-v', '--version'].includes(command)) maybeSetupHint();
+if (command === 'status') maybeNewHostsNotice();
 
 switch (command) {
   case 'init':

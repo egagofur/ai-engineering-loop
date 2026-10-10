@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+### Multi-agent hosts, phase 4: new agents, `hosts doctor`, generated host table (#52)
+
+- **Added:** agents installed after `setup` are detected again (stat only). With `hosts.mode: auto`, the background `update auto` of a global install enables and syncs them; a host you disabled stays disabled. With `manual` (default), `status` prints one short notice per new agent, at most once a day. Nothing is written or shown in CI, in `--json` output, or with `AEL_NO_AUTO_UPDATE=1`. `update auto --json` reports `hosts.added`.
+- **Added:** `hosts doctor [--json]`: per enabled host, how many copies of the core skill it sees across the folders it scans, whether they are identical, and which AEL files still need a sync. Read-only; exits 1 when something needs attention.
+- **Changed:** the README host table is generated from `lib/hosts/registry.js` (`npm run build:hosts-table`); `npm test` fails when it drifts.
+
 ### Multi-agent hosts, phase 3: own-folder hosts (#51)
 
 - **Added:** Cline (`~/.cline/skills`), Kiro (`~/.kiro/skills`), and Qwen Code (`~/.qwen/skills`) get their own byte-identical copy of the skill, because they do not read `~/.agents/skills/`.
