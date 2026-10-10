@@ -57,8 +57,10 @@ const {
   updatePolicy
 } = require('../lib/runtime-policy.js');
 const {
-  applyGate
+  applyGate,
+  judgeRequirement
 } = require('../lib/gates.js');
+const { initialTierState } = require('../lib/tier.js');
 const {
   createContextPack,
   contextPackSummary
@@ -926,8 +928,23 @@ function detectGrokHost() {
   }
 }
 
+function workingTreePaths(rootDir) {
+  try {
+    return execSync('git status --porcelain --untracked-files=all', { cwd: rootDir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+      .split('\n')
+      .map((line) => line.slice(3).trim())
+      .filter((line) => line && !line.startsWith('.ai-engineering-loop/'))
+      .map((line) => line.includes(' -> ') ? line.split(' -> ').pop() : line);
+  } catch (e) {
+    return [];
+  }
+}
+
 // Command: run
 function handleRun() {
+  const runJson = process.argv.includes('--json');
+  const realLog = console.log;
+  if (runJson) console.log = () => {};
   log.info('AI Engineering Loop — Task Execution Entrypoint (run)');
 
   if (!fs.existsSync(CONTEXT_DIR)) {
@@ -941,14 +958,12 @@ function handleRun() {
   const forceNew = runArgs.includes('--new');
   const modeArg = argValue('--mode');
   const recipeArg = argValue('--recipe');
+  const tierArg = argValue('--tier');
+  const tierReasonArg = argValue('--tier-reason');
   const taskParts = [];
   for (let index = 0; index < runArgs.length; index++) {
-    if (runArgs[index] === '--new') continue;
-    if (runArgs[index] === '--mode') {
-      index += 1;
-      continue;
-    }
-    if (runArgs[index] === '--recipe') {
+    if (runArgs[index] === '--new' || runArgs[index] === '--json') continue;
+    if (['--mode', '--recipe', '--tier', '--tier-reason'].includes(runArgs[index])) {
       index += 1;
       continue;
     }
@@ -994,19 +1009,51 @@ function handleRun() {
       }
     }
     if (mode) assertModeAllowed(CWD, mode);
+    const tier = startsNewRun
+      ? initialTierState({ task, changedPaths: workingTreePaths(CWD), override: tierArg, overrideReason: tierReasonArg })
+      : null;
+    if (!startsNewRun && tierArg) throw new Error('--tier applies only when a new run starts (use --new).');
     runResult = createOrResumeRun(CWD, {
       task,
       forceNew,
       mode,
       workflow,
+      tier,
       ...(requestedRunId ? { runId: requestedRunId } : {})
     });
     assertBudgetAvailable(CWD, { runId: runResult.run.runId });
   } catch (err) {
+    console.log = realLog;
+    if (runJson) {
+      realLog(JSON.stringify({ ok: false, code: err.code || 'RUN_FAILED', error: err.message }));
+      process.exit(1);
+    }
     log.error(err.message);
     process.exit(1);
   }
+  if (runJson) {
+    console.log = realLog;
+    const run = runResult.run;
+    console.log(JSON.stringify({
+      ok: true,
+      runId: run.runId,
+      resumed: runResult.resumed,
+      state: run.state,
+      iteration: run.iteration,
+      mode: run.mode || RUN_MODES.ASSISTED,
+      tier: run.tier ? run.tier.current : null,
+      tierSource: run.tier ? run.tier.source : null,
+      tierReasons: run.tier ? run.tier.reasons : [],
+      subagents: run.tier ? { T0: 0, T1: 1, T2: 2 }[run.tier.current] : 2,
+      recipe: run.workflow ? run.workflow.recipeId : null
+    }, null, 2));
+    return;
+  }
   console.log(`- Run: ${runResult.run.runId} (${runResult.resumed ? 'resumed' : 'created'})`);
+  if (runResult.run.tier) {
+    const t = runResult.run.tier;
+    console.log(`- Tier: ${t.current} (${t.source}; ${t.reasons.map((r) => r.code).join(', ')})`);
+  }
   console.log(`- State: ${runResult.run.state}, iteration ${runResult.run.iteration}`);
   console.log(`- Mode: ${runResult.run.mode || RUN_MODES.ASSISTED}`);
   if (runResult.run.workflow) {
@@ -1030,8 +1077,17 @@ function handleRun() {
     console.log('2. Root Cause Analysis (docs root-cause-analysis) & Plan');
     console.log('3. Maker TDD at named seams (docs tdd-policy)');
     console.log('4. Run Deterministic Verification');
-    console.log('5. Execute Devil\'s Advocate Adversarial Review');
-    console.log('6. Judge Agent evaluates DoD and issues PASS verdict');
+    const tierNow = runResult.run.tier ? runResult.run.tier.current : null;
+    if (tierNow === 'T0') {
+      console.log('5. T0: no Devil\'s Advocate. Fill claimed-vs-reality, then `gate review` (CLI writes the empty ledger)');
+      console.log('6. T0: `gate judge` writes the deterministic verdict (no Judge subagent)');
+    } else if (tierNow === 'T1') {
+      console.log('5. Execute lean Devil\'s Advocate review, then `gate review --json`');
+      console.log('6. Judge subagent only if `gate review` says judgeRequired; otherwise `gate judge` is deterministic');
+    } else {
+      console.log('5. Execute Devil\'s Advocate Adversarial Review');
+      console.log(`6. Judge Agent evaluates DoD and issues PASS verdict${tierNow === 'T2' ? ' (STRONG_MODEL required)' : ''}`);
+    }
     console.log('7. Context Impact Assessment (NONE / TARGETED / MAJOR)');
     console.log('8. Delivery Adapter creates MR/PR');
     if (runResult.run.mode === RUN_MODES.ASSISTED) {
@@ -1395,18 +1451,27 @@ function handleGate() {
       status: 'PASSED',
       message: `${lifecycleNode?.displayName || gate} completed`
     });
+    const judge = gate === 'review' && run.tier ? judgeRequirement(CWD, run) : null;
     if (json) {
       console.log(JSON.stringify({
         ok: true,
         runId: run.runId,
         state: run.state,
         iteration: run.iteration,
-        gate
+        gate,
+        ...(run.tier ? { tier: run.tier.current } : {}),
+        ...(judge ? { judgeRequired: judge.required, judgeReasons: judge.reasons } : {})
       }));
     } else {
       log.success(`✓ ${gate} gate passed`);
       console.log(`- Run: ${run.runId}`);
       console.log(`- State: ${run.state}, iteration ${run.iteration}`);
+      if (run.tier) console.log(`- Tier: ${run.tier.current}`);
+      if (judge) {
+        console.log(judge.required
+          ? `- Judge: REQUIRED (${judge.reasons.join('; ')}). Spawn the Judge subagent, write verdict.json, then gate judge.`
+          : '- Judge: not required. Run "gate judge" now; the CLI writes the deterministic verdict.');
+      }
     }
   } catch (err) {
     const retryHint = targetRunId && gate && err.code === 'GATE_FAILED'
@@ -2291,6 +2356,8 @@ Commands:
                --new  start a new run even when another run is active
                --mode report-only|assisted|unattended
                --recipe <id>  bind an immutable compiled workflow plan
+               --tier T0|T1|T2 --tier-reason <text>  override the automatic tier (recorded)
+               --json  print runId, tier, tier reasons, and subagent count only
   state        Inspect the current run ledger
                --run <id>  target a non-current run
                --json      print the complete machine-readable ledger
@@ -2358,7 +2425,7 @@ Commands:
                --limit <n>       bound query/related result count
                --include-ignored include CSS, generated, lockfile, and .aelcontextignore paths
                --json      print only pack metadata; never print packed content
-  eval         Validate the 20-case production evaluation catalog
+  eval         Validate the 24-case production evaluation catalog
                --results <dir>  score host-generated JSON results
                --cases <dir>    use another compatible fixture catalog
                --json           print machine-readable metrics

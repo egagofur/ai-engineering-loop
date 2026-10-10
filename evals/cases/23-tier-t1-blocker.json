@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "23-tier-t1-blocker",
+  "title": "T1 with a valid BLOCKER requires the Judge and iterates",
+  "category": "judging",
+  "risk": "high",
+  "task": "Tier T1 run: the Devil's Advocate ledger has a VALID spec BLOCKER with a concrete alternative diff. Decide the verdict and whether the deterministic gate may replace the Judge.",
+  "files": [
+    {
+      "path": "state.json",
+      "content": "{\"tier\":{\"current\":\"T1\"},\"iteration\":1}"
+    },
+    {
+      "path": "findings.json",
+      "content": "{\"findings\":[{\"id\":\"F-1\",\"severity\":\"BLOCKER\",\"validity\":\"VALID\",\"axis\":\"spec\",\"failureScenario\":\"last page dropped\",\"concreteAlternativeDiff\":\"- i < n - 1\\n+ i < n\"}]}"
+    }
+  ],
+  "oracle": {
+    "verdict": "ITERATE",
+    "requiredSignals": [
+      "judge-required",
+      "blocking-finding"
+    ],
+    "forbiddenOutput": []
+  }
+}
