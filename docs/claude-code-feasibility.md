@@ -33,7 +33,7 @@ Repo files:
 - `.claude/skills/ai-engineering-loop/SKILL.md`
 - `.claude/agents/devil-advocate.md`
 - `.claude/agents/judge.md`
-- `.claude/commands/ai-engineering-loop.md`
+- `.claude/skills/ai-engineering-loop/SKILL.md` (the skill provides `/ai-engineering-loop`; the old command file was retired in #48)
 
 ## 3. Mode selection
 
@@ -77,4 +77,4 @@ If 400 still happens on a fresh session with no Bash yet, it is the 9router `sys
 
 ## 5. What stays in Grok-only files
 
-Grok spawn details live in `.grok/skills/ai-engineering-loop/SKILL.md`. Claude Code must not load that file as its skill. Claude Code discovers `.claude/` first.
+Grok spawn details live in the Grok CLI section of `references/loop-hosts.md`. The skill tells each host to read only its own section, so Claude Code never sees Grok spawn keys as instructions.

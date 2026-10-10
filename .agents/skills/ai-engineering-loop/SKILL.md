@@ -1,20 +1,20 @@
 ---
 name: ai-engineering-loop
-description: Use when the user runs /ai-engineering-loop, says "run the engineering loop" or "devil's advocate review", or asks to init or refresh living project context on Grok CLI (native spawn_subagent review).
-user-invocable: true
+description: Use when the user runs /ai-engineering-loop, says "run the engineering loop" or "devil's advocate review", asks to init or refresh living project context, or wants the Maker / Devil's Advocate / Judge engineering loop.
 ---
 <!-- Generated from skill-src/ by npm run build:skills; do not edit. -->
 
-# AI Engineering Loop (Grok CLI)
+# AI Engineering Loop
 
-Stage details: `references/loop-*.md` beside this file, read only on entering that stage. Specs and references: `npx ai-engineering-loop docs <name> [--section <h>]`; never read whole spec directories.
+Stage details: `references/loop-*.md` beside this file (also via `docs`), read only on entering that stage. Specs and references: `npx ai-engineering-loop docs <name> [--section <h>]`; never read whole spec directories.
 
 ## Host rules
 
-1. `spawn_subagent` present and `GROK_SUBAGENTS` not `0`: review is **INVOCATION_AVAILABLE**; **PROVEN** only after a child returns its own `subagent_id`. Otherwise use `CONTEXT_ISOLATION_ONLY`, disclosed; never call it a subagent review.
-2. Siblings only (depth limit 1): `capability_mode: "execute"`, `background: false`, `isolation: none`, no `resume_from`. Forbidden `subagent_type` for DA/Judge: `caveman:cavecrew-reviewer`, `caveman:cavecrew-builder`, `caveman:cavecrew-investigator`, `explore`, `plan`. Unregistered: `general-purpose`, agent spec prepended, `description` prefixed `[devil-advocate]`/`[judge]`.
-3. Models: `grok models` (drop grok-imagine-* and video); never type a model name. Headless `grok -p` is `FRESH_PROCESS_AGENT` only once it prints a model response.
-4. Alias: `NATIVE_SUBAGENT` → `TRUE_INDEPENDENT_AGENT`.
+Same skill on every host. Before the first DA or Judge spawn, read your host's section in `loop-hosts` (exact tool, allowed keys, fallbacks).
+1. Spawn `devil-advocate` then `judge` as fresh siblings with the host's own subagent tool, passing only keys its schema has; wait for each, never in the background or nested; `general-purpose` only if the named type is rejected. Never use a browser subagent as reviewer.
+2. No subagent tool: same budgets in this session as `CONTEXT_ISOLATION_ONLY`; never claim independent execution.
+3. A tool says "cannot determine the safety" or returns HTTP 400: stop that tool, do not retry, continue read-only, and tell the user (`loop-hosts`).
+4. Models: the host catalog (`/models`, `grok models`); never type a model name.
 
 ## Commands
 
@@ -43,7 +43,7 @@ Invariants (every tier):
 
 ## Report header
 
-After a proven Grok DA spawn:
+When a subagent actually returned its own result (Grok: its own `subagent_id`):
 
 ```
 Execution Mode: TRUE_INDEPENDENT_AGENT

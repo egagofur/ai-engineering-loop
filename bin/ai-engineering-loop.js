@@ -1343,7 +1343,7 @@ function handleRun() {
     } else {
       console.log(`- Fallback: CONTEXT_ISOLATION_ONLY (${grok.reason})`);
     }
-    console.log('- Skill: .grok/skills/ai-engineering-loop/SKILL.md');
+    console.log('- Skill: .agents/skills/ai-engineering-loop/SKILL.md (spawn rules: references/loop-hosts.md, Grok CLI section)');
   }
 
   const claudeSkill = path.join(CWD, '.claude', 'skills', 'ai-engineering-loop', 'SKILL.md');
@@ -1358,14 +1358,14 @@ function handleRun() {
     console.log('- Skill: .claude/skills/ai-engineering-loop/SKILL.md');
   }
 
-  const agAgent = path.join(CWD, '.agents', 'judge.md');
-  if (fs.existsSync(agAgent)) {
+  const sharedSkill = path.join(CWD, '.agents', 'skills', 'ai-engineering-loop', 'SKILL.md');
+  if (fs.existsSync(sharedSkill)) {
     console.log('------------------------------------------------------------');
-    log.bold('Antigravity host:');
-    console.log('- Subagent: invoke_subagent or Task; wait; never browser_subagent');
+    log.bold('Shared .agents/skills hosts (Codex, Gemini CLI, Antigravity, Cursor, Copilot, ...):');
+    console.log('- Same skill on every host; spawn rules per host: references/loop-hosts.md');
     console.log('- Devil\'s Advocate: 8 tool calls, diff file, skip css');
     console.log('- Judge: 4 tool calls, ledger + contract only');
-    console.log('- Workflow: .agents/workflows/ai-engineering-loop.md');
+    console.log('- Skill: .agents/skills/ai-engineering-loop/SKILL.md');
   }
   console.log('------------------------------------------------------------\n');
 }
@@ -3255,7 +3255,7 @@ Commands:
                create [--run <id>] [--audience developer|agent|auditor]
                       [--output <repository-relative-file>|-] [--json]
                inspect | brief <repository-relative-file> [--json]
-  sync-hosts   Copy package skills/agents/commands into ~/.claude ~/.grok ~/.gemini ~/.agents
+  sync-hosts   Install the loop skill and reviewer agents into every detected AI agent host
                (only hosts that already exist; DOT skills only if already installed)
                --dry-run       print the plan without writing
                --pack <list>   core (always), backend, design, quality; saved for later syncs

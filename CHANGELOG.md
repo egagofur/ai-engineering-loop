@@ -4,6 +4,14 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+### Multi-agent hosts, phase 0: close the host gaps (#48)
+
+- **Fixed:** the `ai-engineering-loop` skill now lands in the shared `~/.agents/skills/` folder, so Codex, Gemini CLI, and the other hosts that read it see the loop. Grok, Gemini CLI, and Codex installs trigger it.
+- **Fixed:** Gemini CLI no longer gets Antigravity's `~/.gemini/config/skills/` path. Antigravity keeps `~/.gemini/config/skills/`, and its Devil's Advocate and Judge now install as `~/.gemini/config/agents/<name>.md` subagents (`subagent: true`) instead of `~/.agents/*.md`.
+- **Changed:** one host-neutral `SKILL.md` (standard `name`/`description` frontmatter only) is generated for every host, byte-identical everywhere. Per-host spawn rules moved to `references/loop-hosts.md`. Grok no longer gets its own skill copies (it reads `~/.claude/skills` and `~/.agents/skills`), and the `user-invocable` overlay is gone (Grok's default is already `true`).
+- **Removed:** `~/.agents/workflows/ai-engineering-loop.md`, `~/.agents/{devil-advocate,judge}.md`, and the `~/.claude/commands` and `~/.grok/commands` copies. The skill already provides `/ai-engineering-loop`. `sync-hosts` deletes these files where AEL wrote them, and keeps them if you edited them.
+- **Note:** the Claude skill no longer pre-approves tools through `allowed-tools`, because other hosts (for example Copilot) treat that field as a permission grant. Claude Code may ask for permission a little more often.
+
 ### `run --abandon` for stale runs (#46)
 
 - **Added:** `run --abandon [--run <id>] --reason <text> --by <name> [--yes] [--json]`. It moves a run that will never finish to `CANCELLED`, records reason, actor, and time in the run's history ledger (recipe-bound runs also get a `RUN_CANCELLED` event), and releases `current.json` so `refresh --non-destructive` and `update auto` process the project again. Run data is kept. With `--run <id>` for a non-current run, the current pointer is left alone.

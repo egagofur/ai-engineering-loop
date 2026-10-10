@@ -64,7 +64,7 @@ When the change can touch state, siblings, actors/approvals, or downstream work,
 
 On `adapter_type: dot`, this is mandatory. On other adapters, skip only when the change cannot touch those four (copy, CSS, comment).
 
-Canonical skill: `adapters/dot/skills/task-impact-inquiry/SKILL.md`. Host copies via `sync-hosts`: `~/.claude/skills/task-impact-inquiry/`, `~/.grok/skills/task-impact-inquiry/`, `~/.gemini/config/skills/task-impact-inquiry/`. Load that skill if present. If it is missing, still run this section. Do not claim the skill ran.
+Canonical skill: `adapters/dot/skills/task-impact-inquiry/SKILL.md`. Host copies via `sync-hosts`: `~/.claude/skills/task-impact-inquiry/`, `~/.agents/skills/task-impact-inquiry/` (Codex, Gemini CLI, Grok, Cursor, Copilot, and other shared-folder hosts), `~/.gemini/config/skills/task-impact-inquiry/` (Antigravity). Load that skill if present. If it is missing, still run this section. Do not claim the skill ran.
 
 If Stage 1 grill already produced the matrix and the user confirmed it, do not run a second interview.
 

@@ -17,14 +17,17 @@ const ROOT = path.join(__dirname, '..');
 const CLI = path.join(ROOT, 'bin', 'ai-engineering-loop.js');
 const HOST_PARENTS = [
   '.claude/skills/ai-engineering-loop/SKILL.md',
-  '.grok/skills/ai-engineering-loop/SKILL.md',
-  '.gemini/skills/ai-engineering-loop/SKILL.md',
-  '.agents/workflows/ai-engineering-loop.md'
+  '.agents/skills/ai-engineering-loop/SKILL.md'
 ];
-const HOST_COMMANDS = [
-  '.claude/commands/ai-engineering-loop.md',
-  '.grok/commands/ai-engineering-loop.md'
-];
+// Legacy command files were retired in #48: a skill already creates
+// /ai-engineering-loop on every host that supports slash commands.
+const HOST_COMMANDS = [];
+
+test('legacy host command files are no longer shipped (#48)', () => {
+  for (const rel of ['.claude/commands/ai-engineering-loop.md', '.grok/commands/ai-engineering-loop.md', '.agents/workflows/ai-engineering-loop.md']) {
+    assert.ok(!fs.existsSync(path.join(ROOT, rel)), `${rel} should be removed`);
+  }
+});
 
 // Host skills are read as SKILL.md plus on-demand references (issue #35).
 const { readSkillBundle } = require('./helpers/skill-bundle.js');

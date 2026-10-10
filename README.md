@@ -168,12 +168,12 @@ AI Engineering Loop is designed to work with the tools developers already use:
 
 - **Claude Code**
 - **Grok CLI**
-- **Gemini / Antigravity**
-- Other agent hosts that can read project instructions and run local commands
+- **Antigravity**
+- **Codex, Gemini CLI**, and every other agent that reads the shared `~/.agents/skills/` folder
 
-The project includes ready-to-use skills and reviewer roles for supported hosts. Each host follows the same Goal, verification, review, and approval rules.
+Every host gets the **same** `ai-engineering-loop` skill (byte-identical, so an agent that scans several skill folders never sees two different versions). The few host-specific spawn rules live in its `references/loop-hosts.md`. Each host follows the same Goal, verification, review, and approval rules.
 
-`sync-hosts` installs the **core** pack by default: the `ai-engineering-loop` skill, Devil's Advocate and Judge agents, commands, and the small helper skills the loop itself uses. Optional packs stay out of every session's skill index until you ask for them:
+`sync-hosts` installs the **core** pack by default: the `ai-engineering-loop` skill, Devil's Advocate and Judge agents, and the small helper skills the loop itself uses. Optional packs stay out of every session's skill index until you ask for them:
 
 ```bash
 npx ai-engineering-loop sync-hosts --pack backend         # framework-agnostic backend best practices

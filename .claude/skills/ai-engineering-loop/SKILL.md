@@ -1,21 +1,20 @@
 ---
 name: ai-engineering-loop
-description: Use when the user runs /ai-engineering-loop, asks to init or refresh living project context, or wants the Maker / Devil's Advocate / Judge engineering loop on Claude Code.
-allowed-tools: "Read, Grep, Glob, Edit, Write, Task, Bash(npm run *), Bash(npm test *), Bash(npx *), Bash(git *)"
+description: Use when the user runs /ai-engineering-loop, says "run the engineering loop" or "devil's advocate review", asks to init or refresh living project context, or wants the Maker / Devil's Advocate / Judge engineering loop.
 ---
 <!-- Generated from skill-src/ by npm run build:skills; do not edit. -->
 
-# AI Engineering Loop (Claude Code)
+# AI Engineering Loop
 
-Stage details: `references/loop-*.md` beside this file, read only on entering that stage. Specs and references: `npx ai-engineering-loop docs <name> [--section <h>]`; never read whole spec directories.
+Stage details: `references/loop-*.md` beside this file (also via `docs`), read only on entering that stage. Specs and references: `npx ai-engineering-loop docs <name> [--section <h>]`; never read whole spec directories.
 
 ## Host rules
 
-Strict proxies (including Kiro) return HTTP 400 `REQUEST_BODY_INVALID` on unknown keys:
-1. Use only tools that exist in this session. Spawn subagents with **Task** (or **Agent** if that is the only one), passing only `subagent_type`, `description`, `prompt`, and `run_in_background: false` only if the schema has it. Never invent other keys.
-2. `subagent_type: devil-advocate` / `judge`; `general-purpose` only if rejected. No Task/Agent tool: review in this session as `CONTEXT_ISOLATION_ONLY`.
-3. Bash or Write says "cannot determine the safety" or 400: stop that tool, do not retry, use Read/Grep/Glob, and tell the user to leave auto permission mode or add a permissions.allow rule, then start a new session.
-4. Models: `/models` when it exists; never type a model name.
+Same skill on every host. Before the first DA or Judge spawn, read your host's section in `loop-hosts` (exact tool, allowed keys, fallbacks).
+1. Spawn `devil-advocate` then `judge` as fresh siblings with the host's own subagent tool, passing only keys its schema has; wait for each, never in the background or nested; `general-purpose` only if the named type is rejected. Never use a browser subagent as reviewer.
+2. No subagent tool: same budgets in this session as `CONTEXT_ISOLATION_ONLY`; never claim independent execution.
+3. A tool says "cannot determine the safety" or returns HTTP 400: stop that tool, do not retry, continue read-only, and tell the user (`loop-hosts`).
+4. Models: the host catalog (`/models`, `grok models`); never type a model name.
 
 ## Commands
 
@@ -44,7 +43,7 @@ Invariants (every tier):
 
 ## Report header
 
-When Task/Agent returned a child result:
+When a subagent actually returned its own result (Grok: its own `subagent_id`):
 
 ```
 Execution Mode: TRUE_INDEPENDENT_AGENT

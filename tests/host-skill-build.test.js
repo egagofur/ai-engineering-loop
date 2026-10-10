@@ -19,7 +19,25 @@ const skills = () => buildHostSkills(ROOT).filter((out) => out.kind === 'skill')
 
 test('generated host skills match skill-src (drift check)', () => {
   assert.deepStrictEqual(checkHostSkills(ROOT), []);
-  assert.strictEqual(skills().length, 4);
+  assert.deepStrictEqual(skills().map((out) => out.path), [
+    '.claude/skills/ai-engineering-loop/SKILL.md',
+    '.agents/skills/ai-engineering-loop/SKILL.md'
+  ]);
+});
+
+test('one host-neutral skill: every output is byte-identical (#48)', () => {
+  const byName = new Map();
+  for (const out of buildHostSkills(ROOT)) {
+    const name = out.path.split('/ai-engineering-loop/')[1];
+    if (!byName.has(name)) byName.set(name, out.content);
+    assert.strictEqual(out.content, byName.get(name), `${out.path} differs from its sibling copy`);
+  }
+  assert.ok(byName.has('references/loop-hosts.md'));
+  const skill = byName.get('SKILL.md');
+  // Standard Agent Skills frontmatter only (agentskills.io): first bytes, name + description.
+  assert.match(skill, /^---\nname: ai-engineering-loop\ndescription: [^\n]{1,1024}\n---\n/);
+  assert.doesNotMatch(skill.split('\n---\n')[0], /allowed-tools|user-invocable/);
+  assert.doesNotMatch(skill, /Claude Code\)|\(Grok CLI\)|\(Antigravity\)/, 'SKILL.md must not be host-branded');
 });
 
 test('a hand edit of a generated file is reported as drift', () => {
@@ -32,8 +50,8 @@ test('a hand edit of a generated file is reported as drift', () => {
   assert.deepStrictEqual(checkHostSkills(tmp), []);
   const edited = '.claude/skills/ai-engineering-loop/SKILL.md';
   fs.appendFileSync(path.join(tmp, edited), '\nmanual edit\n');
-  fs.rmSync(path.join(tmp, '.grok/skills/ai-engineering-loop/references/loop-goal.md'));
-  assert.deepStrictEqual(checkHostSkills(tmp).sort(), ['.claude/skills/ai-engineering-loop/SKILL.md', '.grok/skills/ai-engineering-loop/references/loop-goal.md']);
+  fs.rmSync(path.join(tmp, '.agents/skills/ai-engineering-loop/references/loop-goal.md'));
+  assert.deepStrictEqual(checkHostSkills(tmp).sort(), ['.agents/skills/ai-engineering-loop/references/loop-goal.md', '.claude/skills/ai-engineering-loop/SKILL.md']);
 });
 
 test('every host SKILL.md stays within the always-loaded budget and keeps the quality core', () => {
@@ -58,9 +76,7 @@ test('every loop-* reference named by a skill exists beside it and through docs'
     for (const [, name] of out.content.matchAll(/`(loop-[a-z]+)`/g)) {
       assert.ok(refs.has(name), `${out.path} names unknown reference ${name}`);
       assert.ok(resolveDoc(name), `docs ${name} does not resolve`);
-      if (out.host !== 'antigravity') {
-        assert.ok(fs.existsSync(path.join(ROOT, path.dirname(out.path), 'references', `${name}.md`)), `${out.path}: ${name} missing beside it`);
-      }
+      assert.ok(fs.existsSync(path.join(ROOT, path.dirname(out.path), 'references', `${name}.md`)), `${out.path}: ${name} missing beside it`);
     }
   }
   const source = fs.readdirSync(path.join(ROOT, SOURCE_DIR, 'references')).sort();
@@ -69,9 +85,9 @@ test('every loop-* reference named by a skill exists beside it and through docs'
 
 test('sync-hosts installs references beside each host SKILL.md', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-skill-refs-'));
-  for (const dir of ['.claude', '.grok', '.gemini']) fs.mkdirSync(path.join(home, dir));
+  for (const dir of ['.claude', '.grok', '.gemini/config']) fs.mkdirSync(path.join(home, dir), { recursive: true });
   const plan = planHostSync({ packageRoot: ROOT, home });
-  for (const skillDir of ['.claude/skills/ai-engineering-loop', '.grok/skills/ai-engineering-loop', '.gemini/config/skills/ai-engineering-loop']) {
+  for (const skillDir of ['.claude/skills/ai-engineering-loop', '.agents/skills/ai-engineering-loop', '.gemini/config/skills/ai-engineering-loop']) {
     for (const file of LOOP_REFERENCE_FILES) {
       const dest = path.join(home, skillDir, 'references', file);
       assert.ok(plan.some((item) => item.dest === dest), `plan misses ${dest}`);

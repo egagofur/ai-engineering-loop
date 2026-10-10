@@ -1,6 +1,6 @@
 {{frontmatter}}
 
-# AI Engineering Loop ({{hostName}})
+# AI Engineering Loop
 
 {{refLine}} Specs and references: `npx ai-engineering-loop docs <name> [--section <h>]`; never read whole spec directories.
 
