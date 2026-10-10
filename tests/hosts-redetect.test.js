@@ -131,3 +131,24 @@ test('README host table is generated from the registry (drift check)', () => {
   for (const host of HOSTS) assert.ok(table.includes(`\`${host.id}\``), host.id);
   assert.match(table, /Not supported \(no native skills\): Aider, Continue\./);
 });
+
+test('setup mode: the prompt suggests auto (Enter = auto); --yes and non-interactive stay manual (#54 decision 4)', () => {
+  const { setupMode, SETUP_MODE_DEFAULTS, SETUP_MODE_QUESTION } = require('../lib/hosts/commands.js');
+  assert.deepStrictEqual(SETUP_MODE_DEFAULTS, { interactive: 'auto', nonInteractive: 'manual' });
+  assert.match(SETUP_MODE_QUESTION, /\[Y\/n\].*recommended: Y = auto/);
+  assert.strictEqual(setupMode({ interactive: true, answer: '' }), 'auto', 'Enter picks auto');
+  assert.strictEqual(setupMode({ interactive: true, answer: 'Y' }), 'auto');
+  assert.strictEqual(setupMode({ interactive: true, answer: 'n' }), 'manual');
+  assert.strictEqual(setupMode({ interactive: true, answer: 'no' }), 'manual');
+  assert.strictEqual(setupMode({ interactive: false }), 'manual');
+  assert.strictEqual(setupMode({ modeArg: 'manual', interactive: true, answer: '' }), 'manual', '--mode wins');
+  assert.strictEqual(setupMode({ modeArg: 'auto' }), 'auto');
+  // CLI: --yes without --mode (no TTY in tests) saves manual.
+  const dir = home(['.claude']);
+  const res = cli(dir, ['setup', '--yes', '--json']);
+  assert.strictEqual(res.status, 0, res.stderr);
+  assert.strictEqual(JSON.parse(res.stdout).mode, 'manual');
+  assert.strictEqual(readUserConfig(dir).hosts.mode, 'manual');
+  const auto = home(['.claude']);
+  assert.strictEqual(JSON.parse(cli(auto, ['setup', '--yes', '--mode', 'auto', '--json']).stdout).mode, 'auto');
+});
