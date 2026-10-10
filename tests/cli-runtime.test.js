@@ -128,6 +128,7 @@ test('CLI update check reports the safe post-install sync plan', () => {
   assert.strictEqual(result.installScope, 'global');
   assert.deepStrictEqual(result.commands.map((item) => item.display), [
     'npm install --global ai-engineering-loop@latest',
+    `ai-engineering-loop migrate --from ${require('../package.json').version}`,
     'ai-engineering-loop sync-hosts',
     'ai-engineering-loop refresh',
     'ai-engineering-loop doctor'

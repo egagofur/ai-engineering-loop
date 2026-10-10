@@ -257,10 +257,23 @@ test('update and projects help never write; unknown update flags are rejected', 
   assert.ok(!fs.existsSync(path.join(home, '.ai-engineering-loop')));
 });
 
-test('status starts a detached background check and later prints a one-time notice', async () => {
+test('status starts a detached background check and later prints a rate-limited notice with highlights', async () => {
   const { home, env } = sandbox();
   const dir = project(home);
-  const live = { ...env, AEL_ALLOW_AUTO_UPDATE_IN_TESTS: '1', AEL_UPDATE_DIST_TAGS: '{"latest":"1.99.0"}', AEL_INSTALL_SCOPE: 'project' };
+  fs.writeFileSync(path.join(dir, 'pnpm-lock.yaml'), 'lockfileVersion: 9\n');
+  const changelog = path.join(home, 'CHANGELOG.md');
+  fs.writeFileSync(changelog, [
+    '# Changelog', '', '## 1.99.0', '', '### Faster tiered runs (#33)', '- detail', '',
+    '## 1.50.0', '', '### Combined verify command', '- detail', '', '## 1.0.0', '', '### Old stuff', ''
+  ].join('\n'));
+  const live = {
+    ...env,
+    AEL_ALLOW_AUTO_UPDATE_IN_TESTS: '1',
+    AEL_UPDATE_DIST_TAGS: '{"latest":"1.99.0"}',
+    AEL_INSTALL_SCOPE: 'project',
+    AEL_UPDATE_CHANGELOG_FILE: changelog,
+    AEL_FORCE_UPDATE_NOTICE: '1'
+  };
   assert.strictEqual(cli(dir, { ...live, AEL_NO_AUTO_UPDATE: '1' }, 'init').status, 0);
   assert.strictEqual(cli(dir, live, 'update', 'policy', 'minor').status, 0);
   const started = Date.now();
@@ -268,12 +281,62 @@ test('status starts a detached background check and later prints a one-time noti
   assert.strictEqual(first.status, 0);
   assert.ok(Date.now() - started < 5000, 'status must not wait for the check');
   const cacheFile = path.join(home, '.ai-engineering-loop', 'update-check.json');
-  for (let i = 0; i < 100 && !(fs.existsSync(cacheFile) && JSON.parse(fs.readFileSync(cacheFile, 'utf8')).scope); i += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  assert.ok(fs.existsSync(cacheFile), 'background check wrote the cache');
+  const ready = () => fs.existsSync(cacheFile) && JSON.parse(fs.readFileSync(cacheFile, 'utf8')).highlights;
+  for (let i = 0; i < 100 && !ready(); i += 1) await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.ok(ready(), 'background check cached the highlights');
+
+  // Never in --json output or with the notice silenced.
+  assert.doesNotMatch(cli(dir, live, 'status', '--json').stderr, /available/);
+  assert.doesNotMatch(cli(dir, { ...live, AEL_NO_UPDATE_NOTICE: '1' }, 'status').stderr, /available/);
+  // Without a TTY (and no force flag) there is no notice either.
+  const { AEL_FORCE_UPDATE_NOTICE, ...noTty } = live;
+  assert.doesNotMatch(cli(dir, noTty, 'status').stderr, /available/);
+
   const second = cli(dir, live, 'status');
-  assert.match(second.stderr, /1\.99\.0 is available/);
-  const third = cli(dir, live, 'status');
-  assert.doesNotMatch(third.stderr, /is available/);
+  assert.match(second.stderr, /ai-engineering-loop \d+\.\d+\.\d+ -> 1\.99\.0 available \(minor\)/);
+  assert.match(second.stderr, /• Faster tiered runs/);
+  assert.match(second.stderr, /• Combined verify command/);
+  assert.doesNotMatch(second.stderr, /Old stuff/);
+  assert.match(second.stderr, /Update: +pnpm add -D ai-engineering-loop@1\.99\.0/);
+  assert.match(second.stderr, /Silence: AEL_NO_UPDATE_NOTICE=1/);
+  // Once per day per project.
+  assert.doesNotMatch(cli(dir, live, 'status').stderr, /available/);
+  const other = project(home);
+  assert.match(cli(other, live, 'status').stderr, /Update: +npm install -D ai-engineering-loop@1\.99\.0/);
+  // Package files never change: notify-only.
+  assert.doesNotMatch(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'), /1\.99\.0/);
+});
+
+test('update notice: package manager detection, highlights, global and major wording', () => {
+  const notice = require('../lib/update-notice.js');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-pm-'));
+  assert.strictEqual(notice.detectPackageManager(dir), 'npm');
+  fs.writeFileSync(path.join(dir, 'yarn.lock'), '');
+  assert.strictEqual(notice.detectPackageManager(dir), 'yarn');
+  fs.writeFileSync(path.join(dir, 'package.json'), '{"packageManager":"bun@1.1.0"}');
+  assert.strictEqual(notice.detectPackageManager(dir), 'bun');
+  assert.strictEqual(notice.detectGlobalPackageManager('/home/u/.local/share/pnpm/global/5/node_modules/ai-engineering-loop'), 'pnpm');
+  assert.strictEqual(notice.updateCommand({ packageName: 'p', target: '2.0.0', scope: 'project', manager: 'bun' }), 'bun add -d p@2.0.0');
+  assert.strictEqual(notice.updateCommand({ packageName: 'p', target: '2.0.0', scope: 'global', manager: 'yarn' }), 'yarn global add p@2.0.0');
+
+  const changelog = '## 1.3.0\n- **Added:** `docs` command (#27)\n- b\n- c\n- d\n- e\n## 1.2.0\n- old\n';
+  assert.deepStrictEqual(notice.changelogHighlights(changelog, { current: '1.2.0', target: '1.3.0' }), ['Added: docs command', 'b', 'c', 'd']);
+
+  const global = notice.formatNotice({ packageName: 'p', current: '1.2.0', target: '1.3.0', bump: 'minor', scope: 'global', manager: 'npm', policy: 'notify' });
+  assert.match(global, /npm install -g p@1\.3\.0 +\(or auto-apply: ai-engineering-loop update policy minor\)/);
+  assert.match(global, /Then: +ai-engineering-loop sync-hosts/);
+  const major = notice.formatNotice({ packageName: 'p', current: '1.2.0', target: '2.0.0', bump: 'major', scope: 'global', manager: 'npm', policy: 'minor', highlights: ['x'] });
+  assert.match(major, /Major release/);
+  assert.doesNotMatch(major, /auto-apply/);
+  assert.ok(major.split('\n').length <= 8, 'notice stays short');
+
+  assert.strictEqual(notice.noticeAllowed({ env: { CI: 'true' }, argv: [], stderrIsTTY: true }), false);
+  assert.strictEqual(notice.noticeAllowed({ env: {}, argv: ['--json'], stderrIsTTY: true }), false);
+  assert.strictEqual(notice.noticeAllowed({ env: {}, argv: [], stderrIsTTY: false }), false);
+  assert.strictEqual(notice.noticeAllowed({ env: {}, argv: [], stderrIsTTY: true }), true);
+  const now = new Date('2026-10-10T00:00:00Z');
+  const shown = notice.markNoticeShown({}, '/p', '1.3.0', now);
+  assert.strictEqual(notice.noticeDue(shown, '/p', new Date('2026-10-10T23:00:00Z')), false);
+  assert.strictEqual(notice.noticeDue(shown, '/p', new Date('2026-10-11T00:00:01Z')), true);
+  assert.strictEqual(notice.noticeDue(shown, '/q', now), true);
 });
