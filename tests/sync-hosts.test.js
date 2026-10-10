@@ -136,8 +136,8 @@ test('Grok gets the shared skill and no copy of its own; DOT skill stays byte-id
   assert.strictEqual(fs.readFileSync(dot, 'utf8'), fs.readFileSync(path.join(ROOT, 'adapters/dot/skills/dot-dev-workflow/SKILL.md'), 'utf8').replace(/\r\n?/g, '\n'));
 });
 
-test('Gemini CLI and Codex homes get the loop through ~/.agents/skills, not ~/.gemini/config (#48)', () => {
-  for (const dir of ['.gemini', '.codex']) {
+test('Codex homes get the loop through ~/.agents/skills, not ~/.gemini/config (#48)', () => {
+  for (const dir of ['.codex']) {
     const home = tmpHome();
     fs.mkdirSync(path.join(home, dir));
     applyHostSync({ packageRoot: ROOT, home });

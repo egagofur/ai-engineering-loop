@@ -298,3 +298,21 @@ test('phase 3 (#51): own-folder hosts get one copy in their folder; Roo and Juni
   assert.match(fs.readFileSync(path.join(home, '.junie/agents/judge.md'), 'utf8'), /^name: judge$/m);
   assert.ok(!fs.existsSync(path.join(home, '.cline/agents')), 'Cline: no documented reviewer agent file');
 });
+
+test('Gemini CLI is detected only by a gemini binary; ~/.gemini alone (Antigravity) is not enough (#54 decision)', () => {
+  const home = tmp('ael-gemini-');
+  fs.mkdirSync(path.join(home, '.gemini/antigravity'), { recursive: true });
+  let found = new Map(detectHosts({ home, env: { PATH: '' } }).map((d) => [d.id, d]));
+  assert.strictEqual(found.get('gemini').detected, false, '~/.gemini without a binary is not Gemini CLI');
+  assert.strictEqual(found.get('antigravity').detected, true, 'Antigravity is unaffected');
+  const { dir, marker } = stubBin(['gemini']);
+  found = new Map(detectHosts({ home, env: { PATH: dir } }).map((d) => [d.id, d]));
+  assert.strictEqual(found.get('gemini').detected, true);
+  assert.deepStrictEqual(found.get('gemini').bins, [path.join(dir, 'gemini')]);
+  assert.strictEqual(found.get('antigravity').detected, true);
+  assert.ok(!fs.existsSync(marker), 'the gemini binary is never executed');
+  // Before setup, an Antigravity-only home gets no Gemini CLI agents.
+  applyHostSync({ packageRoot: ROOT, home });
+  assert.ok(!fs.existsSync(path.join(home, '.gemini/agents')), 'no Gemini CLI agents for an Antigravity-only home');
+  assert.ok(fs.existsSync(path.join(home, '.gemini/config/skills/ai-engineering-loop/SKILL.md')));
+});

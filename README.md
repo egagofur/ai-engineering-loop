@@ -171,7 +171,7 @@ AI Engineering Loop is designed to work with the tools developers already use:
 |---|---|---|---|---|
 | Claude Code | `claude` | `~/.claude/skills` | `~/.claude/agents` | `~/.claude`, `claude` |
 | Codex CLI | `codex` | `~/.agents/skills` (shared) | `~/.codex/agents` | `~/.codex`, `codex` |
-| Gemini CLI | `gemini` | `~/.agents/skills` (shared) | `~/.gemini/agents` | `~/.gemini`, `gemini` |
+| Gemini CLI | `gemini` | `~/.agents/skills` (shared) | `~/.gemini/agents` | `gemini` |
 | Antigravity (IDE / 2.0) | `antigravity` | `~/.gemini/config/skills` | `~/.gemini/config/agents` | `~/.gemini/antigravity`, `antigravity` |
 | Antigravity CLI (agy) | `antigravity-cli` | `~/.gemini/antigravity-cli/skills` | `~/.gemini/config/agents` | `~/.gemini/antigravity-cli`, `agy` |
 | Grok CLI | `grok` | `~/.agents/skills` (shared) | `~/.grok/agents` | `~/.grok`, `grok` |
