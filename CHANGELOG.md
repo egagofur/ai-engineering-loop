@@ -4,6 +4,11 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+### Multi-agent hosts, phase 2: shared-folder hosts (#50)
+
+- **Added:** OpenCode, Windsurf/Devin Desktop, Amp, Factory Droid, Augment (Auggie), Zed, and Goose to the host registry. All of them read the shared `~/.agents/skills/` folder, so they use the same single copy of the skill and never get a second one in their own folders.
+- **Added:** reviewer subagents where the host supports file-based ones: OpenCode `~/.config/opencode/agents/*.md` (`mode: subagent`, edits denied), Factory `~/.factory/droids/*.md` (`tools: read-only`), and Augment `~/.augment/agents/*.md`. Amp (TypeScript plugins), Zed, Goose, and Windsurf have no file-based reviewer agent, so the loop runs DA and Judge as `CONTEXT_ISOLATION_ONLY` there.
+
 ### Multi-agent hosts, phase 1: host registry, setup, and `hosts` (#49)
 
 - **Added:** a data-driven host registry (`lib/hosts/registry.js`). Each entry holds detection signals, the skill folder (the shared `~/.agents/skills` or the host's own), the folders the host scans, the reviewer subagent format, official doc links, and a verification date. Tier 1 hosts: Claude Code, Codex CLI, Gemini CLI, Antigravity (IDE/2.0 and the `agy` CLI), Grok CLI, Cursor, and GitHub Copilot.

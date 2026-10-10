@@ -35,12 +35,14 @@ function stubBin(names) {
 }
 
 function cli(home, args, { pathDirs = [], input } = {}) {
+  // Drop every case variant of PATH (Windows has "Path") before setting ours.
+  const base = Object.fromEntries(Object.entries(process.env).filter(([key]) => key.toUpperCase() !== 'PATH'));
   return spawnSync(process.execPath, [CLI, ...args], {
     cwd: home,
     input,
     encoding: 'utf8',
     env: {
-      ...process.env,
+      ...base,
       HOME: home,
       USERPROFILE: home,
       AEL_HOME: home,
@@ -84,7 +86,9 @@ test('detection: config dir alone, PATH binary alone, and binaries are never exe
   assert.strictEqual(found.get('claude').detected, true);
   assert.strictEqual(found.get('codex').detected, true);
   assert.deepStrictEqual(found.get('codex').bins, [path.join(dir, 'codex')]);
-  assert.strictEqual(found.get('gemini').detected, false, 'a non-executable file is not a binary');
+  if (process.platform !== 'win32') {
+    assert.strictEqual(found.get('gemini').detected, false, 'a non-executable file is not a binary');
+  }
   assert.strictEqual(found.get('grok').detected, false);
   assert.strictEqual(findOnPath('codex', { PATH: '' }), null);
   assert.ok(!fs.existsSync(marker), 'detection must never run a binary');
@@ -248,4 +252,32 @@ test('parseHostIds accepts lists and rejects unknown ids', () => {
   assert.deepStrictEqual(hostCommands.parseHostIds('claude, codex,claude'), ['claude', 'codex']);
   assert.deepStrictEqual(hostCommands.parseHostIds(['grok', 'cursor,copilot']), ['grok', 'cursor', 'copilot']);
   assert.throws(() => hostCommands.parseHostIds('aider'), /Unknown host/);
+});
+
+test('phase 2 (#50): shared-folder hosts are detected and get no private skill copy', () => {
+  const ids = ['opencode', 'windsurf', 'amp', 'factory', 'augment', 'zed', 'goose'];
+  for (const id of ids) assert.ok(HOST_IDS.includes(id), id);
+  const home = tmp('ael-phase2-');
+  for (const dir of ['.config/opencode', '.codeium/windsurf', '.config/amp', '.factory', '.augment', '.config/zed', '.config/goose']) {
+    fs.mkdirSync(path.join(home, dir), { recursive: true });
+  }
+  const detected = detectHosts({ home, env: { PATH: '' } }).filter((d) => d.detected).map((d) => d.id);
+  assert.deepStrictEqual(detected.sort(), [...ids].sort());
+  const { dir, marker } = stubBin(['opencode', 'amp', 'droid', 'auggie', 'zed', 'goose']);
+  const byBin = detectHosts({ home: tmp('ael-phase2-bin-'), env: { PATH: dir } }).filter((d) => d.detected).map((d) => d.id);
+  assert.deepStrictEqual(byBin.sort(), ['amp', 'augment', 'factory', 'goose', 'opencode', 'zed']);
+  assert.ok(!fs.existsSync(marker));
+  applyHostSync({ packageRoot: ROOT, home });
+  assert.ok(fs.existsSync(path.join(home, '.agents/skills/ai-engineering-loop/SKILL.md')));
+  for (const own of ['.config/opencode/skills', '.codeium/windsurf/skills', '.config/amp/skills', '.factory/skills', '.augment/skills', '.config/goose/skills']) {
+    assert.ok(!fs.existsSync(path.join(home, own)), `${own} must not get a second copy`);
+  }
+  const opencode = fs.readFileSync(path.join(home, '.config/opencode/agents/devil-advocate.md'), 'utf8');
+  assert.match(opencode, /^mode: subagent$/m);
+  assert.match(opencode, /^ {2}edit: deny$/m);
+  assert.match(fs.readFileSync(path.join(home, '.factory/droids/judge.md'), 'utf8'), /^tools: read-only$/m);
+  assert.match(fs.readFileSync(path.join(home, '.augment/agents/judge.md'), 'utf8'), /^name: judge$/m);
+  for (const none of ['.config/amp/agents', '.config/zed/agents', '.config/goose/agents', '.codeium/windsurf/agents']) {
+    assert.ok(!fs.existsSync(path.join(home, none)), `${none}: host has no file-based subagents`);
+  }
 });
