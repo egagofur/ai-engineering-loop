@@ -24,6 +24,7 @@ const { listDocs, readDoc } = require('../lib/docs.js');
 const {
   wantsCommandHelp,
   unknownWriterArgs,
+  effectiveCommand,
   commandHelp
 } = require('../lib/cli-args.js');
 const {
@@ -909,6 +910,12 @@ function statusJson() {
       result.contextVersion = metadata.contextVersion || null;
       result.projectProfile = metadata.projectProfile || null;
       result.freshness = { status: drift.status, reason: drift.reason, level: drift.level || null };
+      const activeRun = currentRunSafe(CWD);
+      if (activeRun && !TERMINAL_STATES.has(activeRun.state)) {
+        const info = require('../lib/run-abandon.js').staleRunInfo(activeRun);
+        result.activeRun = { runId: activeRun.runId, state: activeRun.state, updatedAt: activeRun.updatedAt || null, stale: info.stale, idleDays: info.idleDays };
+        if (info.stale) result.activeRun.hint = require('../lib/run-abandon.js').abandonCommand(activeRun.runId);
+      }
     }
   }
   return result;
@@ -949,6 +956,13 @@ function handleStatus() {
   console.log(`- Context Baseline Git: ${metadata.repositoryRevision ? metadata.repositoryRevision.slice(0, 8) : 'unknown'}`);
   console.log(`- Living Freshness: \x1b[32m${drift.status}\x1b[0m (${drift.reason})`);
   console.log(`- Context Files: ${REQUIRED_FILES.length}/${REQUIRED_FILES.length} verified (including metadata.json, glossary.md, adrs/)`);
+
+  const activeRun = currentRunSafe(CWD);
+  if (activeRun && !TERMINAL_STATES.has(activeRun.state)) {
+    console.log(`- Active run: ${activeRun.runId} (${activeRun.state})`);
+    const hint = staleRunHint(activeRun);
+    if (hint) log.warn(`  ${hint}`);
+  }
 
   const hosts = hostSkillStatus({ home: homeDir(), version: VERSION });
   if (hosts.stale) {
@@ -1085,7 +1099,72 @@ function workingTreePaths(rootDir) {
 }
 
 // Command: run
+// `run --abandon [--run <id>] --reason <text> --by <name> [--yes] [--json]`
+// (issue #46). ASSISTED asks for confirmation (or --yes); UNATTENDED runs are
+// refused unless a human passes --yes. Terminal runs exit 2.
+function handleRunAbandon() {
+  const json = process.argv.includes('--json');
+  const yes = process.argv.includes('--yes');
+  const runAbandon = require('../lib/run-abandon.js');
+  const fail = (err) => {
+    if (json) console.log(JSON.stringify({ ok: false, code: err.code || 'ABANDON_FAILED', error: err.message }));
+    else log.error(err.message);
+    process.exit(err.exitCode || 1);
+  };
+  try {
+    const plan = runAbandon.planAbandon(CWD, { runId: argValue('--run'), reason: argValue('--reason'), by: argValue('--by') });
+    const { run } = plan;
+    if (run.mode === 'UNATTENDED' && !yes) {
+      throw Object.assign(new Error(`Run ${run.runId} is UNATTENDED. Agents must not abandon it; a human can re-run with --yes.`), { code: 'UNATTENDED_REQUIRES_HUMAN', exitCode: 2 });
+    }
+    if (!yes) {
+      if (json || !process.stdin.isTTY || !process.stdout.isTTY) {
+        throw Object.assign(new Error(`Confirm abandoning run ${run.runId} (${run.state}) by re-running with --yes.`), { code: 'CONFIRMATION_REQUIRED' });
+      }
+      process.stdout.write(`Abandon run ${run.runId} (${run.state}, ${run.task ? `"${String(run.task).slice(0, 60)}"` : 'no task'})? Run data is kept. [y/N] `);
+      const buffer = Buffer.alloc(16);
+      let answer = '';
+      try {
+        answer = buffer.toString('utf8', 0, fs.readSync(0, buffer, 0, buffer.length, null)).trim().toLowerCase();
+      } catch {
+        answer = '';
+      }
+      if (!['y', 'yes'].includes(answer)) {
+        console.log('Not abandoned.');
+        process.exit(1);
+      }
+    }
+    const result = runAbandon.abandonRun(CWD, { runId: run.runId, reason: plan.reason, by: plan.actor });
+    if (json) console.log(JSON.stringify({ ok: true, ...result }));
+    else {
+      log.success(`✓ Run ${result.runId} abandoned (${result.from} -> CANCELLED) by ${result.by}: ${result.reason}`);
+      console.log(result.released
+        ? '- current.json released; refresh and auto-update will process this project again.'
+        : `- current run unchanged${result.current ? ` (${result.current})` : ''}.`);
+    }
+  } catch (err) {
+    fail(err);
+  }
+}
+
+// One-line hint for an active run that has not moved for STALE_RUN_DAYS.
+function staleRunHint(run) {
+  const runAbandon = require('../lib/run-abandon.js');
+  const info = runAbandon.staleRunInfo(run);
+  if (!info.stale) return null;
+  return `Run ${run.runId} has been ${run.state} for ${info.idleDays} day(s). If it is abandoned: ${runAbandon.abandonCommand(run.runId)}`;
+}
+
+function currentRunSafe(dir) {
+  try {
+    return getCurrentRun(dir);
+  } catch {
+    return null;
+  }
+}
+
 function handleRun() {
+  if (process.argv.includes('--abandon')) return handleRunAbandon();
   const runJson = process.argv.includes('--json');
   const realLog = console.log;
   if (runJson) console.log = () => {};
@@ -2001,6 +2080,8 @@ function handleState() {
       console.log(`State: ${run.state}`);
       console.log(`Iteration: ${run.iteration}`);
       console.log(`Artifacts: ${Object.keys(run.artifacts).join(', ') || 'none'}`);
+      const hint = staleRunHint(run);
+      if (hint) log.warn(hint);
     }
   } catch (err) {
     if (json) console.log(JSON.stringify({ ok: false, code: err.code || 'STATE_FAILED', error: err.message }));
@@ -2044,6 +2125,7 @@ function handleSafeRefresh() {
   const current = getCurrentRun(CWD);
   if (current && !TERMINAL_STATES.has(current.state)) {
     log.warn(`Run ${current.runId} is active (${current.state}); skipping refresh until it finishes.`);
+    log.dim(`If that run is abandoned, close it first: ${require('../lib/run-abandon.js').abandonCommand(current.runId)}`);
     process.exit(3);
   }
   const legacy = !fs.existsSync(path.join(CONTEXT_DIR, GENERATED_HASHES_FILE));
@@ -2205,7 +2287,10 @@ function handleUpdateAuto() {
   } else {
     result = autoUpdate.processPending({ projects, readCurrentRun: readCurrentRunFor });
   }
-  out({ ok: true, policy: policy.policy, policySource: policy.source, scope, offline: cache.error || null, decision, result });
+  const held = result && Array.isArray(result.pending) && result.pending.length
+    ? { pendingHint: `Projects skipped because a run is active. If a run is abandoned, run in that project: ${require('../lib/run-abandon.js').abandonCommand()}` }
+    : {};
+  out({ ok: true, policy: policy.policy, policySource: policy.source, scope, offline: cache.error || null, decision, result, ...held });
   cacheUpdateHighlights({ ...cache, scope }, decision, packageName).catch(() => {});
 }
 
@@ -2258,7 +2343,12 @@ function handleProjects() {
     if (json) console.log(JSON.stringify({ ok: true, action, ...result }));
     else if (action === 'list') {
       if (!result.projects.length) console.log('No registered projects. They are added by init/run/status/refresh, or `projects add|scan`.');
-      for (const p of result.projects) console.log(`- ${p.path} (context ${p.contextVersion || '?'}, seen ${p.lastSeen})`);
+      for (const p of result.projects) {
+        const held = currentRunSafe(p.path);
+        const info = held ? require('../lib/run-abandon.js').staleRunInfo(held) : { stale: false };
+        const tag = info.stale ? `; held by stale run ${held.runId} (${held.state}, ${info.idleDays}d): run --abandon there` : '';
+        console.log(`- ${p.path} (context ${p.contextVersion || '?'}, seen ${p.lastSeen}${tag})`);
+      }
     } else console.log(JSON.stringify(result, null, 2));
   } catch (err) {
     if (json) console.log(JSON.stringify({ ok: false, code: err.code || 'PROJECTS_FAILED', error: err.message }));
@@ -3046,6 +3136,9 @@ Commands:
                --recipe <id>  bind an immutable compiled workflow plan
                --tier T0|T1|T2 --tier-reason <text>  override the automatic tier (recorded)
                --json  print runId, tier, tier reasons, and subagent count only
+               --abandon [--run <id>] --reason <text> --by <name> [--yes] [--json]
+                      close a stale run as CANCELLED (kept on disk) and release current.json;
+                      ASSISTED asks to confirm, UNATTENDED needs --yes from a human
   state        Inspect the current run ledger
                --run <id>  target a non-current run
                --json      print the complete machine-readable ledger
@@ -3194,14 +3287,15 @@ const command = args[0] || 'init';
 // Side-effect guard (issue #25): help never executes a command, and writer
 // commands reject unknown flags before touching any file.
 if (!['-h', '--help', '-v', '--version'].includes(command)) {
-  if (wantsCommandHelp(command, args.slice(1))) {
+  const checked = effectiveCommand(command, args.slice(1));
+  if (wantsCommandHelp(checked, args.slice(1))) {
     const block = commandHelp(helpText(), command);
     console.log(block
       ? `Usage: npx ai-engineering-loop ${block.trim()}`
       : helpText());
     process.exit(0);
   }
-  const unknown = unknownWriterArgs(command, args.slice(1));
+  const unknown = unknownWriterArgs(checked, args.slice(1));
   if (unknown.length > 0) {
     log.error(`Unknown argument(s) for "${command}": ${unknown.join(' ')}. Nothing was written.`);
     console.log(`Run "npx ai-engineering-loop ${command} --help" for usage.`);

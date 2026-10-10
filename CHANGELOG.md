@@ -4,7 +4,12 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
-_No changes yet._
+### `run --abandon` for stale runs (#46)
+
+- **Added:** `run --abandon [--run <id>] --reason <text> --by <name> [--yes] [--json]`. It moves a run that will never finish to `CANCELLED`, records reason, actor, and time in the run's history ledger (recipe-bound runs also get a `RUN_CANCELLED` event), and releases `current.json` so `refresh --non-destructive` and `update auto` process the project again. Run data is kept. With `--run <id>` for a non-current run, the current pointer is left alone.
+- ASSISTED runs ask for confirmation (or `--yes`). UNATTENDED runs are refused (exit 2) unless a human passes `--yes`. Finished runs and "no current run" exit 2. `--help` writes nothing, and unknown flags are rejected before any write.
+- `status` (text and `--json` `activeRun`), `state`, and `projects list` point at `run --abandon` when the active run has not moved for 7 days or more. The "skipping refresh" message and the pending-projects update summary suggest it too.
+- A pointer renamed by hand to `runs/current.stale-*.json` is simply ignored.
 
 ## 1.14.0 - 2026-10-10
 
