@@ -22,6 +22,12 @@ Use a gated diagnosis loop. Do not skip a gate.
 5. **Fix.** Only after one hypothesis is confirmed. The fix is Stage 4, still test-first at the agreed seam (`policies/tdd-policy.md`).
 6. **Regression test.** The red repro becomes a kept test mapped to an AC.
 
+## When fixes keep failing
+
+- **Trace backward.** Start at the wrong value or symptom and walk up the call chain to where it first became wrong. Fix it there, not where it surfaced.
+- **Three strikes.** If three fixes for the same failure did not hold, stop patching. Question the design or assumption underneath, and raise it with the human before attempt four.
+- **Test pollution.** If a test passes alone but fails in the suite, find the polluter by bisection: run the failing test after each half of the preceding test files until one file remains, then fix its leaked state (globals, timers, files, environment, database rows).
+
 ## Anti-patterns
 
 - Guessing a fix from stack-trace vibe without a red repro

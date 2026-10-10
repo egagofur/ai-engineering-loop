@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "id": "22-tier-t1-small-pass",
+  "title": "T1 small feature passes on the deterministic review gate",
+  "category": "judging",
+  "risk": "medium",
+  "task": "Tier T1 run: a small feature with green diff-bound verification and a Devil's Advocate ledger containing only a LOW standards nit. Decide whether a Judge subagent is required.",
+  "files": [
+    {
+      "path": "state.json",
+      "content": "{\"tier\":{\"current\":\"T1\"},\"iteration\":1}"
+    },
+    {
+      "path": "findings.json",
+      "content": "{\"findings\":[{\"id\":\"F-1\",\"severity\":\"LOW\",\"validity\":\"VALID\",\"axis\":\"standards\",\"disposition\":\"ACCEPTABLE\"}]}"
+    },
+    {
+      "path": "verification.json",
+      "content": "{\"diffHash\":\"current\",\"commands\":[{\"command\":\"npm test\",\"exitCode\":0}]}"
+    }
+  ],
+  "oracle": {
+    "verdict": "PASS",
+    "requiredSignals": [
+      "deterministic-verdict",
+      "no-blocking-findings"
+    ],
+    "forbiddenOutput": []
+  }
+}

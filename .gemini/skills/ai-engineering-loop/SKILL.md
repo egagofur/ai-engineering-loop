@@ -2,56 +2,43 @@
 name: ai-engineering-loop
 description: Use when the user runs /ai-engineering-loop, asks to init or refresh living project context, or wants the Maker / Devil's Advocate / Judge engineering loop on Antigravity.
 ---
+<!-- Generated from skill-src/ by npm run build:skills; do not edit. -->
 
 # AI Engineering Loop (Antigravity)
 
-Specs ship with the CLI, not this repo: read one only when its stage needs it via `npx ai-engineering-loop docs <name> [--section <heading>]`. Never read whole spec directories.
+Stage details: `references/loop-*.md` beside this file, read only on entering that stage. Specs and references: `npx ai-engineering-loop docs <name> [--section <h>]`; never read whole spec directories.
 
-Reviewer budgets live in the `devil-advocate` and `judge` agent files. Parent is Maker plus orchestrator. Do not use `browser_subagent`.
+## Host rules
 
-## Host rule
-
-If `invoke_subagent` (or Task) exists, spawn `devil-advocate` then `judge` as siblings. Wait for each child. Do not run them in the background. Use `general-purpose` only if the named type is rejected.
-
-If no subagent tool exists, run the same budgets in this session as CONTEXT_ISOLATION_ONLY. Do not claim independent agent execution.
-
-Canonical mode ids: `TRUE_INDEPENDENT_AGENT`, `ISOLATED_AGENT_INSTANCE`, `FRESH_PROCESS_AGENT`, `CONTEXT_ISOLATION_ONLY`, `UNAVAILABLE`.
+1. If `invoke_subagent` (or Task) exists, spawn `devil-advocate` then `judge` as siblings, wait for each, never in the background; `general-purpose` only if the named type is rejected. Do not use `browser_subagent`.
+2. No subagent tool: run the same budgets in this session as `CONTEXT_ISOLATION_ONLY`; do not claim independent agent execution.
+3. Models: the host catalog (`/models` when it exists); never type a model name.
+4. Modes: `TRUE_INDEPENDENT_AGENT`, `ISOLATED_AGENT_INSTANCE`, `FRESH_PROCESS_AGENT`, `CONTEXT_ISOLATION_ONLY`, `UNAVAILABLE`.
 
 ## Commands
 
-- `init` / `status` / `refresh` / `sync-hosts` / `generate-adapter` / `generate-workflow`: run `npx ai-engineering-loop <command>` in the repo. Do not commit unless asked.
-- `generate-adapter`: load skill `generate-adapter` if present. Grill Q1-Q5. Then write `.ai-engineering-loop/adapter.md`. Do not start Maker.
-- `generate-workflow`: load skill `generate-workflow` if present. Grill Q1-Q6. Q6 Maker intern: if `/models` exists in this session, use it and show numbered options; else only `none`. Do not type a model name. Then write `.ai-engineering-loop/workflow.md` and empty `lessons.md` if missing. Do not start Maker.
-- Any other argument: full loop for that task.
+`init|status|refresh|sync-hosts|generate-adapter|generate-workflow`: run `npx ai-engineering-loop <command>` (`loop-commands`); do not commit unless asked. Otherwise: the loop.
 
 ## Loop
 
-Compact map (not a second OS): Specify (stages 0-1), Make (stages 2-4), Review (stages 5-7), Deliver (stage 8). Keep the 8-stage numbers. Do not skip Goal Contract, verification, Devil's Advocate, or Judge.
+Compact map (not a second OS) of the 8-stage loop: Specify (stages 0-1), Make (stages 2-4), Review (stages 5-7), Deliver (stage 8). Parent is Maker plus orchestrator; Devil's Advocate (DA) and Judge are fresh **siblings**, never nested or resumed. A gate failure overrides prose. Never edit `state.json`/`current.json`.
 
-## Deterministic artifact gates (mandatory)
+Tier (from `run --json`; it only rises). Do not skip Goal Contract, verification, Devil's Advocate, or Judge gates; the tier only decides who fills them.
+- **T0** trivial (docs, typo, lint): `gate goal`, Maker, `verify`, claimed-vs-reality, `gate review`, `gate judge` (deterministic); no subagents.
+- **T1** normal: frozen Goal, red test, `verify`, lean DA, `gate review --json`; spawn Judge only on `judgeRequired`.
+- **T2** risky (HIGH_RISK_PATH, DOT business logic, >10 files): add `loop-risky` (blast radius, Judge on STRONG_MODEL). Unseen risk: `run --new --tier T2 --tier-reason <why>`.
 
-Keep Workflow Studio alive without exposing chain-of-thought: before each stage or long operation emit `npx ai-engineering-loop activity heartbeat --run <runId> --phase <phase> --message <short factual summary>`. Existing `node start|activity|complete` and `gate` commands publish node lifecycle automatically. Before asking the human, persist the question with `npx ai-engineering-loop interaction question --run <runId> --id <id> --message <text>` so it appears once in Studio. Never put secrets, hidden reasoning, or raw model context in activity messages.
+0. `run --json [--mode report-only|assisted|unattended]` (runId, tier, budget, hostSkills; `RUN_DIR` = `.ai-engineering-loop/runs/<runId>/`). Do not run `sync-hosts` per run; if `hostSkills.stale`, ask the user to. Read `.ai-engineering-loop/glossary.md`, plus `lessons.md`/`workflow.md` if present.
+1. Goal Contract: `loop-goal`. 2-4. Maker: `loop-maker`, then `gate maker`. 5. Verify: `loop-verify`. 6-7. DA and Judge: `loop-review`. 8. Deliver: `loop-deliver`.
 
-Run `npx ai-engineering-loop state --json` to get the current runId and use `.ai-engineering-loop/runs/<runId>/` as `RUN_DIR`. Never edit state.json or current.json.
-
-Budget (`docs runtime-safety` for UNATTENDED or budget errors): run `budget status --run <runId>` after `run` and before each new iteration. After each child, `budget record --input <n> --output <n> --model <id> --run <runId>` from provider usage; never invent counts. No usage shown: `budget record --unavailable --run <runId>` once; ASSISTED continues and discloses it at delivery (do not ask the human); UNATTENDED fails that command, so stop and escalate. `budget pause` is the kill switch. The ledger mode is immutable.
-
-Inherited invariants remain mandatory: read `docs grill-policy` before grilling, `docs tdd-policy` before Maker, and `.ai-engineering-loop/glossary.md`. On `adapter_type: dot`, grill includes blast radius: lifecycle sketch and load `task-impact-inquiry`. If the user prompt has no numbered AC, draft the contract, list a short menu and wait. Chat agreement is not freeze. AC is a failure table. One red test per AC row. Do not freeze sunny-path-only. Write claimed-vs-reality.md. Do not spawn Devil's Advocate if the file is missing or any Claimed row lacks Reality. Report Spec and Standards separately. Use `npx ai-engineering-loop context query <term>` and `context related <file>` before opening broad source files. Use the runtime policy `reviewProfile` (default `lean`) for context packs; do not upgrade to `standard` or `thorough` unless the human asks or the budget gate requires escalation. DA prompt includes "at most 8 tool calls; read the diff file; skip css and generated files". Judge prompt includes "at most 4 tool calls; ledger and contract only; skip css; do not re-review the whole diff". `generate-workflow` still reads workflow.md and lessons.md; missing maker_intern means INVOCATION_UNAVAILABLE. Do not type a model name.
-
-1. Stage 0: check `npx ai-engineering-loop status`, then run `npx ai-engineering-loop run [--mode report-only|assisted|unattended]` to create or resume the ledger. Do not run `sync-hosts` per run; if `status` says host skills are STALE, tell the user to run `sync-hosts` and start a new session, then continue. Run `state --json` and `budget status`. Read glossary, lessons, and workflow overlays. Required gates cannot be skipped.
-2. Stage 1: grill ambiguous decisions and business blast radius first. Emit `npx ai-engineering-loop activity goal-drafting --run <runId> --message <summary>`. Write the Goal Contract JSON to a repository-local temporary file, then publish it with `npx ai-engineering-loop goal draft --run <runId> --file <file> --revision <currentRevision>` so Workflow Studio sees it and its ready state. Wait. Chat agreement is not freeze. After explicit human freeze, use `npx ai-engineering-loop goal freeze --run <runId> --revision <reviewedRevision> --hash <reviewedHash> --by human`; do not edit production code unless it passes. `gate goal` remains the legacy compatibility command, not the preferred revision-bound path.
-3. After Goal freeze, branch on mode. REPORT_ONLY: never edit repository files; write `RUN_DIR/report.json`, run `gate report`, and stop. ASSISTED: use the normal Maker. UNATTENDED: run `sandbox create --run <runId>`, run Maker only in the returned worktreePath, never edit the parent checkout, then run `sandbox capture --run <runId>`. Resolve maker_intern only through the host catalog; otherwise parent is Maker. Intern cannot skip gates. Use red repro or TDD. ASSISTED writes `RUN_DIR/diff.patch`; UNATTENDED capture writes it. After package/manifest edits are stable, run `npx ai-engineering-loop refresh` once; drift during red-green is expected, so avoid refreshing after each test cycle. Then run `npx ai-engineering-loop gate maker`.
-4. Stage 5: record each verification command with `npx ai-engineering-loop verification record --run <runId> -- <executable> [args...]`. It runs without a shell by default, captures bounded/redacted output, binds evidence to the gated diff, writes `RUN_DIR/verification.json`, and updates the summary. Use `--shell -- "command"` only when shell syntax is required. Failed commands are recorded and return non-zero; they cannot pass the gate. Run `npx ai-engineering-loop context compact --run <runId>` and pass run-summary.md and verification-summary.json to reviewers instead of raw logs whenever possible. Use `npx ai-engineering-loop context claimed-vs-reality --run <runId>` to scaffold AC rows from the frozen Goal, then fill both columns from real changes and command output. For hand-authored artifacts, `npx ai-engineering-loop scaffold verification --run <runId>` (or `findings` / `delivery`) creates an incomplete `.template.json`; edit it into the real artifact, remove `_templateOnly`, then use `npx ai-engineering-loop validate <repository-relative-file>` for diagnostics. Templates are never evidence. Run `npx ai-engineering-loop gate verification`; do not spawn DA unless it passes.
-5. Write artifacts, then spawn. Before Devil's Advocate:
-   - Write `git diff` to a file (for example `.ai-engineering-loop/tasks/current.diff`).
-   - Write changed paths (`git diff --name-only`) into the child prompt as a short list.
-   - Put those paths in the child prompt. Do not paste Maker rationale.
-   - Write `.ai-engineering-loop/tasks/claimed-vs-reality.md` if missing. Do not spawn DA without it.
-   - If stopping mid-loop, write `.ai-engineering-loop/tasks/handoff.md` (`docs handoff-policy`).
-6. Stage 6: Run `npx ai-engineering-loop context fast-path --json`; keep the default lean path when eligible. Build `npx ai-engineering-loop context diff-hunks --run <runId>`, then `context devil-advocate <files...>` only when hunks are insufficient. Use unresolved findings and new hunks instead of replaying accepted old findings. Spawn DA with the pack path, wait, and `budget record` its usage (or `--unavailable`). Normalize its output into `RUN_DIR/findings.json` with runId and diffHash, then run `npx ai-engineering-loop gate review`.
-7. Stage 7: Run `npx ai-engineering-loop escalation --json`, resolve the required tier through the host catalog, or escalate to the user. Build Judge context from only run-summary.md, verification-summary.json (or verification.json if the summary is missing), open-findings.json/findings.json, and the Goal hash; Judge must not read the full diff unless those summaries contradict each other. Spawn Judge, wait, and `budget record` its usage (or `--unavailable`). Write `RUN_DIR/verdict.json` with modelTier, then run `npx ai-engineering-loop gate judge`.
-8. ITERATE with iteration under 3: fix in the parent, re-verify, spawn a **new** Devil's Advocate.
-9. After Judge PASS: run after_pass, then the configured Stage 8 adapter. PR/MR body includes `Steps to Reproduce & Testing (QA)`; bugfix placeholders must not stay empty. Preview remote payloads and never include context packs, usage ledgers, raw logs, or credentials. In ASSISTED, wait for explicit human approval and put `humanApproved: true` in `RUN_DIR/delivery.json`; never infer it. For recipe-bound Runs, check `node status --run <runId>` and explicitly approve every READY approval prerequisite (for example `node approve delivery-approval --yes --by <name> --run <runId>`). Then run `npx ai-engineering-loop gate delivery`; follow actionable prerequisite hints if the gate says the delivery node is not READY.
+Invariants (every tier):
+- AC is a failure table. Do not freeze sunny-path-only. Chat agreement is not freeze.
+- One red test per AC row (bugs: red repro) before the fix.
+- Write claimed-vs-reality.md after `gate verification` passes. Do not spawn Devil's Advocate if the file is missing or any Claimed row lacks Reality.
+- ITERATE at most to iteration 3, each with a **new** DA.
+- Never infer human approval.
+- After each child `budget record` real usage or `--unavailable`; never invent counts.
+- No secrets or hidden reasoning in activity messages.
 
 ## Report header
 
@@ -64,7 +51,7 @@ Native Subagent Invocation: AVAILABLE
 Review Method: True Independent Agent
 ```
 
-When no subagent tool exists:
+When no subagent ran:
 
 ```
 Execution Mode: CONTEXT_ISOLATION_ONLY

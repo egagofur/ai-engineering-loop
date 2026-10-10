@@ -65,6 +65,30 @@ npx ai-engineering-loop verification record --run <run-id> -- npm test
 
 The command captures bounded, redacted output without invoking a shell implicitly, records failures honestly, and generates a compact test summary. For other stage artifacts, use `scaffold delivery --run <run-id>` (or `verification` / `findings`) to create a private, deliberately incomplete template. Copy or rename it to the gate's real artifact filename, fill it with observed evidence, and remove `_templateOnly`; then `validate <repository-relative-file>` reports schema and Run-binding issues without advancing a gate. Templates are never accepted as evidence. `context claimed-vs-reality --run <run-id>` creates the Goal checklist while leaving claim and evidence cells blank.
 
+Common stage sequences also have one-call forms that gate exactly like the long forms:
+
+```bash
+npx ai-engineering-loop verify --run <run-id> --cmd "npm test"          # record (parallel), gate, compact, claimed-vs-reality
+npx ai-engineering-loop review-pack --run <run-id> --json               # fast-path + diff-hunk pack + escalation floor
+npx ai-engineering-loop deliver --run <run-id> --destination pr --summary "..." --approve --by <name>
+```
+
+`deliver` refuses without `--approve` in ASSISTED mode; pass it only after a human approved delivery.
+
+Contributors: the host `ai-engineering-loop` skills are generated. Edit `skill-src/ai-engineering-loop/`, then run `npm run build:skills` (CI checks for drift with `npm run check:skills`). `npm run measure` reports per-tier context and tool calls.
+
+### Staying up to date
+
+`run`, `status`, `init`, and `refresh` check npm in the background at most once a day; the command never waits. What happens next depends on your policy:
+
+```bash
+npx ai-engineering-loop update policy minor   # off | notify | patch | minor | all (majors are always notice-only)
+npx ai-engineering-loop projects list         # projects refreshed after an update (scan: projects scan --root ~/Development)
+npx ai-engineering-loop update rollback --yes
+```
+
+Global installs apply patch and minor releases automatically. They then re-sync host skills and refresh every registered project, keeping your edits (new templates arrive as `*.ael-new`). Project installs only show a short notice (current -> latest, a few changelog highlights, the exact `npm`/`pnpm`/`yarn`/`bun` command, how to silence it), at most once a day per project, because AEL never edits your `package.json`. Projects from versions before hash tracking are overwritten on their first update, with the old files kept in `.ai-engineering-loop/.ael-backup/` and restored by `update rollback`. Major updates run `migrate --from <old>` after install. Opt out with `AEL_NO_AUTO_UPDATE=1`; CI is always off. There is no daemon, so other machines pick up an update the next time the CLI runs there.
+
 When context packs exceed their budget, the CLI now reports the limit and a per-file size/token estimate so an agent can choose smaller files without trial and error. For a delivery gate blocked by a recipe approval node, inspect `node status --run <run-id>` and explicitly approve the READY prerequisite; the gate error points to the actionable command.
 
 ## Meet Workflow Studio
@@ -145,6 +169,7 @@ The project includes ready-to-use skills and reviewer roles for supported hosts.
 ```bash
 npx ai-engineering-loop sync-hosts --pack backend         # framework-agnostic backend best practices
 npx ai-engineering-loop sync-hosts --pack backend,design  # plus Emil Kowalski's MIT-licensed design/animation skills
+npx ai-engineering-loop sync-hosts --pack quality         # ael-code-simplifier + ael-receiving-code-review (opt-in)
 npx ai-engineering-loop sync-hosts --pack core --prune    # drop unmodified optional-pack files again
 ```
 

@@ -57,8 +57,10 @@ const {
   updatePolicy
 } = require('../lib/runtime-policy.js');
 const {
-  applyGate
+  applyGate,
+  judgeRequirement
 } = require('../lib/gates.js');
+const { initialTierState } = require('../lib/tier.js');
 const {
   createContextPack,
   contextPackSummary
@@ -88,6 +90,7 @@ const {
   writeVerificationSummary
 } = require('../lib/verification-summary.js');
 const {
+  recordVerificationCommands,
   recordVerificationCommand
 } = require('../lib/verification-recorder.js');
 const {
@@ -102,8 +105,11 @@ const {
 } = require('../lib/doctor.js');
 const {
   checkForUpdate,
+  detectInstallScope,
   executeUpdatePlan
 } = require('../lib/update-manager.js');
+const autoUpdate = require('../lib/auto-update.js');
+const projectRegistry = require('../lib/project-registry.js');
 const {
   assertBudgetAvailable,
   budgetStatus,
@@ -186,13 +192,148 @@ const REQUIRED_FILES = [
   'adrs/README.md'
 ];
 
+// Non-destructive mode (issue #37, `refresh --non-destructive`): a context file
+// is overwritten only if it still matches what AEL last generated (hash in
+// .ael-generated.json) or is package-owned; otherwise the new template goes to
+// `<file>.ael-new` and the user's file is left alone.
+// Legacy projects (no .ael-generated.json yet, decision 5 on #37): the first
+// such refresh overwrites AEL-managed files directly and deletes obsolete
+// AEL-managed files, after copying the old content into a snapshot under
+// .ai-engineering-loop/.ael-backup/<timestamp>/. Hashes are recorded so later
+// refreshes use the normal flow. Only paths this writer generates (or lists in
+// OBSOLETE_CONTEXT_FILES) are touched; files written with overwrite:false
+// (lessons, glossary, ...) and every other user file are left alone.
+let CONTEXT_WRITE_SAFE = false;
+let CONTEXT_WRITE_LEGACY = null; // { root, snapshotDir } during a legacy refresh
+const CONTEXT_WRITE_REPORT = { updated: [], aelNew: [], kept: [], seen: new Set(), snapshot: [], removed: [], obsoleteKept: [] };
+const PACKAGE_OWNED_CONTEXT = new Set(['metadata.json']);
+// Context files older AEL versions generated and this one no longer does
+// (relative to .ai-engineering-loop/). Deleted on the first legacy refresh.
+const OBSOLETE_CONTEXT_FILES = Object.freeze([]);
+const GENERATED_HASHES_FILE = '.ael-generated.json';
+
+function generatedHashesPath(filePath) {
+  return path.join(path.dirname(filePath), GENERATED_HASHES_FILE);
+}
+
+function readGeneratedHashes(filePath) {
+  try {
+    return JSON.parse(fs.readFileSync(generatedHashesPath(filePath), 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
+function writeGeneratedHashes(filePath, hashes) {
+  try {
+    fs.writeFileSync(generatedHashesPath(filePath), `${JSON.stringify(hashes, null, 2)}\n`);
+  } catch {
+    // Best effort.
+  }
+}
+
+function recordGeneratedHash(filePath, content) {
+  const hashes = readGeneratedHashes(filePath);
+  hashes[path.basename(filePath)] = require('crypto').createHash('sha256').update(content).digest('hex');
+  writeGeneratedHashes(filePath, hashes);
+}
+
+function sha256Text(content) {
+  return require('crypto').createHash('sha256').update(content).digest('hex');
+}
+
+function snapshotContextFile(filePath) {
+  if (!CONTEXT_WRITE_LEGACY || !fs.existsSync(filePath)) return;
+  const rel = path.relative(CONTEXT_WRITE_LEGACY.root, filePath);
+  if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return;
+  const dest = path.join(CONTEXT_WRITE_LEGACY.snapshotDir, rel);
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.copyFileSync(filePath, dest);
+  CONTEXT_WRITE_REPORT.snapshot.push(rel.split(path.sep).join('/'));
+}
+
 function writeContextFile(filePath, content, { overwrite = true } = {}) {
+  CONTEXT_WRITE_REPORT.seen.add(path.resolve(filePath));
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   if (!overwrite && fs.existsSync(filePath) && fs.statSync(filePath).size > 0) {
     return false;
   }
+  const name = path.basename(filePath);
+  if (CONTEXT_WRITE_SAFE && fs.existsSync(filePath) && !PACKAGE_OWNED_CONTEXT.has(name)) {
+    const current = fs.readFileSync(filePath, 'utf8');
+    if (current === content) {
+      CONTEXT_WRITE_REPORT.kept.push(name);
+      recordGeneratedHash(filePath, content);
+      return false;
+    }
+    if (CONTEXT_WRITE_LEGACY) {
+      snapshotContextFile(filePath);
+    } else if (readGeneratedHashes(filePath)[name] !== sha256Text(current)) {
+      fs.writeFileSync(`${filePath}.ael-new`, content);
+      CONTEXT_WRITE_REPORT.aelNew.push(`${name}.ael-new`);
+      return false;
+    }
+  }
   fs.writeFileSync(filePath, content);
+  recordGeneratedHash(filePath, content);
+  if (CONTEXT_WRITE_SAFE) CONTEXT_WRITE_REPORT.updated.push(name);
   return true;
+}
+
+// After a non-destructive refresh: remove AEL-managed files this version no
+// longer generates. Normal flow: only files whose recorded hash still matches
+// (edited ones are reported and kept). Legacy flow: OBSOLETE_CONTEXT_FILES,
+// snapshotted first.
+function removeObsoleteContextFiles(contextDir) {
+  const root = path.resolve(contextDir);
+  const candidates = new Map();
+  const hashDirs = [root];
+  try {
+    for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+      if (entry.isDirectory() && !entry.name.startsWith('.') && fs.existsSync(path.join(root, entry.name, GENERATED_HASHES_FILE))) {
+        hashDirs.push(path.join(root, entry.name));
+      }
+    }
+  } catch {
+    return;
+  }
+  for (const dir of hashDirs) {
+    const hashes = readGeneratedHashes(path.join(dir, 'x'));
+    for (const [name, hash] of Object.entries(hashes)) {
+      if (!/^[\w.-]+$/.test(name) || name.startsWith('.')) continue;
+      candidates.set(path.join(dir, name), { hash, dir, name });
+    }
+  }
+  if (CONTEXT_WRITE_LEGACY) {
+    for (const rel of OBSOLETE_CONTEXT_FILES) {
+      const abs = path.resolve(root, rel);
+      if (abs.startsWith(root + path.sep)) candidates.set(abs, { hash: null, dir: path.dirname(abs), name: path.basename(abs), legacy: true });
+    }
+  }
+  for (const [abs, info] of candidates) {
+    if (CONTEXT_WRITE_REPORT.seen.has(abs)) continue;
+    const rel = path.relative(root, abs).split(path.sep).join('/');
+    let stat;
+    try {
+      stat = fs.lstatSync(abs);
+    } catch {
+      stat = null;
+    }
+    if (stat && stat.isFile()) {
+      if (!info.legacy && sha256Text(fs.readFileSync(abs)) !== info.hash) {
+        CONTEXT_WRITE_REPORT.obsoleteKept.push(rel);
+        continue;
+      }
+      snapshotContextFile(abs);
+      fs.unlinkSync(abs);
+      CONTEXT_WRITE_REPORT.removed.push(rel);
+    }
+    const hashes = readGeneratedHashes(path.join(info.dir, 'x'));
+    if (Object.hasOwn(hashes, info.name)) {
+      delete hashes[info.name];
+      writeGeneratedHashes(path.join(info.dir, 'x'), hashes);
+    }
+  }
 }
 
 function ignoreProjectContextOnFirstInit(rootDir) {
@@ -521,6 +662,7 @@ ${discovery.topLevelDirs.map((d) => `- \`${d}/\``).join('\n') || '- Flat directo
 ${discovery.scripts.e2e ? `- **e2e**: \`${discovery.scripts.e2e}\`` : ''}
 
 ## Verification Protocol
+- Default order, cheapest first, stop at the first failure: build -> typecheck -> lint -> test_unit -> security scan (for example \`npm audit --omit=dev\`) -> e2e (optional).
 - 100% deterministic checks must pass before Devil's Advocate review.
 - Unit tests must cover boundary cases, null safety, and error paths.
 `;
@@ -819,6 +961,10 @@ function handleStatus() {
 
 // Command: refresh
 function handleRefresh() {
+  if (process.argv.includes('--non-destructive')) {
+    handleSafeRefresh();
+    return;
+  }
   log.info('AI Engineering Loop — Context Drift Refresh (refresh)');
   log.dim(`Target directory: ${CWD}`);
 
@@ -926,8 +1072,23 @@ function detectGrokHost() {
   }
 }
 
+function workingTreePaths(rootDir) {
+  try {
+    return execSync('git status --porcelain --untracked-files=all', { cwd: rootDir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+      .split('\n')
+      .map((line) => line.slice(3).trim())
+      .filter((line) => line && !line.startsWith('.ai-engineering-loop/'))
+      .map((line) => line.includes(' -> ') ? line.split(' -> ').pop() : line);
+  } catch (e) {
+    return [];
+  }
+}
+
 // Command: run
 function handleRun() {
+  const runJson = process.argv.includes('--json');
+  const realLog = console.log;
+  if (runJson) console.log = () => {};
   log.info('AI Engineering Loop — Task Execution Entrypoint (run)');
 
   if (!fs.existsSync(CONTEXT_DIR)) {
@@ -941,14 +1102,12 @@ function handleRun() {
   const forceNew = runArgs.includes('--new');
   const modeArg = argValue('--mode');
   const recipeArg = argValue('--recipe');
+  const tierArg = argValue('--tier');
+  const tierReasonArg = argValue('--tier-reason');
   const taskParts = [];
   for (let index = 0; index < runArgs.length; index++) {
-    if (runArgs[index] === '--new') continue;
-    if (runArgs[index] === '--mode') {
-      index += 1;
-      continue;
-    }
-    if (runArgs[index] === '--recipe') {
+    if (runArgs[index] === '--new' || runArgs[index] === '--json') continue;
+    if (['--mode', '--recipe', '--tier', '--tier-reason'].includes(runArgs[index])) {
       index += 1;
       continue;
     }
@@ -994,19 +1153,63 @@ function handleRun() {
       }
     }
     if (mode) assertModeAllowed(CWD, mode);
+    const tier = startsNewRun
+      ? initialTierState({ task, changedPaths: workingTreePaths(CWD), override: tierArg, overrideReason: tierReasonArg })
+      : null;
+    if (!startsNewRun && tierArg) throw new Error('--tier applies only when a new run starts (use --new).');
     runResult = createOrResumeRun(CWD, {
       task,
       forceNew,
       mode,
       workflow,
+      tier,
       ...(requestedRunId ? { runId: requestedRunId } : {})
     });
     assertBudgetAvailable(CWD, { runId: runResult.run.runId });
   } catch (err) {
+    console.log = realLog;
+    if (runJson) {
+      realLog(JSON.stringify({ ok: false, code: err.code || 'RUN_FAILED', error: err.message }));
+      process.exit(1);
+    }
     log.error(err.message);
     process.exit(1);
   }
+  if (runJson) {
+    console.log = realLog;
+    const run = runResult.run;
+    console.log(JSON.stringify({
+      ok: true,
+      runId: run.runId,
+      resumed: runResult.resumed,
+      state: run.state,
+      iteration: run.iteration,
+      mode: run.mode || RUN_MODES.ASSISTED,
+      tier: run.tier ? run.tier.current : null,
+      tierSource: run.tier ? run.tier.source : null,
+      tierReasons: run.tier ? run.tier.reasons : [],
+      subagents: run.tier ? { T0: 0, T1: 1, T2: 2 }[run.tier.current] : 2,
+      recipe: run.workflow ? run.workflow.recipeId : null,
+      budget: (() => {
+        try {
+          const b = budgetStatus(CWD, { runId: run.runId });
+          return { allowed: b.allowed, spentThisRun: b.spentThisRun, warnings: b.warnings || [] };
+        } catch (e) {
+          return { allowed: false, error: e.message };
+        }
+      })(),
+      hostSkills: (() => {
+        const h = hostSkillStatus({ home: homeDir(), version: VERSION });
+        return { stale: h.stale, staleFiles: h.staleFiles, installedVersion: h.installedVersion, packageVersion: VERSION };
+      })()
+    }, null, 2));
+    return;
+  }
   console.log(`- Run: ${runResult.run.runId} (${runResult.resumed ? 'resumed' : 'created'})`);
+  if (runResult.run.tier) {
+    const t = runResult.run.tier;
+    console.log(`- Tier: ${t.current} (${t.source}; ${t.reasons.map((r) => r.code).join(', ')})`);
+  }
   console.log(`- State: ${runResult.run.state}, iteration ${runResult.run.iteration}`);
   console.log(`- Mode: ${runResult.run.mode || RUN_MODES.ASSISTED}`);
   if (runResult.run.workflow) {
@@ -1030,8 +1233,17 @@ function handleRun() {
     console.log('2. Root Cause Analysis (docs root-cause-analysis) & Plan');
     console.log('3. Maker TDD at named seams (docs tdd-policy)');
     console.log('4. Run Deterministic Verification');
-    console.log('5. Execute Devil\'s Advocate Adversarial Review');
-    console.log('6. Judge Agent evaluates DoD and issues PASS verdict');
+    const tierNow = runResult.run.tier ? runResult.run.tier.current : null;
+    if (tierNow === 'T0') {
+      console.log('5. T0: no Devil\'s Advocate. Fill claimed-vs-reality, then `gate review` (CLI writes the empty ledger)');
+      console.log('6. T0: `gate judge` writes the deterministic verdict (no Judge subagent)');
+    } else if (tierNow === 'T1') {
+      console.log('5. Execute lean Devil\'s Advocate review, then `gate review --json`');
+      console.log('6. Judge subagent only if `gate review` says judgeRequired; otherwise `gate judge` is deterministic');
+    } else {
+      console.log('5. Execute Devil\'s Advocate Adversarial Review');
+      console.log(`6. Judge Agent evaluates DoD and issues PASS verdict${tierNow === 'T2' ? ' (STRONG_MODEL required)' : ''}`);
+    }
     console.log('7. Context Impact Assessment (NONE / TARGETED / MAJOR)');
     console.log('8. Delivery Adapter creates MR/PR');
     if (runResult.run.mode === RUN_MODES.ASSISTED) {
@@ -1356,6 +1568,69 @@ function handleArtifactTool(action) {
   }
 }
 
+// Shared by `gate` and the combined stage commands (issue #34) so both paths
+// publish identical workflow-node and Studio lifecycle events.
+function executeGate(gate, runId) {
+  const target = runId ? loadRun(CWD, runId) : getCurrentRun(CWD);
+  if (!target) throw new Error('No current run. Start one with `ai-engineering-loop run`.');
+  listRunLifecycle(CWD, target.runId);
+  let lifecycleNode = null;
+  if (target.workflow) {
+    const workflow = workflowStatus(CWD, { runId: target.runId });
+    lifecycleNode = workflow.plan.nodes.find((node) => node.legacyGate === gate) || null;
+    if (lifecycleNode && workflow.state.nodes[lifecycleNode.id].status === 'READY') {
+      startWorkflowNode(CWD, lifecycleNode.id, { runId: target.runId });
+      appendRunLifecycle(CWD, target.runId, {
+        type: 'NODE_STARTED',
+        nodeId: lifecycleNode.id,
+        phase: gate,
+        actor: 'agent',
+        message: `${lifecycleNode.displayName || lifecycleNode.id} started`
+      });
+    }
+  }
+  const run = target.workflow
+    ? applyWorkflowGate(CWD, gate, { runId: target.runId }).run
+    : applyGate(CWD, gate, { runId: target.runId });
+  const runCompleted = run.state === 'DELIVERED' || run.state === 'REPORTED';
+  appendRunLifecycle(CWD, target.runId, {
+    type: runCompleted
+      ? 'RUN_COMPLETED'
+      : (lifecycleNode ? 'NODE_COMPLETED' : 'PHASE_COMPLETED'),
+    ...(!runCompleted && lifecycleNode ? { nodeId: lifecycleNode.id } : {}),
+    phase: gate,
+    actor: 'agent',
+    status: 'PASSED',
+    message: `${lifecycleNode?.displayName || gate} completed`
+  });
+  return run;
+}
+
+// `gate maker --from-git` (issue #35): write the working-tree diff (tracked and
+// untracked files, excluding .ai-engineering-loop/) to RUN_DIR/diff.patch so the
+// agent does not need a separate write step. ASSISTED/REPORT_ONLY only;
+// UNATTENDED diffs come from `sandbox capture`.
+function captureMakerDiff(run) {
+  if (run.mode === 'UNATTENDED') throw new Error('--from-git is not allowed in UNATTENDED; use `sandbox capture`.');
+  const { execFileSync } = require('child_process');
+  const exclude = ':(exclude).ai-engineering-loop';
+  const git = (args, allowExit1 = false) => {
+    try {
+      return execFileSync('git', args, { cwd: CWD, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
+    } catch (e) {
+      if (allowExit1 && e.status === 1) return e.stdout;
+      throw e;
+    }
+  };
+  let diff = git(['diff', '--binary', 'HEAD', '--', '.', exclude]);
+  const untracked = git(['ls-files', '--others', '--exclude-standard', '-z', '--', '.', exclude]).split('\0').filter(Boolean);
+  for (const file of untracked) diff += git(['diff', '--binary', '--no-index', '--', '/dev/null', file], true);
+  if (!diff.trim()) throw new Error('--from-git found no changes against HEAD.');
+  const target = path.join(CWD, '.ai-engineering-loop', 'runs', run.runId, 'diff.patch');
+  fs.writeFileSync(target, diff);
+  return { path: path.relative(CWD, target).split(path.sep).join('/'), files: untracked.length };
+}
+
 function handleGate() {
   const gate = process.argv[3];
   const runId = argValue('--run');
@@ -1365,48 +1640,32 @@ function handleGate() {
     const target = runId ? loadRun(CWD, runId) : getCurrentRun(CWD);
     if (!target) throw new Error('No current run. Start one with `ai-engineering-loop run`.');
     targetRunId = target.runId;
-    listRunLifecycle(CWD, target.runId);
-    let lifecycleNode = null;
-    if (target.workflow) {
-      const workflow = workflowStatus(CWD, { runId: target.runId });
-      lifecycleNode = workflow.plan.nodes.find((node) => node.legacyGate === gate) || null;
-      if (lifecycleNode && workflow.state.nodes[lifecycleNode.id].status === 'READY') {
-        startWorkflowNode(CWD, lifecycleNode.id, { runId: target.runId });
-        appendRunLifecycle(CWD, target.runId, {
-          type: 'NODE_STARTED',
-          nodeId: lifecycleNode.id,
-          phase: gate,
-          actor: 'agent',
-          message: `${lifecycleNode.displayName || lifecycleNode.id} started`
-        });
-      }
+    if (process.argv.includes('--from-git')) {
+      if (gate !== 'maker') throw new Error('--from-git only applies to `gate maker`.');
+      captureMakerDiff(target);
     }
-    const run = target.workflow
-      ? applyWorkflowGate(CWD, gate, { runId: target.runId }).run
-      : applyGate(CWD, gate, { runId: target.runId });
-    const runCompleted = run.state === 'DELIVERED' || run.state === 'REPORTED';
-    appendRunLifecycle(CWD, target.runId, {
-      type: runCompleted
-        ? 'RUN_COMPLETED'
-        : (lifecycleNode ? 'NODE_COMPLETED' : 'PHASE_COMPLETED'),
-      ...(!runCompleted && lifecycleNode ? { nodeId: lifecycleNode.id } : {}),
-      phase: gate,
-      actor: 'agent',
-      status: 'PASSED',
-      message: `${lifecycleNode?.displayName || gate} completed`
-    });
+    const run = executeGate(gate, target.runId);
+    const judge = gate === 'review' && run.tier ? judgeRequirement(CWD, run) : null;
     if (json) {
       console.log(JSON.stringify({
         ok: true,
         runId: run.runId,
         state: run.state,
         iteration: run.iteration,
-        gate
+        gate,
+        ...(run.tier ? { tier: run.tier.current } : {}),
+        ...(judge ? { judgeRequired: judge.required, judgeReasons: judge.reasons } : {})
       }));
     } else {
       log.success(`✓ ${gate} gate passed`);
       console.log(`- Run: ${run.runId}`);
       console.log(`- State: ${run.state}, iteration ${run.iteration}`);
+      if (run.tier) console.log(`- Tier: ${run.tier.current}`);
+      if (judge) {
+        console.log(judge.required
+          ? `- Judge: REQUIRED (${judge.reasons.join('; ')}). Spawn the Judge subagent, write verdict.json, then gate judge.`
+          : '- Judge: not required. Run "gate judge" now; the CLI writes the deterministic verdict.');
+      }
     }
   } catch (err) {
     const retryHint = targetRunId && gate && err.code === 'GATE_FAILED'
@@ -1775,8 +2034,260 @@ function printUpdatePlan(plan) {
   for (const item of plan.commands) console.log(item.display);
 }
 
+// Used by auto-update for every registered project: regenerate context with
+// user-edited files preserved (new templates land in *.ael-new).
+function handleSafeRefresh() {
+  if (!fs.existsSync(CONTEXT_DIR)) {
+    log.error('No .ai-engineering-loop/ here; run init first.');
+    process.exit(1);
+  }
+  const current = getCurrentRun(CWD);
+  if (current && !TERMINAL_STATES.has(current.state)) {
+    log.warn(`Run ${current.runId} is active (${current.state}); skipping refresh until it finishes.`);
+    process.exit(3);
+  }
+  const legacy = !fs.existsSync(path.join(CONTEXT_DIR, GENERATED_HASHES_FILE));
+  if (legacy) {
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    CONTEXT_WRITE_LEGACY = { root: path.resolve(CONTEXT_DIR), snapshotDir: path.join(CONTEXT_DIR, '.ael-backup', stamp) };
+  }
+  CONTEXT_WRITE_SAFE = true;
+  const discovery = analyzeRepository(CWD);
+  generateContextFiles(CWD, discovery, 'refresh', 'PACKAGE_UPDATE', { overwriteCore: true });
+  removeObsoleteContextFiles(CONTEXT_DIR);
+  CONTEXT_WRITE_SAFE = false;
+  let snapshot = null;
+  if (CONTEXT_WRITE_LEGACY && CONTEXT_WRITE_REPORT.snapshot.length) {
+    snapshot = path.relative(CWD, CONTEXT_WRITE_LEGACY.snapshotDir).split(path.sep).join('/');
+    fs.writeFileSync(path.join(CONTEXT_WRITE_LEGACY.snapshotDir, 'snapshot.json'), `${JSON.stringify({
+      schemaVersion: 1,
+      reason: 'LEGACY_FIRST_UPDATE',
+      version: VERSION,
+      at: new Date().toISOString(),
+      files: CONTEXT_WRITE_REPORT.snapshot,
+      removed: CONTEXT_WRITE_REPORT.removed
+    }, null, 2)}\n`);
+  }
+  CONTEXT_WRITE_LEGACY = null;
+  const report = {
+    ok: true,
+    mode: legacy ? 'legacy-first-update' : 'hash-checked',
+    updated: CONTEXT_WRITE_REPORT.updated,
+    aelNew: CONTEXT_WRITE_REPORT.aelNew,
+    unchanged: CONTEXT_WRITE_REPORT.kept,
+    removed: CONTEXT_WRITE_REPORT.removed,
+    obsoleteKept: CONTEXT_WRITE_REPORT.obsoleteKept,
+    snapshot
+  };
+  if (process.argv.includes('--json')) console.log(JSON.stringify(report));
+  else {
+    log.success('✓ Context refreshed non-destructively.');
+    if (legacy) console.log(`- First update of a legacy project: AEL-managed files overwritten${snapshot ? `; previous copies in ${snapshot}` : ''}.`);
+    if (report.removed.length) console.log(`- Removed obsolete AEL files: ${report.removed.join(', ')}`);
+    if (report.aelNew.length) console.log(`- Kept your edits; review new templates: ${report.aelNew.join(', ')}`);
+    if (report.obsoleteKept.length) console.log(`- Obsolete but edited (kept): ${report.obsoleteKept.join(', ')}`);
+  }
+}
+
+function readCurrentRunFor(dir) {
+  const run = getCurrentRun(dir);
+  return run ? { ...run, terminal: TERMINAL_STATES.has(run.state) } : null;
+}
+
+function expectedRepository() {
+  const repo = require('../package.json').repository;
+  return repo && typeof repo === 'object' ? repo.url : repo || null;
+}
+
+// Decision 1 on #37: a short, useful notice, at most once a day per project,
+// interactive stderr only (never CI or --json).
+function showUpdateNotice(cache, decision, policy) {
+  const notice = require('../lib/update-notice.js');
+  if (!notice.noticeAllowed()) return;
+  const projectKey = path.resolve(process.cwd());
+  if (!notice.noticeDue(cache, projectKey)) return;
+  const packageRoot = path.join(__dirname, '..');
+  const scope = cache.scope || detectInstallScope(packageRoot);
+  const manager = scope === 'global' ? notice.detectGlobalPackageManager(packageRoot) : notice.detectPackageManager(projectKey);
+  const cached = cache.highlights;
+  const highlights = cached && cached.target === decision.target && cached.from === VERSION ? cached.items || [] : [];
+  process.stderr.write(`${notice.formatNotice({
+    packageName: require('../package.json').name,
+    current: VERSION,
+    target: decision.target,
+    bump: decision.bump,
+    scope,
+    manager,
+    highlights,
+    policy: policy.policy,
+    reason: decision.reason
+  })}\n`);
+  const userState = require('../lib/user-state.js');
+  userState.writeJsonFile(userState.userStatePath('update-check.json'), notice.markNoticeShown(cache, projectKey, decision.target));
+}
+
+// Background only: cache 2-4 CHANGELOG highlights for current -> target.
+async function cacheUpdateHighlights(cache, decision, packageName) {
+  if (!decision.target || decision.action === 'none') return;
+  if (cache.highlights && cache.highlights.target === decision.target && cache.highlights.from === VERSION) return;
+  const notice = require('../lib/update-notice.js');
+  const slug = (String(expectedRepository() || '').match(/github\.com[/:]([^/]+\/[^/.]+)/) || [])[1] || null;
+  const text = await notice.fetchChangelog({ packageName, target: decision.target, repositorySlug: slug });
+  if (!text) return;
+  const items = notice.changelogHighlights(text, { current: VERSION, target: decision.target });
+  const userState = require('../lib/user-state.js');
+  const latest = autoUpdate.readCache() || cache;
+  userState.writeJsonFile(userState.userStatePath('update-check.json'), { ...latest, highlights: { from: VERSION, target: decision.target, items } });
+}
+
+// Foreground hook for run/status/init/refresh. Never blocks and never throws:
+// prints a pending summary or notice to stderr and, when the cache is stale or
+// an update is due, starts `update auto --background` detached.
+function maybeAutoUpdate() {
+  try {
+    if (!autoUpdate.autoUpdateAllowedHere()) return;
+    const summary = autoUpdate.consumeSummary();
+    if (summary) process.stderr.write(`${summary}\n`);
+    const policy = autoUpdate.resolvePolicy();
+    if (policy.policy === 'off') return;
+    const cache = autoUpdate.readCache();
+    if (autoUpdate.cacheStale(cache)) {
+      autoUpdate.spawnBackgroundCheck({ cliPath: __filename });
+      return;
+    }
+    const state = autoUpdate.readState();
+    const decision = autoUpdate.decideUpdate({ current: VERSION, distTags: cache.distTags, ...policy });
+    const applyInBackground = decision.action === 'apply' && cache.scope === 'global';
+    if (applyInBackground || (state.pendingProjects || []).length) {
+      autoUpdate.spawnBackgroundCheck({ cliPath: __filename });
+    }
+    if (!applyInBackground && decision.action !== 'none') showUpdateNotice(cache, decision, policy);
+  } catch {
+    // Auto-update must never break a command.
+  }
+}
+
+// `update auto [--background] [--force] [--json]`: check (cached 24 h), decide,
+// and apply under the user's policy; also retries projects left pending.
+function handleUpdateAuto() {
+  const json = process.argv.includes('--json');
+  const background = process.argv.includes('--background');
+  const packageName = require('../package.json').name;
+  const policy = autoUpdate.resolvePolicy();
+  const out = (value) => {
+    if (!background) console.log(json ? JSON.stringify(value) : JSON.stringify(value, null, 2));
+  };
+  if (policy.policy === 'off' && !process.argv.includes('--force')) {
+    out({ ok: true, action: 'none', reason: `POLICY_OFF (${policy.source})` });
+    return;
+  }
+  let cache = autoUpdate.readCache();
+  if (autoUpdate.cacheStale(cache) || process.argv.includes('--force')) cache = autoUpdate.refreshCache({ packageName });
+  const scope = detectInstallScope(path.join(__dirname, '..'));
+  try {
+    require('../lib/user-state.js').writeJsonFile(require('../lib/user-state.js').userStatePath('update-check.json'), { ...cache, scope });
+  } catch {
+    // Best effort.
+  }
+  const decision = autoUpdate.decideUpdate({ current: VERSION, distTags: cache.distTags, ...policy });
+  const projects = projectRegistry.listProjects().projects;
+  let result = null;
+  if (decision.action === 'apply') {
+    result = autoUpdate.applyUpdate({
+      packageName,
+      current: VERSION,
+      target: decision.target,
+      scope,
+      projects,
+      readCurrentRun: readCurrentRunFor,
+      expectedRepository: expectedRepository()
+    });
+  } else {
+    result = autoUpdate.processPending({ projects, readCurrentRun: readCurrentRunFor });
+  }
+  out({ ok: true, policy: policy.policy, policySource: policy.source, scope, offline: cache.error || null, decision, result });
+  cacheUpdateHighlights({ ...cache, scope }, decision, packageName).catch(() => {});
+}
+
+function handleUpdatePolicy() {
+  const json = process.argv.includes('--json');
+  const value = process.argv[4] && !process.argv[4].startsWith('-') ? process.argv[4] : undefined;
+  const channel = argValue('--channel') || undefined;
+  const pin = process.argv.includes('--no-pin') ? null : (argValue('--pin') || undefined);
+  try {
+    if (value !== undefined || channel !== undefined || pin !== undefined) autoUpdate.setPolicy({ policy: value, channel, pin });
+    const resolved = autoUpdate.resolvePolicy();
+    if (json) console.log(JSON.stringify({ ok: true, ...resolved }));
+    else console.log(`Auto-update policy: ${resolved.policy} (${resolved.source}); channel ${resolved.channel}${resolved.pin ? `; pin ${resolved.pin}` : ''}. Majors are always notice-only.`);
+  } catch (err) {
+    if (json) console.log(JSON.stringify({ ok: false, code: err.code, error: err.message }));
+    else log.error(err.message);
+    process.exit(1);
+  }
+}
+
+function handleUpdateRollback() {
+  const json = process.argv.includes('--json');
+  try {
+    if (!process.argv.includes('--yes')) throw Object.assign(new Error('update rollback requires --yes'), { code: 'CONFIRMATION_REQUIRED' });
+    const record = autoUpdate.rollback({ packageName: require('../package.json').name, projects: projectRegistry.listProjects().projects });
+    if (json) console.log(JSON.stringify({ ok: true, ...record }));
+    else log.success(`✓ Rolled back to ${record.to} and re-synced host skills${record.restored && record.restored.length ? `; restored ${record.restored.length} legacy project snapshot(s)` : ""}.`);
+  } catch (err) {
+    if (json) console.log(JSON.stringify({ ok: false, code: err.code || 'ROLLBACK_FAILED', error: err.message }));
+    else log.error(err.message);
+    process.exit(1);
+  }
+}
+
+function handleProjects() {
+  const action = process.argv[3] || 'list';
+  const json = process.argv.includes('--json');
+  try {
+    let result;
+    if (action === 'list') result = projectRegistry.listProjects();
+    else if (action === 'add') result = { added: projectRegistry.addProject(process.argv[4] && !process.argv[4].startsWith('-') ? process.argv[4] : CWD) };
+    else if (action === 'remove') result = { removed: projectRegistry.removeProject(process.argv[4] && !process.argv[4].startsWith('-') ? process.argv[4] : CWD) };
+    else if (action === 'scan') {
+      const root = argValue('--root');
+      if (!root) throw Object.assign(new Error('projects scan requires --root <dir>'), { code: 'ROOT_REQUIRED' });
+      const depth = Number(argValue('--depth') || 4);
+      if (!Number.isInteger(depth) || depth < 0 || depth > 8) throw Object.assign(new Error('--depth must be 0-8'), { code: 'INVALID_DEPTH' });
+      result = projectRegistry.scanProjects(root, { maxDepth: depth });
+    } else throw Object.assign(new Error(`Unknown projects action: ${action}`), { code: 'UNKNOWN_ACTION' });
+    if (json) console.log(JSON.stringify({ ok: true, action, ...result }));
+    else if (action === 'list') {
+      if (!result.projects.length) console.log('No registered projects. They are added by init/run/status/refresh, or `projects add|scan`.');
+      for (const p of result.projects) console.log(`- ${p.path} (context ${p.contextVersion || '?'}, seen ${p.lastSeen})`);
+    } else console.log(JSON.stringify(result, null, 2));
+  } catch (err) {
+    if (json) console.log(JSON.stringify({ ok: false, code: err.code || 'PROJECTS_FAILED', error: err.message }));
+    else log.error(err.message);
+    process.exit(1);
+  }
+}
+
+// First-run question (TTY only, once). Non-interactive sessions stay on
+// `notify` until the user picks a policy with `update policy`.
+function askAutoUpdatePolicyOnce() {
+  try {
+    if (!process.stdin.isTTY || !process.stdout.isTTY || !autoUpdate.autoUpdateAllowedHere()) return;
+    if (autoUpdate.resolvePolicy().source !== 'unset') return;
+    process.stdout.write(`Auto-update ai-engineering-loop? [off/notify/patch/minor/all] (default ${autoUpdate.DEFAULT_POLICY}; majors are always notice-only): `);
+    const buffer = Buffer.alloc(64);
+    const bytes = fs.readSync(0, buffer, 0, buffer.length, null);
+    const answer = buffer.toString('utf8', 0, bytes).trim().toLowerCase() || autoUpdate.DEFAULT_POLICY;
+    autoUpdate.setPolicy({ policy: autoUpdate.POLICIES.includes(answer) ? answer : autoUpdate.DEFAULT_POLICY });
+  } catch {
+    // Never block init on the prompt.
+  }
+}
+
 function handleUpdate() {
   const action = process.argv[3] || 'check';
+  if (action === 'auto') return handleUpdateAuto();
+  if (action === 'policy') return handleUpdatePolicy();
+  if (action === 'rollback') return handleUpdateRollback();
   const json = process.argv.includes('--json');
   const yes = process.argv.includes('--yes');
   try {
@@ -1811,6 +2322,28 @@ function handleUpdate() {
     throw new Error(`Unknown update action: ${action}`);
   } catch (err) {
     if (json) console.log(JSON.stringify({ ok: false, code: err.code || 'UPDATE_FAILED', error: err.message }));
+    else log.error(err.message);
+    process.exit(1);
+  }
+}
+
+// `migrate --from <old>`: idempotent major migrations for home and every
+// registered project (plus this one when it has .ai-engineering-loop/).
+function handleMigrate() {
+  const json = process.argv.includes('--json');
+  try {
+    const from = argValue('--from');
+    if (!from) throw Object.assign(new Error('migrate requires --from <old-version>'), { code: 'FROM_REQUIRED' });
+    const migrations = require('../lib/migrations.js');
+    const projects = projectRegistry.listProjects().projects.map((p) => p.path);
+    const here = path.resolve(CWD);
+    if (fs.existsSync(path.join(here, '.ai-engineering-loop')) && !projects.includes(here)) projects.push(here);
+    const report = migrations.runMigrations({ from, to: VERSION, projects, dryRun: process.argv.includes('--dry-run') });
+    if (json) console.log(JSON.stringify({ ok: true, ...report }));
+    else if (!report.migrations.length) console.log(`No migrations between ${from} and ${VERSION}.`);
+    else for (const step of report.migrations) console.log(`- v${step.major}: ${step.description} (home ${step.home}, ${step.projects.length} project(s))`);
+  } catch (err) {
+    if (json) console.log(JSON.stringify({ ok: false, code: err.code || 'MIGRATE_FAILED', error: err.message }));
     else log.error(err.message);
     process.exit(1);
   }
@@ -2091,9 +2624,14 @@ function handleGoal() {
         message: `Goal draft revision ${result.metadata.revision} is ready for review`
       });
     } else if (action === 'freeze') {
-      const expectedHash = argValue('--hash');
+      const latest = process.argv.includes('--latest');
+      const latestDraft = latest ? loadGoalDraft(CWD, runId) : null;
+      if (latest && !latestDraft) {
+        throw Object.assign(new Error('No Goal draft to freeze'), { code: 'GOAL_DRAFT_MISSING' });
+      }
+      const expectedHash = latest ? latestDraft.metadata.contentHash : argValue('--hash');
       if (!expectedHash) {
-        const error = new Error('--hash is required');
+        const error = new Error('--hash is required (or --latest)');
         error.code = 'INVALID_USAGE';
         throw error;
       }
@@ -2115,7 +2653,7 @@ function handleGoal() {
       }
       result = freezeGoal(CWD, runId, {
         actor: argValue('--by') || 'human',
-        expectedRevision: requiredIntegerArg('--revision'),
+        expectedRevision: latest ? latestDraft.metadata.revision : requiredIntegerArg('--revision'),
         expectedHash
       });
       appendRunLifecycle(CWD, runId, {
@@ -2250,6 +2788,221 @@ function handleInteraction() {
   }
 }
 
+
+// ---------------------------------------------------------------------------
+// Combined stage commands (issue #34). Each replaces several agent turns with
+// one CLI call and goes through the same gates, so results are identical to
+// the long form (`verification record`... `gate verification`, etc.).
+
+function autoHeartbeat(runId, phase, message) {
+  try {
+    appendRunLifecycle(CWD, runId, { type: 'AGENT_HEARTBEAT', phase, actor: 'agent', message });
+  } catch (e) {
+    // Heartbeats are best-effort Studio telemetry; never fail a stage on them.
+  }
+}
+
+function defaultVerificationCommand() {
+  const text = readFileSafe(path.join(CONTEXT_DIR, 'verification.md')) || '';
+  const match = text.match(/\*\*test_unit\*\*:\s*`([^`]+)`/);
+  return match ? match[1].trim() : null;
+}
+
+function splitCommand(text, shell) {
+  const value = String(text || '').trim();
+  if (!value) throw Object.assign(new Error('Empty verification command'), { code: 'INVALID_COMMAND' });
+  if (shell) return { command: value, args: [], shell: true };
+  if (/[|&;<>()$`"'\\*?]/.test(value)) {
+    throw Object.assign(new Error(`"${value}" needs shell syntax; pass --shell or split it into separate --cmd values.`), { code: 'INVALID_COMMAND' });
+  }
+  const [command, ...rest] = value.split(/\s+/);
+  return { command, args: rest, shell: false };
+}
+
+function stageJsonError(err, json, code) {
+  if (json) {
+    console.log(JSON.stringify({ ok: false, code: err.code || code, error: err.message, details: err.details || [] }));
+  } else {
+    log.error(err.message);
+    for (const detail of err.details || []) console.error(`- ${detail}`);
+  }
+  process.exit(1);
+}
+
+function repeatedArg(name) {
+  const values = [];
+  const separator = process.argv.indexOf('--');
+  const scoped = separator === -1 ? process.argv : process.argv.slice(0, separator);
+  for (let index = 0; index < scoped.length; index += 1) {
+    if (scoped[index] === name && scoped[index + 1] != null) values.push(scoped[index + 1]);
+  }
+  return values;
+}
+
+async function handleVerify() {
+  const json = process.argv.includes('--json');
+  try {
+    const runId = requiredRunId('verify');
+    const shell = process.argv.includes('--shell');
+    let texts = repeatedArg('--cmd');
+    if (texts.length === 0) {
+      const fallback = defaultVerificationCommand();
+      if (!fallback) throw Object.assign(new Error('No --cmd given and no test_unit command in .ai-engineering-loop/verification.md'), { code: 'INVALID_COMMAND' });
+      texts = [fallback];
+    }
+    const timeoutValue = argValue('--timeout-ms');
+    const recorded = await recordVerificationCommands(CWD, {
+      runId,
+      commands: texts.map((text) => splitCommand(text, shell)),
+      serial: process.argv.includes('--serial'),
+      ...(timeoutValue == null ? {} : { timeoutMs: parsePositiveIntegerArg('--timeout-ms', timeoutValue) })
+    });
+    const commands = recorded.commands.map((c) => ({ command: c.command, exitCode: c.exitCode, timeoutStatus: c.timeoutStatus }));
+    if (!recorded.passed) {
+      autoHeartbeat(runId, 'verification', 'Verification failed; Maker must fix before review');
+      const result = { ok: false, code: 'VERIFICATION_FAILED', runId, commands, gate: null };
+      if (json) console.log(JSON.stringify(result));
+      else {
+        log.error('Verification failed; the gate was not attempted.');
+        for (const c of commands) console.log(`- ${c.command}: exit ${c.exitCode} (${c.timeoutStatus})`);
+      }
+      process.exitCode = 1;
+      return;
+    }
+    const run = executeGate('verification', runId);
+    const compact = compactRun(CWD, { runId });
+    let claimed = { path: '.ai-engineering-loop/tasks/claimed-vs-reality.md', created: false };
+    try {
+      claimed = { ...createClaimedVsRealityTemplate(CWD, { runId }), created: true };
+    } catch (err) {
+      if (err.code !== 'OUTPUT_EXISTS') throw err;
+    }
+    const result = {
+      ok: true,
+      runId,
+      state: run.state,
+      tier: run.tier ? run.tier.current : null,
+      commands,
+      testCounts: recorded.summary.testCounts,
+      compact: compact.paths,
+      claimedVsReality: claimed,
+      next: run.tier && run.tier.current === 'T0'
+        ? 'Fill claimed-vs-reality, then gate review and gate judge'
+        : 'Fill claimed-vs-reality, then review-pack and spawn the Devil\'s Advocate'
+    };
+    if (json) console.log(JSON.stringify(result));
+    else {
+      log.success('✓ verification recorded and gated');
+      for (const c of commands) console.log(`- ${c.command}: exit ${c.exitCode}`);
+      console.log(`- State: ${run.state}`);
+      console.log(`- Claimed-vs-reality: ${claimed.path}${claimed.created ? ' (scaffolded; fill it from the command output)' : ''}`);
+      console.log(`- Next: ${result.next}`);
+    }
+  } catch (err) {
+    stageJsonError(err, json, 'VERIFY_FAILED');
+  }
+}
+
+function handleReviewPack() {
+  const json = process.argv.includes('--json');
+  try {
+    const runId = requiredRunId('review-pack');
+    const run = loadRun(CWD, runId);
+    if (!run.artifacts?.verification) {
+      throw Object.assign(new Error('review-pack needs a passed verification gate (run verify first).'), { code: 'GATE_FAILED' });
+    }
+    const base = argValue('--base') || 'HEAD';
+    const fastPath = assessSmallTaskFastPath(CWD, { base });
+    const pack = smartContextSummary(createDiffHunkPack(CWD, { runId, base, profile: argValue('--profile') }));
+    const escalation = assessRunEscalation(CWD, { runId });
+    const tier = run.tier ? run.tier.current : null;
+    autoHeartbeat(runId, 'review', 'Review pack built');
+    const result = {
+      ok: true,
+      runId,
+      tier,
+      devilAdvocateRequired: tier !== 'T0',
+      packPath: pack.path,
+      diffPath: path.relative(CWD, path.join(runsDir(CWD), runId, 'diff.patch')).split(path.sep).join('/'),
+      reviewProfile: pack.reviewProfile,
+      estimatedTokens: pack.estimatedTokens,
+      truncated: pack.truncated,
+      unresolvedFindings: pack.unresolvedFindings,
+      fastPath: { eligible: fastPath.eligible, reasons: fastPath.reasons },
+      escalation: { requiredTier: escalation.requiredTier, reasons: escalation.reasons.map((r) => r.code) }
+    };
+    if (json) console.log(JSON.stringify(result));
+    else {
+      log.success('✓ review pack ready');
+      console.log(`- Pack: ${result.packPath} (${result.reviewProfile}, ~${result.estimatedTokens} tokens)`);
+      console.log(`- Tier: ${tier || 'none'}; Devil's Advocate ${result.devilAdvocateRequired ? 'required' : 'not used (T0)'}`);
+      console.log(`- Judge tier floor: ${result.escalation.requiredTier}${result.escalation.reasons.length ? ` (${result.escalation.reasons.join(', ')})` : ''}`);
+    }
+  } catch (err) {
+    stageJsonError(err, json, 'REVIEW_PACK_FAILED');
+  }
+}
+
+function handleDeliver() {
+  const json = process.argv.includes('--json');
+  try {
+    const runId = requiredRunId('deliver');
+    const run = loadRun(CWD, runId);
+    const mode = run.mode || RUN_MODES.ASSISTED;
+    const approve = process.argv.includes('--approve');
+    const by = argValue('--by');
+    if (mode === RUN_MODES.REPORT_ONLY) {
+      throw Object.assign(new Error('REPORT_ONLY runs finish with gate report, not deliver.'), { code: 'INVALID_USAGE' });
+    }
+    if (mode === RUN_MODES.ASSISTED && !approve) {
+      console.error('ASSISTED delivery needs the human\'s explicit approval: deliver --approve --by <name>. Nothing was written.');
+      process.exit(2);
+    }
+    if (approve && !by) {
+      throw Object.assign(new Error('--approve requires --by <name> (the approving human).'), { code: 'INVALID_USAGE' });
+    }
+    const approved = [];
+    if (approve && run.workflow) {
+      const workflow = workflowStatus(CWD, { runId });
+      for (const node of workflow.plan.nodes) {
+        if (node.type !== 'approval' || workflow.state.nodes[node.id].status !== 'READY') continue;
+        approveWorkflowNode(CWD, node.id, { runId, approvedBy: by });
+        appendRunLifecycle(CWD, runId, { type: 'NODE_COMPLETED', nodeId: node.id, phase: node.id, actor: by, message: `Node ${node.id} approved` });
+        approved.push(node.id);
+      }
+    }
+    const deliveryPath = path.join(runsDir(CWD), runId, 'delivery.json');
+    let delivery = null;
+    if (fs.existsSync(deliveryPath)) {
+      try { delivery = JSON.parse(fs.readFileSync(deliveryPath, 'utf8')); } catch (e) { delivery = null; }
+    }
+    const destination = argValue('--destination');
+    const summary = argValue('--summary');
+    if (!delivery && !(destination && summary)) {
+      throw Object.assign(new Error('Pass --destination <where> and --summary <text>, or write delivery.json first.'), { code: 'INVALID_USAGE' });
+    }
+    delivery = {
+      ...(delivery || {}),
+      schemaVersion: 1,
+      runId,
+      ...(destination ? { destination } : {}),
+      ...(summary ? { summary } : {}),
+      ...(approve ? { humanApproved: true, approvedBy: by } : {})
+    };
+    fs.writeFileSync(deliveryPath, `${JSON.stringify(delivery, null, 2)}\n`, { mode: 0o600 });
+    const next = executeGate('delivery', runId);
+    const result = { ok: true, runId, state: next.state, approvedNodes: approved, humanApproved: delivery.humanApproved === true };
+    if (json) console.log(JSON.stringify(result));
+    else {
+      log.success('✓ delivery gate passed');
+      console.log(`- State: ${next.state}`);
+      if (approved.length) console.log(`- Approved: ${approved.join(', ')} by ${by}`);
+    }
+  } catch (err) {
+    stageJsonError(err, json, 'DELIVER_FAILED');
+  }
+}
+
 // Command: docs (read-only packaged specs)
 function handleDocs() {
   const json = process.argv.includes('--json');
@@ -2291,10 +3044,12 @@ Commands:
                --new  start a new run even when another run is active
                --mode report-only|assisted|unattended
                --recipe <id>  bind an immutable compiled workflow plan
+               --tier T0|T1|T2 --tier-reason <text>  override the automatic tier (recorded)
+               --json  print runId, tier, tier reasons, and subagent count only
   state        Inspect the current run ledger
                --run <id>  target a non-current run
                --json      print the complete machine-readable ledger
-  gate <name>  Validate an artifact and advance the current run
+  gate <name>  Validate an artifact and advance the current run (maker: --from-git writes diff.patch first)
                goal | report | maker | verification | review | judge | delivery
                --run <id>  target a non-current run
                --json      print machine-readable gate output
@@ -2302,6 +3057,7 @@ Commands:
                show [--run <id>]
                draft --file <json> --revision <n> [--run <id>] [--by <agent>]
                freeze --revision <n> --hash <sha256> [--run <id>] [--by <name>]
+               freeze --latest [--run <id>] --by <name>   freeze the newest draft (CLI resolves revision/hash)
   verification Summarize verification.json for compact Judge context
                summarize [--run <id>] [--json]
                record [--run <id>] [--timeout-ms <n>] [--shell] [--json] -- <executable> [args...]
@@ -2358,13 +3114,21 @@ Commands:
                --limit <n>       bound query/related result count
                --include-ignored include CSS, generated, lockfile, and .aelcontextignore paths
                --json      print only pack metadata; never print packed content
-  eval         Validate the 20-case production evaluation catalog
+  eval         Validate the 24-case production evaluation catalog
                --results <dir>  score host-generated JSON results
                --cases <dir>    use another compatible fixture catalog
                --json           print machine-readable metrics
   escalation   Compute the minimum Judge model tier from deterministic risk signals
                --run <id>  target a non-current run
                --json      print machine-readable reasons
+  verify       Record verification commands, gate them, compact, and scaffold claimed-vs-reality
+               [--run <id>] [--cmd "<command>"]... [--shell] [--serial] [--timeout-ms <n>] [--json]
+               default command: test_unit from .ai-engineering-loop/verification.md; commands run in parallel
+  review-pack  Build the Devil's Advocate pack: fast-path, diff hunks, escalation floor, tier
+               [--run <id>] [--base <git-ref>] [--profile lean|standard|thorough] [--json]
+  deliver      Approve READY approval nodes, write delivery.json, and pass the delivery gate
+               [--run <id>] [--destination <where> --summary <text>] [--approve --by <name>] [--json]
+               ASSISTED requires --approve --by <name>, given only after explicit human approval
   docs         Print a packaged spec without needing the package source tree
                list [--json]
                <name> [--section <heading>] [--json]   e.g. docs grill-policy --section "When to grill"
@@ -2373,6 +3137,14 @@ Commands:
   update       Check or apply the package update workflow
                check|plan [--json]
                apply --yes
+               policy [off|notify|patch|minor|all] [--channel latest|next] [--pin 1.13.x|--no-pin]
+               auto [--force] [--json]   check (cached 24 h) and apply per policy; majors notice-only
+               rollback --yes            reinstall the previous version, re-sync hosts, restore legacy snapshots
+  migrate      Run major-version migrations (migrations/<major>.js); update apply calls it across a major
+               --from <old-version> [--dry-run] [--json]
+  projects     Registry of local projects with .ai-engineering-loop/ (~/.ai-engineering-loop/projects.json)
+               list|add [dir]|remove [dir] [--json]
+               scan --root <dir> [--depth 4]
   recipe       Inspect and compile declarative workflow recipes (does not execute nodes)
                list [--json]
                catalog [--json]
@@ -2393,7 +3165,7 @@ Commands:
   sync-hosts   Copy package skills/agents/commands into ~/.claude ~/.grok ~/.gemini ~/.agents
                (only hosts that already exist; DOT skills only if already installed)
                --dry-run       print the plan without writing
-               --pack <list>   core (always), backend, design; saved for later syncs
+               --pack <list>   core (always), backend, design, quality; saved for later syncs
                --prune         remove unmodified files of packs that are not selected
                --json          print machine-readable results
                User-edited host files are backed up to <file>.ael-backup before overwrite
@@ -2437,9 +3209,20 @@ if (!['-h', '--help', '-v', '--version'].includes(command)) {
   }
 }
 
+// Registry + auto-update hooks (issue #37). Registration runs at exit so a
+// fresh `init` is recorded too.
+if (['init', 'run', 'status', 'refresh'].includes(command)) {
+  process.once('exit', () => projectRegistry.registerProject(CWD));
+  if (command === 'init') askAutoUpdatePolicyOnce();
+  maybeAutoUpdate();
+}
+
 switch (command) {
   case 'init':
     handleInit();
+    break;
+  case 'projects':
+    handleProjects();
     break;
   case 'status':
     handleStatus();
@@ -2498,11 +3281,23 @@ switch (command) {
   case 'docs':
     handleDocs();
     break;
+  case 'verify':
+    handleVerify();
+    break;
+  case 'review-pack':
+    handleReviewPack();
+    break;
+  case 'deliver':
+    handleDeliver();
+    break;
   case 'doctor':
     handleDoctor();
     break;
   case 'update':
     handleUpdate();
+    break;
+  case 'migrate':
+    handleMigrate();
     break;
   case 'recipe':
     handleRecipe();
