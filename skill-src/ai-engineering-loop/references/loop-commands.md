@@ -5,6 +5,8 @@
 - `generate-adapter`: load skill `generate-adapter` if present. Grill Q1-Q5, then write `.ai-engineering-loop/adapter.md`. Do not start Maker.
 - `generate-workflow`: load skill `generate-workflow` if present. Grill Q1-Q6. Q6 Maker intern: list numbered options from the host model catalog (see Host rules) plus `none`; if there is no catalog, offer only `none`. Do not type a model name. Write `.ai-engineering-loop/workflow.md` and an empty `lessons.md` if missing. Do not start Maker. Missing `maker_intern` means INVOCATION_UNAVAILABLE.
 
+- Never run `update apply|auto|rollback|policy` unless the user asks; the CLI applies updates itself under the user's policy (`docs runtime-safety`).
+
 ## Studio
 
 Stage commands (`run`, `goal`, `gate`, `verify`, `review-pack`, `deliver`, `node start|activity|complete`) publish Studio lifecycle and heartbeats automatically. Emit `npx ai-engineering-loop activity heartbeat --run <runId> --phase <phase> --message <short factual summary>` only during long manual work, never before every stage. Before asking the human, persist the question with `npx ai-engineering-loop interaction question --run <runId> --id <id> --message <text>` so it appears once in Studio.

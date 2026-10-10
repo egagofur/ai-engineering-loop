@@ -105,8 +105,11 @@ const {
 } = require('../lib/doctor.js');
 const {
   checkForUpdate,
+  detectInstallScope,
   executeUpdatePlan
 } = require('../lib/update-manager.js');
+const autoUpdate = require('../lib/auto-update.js');
+const projectRegistry = require('../lib/project-registry.js');
 const {
   assertBudgetAvailable,
   budgetStatus,
@@ -189,13 +192,148 @@ const REQUIRED_FILES = [
   'adrs/README.md'
 ];
 
+// Non-destructive mode (issue #37, `refresh --non-destructive`): a context file
+// is overwritten only if it still matches what AEL last generated (hash in
+// .ael-generated.json) or is package-owned; otherwise the new template goes to
+// `<file>.ael-new` and the user's file is left alone.
+// Legacy projects (no .ael-generated.json yet, decision 5 on #37): the first
+// such refresh overwrites AEL-managed files directly and deletes obsolete
+// AEL-managed files, after copying the old content into a snapshot under
+// .ai-engineering-loop/.ael-backup/<timestamp>/. Hashes are recorded so later
+// refreshes use the normal flow. Only paths this writer generates (or lists in
+// OBSOLETE_CONTEXT_FILES) are touched; files written with overwrite:false
+// (lessons, glossary, ...) and every other user file are left alone.
+let CONTEXT_WRITE_SAFE = false;
+let CONTEXT_WRITE_LEGACY = null; // { root, snapshotDir } during a legacy refresh
+const CONTEXT_WRITE_REPORT = { updated: [], aelNew: [], kept: [], seen: new Set(), snapshot: [], removed: [], obsoleteKept: [] };
+const PACKAGE_OWNED_CONTEXT = new Set(['metadata.json']);
+// Context files older AEL versions generated and this one no longer does
+// (relative to .ai-engineering-loop/). Deleted on the first legacy refresh.
+const OBSOLETE_CONTEXT_FILES = Object.freeze([]);
+const GENERATED_HASHES_FILE = '.ael-generated.json';
+
+function generatedHashesPath(filePath) {
+  return path.join(path.dirname(filePath), GENERATED_HASHES_FILE);
+}
+
+function readGeneratedHashes(filePath) {
+  try {
+    return JSON.parse(fs.readFileSync(generatedHashesPath(filePath), 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
+function writeGeneratedHashes(filePath, hashes) {
+  try {
+    fs.writeFileSync(generatedHashesPath(filePath), `${JSON.stringify(hashes, null, 2)}\n`);
+  } catch {
+    // Best effort.
+  }
+}
+
+function recordGeneratedHash(filePath, content) {
+  const hashes = readGeneratedHashes(filePath);
+  hashes[path.basename(filePath)] = require('crypto').createHash('sha256').update(content).digest('hex');
+  writeGeneratedHashes(filePath, hashes);
+}
+
+function sha256Text(content) {
+  return require('crypto').createHash('sha256').update(content).digest('hex');
+}
+
+function snapshotContextFile(filePath) {
+  if (!CONTEXT_WRITE_LEGACY || !fs.existsSync(filePath)) return;
+  const rel = path.relative(CONTEXT_WRITE_LEGACY.root, filePath);
+  if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return;
+  const dest = path.join(CONTEXT_WRITE_LEGACY.snapshotDir, rel);
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.copyFileSync(filePath, dest);
+  CONTEXT_WRITE_REPORT.snapshot.push(rel.split(path.sep).join('/'));
+}
+
 function writeContextFile(filePath, content, { overwrite = true } = {}) {
+  CONTEXT_WRITE_REPORT.seen.add(path.resolve(filePath));
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   if (!overwrite && fs.existsSync(filePath) && fs.statSync(filePath).size > 0) {
     return false;
   }
+  const name = path.basename(filePath);
+  if (CONTEXT_WRITE_SAFE && fs.existsSync(filePath) && !PACKAGE_OWNED_CONTEXT.has(name)) {
+    const current = fs.readFileSync(filePath, 'utf8');
+    if (current === content) {
+      CONTEXT_WRITE_REPORT.kept.push(name);
+      recordGeneratedHash(filePath, content);
+      return false;
+    }
+    if (CONTEXT_WRITE_LEGACY) {
+      snapshotContextFile(filePath);
+    } else if (readGeneratedHashes(filePath)[name] !== sha256Text(current)) {
+      fs.writeFileSync(`${filePath}.ael-new`, content);
+      CONTEXT_WRITE_REPORT.aelNew.push(`${name}.ael-new`);
+      return false;
+    }
+  }
   fs.writeFileSync(filePath, content);
+  recordGeneratedHash(filePath, content);
+  if (CONTEXT_WRITE_SAFE) CONTEXT_WRITE_REPORT.updated.push(name);
   return true;
+}
+
+// After a non-destructive refresh: remove AEL-managed files this version no
+// longer generates. Normal flow: only files whose recorded hash still matches
+// (edited ones are reported and kept). Legacy flow: OBSOLETE_CONTEXT_FILES,
+// snapshotted first.
+function removeObsoleteContextFiles(contextDir) {
+  const root = path.resolve(contextDir);
+  const candidates = new Map();
+  const hashDirs = [root];
+  try {
+    for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+      if (entry.isDirectory() && !entry.name.startsWith('.') && fs.existsSync(path.join(root, entry.name, GENERATED_HASHES_FILE))) {
+        hashDirs.push(path.join(root, entry.name));
+      }
+    }
+  } catch {
+    return;
+  }
+  for (const dir of hashDirs) {
+    const hashes = readGeneratedHashes(path.join(dir, 'x'));
+    for (const [name, hash] of Object.entries(hashes)) {
+      if (!/^[\w.-]+$/.test(name) || name.startsWith('.')) continue;
+      candidates.set(path.join(dir, name), { hash, dir, name });
+    }
+  }
+  if (CONTEXT_WRITE_LEGACY) {
+    for (const rel of OBSOLETE_CONTEXT_FILES) {
+      const abs = path.resolve(root, rel);
+      if (abs.startsWith(root + path.sep)) candidates.set(abs, { hash: null, dir: path.dirname(abs), name: path.basename(abs), legacy: true });
+    }
+  }
+  for (const [abs, info] of candidates) {
+    if (CONTEXT_WRITE_REPORT.seen.has(abs)) continue;
+    const rel = path.relative(root, abs).split(path.sep).join('/');
+    let stat;
+    try {
+      stat = fs.lstatSync(abs);
+    } catch {
+      stat = null;
+    }
+    if (stat && stat.isFile()) {
+      if (!info.legacy && sha256Text(fs.readFileSync(abs)) !== info.hash) {
+        CONTEXT_WRITE_REPORT.obsoleteKept.push(rel);
+        continue;
+      }
+      snapshotContextFile(abs);
+      fs.unlinkSync(abs);
+      CONTEXT_WRITE_REPORT.removed.push(rel);
+    }
+    const hashes = readGeneratedHashes(path.join(info.dir, 'x'));
+    if (Object.hasOwn(hashes, info.name)) {
+      delete hashes[info.name];
+      writeGeneratedHashes(path.join(info.dir, 'x'), hashes);
+    }
+  }
 }
 
 function ignoreProjectContextOnFirstInit(rootDir) {
@@ -823,6 +961,10 @@ function handleStatus() {
 
 // Command: refresh
 function handleRefresh() {
+  if (process.argv.includes('--non-destructive')) {
+    handleSafeRefresh();
+    return;
+  }
   log.info('AI Engineering Loop — Context Drift Refresh (refresh)');
   log.dim(`Target directory: ${CWD}`);
 
@@ -1892,8 +2034,260 @@ function printUpdatePlan(plan) {
   for (const item of plan.commands) console.log(item.display);
 }
 
+// Used by auto-update for every registered project: regenerate context with
+// user-edited files preserved (new templates land in *.ael-new).
+function handleSafeRefresh() {
+  if (!fs.existsSync(CONTEXT_DIR)) {
+    log.error('No .ai-engineering-loop/ here; run init first.');
+    process.exit(1);
+  }
+  const current = getCurrentRun(CWD);
+  if (current && !TERMINAL_STATES.has(current.state)) {
+    log.warn(`Run ${current.runId} is active (${current.state}); skipping refresh until it finishes.`);
+    process.exit(3);
+  }
+  const legacy = !fs.existsSync(path.join(CONTEXT_DIR, GENERATED_HASHES_FILE));
+  if (legacy) {
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    CONTEXT_WRITE_LEGACY = { root: path.resolve(CONTEXT_DIR), snapshotDir: path.join(CONTEXT_DIR, '.ael-backup', stamp) };
+  }
+  CONTEXT_WRITE_SAFE = true;
+  const discovery = analyzeRepository(CWD);
+  generateContextFiles(CWD, discovery, 'refresh', 'PACKAGE_UPDATE', { overwriteCore: true });
+  removeObsoleteContextFiles(CONTEXT_DIR);
+  CONTEXT_WRITE_SAFE = false;
+  let snapshot = null;
+  if (CONTEXT_WRITE_LEGACY && CONTEXT_WRITE_REPORT.snapshot.length) {
+    snapshot = path.relative(CWD, CONTEXT_WRITE_LEGACY.snapshotDir).split(path.sep).join('/');
+    fs.writeFileSync(path.join(CONTEXT_WRITE_LEGACY.snapshotDir, 'snapshot.json'), `${JSON.stringify({
+      schemaVersion: 1,
+      reason: 'LEGACY_FIRST_UPDATE',
+      version: VERSION,
+      at: new Date().toISOString(),
+      files: CONTEXT_WRITE_REPORT.snapshot,
+      removed: CONTEXT_WRITE_REPORT.removed
+    }, null, 2)}\n`);
+  }
+  CONTEXT_WRITE_LEGACY = null;
+  const report = {
+    ok: true,
+    mode: legacy ? 'legacy-first-update' : 'hash-checked',
+    updated: CONTEXT_WRITE_REPORT.updated,
+    aelNew: CONTEXT_WRITE_REPORT.aelNew,
+    unchanged: CONTEXT_WRITE_REPORT.kept,
+    removed: CONTEXT_WRITE_REPORT.removed,
+    obsoleteKept: CONTEXT_WRITE_REPORT.obsoleteKept,
+    snapshot
+  };
+  if (process.argv.includes('--json')) console.log(JSON.stringify(report));
+  else {
+    log.success('✓ Context refreshed non-destructively.');
+    if (legacy) console.log(`- First update of a legacy project: AEL-managed files overwritten${snapshot ? `; previous copies in ${snapshot}` : ''}.`);
+    if (report.removed.length) console.log(`- Removed obsolete AEL files: ${report.removed.join(', ')}`);
+    if (report.aelNew.length) console.log(`- Kept your edits; review new templates: ${report.aelNew.join(', ')}`);
+    if (report.obsoleteKept.length) console.log(`- Obsolete but edited (kept): ${report.obsoleteKept.join(', ')}`);
+  }
+}
+
+function readCurrentRunFor(dir) {
+  const run = getCurrentRun(dir);
+  return run ? { ...run, terminal: TERMINAL_STATES.has(run.state) } : null;
+}
+
+function expectedRepository() {
+  const repo = require('../package.json').repository;
+  return repo && typeof repo === 'object' ? repo.url : repo || null;
+}
+
+// Decision 1 on #37: a short, useful notice, at most once a day per project,
+// interactive stderr only (never CI or --json).
+function showUpdateNotice(cache, decision, policy) {
+  const notice = require('../lib/update-notice.js');
+  if (!notice.noticeAllowed()) return;
+  const projectKey = path.resolve(process.cwd());
+  if (!notice.noticeDue(cache, projectKey)) return;
+  const packageRoot = path.join(__dirname, '..');
+  const scope = cache.scope || detectInstallScope(packageRoot);
+  const manager = scope === 'global' ? notice.detectGlobalPackageManager(packageRoot) : notice.detectPackageManager(projectKey);
+  const cached = cache.highlights;
+  const highlights = cached && cached.target === decision.target && cached.from === VERSION ? cached.items || [] : [];
+  process.stderr.write(`${notice.formatNotice({
+    packageName: require('../package.json').name,
+    current: VERSION,
+    target: decision.target,
+    bump: decision.bump,
+    scope,
+    manager,
+    highlights,
+    policy: policy.policy,
+    reason: decision.reason
+  })}\n`);
+  const userState = require('../lib/user-state.js');
+  userState.writeJsonFile(userState.userStatePath('update-check.json'), notice.markNoticeShown(cache, projectKey, decision.target));
+}
+
+// Background only: cache 2-4 CHANGELOG highlights for current -> target.
+async function cacheUpdateHighlights(cache, decision, packageName) {
+  if (!decision.target || decision.action === 'none') return;
+  if (cache.highlights && cache.highlights.target === decision.target && cache.highlights.from === VERSION) return;
+  const notice = require('../lib/update-notice.js');
+  const slug = (String(expectedRepository() || '').match(/github\.com[/:]([^/]+\/[^/.]+)/) || [])[1] || null;
+  const text = await notice.fetchChangelog({ packageName, target: decision.target, repositorySlug: slug });
+  if (!text) return;
+  const items = notice.changelogHighlights(text, { current: VERSION, target: decision.target });
+  const userState = require('../lib/user-state.js');
+  const latest = autoUpdate.readCache() || cache;
+  userState.writeJsonFile(userState.userStatePath('update-check.json'), { ...latest, highlights: { from: VERSION, target: decision.target, items } });
+}
+
+// Foreground hook for run/status/init/refresh. Never blocks and never throws:
+// prints a pending summary or notice to stderr and, when the cache is stale or
+// an update is due, starts `update auto --background` detached.
+function maybeAutoUpdate() {
+  try {
+    if (!autoUpdate.autoUpdateAllowedHere()) return;
+    const summary = autoUpdate.consumeSummary();
+    if (summary) process.stderr.write(`${summary}\n`);
+    const policy = autoUpdate.resolvePolicy();
+    if (policy.policy === 'off') return;
+    const cache = autoUpdate.readCache();
+    if (autoUpdate.cacheStale(cache)) {
+      autoUpdate.spawnBackgroundCheck({ cliPath: __filename });
+      return;
+    }
+    const state = autoUpdate.readState();
+    const decision = autoUpdate.decideUpdate({ current: VERSION, distTags: cache.distTags, ...policy });
+    const applyInBackground = decision.action === 'apply' && cache.scope === 'global';
+    if (applyInBackground || (state.pendingProjects || []).length) {
+      autoUpdate.spawnBackgroundCheck({ cliPath: __filename });
+    }
+    if (!applyInBackground && decision.action !== 'none') showUpdateNotice(cache, decision, policy);
+  } catch {
+    // Auto-update must never break a command.
+  }
+}
+
+// `update auto [--background] [--force] [--json]`: check (cached 24 h), decide,
+// and apply under the user's policy; also retries projects left pending.
+function handleUpdateAuto() {
+  const json = process.argv.includes('--json');
+  const background = process.argv.includes('--background');
+  const packageName = require('../package.json').name;
+  const policy = autoUpdate.resolvePolicy();
+  const out = (value) => {
+    if (!background) console.log(json ? JSON.stringify(value) : JSON.stringify(value, null, 2));
+  };
+  if (policy.policy === 'off' && !process.argv.includes('--force')) {
+    out({ ok: true, action: 'none', reason: `POLICY_OFF (${policy.source})` });
+    return;
+  }
+  let cache = autoUpdate.readCache();
+  if (autoUpdate.cacheStale(cache) || process.argv.includes('--force')) cache = autoUpdate.refreshCache({ packageName });
+  const scope = detectInstallScope(path.join(__dirname, '..'));
+  try {
+    require('../lib/user-state.js').writeJsonFile(require('../lib/user-state.js').userStatePath('update-check.json'), { ...cache, scope });
+  } catch {
+    // Best effort.
+  }
+  const decision = autoUpdate.decideUpdate({ current: VERSION, distTags: cache.distTags, ...policy });
+  const projects = projectRegistry.listProjects().projects;
+  let result = null;
+  if (decision.action === 'apply') {
+    result = autoUpdate.applyUpdate({
+      packageName,
+      current: VERSION,
+      target: decision.target,
+      scope,
+      projects,
+      readCurrentRun: readCurrentRunFor,
+      expectedRepository: expectedRepository()
+    });
+  } else {
+    result = autoUpdate.processPending({ projects, readCurrentRun: readCurrentRunFor });
+  }
+  out({ ok: true, policy: policy.policy, policySource: policy.source, scope, offline: cache.error || null, decision, result });
+  cacheUpdateHighlights({ ...cache, scope }, decision, packageName).catch(() => {});
+}
+
+function handleUpdatePolicy() {
+  const json = process.argv.includes('--json');
+  const value = process.argv[4] && !process.argv[4].startsWith('-') ? process.argv[4] : undefined;
+  const channel = argValue('--channel') || undefined;
+  const pin = process.argv.includes('--no-pin') ? null : (argValue('--pin') || undefined);
+  try {
+    if (value !== undefined || channel !== undefined || pin !== undefined) autoUpdate.setPolicy({ policy: value, channel, pin });
+    const resolved = autoUpdate.resolvePolicy();
+    if (json) console.log(JSON.stringify({ ok: true, ...resolved }));
+    else console.log(`Auto-update policy: ${resolved.policy} (${resolved.source}); channel ${resolved.channel}${resolved.pin ? `; pin ${resolved.pin}` : ''}. Majors are always notice-only.`);
+  } catch (err) {
+    if (json) console.log(JSON.stringify({ ok: false, code: err.code, error: err.message }));
+    else log.error(err.message);
+    process.exit(1);
+  }
+}
+
+function handleUpdateRollback() {
+  const json = process.argv.includes('--json');
+  try {
+    if (!process.argv.includes('--yes')) throw Object.assign(new Error('update rollback requires --yes'), { code: 'CONFIRMATION_REQUIRED' });
+    const record = autoUpdate.rollback({ packageName: require('../package.json').name, projects: projectRegistry.listProjects().projects });
+    if (json) console.log(JSON.stringify({ ok: true, ...record }));
+    else log.success(`✓ Rolled back to ${record.to} and re-synced host skills${record.restored && record.restored.length ? `; restored ${record.restored.length} legacy project snapshot(s)` : ""}.`);
+  } catch (err) {
+    if (json) console.log(JSON.stringify({ ok: false, code: err.code || 'ROLLBACK_FAILED', error: err.message }));
+    else log.error(err.message);
+    process.exit(1);
+  }
+}
+
+function handleProjects() {
+  const action = process.argv[3] || 'list';
+  const json = process.argv.includes('--json');
+  try {
+    let result;
+    if (action === 'list') result = projectRegistry.listProjects();
+    else if (action === 'add') result = { added: projectRegistry.addProject(process.argv[4] && !process.argv[4].startsWith('-') ? process.argv[4] : CWD) };
+    else if (action === 'remove') result = { removed: projectRegistry.removeProject(process.argv[4] && !process.argv[4].startsWith('-') ? process.argv[4] : CWD) };
+    else if (action === 'scan') {
+      const root = argValue('--root');
+      if (!root) throw Object.assign(new Error('projects scan requires --root <dir>'), { code: 'ROOT_REQUIRED' });
+      const depth = Number(argValue('--depth') || 4);
+      if (!Number.isInteger(depth) || depth < 0 || depth > 8) throw Object.assign(new Error('--depth must be 0-8'), { code: 'INVALID_DEPTH' });
+      result = projectRegistry.scanProjects(root, { maxDepth: depth });
+    } else throw Object.assign(new Error(`Unknown projects action: ${action}`), { code: 'UNKNOWN_ACTION' });
+    if (json) console.log(JSON.stringify({ ok: true, action, ...result }));
+    else if (action === 'list') {
+      if (!result.projects.length) console.log('No registered projects. They are added by init/run/status/refresh, or `projects add|scan`.');
+      for (const p of result.projects) console.log(`- ${p.path} (context ${p.contextVersion || '?'}, seen ${p.lastSeen})`);
+    } else console.log(JSON.stringify(result, null, 2));
+  } catch (err) {
+    if (json) console.log(JSON.stringify({ ok: false, code: err.code || 'PROJECTS_FAILED', error: err.message }));
+    else log.error(err.message);
+    process.exit(1);
+  }
+}
+
+// First-run question (TTY only, once). Non-interactive sessions stay on
+// `notify` until the user picks a policy with `update policy`.
+function askAutoUpdatePolicyOnce() {
+  try {
+    if (!process.stdin.isTTY || !process.stdout.isTTY || !autoUpdate.autoUpdateAllowedHere()) return;
+    if (autoUpdate.resolvePolicy().source !== 'unset') return;
+    process.stdout.write(`Auto-update ai-engineering-loop? [off/notify/patch/minor/all] (default ${autoUpdate.DEFAULT_POLICY}; majors are always notice-only): `);
+    const buffer = Buffer.alloc(64);
+    const bytes = fs.readSync(0, buffer, 0, buffer.length, null);
+    const answer = buffer.toString('utf8', 0, bytes).trim().toLowerCase() || autoUpdate.DEFAULT_POLICY;
+    autoUpdate.setPolicy({ policy: autoUpdate.POLICIES.includes(answer) ? answer : autoUpdate.DEFAULT_POLICY });
+  } catch {
+    // Never block init on the prompt.
+  }
+}
+
 function handleUpdate() {
   const action = process.argv[3] || 'check';
+  if (action === 'auto') return handleUpdateAuto();
+  if (action === 'policy') return handleUpdatePolicy();
+  if (action === 'rollback') return handleUpdateRollback();
   const json = process.argv.includes('--json');
   const yes = process.argv.includes('--yes');
   try {
@@ -1928,6 +2322,28 @@ function handleUpdate() {
     throw new Error(`Unknown update action: ${action}`);
   } catch (err) {
     if (json) console.log(JSON.stringify({ ok: false, code: err.code || 'UPDATE_FAILED', error: err.message }));
+    else log.error(err.message);
+    process.exit(1);
+  }
+}
+
+// `migrate --from <old>`: idempotent major migrations for home and every
+// registered project (plus this one when it has .ai-engineering-loop/).
+function handleMigrate() {
+  const json = process.argv.includes('--json');
+  try {
+    const from = argValue('--from');
+    if (!from) throw Object.assign(new Error('migrate requires --from <old-version>'), { code: 'FROM_REQUIRED' });
+    const migrations = require('../lib/migrations.js');
+    const projects = projectRegistry.listProjects().projects.map((p) => p.path);
+    const here = path.resolve(CWD);
+    if (fs.existsSync(path.join(here, '.ai-engineering-loop')) && !projects.includes(here)) projects.push(here);
+    const report = migrations.runMigrations({ from, to: VERSION, projects, dryRun: process.argv.includes('--dry-run') });
+    if (json) console.log(JSON.stringify({ ok: true, ...report }));
+    else if (!report.migrations.length) console.log(`No migrations between ${from} and ${VERSION}.`);
+    else for (const step of report.migrations) console.log(`- v${step.major}: ${step.description} (home ${step.home}, ${step.projects.length} project(s))`);
+  } catch (err) {
+    if (json) console.log(JSON.stringify({ ok: false, code: err.code || 'MIGRATE_FAILED', error: err.message }));
     else log.error(err.message);
     process.exit(1);
   }
@@ -2721,6 +3137,14 @@ Commands:
   update       Check or apply the package update workflow
                check|plan [--json]
                apply --yes
+               policy [off|notify|patch|minor|all] [--channel latest|next] [--pin 1.13.x|--no-pin]
+               auto [--force] [--json]   check (cached 24 h) and apply per policy; majors notice-only
+               rollback --yes            reinstall the previous version, re-sync hosts, restore legacy snapshots
+  migrate      Run major-version migrations (migrations/<major>.js); update apply calls it across a major
+               --from <old-version> [--dry-run] [--json]
+  projects     Registry of local projects with .ai-engineering-loop/ (~/.ai-engineering-loop/projects.json)
+               list|add [dir]|remove [dir] [--json]
+               scan --root <dir> [--depth 4]
   recipe       Inspect and compile declarative workflow recipes (does not execute nodes)
                list [--json]
                catalog [--json]
@@ -2785,9 +3209,20 @@ if (!['-h', '--help', '-v', '--version'].includes(command)) {
   }
 }
 
+// Registry + auto-update hooks (issue #37). Registration runs at exit so a
+// fresh `init` is recorded too.
+if (['init', 'run', 'status', 'refresh'].includes(command)) {
+  process.once('exit', () => projectRegistry.registerProject(CWD));
+  if (command === 'init') askAutoUpdatePolicyOnce();
+  maybeAutoUpdate();
+}
+
 switch (command) {
   case 'init':
     handleInit();
+    break;
+  case 'projects':
+    handleProjects();
     break;
   case 'status':
     handleStatus();
@@ -2860,6 +3295,9 @@ switch (command) {
     break;
   case 'update':
     handleUpdate();
+    break;
+  case 'migrate':
+    handleMigrate();
     break;
   case 'recipe':
     handleRecipe();

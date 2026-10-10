@@ -27,6 +27,8 @@
     ".claude/skills/",
     "LICENSE",
     "THIRD_PARTY_NOTICES.md",
+    "CHANGELOG.md",
+    "migrations/",
     "SECURITY.md",
     "SUPPORT.md",
     "README.md"
