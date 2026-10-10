@@ -89,6 +89,15 @@ npx ai-engineering-loop update rollback --yes
 
 Global installs apply patch and minor releases automatically. They then re-sync host skills and refresh every registered project, keeping your edits (new templates arrive as `*.ael-new`). Project installs only show a short notice (current -> latest, a few changelog highlights, the exact `npm`/`pnpm`/`yarn`/`bun` command, how to silence it), at most once a day per project, because AEL never edits your `package.json`. Projects from versions before hash tracking are overwritten on their first update, with the old files kept in `.ai-engineering-loop/.ael-backup/` and restored by `update rollback`. Major updates run `migrate --from <old>` after install. Opt out with `AEL_NO_AUTO_UPDATE=1`; CI is always off. There is no daemon, so other machines pick up an update the next time the CLI runs there.
 
+Projects with an unfinished run are skipped until that run ends. If a run was simply left behind, close it (the run is kept, marked `CANCELLED`, and `current.json` is released):
+
+```bash
+npx ai-engineering-loop run --abandon --reason "left behind after delivery" --by ega        # asks to confirm; add --yes to skip
+npx ai-engineering-loop run --abandon --run <run-id> --reason "superseded" --by ega --yes   # a non-current run
+```
+
+`status`, `state`, and `projects list` show this hint when an active run has not moved for 7 days. UNATTENDED runs need `--yes` from a human.
+
 When context packs exceed their budget, the CLI now reports the limit and a per-file size/token estimate so an agent can choose smaller files without trial and error. For a delivery gate blocked by a recipe approval node, inspect `node status --run <run-id>` and explicitly approve the READY prerequisite; the gate error points to the actionable command.
 
 ## Meet Workflow Studio
