@@ -1463,6 +1463,31 @@ function executeGate(gate, runId) {
   return run;
 }
 
+// `gate maker --from-git` (issue #35): write the working-tree diff (tracked and
+// untracked files, excluding .ai-engineering-loop/) to RUN_DIR/diff.patch so the
+// agent does not need a separate write step. ASSISTED/REPORT_ONLY only;
+// UNATTENDED diffs come from `sandbox capture`.
+function captureMakerDiff(run) {
+  if (run.mode === 'UNATTENDED') throw new Error('--from-git is not allowed in UNATTENDED; use `sandbox capture`.');
+  const { execFileSync } = require('child_process');
+  const exclude = ':(exclude).ai-engineering-loop';
+  const git = (args, allowExit1 = false) => {
+    try {
+      return execFileSync('git', args, { cwd: CWD, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
+    } catch (e) {
+      if (allowExit1 && e.status === 1) return e.stdout;
+      throw e;
+    }
+  };
+  let diff = git(['diff', '--binary', 'HEAD', '--', '.', exclude]);
+  const untracked = git(['ls-files', '--others', '--exclude-standard', '-z', '--', '.', exclude]).split('\0').filter(Boolean);
+  for (const file of untracked) diff += git(['diff', '--binary', '--no-index', '--', '/dev/null', file], true);
+  if (!diff.trim()) throw new Error('--from-git found no changes against HEAD.');
+  const target = path.join(CWD, '.ai-engineering-loop', 'runs', run.runId, 'diff.patch');
+  fs.writeFileSync(target, diff);
+  return { path: path.relative(CWD, target).split(path.sep).join('/'), files: untracked.length };
+}
+
 function handleGate() {
   const gate = process.argv[3];
   const runId = argValue('--run');
@@ -1472,6 +1497,10 @@ function handleGate() {
     const target = runId ? loadRun(CWD, runId) : getCurrentRun(CWD);
     if (!target) throw new Error('No current run. Start one with `ai-engineering-loop run`.');
     targetRunId = target.runId;
+    if (process.argv.includes('--from-git')) {
+      if (gate !== 'maker') throw new Error('--from-git only applies to `gate maker`.');
+      captureMakerDiff(target);
+    }
     const run = executeGate(gate, target.runId);
     const judge = gate === 'review' && run.tier ? judgeRequirement(CWD, run) : null;
     if (json) {
@@ -2603,7 +2632,7 @@ Commands:
   state        Inspect the current run ledger
                --run <id>  target a non-current run
                --json      print the complete machine-readable ledger
-  gate <name>  Validate an artifact and advance the current run
+  gate <name>  Validate an artifact and advance the current run (maker: --from-git writes diff.patch first)
                goal | report | maker | verification | review | judge | delivery
                --run <id>  target a non-current run
                --json      print machine-readable gate output

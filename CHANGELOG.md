@@ -4,6 +4,15 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+### P3 — one skill source, slim SKILL.md, on-demand references, metrics (#35)
+
+- **Changed:** the four `ai-engineering-loop` host skills (Claude, Grok, Gemini/Antigravity skill, Antigravity workflow) are generated from `skill-src/ai-engineering-loop/` (one template plus a per-host overlay) by `npm run build:skills`. `npm run check:skills` and a test fail when a generated file is edited by hand.
+- **Changed:** each SKILL.md is now at most 4,000 characters (it was 8-12k): host rules, tier table, stage map, and the quality invariants. Stage details moved to `references/loop-{goal,maker,verify,review,deliver,risky,commands}.md`, read only on entering a stage.
+- **Added:** `sync-hosts` installs `references/` beside each host SKILL.md. The references are also available as `ai-engineering-loop docs loop-<stage>` (the Antigravity workflow uses this).
+- **Added:** `gate maker --from-git` writes the working-tree diff (tracked and new files, excluding `.ai-engineering-loop/`) to `RUN_DIR/diff.patch` and gates it in one call. It is refused in UNATTENDED, where `sandbox capture` is used instead.
+- **Changed:** Stage 0 no longer calls `status` separately, because `run --json` reports host-skill freshness. T0 skips the `tdd-policy` read.
+- **Added:** `npm run measure` drives T0 docs, T1 feature, and T2 auth fixtures through the real CLI and reports context, calls, and subagents per tier.
+
 ### P2 — combined stage commands to cut agent round-trips (#34)
 
 - **Added:** `verify [--cmd "<command>"]... [--shell] [--serial]` records the commands in parallel by default (`--serial` to opt out), and only if all pass runs `gate verification`, compacts the run, and scaffolds `claimed-vs-reality.md`. With no `--cmd` it uses `test_unit` from `.ai-engineering-loop/verification.md`. Failing commands are recorded and never gated.

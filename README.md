@@ -75,6 +75,8 @@ npx ai-engineering-loop deliver --run <run-id> --destination pr --summary "..." 
 
 `deliver` refuses without `--approve` in ASSISTED mode; pass it only after a human approved delivery.
 
+Contributors: the host `ai-engineering-loop` skills are generated. Edit `skill-src/ai-engineering-loop/`, then run `npm run build:skills` (CI checks for drift with `npm run check:skills`). `npm run measure` reports per-tier context and tool calls.
+
 When context packs exceed their budget, the CLI now reports the limit and a per-file size/token estimate so an agent can choose smaller files without trial and error. For a delivery gate blocked by a recipe approval node, inspect `node status --run <run-id>` and explicitly approve the READY prerequisite; the gate error points to the actionable command.
 
 ## Meet Workflow Studio

@@ -26,8 +26,11 @@ const HOST_COMMANDS = [
   '.grok/commands/ai-engineering-loop.md'
 ];
 
+// Host skills are read as SKILL.md plus on-demand references (issue #35).
+const { readSkillBundle } = require('./helpers/skill-bundle.js');
+
 function readRepo(rel) {
-  return fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/\r\n?/g, '\n');
+  return readSkillBundle(rel);
 }
 
 function count(text, needle) {
