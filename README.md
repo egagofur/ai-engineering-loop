@@ -157,6 +157,7 @@ The project includes ready-to-use skills and reviewer roles for supported hosts.
 ```bash
 npx ai-engineering-loop sync-hosts --pack backend         # framework-agnostic backend best practices
 npx ai-engineering-loop sync-hosts --pack backend,design  # plus Emil Kowalski's MIT-licensed design/animation skills
+npx ai-engineering-loop sync-hosts --pack quality         # ael-code-simplifier + ael-receiving-code-review (opt-in)
 npx ai-engineering-loop sync-hosts --pack core --prune    # drop unmodified optional-pack files again
 ```
 
