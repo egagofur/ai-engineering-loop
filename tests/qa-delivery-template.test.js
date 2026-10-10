@@ -7,8 +7,11 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 
+// Host skills are read as SKILL.md plus on-demand references (issue #35).
+const { readSkillBundle } = require('./helpers/skill-bundle.js');
+
 function readRepo(rel) {
-  return fs.readFileSync(path.join(ROOT, rel), 'utf8');
+  return readSkillBundle(rel);
 }
 
 const QA_HEADINGS = [

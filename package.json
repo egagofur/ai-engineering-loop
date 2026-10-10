@@ -38,7 +38,10 @@
     "eval": "node bin/ai-engineering-loop.js eval",
     "audit:package": "node scripts/audit-package.js",
     "verify:release": "node scripts/verify-release.js",
-    "prepublishOnly": "npm test && npm run doctor && npm run eval && npm run audit:package"
+    "prepublishOnly": "npm run check:skills && npm test && npm run doctor && npm run eval && npm run audit:package",
+    "build:skills": "node scripts/build-host-skills.js",
+    "check:skills": "node scripts/build-host-skills.js --check",
+    "measure": "node scripts/measure.js"
   },
   "engines": {
     "node": ">=18"
