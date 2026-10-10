@@ -18,7 +18,7 @@ The following AEL files were written fresh for AEL. No upstream text was copied.
 - Source: https://github.com/obra/superpowers
 - License: MIT
 - Ideas adapted: receiving-code-review (verify feedback before acting, decline with evidence), verification-before-completion (no completion claim without fresh evidence), and systematic-debugging (trace backward, question the design after three failed fixes, bisect test pollution).
-- AEL files: `adapters/quality/skills/receiving-code-review/SKILL.md`, the "No claim without fresh evidence" section of `references/loop-verify.md`, and "When fixes keep failing" in `core/root-cause-analysis.md`.
+- AEL files: `adapters/quality/skills/ael-receiving-code-review/SKILL.md` (prefixed `ael-` to avoid clashing with the dot-plugin skill of the same idea), the "No claim without fresh evidence" section of `references/loop-verify.md`, and "When fixes keep failing" in `core/root-cause-analysis.md`.
 
 ### worldflowai/everything-claude-code
 
