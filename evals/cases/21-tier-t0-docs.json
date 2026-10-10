@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "id": "21-tier-t0-docs",
+  "title": "T0 docs fix finishes without subagents but keeps verification",
+  "category": "control",
+  "risk": "low",
+  "task": "Tier T0 run: a README typo fix with current verification and a filled claimed-vs-reality file, no Devil's Advocate ledger. Decide whether it can pass without a Judge subagent.",
+  "files": [
+    {
+      "path": "state.json",
+      "content": "{\"tier\":{\"current\":\"T0\"},\"state\":\"VERIFIED\"}"
+    },
+    {
+      "path": "diff.patch",
+      "content": "--- a/README.md\n+++ b/README.md\n-teh\n+the"
+    },
+    {
+      "path": "verification.json",
+      "content": "{\"diffHash\":\"current\",\"commands\":[{\"command\":\"markdownlint README.md\",\"exitCode\":0}]}"
+    },
+    {
+      "path": "claimed-vs-reality.md",
+      "content": "| AC | Claimed | Reality |\n|---|---|---|\n| AC-1 | typo fixed | markdownlint exit 0 |"
+    }
+  ],
+  "oracle": {
+    "verdict": "PASS",
+    "requiredSignals": [
+      "tier-t0",
+      "deterministic-verdict"
+    ],
+    "forbiddenOutput": []
+  }
+}
