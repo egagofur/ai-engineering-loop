@@ -7,10 +7,11 @@ All notable changes to this project are documented here. Versions follow [Semant
 ### Slim skill adoption (#36)
 
 - **Added:** `project-onboarding` (core pack) fills `.ai-engineering-loop/architecture.md` and `conventions.md` from the code, citing evidence. Output is in Indonesian or English, it reads the last 100 commits (or `--since`), and it covers a wider file-type list. It never triggers automatically (`/ai-engineering-loop onboard`).
-- **Added:** opt-in `quality` pack (`sync-hosts --pack quality`). `code-simplifier` tidies a finished diff with no behavior change, on request only, before `verify`. `receiving-code-review` verifies each finding before acting on it and declines with evidence.
+- **Added:** opt-in `quality` pack (`sync-hosts --pack quality`). `ael-code-simplifier` tidies a finished diff with no behavior change, on request only, before `verify`. `receiving-code-review` verifies each finding before acting on it and declines with evidence.
 - **Merged, no new skill:** "no claim without fresh evidence" and a claim-to-evidence table in `loop-verify`. Trace-backward, three-strikes, and test-pollution bisection in `core/root-cause-analysis.md`. Stage-boundary compaction notes in `loop-goal` and `loop-verify`. A default verification order in the `verification.md` that `init` generates.
 - **Not adopted:** `using-dot-skills` (an always-invoke rule that conflicts with "pick the smallest relevant skill"), plus planners, TDD guides, reviewer agents, and hooks that duplicate AEL stages.
 - All adopted text was written fresh for AEL; credits are in `THIRD_PARTY_NOTICES.md`.
+- The simplifier skill is named `ael-code-simplifier` so it cannot clash with dot-plugin's `code-simplifier`.
 
 ### P3 — one skill source, slim SKILL.md, on-demand references, metrics (#35)
 
