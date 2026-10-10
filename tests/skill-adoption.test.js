@@ -15,7 +15,7 @@ const { listPackageFiles } = require('../lib/package-audit.js');
 const ADOPTED = Object.freeze([
   'adapters/project-onboarding/SKILL.md',
   'adapters/quality/skills/ael-code-simplifier/SKILL.md',
-  'adapters/quality/skills/receiving-code-review/SKILL.md'
+  'adapters/quality/skills/ael-receiving-code-review/SKILL.md'
 ]);
 
 function read(rel) {
@@ -66,7 +66,7 @@ test('project-onboarding ships in core; the quality pack is opt-in on every host
 
 test('merged rules land in their target files without growing SKILL.md', () => {
   assert.match(read('skill-src/ai-engineering-loop/references/loop-verify.md'), /No claim without fresh evidence/);
-  assert.match(read('skill-src/ai-engineering-loop/references/loop-review.md'), /receiving-code-review/);
+  assert.match(read('skill-src/ai-engineering-loop/references/loop-review.md'), /ael-receiving-code-review/);
   const rca = read('core/root-cause-analysis.md');
   assert.match(rca, /Trace backward/);
   assert.match(rca, /Three strikes/);
@@ -93,4 +93,16 @@ test('ael-code-simplifier does not clash with the dot-plugin code-simplifier ski
   assert.ok(!QUALITY_SKILLS.includes('code-simplifier'));
   assert.match(read('adapters/quality/skills/ael-code-simplifier/SKILL.md'), /^name: ael-code-simplifier$/m);
   assert.ok(!fs.existsSync(path.join(ROOT, 'adapters/quality/skills/code-simplifier')));
+});
+
+test('ael-receiving-code-review does not clash with the dot-plugin receiving-code-review skill', () => {
+  const dot = new Set(JSON.parse(read('tests/fixtures/dot-plugin-skill-names.json')).skills);
+  assert.ok(dot.has('receiving-code-review'));
+  assert.ok(!dot.has('ael-receiving-code-review'));
+  assert.ok(QUALITY_SKILLS.includes('ael-receiving-code-review'));
+  assert.ok(!QUALITY_SKILLS.includes('receiving-code-review'));
+  assert.match(read('adapters/quality/skills/ael-receiving-code-review/SKILL.md'), /^name: ael-receiving-code-review$/m);
+  assert.ok(!fs.existsSync(path.join(ROOT, 'adapters/quality/skills/receiving-code-review')));
+  // No AEL quality skill shares a name with a dot-plugin skill.
+  for (const name of QUALITY_SKILLS) assert.ok(!dot.has(name), `${name} clashes with dot-plugin`);
 });

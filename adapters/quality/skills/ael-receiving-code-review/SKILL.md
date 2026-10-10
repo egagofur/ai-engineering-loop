@@ -1,9 +1,9 @@
 ---
-name: receiving-code-review
+name: ael-receiving-code-review
 description: Use when acting on review feedback (Devil's Advocate findings during ITERATE, or human MR/PR comments) before changing code. Does NOT perform a review (use the Devil's Advocate) or decide PASS/ITERATE (use the Judge).
 ---
 
-# Receiving Code Review
+# AEL Receiving Code Review
 
 Feedback is a claim to check, not an order to obey. Verify each item against the code before you change anything.
 
