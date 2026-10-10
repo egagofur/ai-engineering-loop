@@ -65,6 +65,16 @@ npx ai-engineering-loop verification record --run <run-id> -- npm test
 
 The command captures bounded, redacted output without invoking a shell implicitly, records failures honestly, and generates a compact test summary. For other stage artifacts, use `scaffold delivery --run <run-id>` (or `verification` / `findings`) to create a private, deliberately incomplete template. Copy or rename it to the gate's real artifact filename, fill it with observed evidence, and remove `_templateOnly`; then `validate <repository-relative-file>` reports schema and Run-binding issues without advancing a gate. Templates are never accepted as evidence. `context claimed-vs-reality --run <run-id>` creates the Goal checklist while leaving claim and evidence cells blank.
 
+Common stage sequences also have one-call forms that gate exactly like the long forms:
+
+```bash
+npx ai-engineering-loop verify --run <run-id> --cmd "npm test"          # record (parallel), gate, compact, claimed-vs-reality
+npx ai-engineering-loop review-pack --run <run-id> --json               # fast-path + diff-hunk pack + escalation floor
+npx ai-engineering-loop deliver --run <run-id> --destination pr --summary "..." --approve --by <name>
+```
+
+`deliver` refuses without `--approve` in ASSISTED mode; pass it only after a human approved delivery.
+
 When context packs exceed their budget, the CLI now reports the limit and a per-file size/token estimate so an agent can choose smaller files without trial and error. For a delivery gate blocked by a recipe approval node, inspect `node status --run <run-id>` and explicitly approve the READY prerequisite; the gate error points to the actionable command.
 
 ## Meet Workflow Studio

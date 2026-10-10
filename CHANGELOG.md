@@ -4,6 +4,15 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+### P2 — combined stage commands to cut agent round-trips (#34)
+
+- **Added:** `verify [--cmd "<command>"]... [--shell] [--serial]` records the commands in parallel by default (`--serial` to opt out), and only if all pass runs `gate verification`, compacts the run, and scaffolds `claimed-vs-reality.md`. With no `--cmd` it uses `test_unit` from `.ai-engineering-loop/verification.md`. Failing commands are recorded and never gated.
+- **Added:** `review-pack --json` builds the fast-path assessment, diff-hunk pack, and escalation floor in one call and returns the pack path, tier, and whether a Devil's Advocate is needed.
+- **Added:** `deliver --destination <where> --summary <text> --approve --by <name>` approves READY approval nodes, writes `delivery.json`, and passes the delivery gate. In ASSISTED it refuses (exit 2, nothing written) without `--approve`.
+- **Added:** `goal freeze --latest --by <name>`: the CLI resolves the newest draft revision and hash.
+- **Changed:** `run --json` also returns the budget summary and host-skill freshness. Stage commands publish Studio heartbeats automatically, so skills no longer ask for a manual heartbeat before every stage or for a separate `tasks/current.diff`.
+- The long command forms still work, and the tests show both paths produce identical gate history, artifacts, and workflow node states.
+
 ### P1 — automatic task tiers with a deterministic review gate (#33)
 
 - **Added:** `run` classifies each new run as **T0** (trivial: docs/typo/lint/bump, small), **T1** (default), or **T2** (risky task text, `HIGH_RISK_PATH`, more than 10 files) and stores `tier` with reasons in `state.json`. `run --json` prints `tier`, `tierReasons`, and the expected subagent count. `--tier T0|T1|T2 --tier-reason <text>` overrides and is recorded.
