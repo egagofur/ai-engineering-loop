@@ -124,7 +124,8 @@ test('hosts doctor: counts visible copies, flags different duplicates and files 
 });
 
 test('README host table is generated from the registry (drift check)', () => {
-  const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8');
+  // Windows checkouts may use CRLF; the table is compared on LF text.
+  const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8').replace(/\r\n?/g, '\n');
   assert.strictEqual(replaceHostTable(readme), readme, 'README host table is stale: run npm run build:hosts-table');
   const table = renderHostTable();
   for (const host of HOSTS) assert.ok(table.includes(`\`${host.id}\``), host.id);

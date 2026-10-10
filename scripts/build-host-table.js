@@ -7,7 +7,7 @@ const path = require('path');
 const { replaceHostTable } = require('../lib/hosts/table.js');
 
 const readme = path.join(__dirname, '..', 'README.md');
-const current = fs.readFileSync(readme, 'utf8');
+const current = fs.readFileSync(readme, 'utf8').replace(/\r\n?/g, '\n');
 const next = replaceHostTable(current);
 if (process.argv.includes('--check')) {
   if (next !== current) {
