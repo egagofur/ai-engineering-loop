@@ -100,6 +100,17 @@ Native Subagent Invocation: UNAVAILABLE
 Review Method: Clean-Slate Artifact Isolation Barrier
 ```
 
+If native subagent invocation is AVAILABLE but no reviewer subagent returned its own result, the mode line carries the reason, so the header is never contradictory (#57):
+
+```text
+Execution Mode: CONTEXT_ISOLATION_ONLY (reason: <why>)
+Independent LLM Execution: NOT PROVEN
+Native Subagent Invocation: AVAILABLE
+Review Method: Clean-Slate Artifact Isolation Barrier
+```
+
+REPORT_ONLY (recipe `audit`) policy: when the host can invoke a native subagent, one fresh `devil-advocate` sibling reviews `report.json` before `gate report` (no Judge, no iteration loop); otherwise the same check runs in-session with a reason. `report.json` may carry a `review` block, which `gate report` validates.
+
 ### Strictly Forbidden Phrases during `CONTEXT_ISOLATION_ONLY`:
 - *"independent agent review"*
 - *"subagent"*

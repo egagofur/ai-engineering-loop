@@ -1472,7 +1472,8 @@ function handleRun() {
   console.log('1. Grill if needed (docs grill-policy), then freeze a failure-table Goal Contract');
   if (runResult.run.mode === RUN_MODES.REPORT_ONLY) {
     console.log('2. Analyze evidence without changing repository files');
-    console.log('3. Write report.json and finish with `ai-engineering-loop gate report`');
+    console.log('3. Write report.json; if the host has a subagent tool, have ONE fresh devil-advocate challenge it (no Judge), and record `review` in report.json (loop-maker)');
+    console.log('4. Finish with `ai-engineering-loop gate report`');
   } else {
     console.log('2. Root Cause Analysis (docs root-cause-analysis) & Plan');
     console.log('3. Maker TDD at named seams (docs tdd-policy)');

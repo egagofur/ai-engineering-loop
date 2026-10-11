@@ -4,7 +4,11 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
-_No changes yet._
+### Audit / REPORT_ONLY review policy and a non-contradictory header (#57)
+
+- **Fixed:** the execution header could say `Execution Mode: CONTEXT_ISOLATION_ONLY` next to `Native Subagent Invocation: AVAILABLE` with no explanation, for example on recipe `audit` runs in Antigravity. Now the mode line carries the reason: `CONTEXT_ISOLATION_ONLY (reason: <why>)`. The independent and no-subagent headers are unchanged.
+- **Changed:** recipe `audit` (REPORT_ONLY) used to skip review entirely, because only Maker runs reach DA and Judge. When the host can invoke a subagent, one fresh `devil-advocate` sibling now challenges `report.json` before `gate report` (no Judge, no iteration loop). Otherwise the same check runs in-session with a reason. The policy is documented in `references/loop-maker.md`, `loop-hosts.md`, `loop-review.md`, and `core/orchestration-model.md`.
+- **Added:** an optional `review` block in `report.json`. `gate report` validates it: an independent mode needs `reviewer: devil-advocate` plus the reviewer's own `childId`, and `CONTEXT_ISOLATION_ONLY` with `nativeSubagent: AVAILABLE` needs `reason`. Reports without the block stay valid.
 
 ## 1.15.0 - 2026-10-11
 

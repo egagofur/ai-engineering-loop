@@ -1,6 +1,6 @@
 # Host rules: subagent tools per host
 
-Read only your host's section, before the first Devil's Advocate (DA) or Judge spawn. Every host shares the loop, budgets, and gates; only the spawn mechanics differ. Modes: `TRUE_INDEPENDENT_AGENT`, `ISOLATED_AGENT_INSTANCE`, `FRESH_PROCESS_AGENT`, `CONTEXT_ISOLATION_ONLY`, `UNAVAILABLE`.
+Read only your host's section, before the first Devil's Advocate (DA) or Judge spawn. Every host shares the loop, budgets, and gates; only the spawn mechanics differ. REPORT_ONLY (`audit`) uses the same spawn tool for one `devil-advocate` report review (`loop-maker`); never report CONTEXT_ISOLATION_ONLY next to an AVAILABLE subagent tool without a reason. Modes: `TRUE_INDEPENDENT_AGENT`, `ISOLATED_AGENT_INSTANCE`, `FRESH_PROCESS_AGENT`, `CONTEXT_ISOLATION_ONLY`, `UNAVAILABLE`.
 
 ## Claude Code (and Kiro-backed strict proxies)
 

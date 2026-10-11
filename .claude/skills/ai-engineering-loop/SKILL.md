@@ -52,7 +52,7 @@ Native Subagent Invocation: AVAILABLE
 Review Method: True Independent Agent
 ```
 
-When no subagent ran:
+When no subagent ran (tool AVAILABLE: mode adds `(reason: <why>)`):
 
 ```
 Execution Mode: CONTEXT_ISOLATION_ONLY

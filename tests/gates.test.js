@@ -219,3 +219,45 @@ test('downstream gates reject artifacts changed after validation', () => {
     /findings artifact changed after its gate/
   );
 });
+
+// #57: REPORT_ONLY (recipe audit) report review must be truthful and non-contradictory.
+function reportOnlyRun(review) {
+  const root = tempRepo();
+  fs.rmSync(path.join(root, '.ai-engineering-loop', 'runs'), { recursive: true });
+  createRun(root, { runId: 'run-001', task: 'audit only', mode: RUN_MODES.REPORT_ONLY });
+  writeArtifact(root, 'goal-contract.json', goal());
+  applyGate(root, 'goal');
+  writeArtifact(root, 'report.json', {
+    schemaVersion: 1,
+    runId: 'run-001',
+    summary: 'Audit summary',
+    recommendations: ['Add an integration test'],
+    ...(review === undefined ? {} : { review })
+  });
+  return root;
+}
+
+test('audit on a subagent host: report review by an independent devil-advocate needs its own child id (#57)', () => {
+  const missing = reportOnlyRun({ executionMode: 'TRUE_INDEPENDENT_AGENT', nativeSubagent: 'AVAILABLE', reviewer: 'devil-advocate' });
+  assert.throws(() => applyGate(missing, 'report'), (err) => /childId/.test(JSON.stringify(err.details || err.message)));
+  const wrongRole = reportOnlyRun({ executionMode: 'TRUE_INDEPENDENT_AGENT', nativeSubagent: 'AVAILABLE', reviewer: 'judge', childId: 'c-1' });
+  assert.throws(() => applyGate(wrongRole, 'report'), (err) => /devil-advocate/.test(JSON.stringify(err.details || err.message)));
+  const ok = reportOnlyRun({ executionMode: 'TRUE_INDEPENDENT_AGENT', nativeSubagent: 'AVAILABLE', reviewer: 'devil-advocate', childId: 'subagent-42' });
+  assert.strictEqual(applyGate(ok, 'report').state, RUN_STATES.REPORTED);
+  // Legacy alias is accepted.
+  const alias = reportOnlyRun({ executionMode: 'NATIVE_SUBAGENT', reviewer: 'devil-advocate', childId: 'subagent-43' });
+  assert.strictEqual(applyGate(alias, 'report').state, RUN_STATES.REPORTED);
+});
+
+test('audit: CONTEXT_ISOLATION_ONLY next to an AVAILABLE subagent tool needs a reason; without a subagent host it does not (#57)', () => {
+  const contradictory = reportOnlyRun({ executionMode: 'CONTEXT_ISOLATION_ONLY', nativeSubagent: 'AVAILABLE' });
+  assert.throws(() => applyGate(contradictory, 'report'), (err) => /review\.reason is required/.test(JSON.stringify(err.details || err.message)));
+  const explained = reportOnlyRun({ executionMode: 'CONTEXT_ISOLATION_ONLY', nativeSubagent: 'AVAILABLE', reason: 'invoke_subagent returned an error' });
+  assert.strictEqual(applyGate(explained, 'report').state, RUN_STATES.REPORTED);
+  const noSubagentHost = reportOnlyRun({ executionMode: 'CONTEXT_ISOLATION_ONLY', nativeSubagent: 'UNAVAILABLE' });
+  assert.strictEqual(applyGate(noSubagentHost, 'report').state, RUN_STATES.REPORTED);
+  const unknown = reportOnlyRun({ executionMode: 'SOMETHING_ELSE' });
+  assert.throws(() => applyGate(unknown, 'report'), /Report gate failed/);
+  const legacy = reportOnlyRun(undefined);
+  assert.strictEqual(applyGate(legacy, 'report').state, RUN_STATES.REPORTED, 'reports without a review block stay valid');
+});
