@@ -1,5 +1,7 @@
 # Stages 6-7: Devil's Advocate and Judge
 
+REPORT_ONLY runs skip these stages; their single report review is in `loop-maker`.
+
 ## Devil's Advocate (T1, T2)
 
 - `npx ai-engineering-loop review-pack --run <runId> --json` returns the DA pack path, fast-path, escalation floor, and tier. Keep the lean path when eligible; add `context devil-advocate <files...>` only for files whose hunks are insufficient. The DA reads that pack or `RUN_DIR/diff.patch` (do not also write `tasks/current.diff`).

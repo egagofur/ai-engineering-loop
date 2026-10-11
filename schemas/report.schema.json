@@ -3,14 +3,61 @@
   "$id": "https://github.com/egagofur/ai-engineering-loop/schemas/report.schema.json",
   "title": "Report-only completion",
   "type": "object",
-  "required": ["schemaVersion", "runId", "summary", "recommendations"],
+  "required": [
+    "schemaVersion",
+    "runId",
+    "summary",
+    "recommendations"
+  ],
   "properties": {
-    "schemaVersion": { "const": 1 },
-    "runId": { "type": "string", "minLength": 1 },
-    "summary": { "type": "string", "minLength": 1 },
+    "schemaVersion": {
+      "const": 1
+    },
+    "runId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
     "recommendations": {
       "type": "array",
-      "items": { "type": "string", "minLength": 1 }
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "review": {
+      "description": "Optional report review (#57). Independent modes need reviewer devil-advocate and its own childId; CONTEXT_ISOLATION_ONLY with nativeSubagent AVAILABLE needs reason.",
+      "type": "object",
+      "required": [
+        "executionMode"
+      ],
+      "properties": {
+        "executionMode": {
+          "type": "string",
+          "minLength": 1
+        },
+        "nativeSubagent": {
+          "enum": [
+            "AVAILABLE",
+            "UNAVAILABLE"
+          ]
+        },
+        "reviewer": {
+          "const": "devil-advocate"
+        },
+        "childId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": true
     }
   },
   "additionalProperties": true
