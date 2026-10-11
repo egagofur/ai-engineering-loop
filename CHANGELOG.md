@@ -4,6 +4,10 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+_No changes yet._
+
+## 1.15.0 - 2026-10-11
+
 ### Multi-agent hosts: `setup` suggests `auto` detection mode (#54 decision 4)
 
 - **Changed:** interactive `setup` now asks "Sync agents you install later automatically? [Y/n] (recommended: Y = auto)"; pressing Enter picks `auto`. `setup --yes`, a missing TTY, CI, and scripts keep `manual` unless `--mode` is passed. Gemini CLI detection, Kiro/Junie read-only reviewers, and the deferred Cline reviewer are unchanged.
