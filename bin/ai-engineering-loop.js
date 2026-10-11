@@ -1149,7 +1149,7 @@ function handleSetup() {
     }
     return;
   }
-  let mode = modeArg || 'manual';
+  let mode = hostCommands.setupMode({ modeArg, interactive: false });
   if (!yes) {
     console.log(hostCommands.formatHostsList(rows, selection));
     if (!ids.length) {
@@ -1162,8 +1162,7 @@ function handleSetup() {
       return;
     }
     if (!modeArg) {
-      const auto = readTtyLine('Enable agents you install later automatically (on status / update auto)? [Y/n] ', 'y');
-      mode = ['y', 'yes'].includes(auto) ? 'auto' : 'manual';
+      mode = hostCommands.setupMode({ interactive: true, answer: readTtyLine(hostCommands.SETUP_MODE_QUESTION, '') });
     }
   }
   const next = hostCommands.applySetup({ home, ids, mode });
@@ -3433,7 +3432,8 @@ Commands:
                       [--output <repository-relative-file>|-] [--json]
                inspect | brief <repository-relative-file> [--json]
   setup        One-time: detect AI agents (config folder or PATH binary, never run) and install for them
-               --yes  skip the prompt   --hosts <id,...>  pick hosts   --mode auto|manual   --json
+               --yes  skip the prompt   --hosts <id,...>  pick hosts   --json
+               --mode auto|manual  (prompt suggests auto; --yes / no TTY default to manual)
                Without a TTY and without --yes it only prints the plan
   hosts        Show or change which AI agent hosts get the loop
                list [--json]  |  doctor [--json]  |  enable <id...>  |  disable <id...> (removes unedited AEL files)

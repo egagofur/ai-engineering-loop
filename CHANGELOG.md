@@ -4,6 +4,10 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+### Multi-agent hosts: `setup` suggests `auto` detection mode (#54 decision 4)
+
+- **Changed:** interactive `setup` now asks "Sync agents you install later automatically? [Y/n] (recommended: Y = auto)"; pressing Enter picks `auto`. `setup --yes`, a missing TTY, CI, and scripts keep `manual` unless `--mode` is passed. Gemini CLI detection, Kiro/Junie read-only reviewers, and the deferred Cline reviewer are unchanged.
+
 ### Multi-agent hosts, phase 4: new agents, `hosts doctor`, generated host table (#52)
 
 - **Added:** agents installed after `setup` are detected again (stat only). With `hosts.mode: auto`, the background `update auto` of a global install enables and syncs them; a host you disabled stays disabled. With `manual` (default), `status` prints one short notice per new agent, at most once a day. Nothing is written or shown in CI, in `--json` output, or with `AEL_NO_AUTO_UPDATE=1`. `update auto --json` reports `hosts.added`.

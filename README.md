@@ -208,7 +208,7 @@ ai-engineering-loop hosts disable codex    # removes the files AEL wrote there (
 
 There is no `postinstall` hook: npm 7+ hides its output, pnpm 10 and Bun block it, and `--ignore-scripts` skips it. Instead the first interactive command suggests `setup` (at most once a day; silence with `AEL_NO_SETUP_HINT=1`). `setup` without a terminal only prints the plan unless you pass `--yes`. Until you run `setup`, `sync-hosts` keeps the old behaviour: it writes only to hosts whose config folder already exists.
 
-Agents you install later are noticed by `status` and the background `update auto` (stat only, cheap). With `setup --mode auto`, a global install enables and syncs them on its own; with `--mode manual` (the default) you get one short notice per new agent, at most once a day. Nothing is written or shown in CI, in `--json` output, or with `AEL_NO_AUTO_UPDATE=1`.
+Agents you install later are noticed by `status` and the background `update auto` (stat only, cheap). With `auto` (the answer `setup` suggests when it asks; just press Enter), a global install enables and syncs them on its own; with `manual` (the default for `setup --yes` and any non-interactive run) you get one short notice per new agent, at most once a day. Nothing is written or shown in CI, in `--json` output, or with `AEL_NO_AUTO_UPDATE=1`.
 
 `sync-hosts` installs the **core** pack by default: the `ai-engineering-loop` skill, Devil's Advocate and Judge agents, and the small helper skills the loop itself uses. Optional packs stay out of every session's skill index until you ask for them:
 
