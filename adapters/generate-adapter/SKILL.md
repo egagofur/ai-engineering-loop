@@ -50,12 +50,13 @@ Or run `npx ai-engineering-loop generate-adapter` and use its detected block.
 
 Cite the remote host. Do not ask what git already shows.
 
-Recommended type:
+Recommended type (same rules as `init` and Studio; the CLI prints the reason):
 
-- `github.com` → `github`
-- GitLab host that is not a named company adapter → `gitlab`
-- no remote / unknown → `standard`
-- user said they need the DOT pipeline → `dot` (load `adapters/dot/`, do not invent extra tools)
+1. `origin` remote host (else the first remote): DOT GitLab host → `dot`, `github.com` → `github`, any other host with `gitlab` in it → `gitlab`
+2. unknown or no remote: `.github/workflows/` → `github`, `.gitlab-ci.yml` → `gitlab`
+3. otherwise → `standard`
+
+Do not downgrade a `dot` recommendation to `gitlab`. `dot` loads `adapters/dot/`; do not invent extra tools.
 
 ### 2. Grill (wait)
 

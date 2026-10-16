@@ -1,6 +1,6 @@
 ---
 name: task-impact-inquiry
-description: Map business blast radius before code. Use for impact, side effects, sibling data, approval, queues, or when a new developer must learn the current flow. Triggers: cek impactnya, blast radius, analisa pengaruh, brainstorming impact. Not a substitute for ai-engineering-loop.
+description: Map business blast radius before code. Use for impact, side effects, sibling data, approval, queues, or when a new developer must learn the current flow. Triggers (EN/ID): check the impact, impact analysis, blast radius, side effects, cek impactnya, analisa pengaruh. Not a substitute for ai-engineering-loop.
 ---
 
 # Task Impact Inquiry
@@ -9,7 +9,9 @@ Map the **current business flow** and the **blast radius** of a change before an
 
 This skill fills AI Engineering Loop Stage 1 grill. It is not a parallel engineering OS.
 
-If Stage 1 grill already produced this matrix and the user confirmed it, stop. Do not interview again. On commit-bound work, continue in `ai-engineering-loop` (freeze the Goal Contract, then Maker). Do not start `dot-dev-workflow` Phases 1-6.
+If Stage 1 grill already produced this matrix and the user confirmed it, stop. Do not interview again. On commit-bound work, continue in `ai-engineering-loop` (freeze the Goal Contract, then Maker). Do not start a second engineering loop from your team's own workflow skill.
+
+Works on any adapter. On `adapter_type: dot` it is mandatory in Stage 1; the DOT-only rules live in `adapters/dot/README.md`.
 
 ## Hard gate
 
@@ -23,7 +25,8 @@ Green unit tests later are not proof that siblings, approvals, or downstream job
 
 ## When to use
 
-- "cek impactnya", "blast radius", "analisa pengaruh", "brainstorming impact"
+- "check the impact", "impact analysis", "blast radius", "side effects"
+- Indonesian: "cek impactnya", "analisa pengaruh", "brainstorming impact"
 - Bug, edge case, or business-logic change
 - Shared service, status transition, calculation, validation, authorization, schema
 - The user is new to the domain and does not know the flow
@@ -47,8 +50,8 @@ Look up facts (files, enums, jobs). Grill only **decisions**.
 Read in this order. Skip a source if it is missing. Do not invent statuses.
 
 1. `.ai-engineering-loop/glossary.md`
-2. Existing FSD if present (`docs/fsd/`, `specs-book/fsd/`, especially `impact-matrix.md`). Read only. Do not generate an FSD.
-3. Status enums, services, validators, listeners, BullMQ / cron / queue processors
+2. Existing functional spec (FSD/PRD) if present (`docs/fsd/`, `specs-book/fsd/`, especially `impact-matrix.md`). Read only. Do not generate an FSD.
+3. Status enums, services, validators, listeners, queue / cron / job processors
 4. Matching FE pages, routes, and permission guards when both FE and BE are in the workspace
 
 Cite the path for each claim. If FE or BE is missing, say so.
@@ -76,7 +79,7 @@ If the flow cannot be determined from the repo, say what is missing.
 
 **Actor and approval.** Who creates, who may edit, who must re-approve? When is an existing approval void, and when must it be kept?
 
-**Downstream.** BullMQ, cron, listeners, billing, dashboard totals.
+**Downstream.** Queues, cron, listeners, billing, dashboard totals.
 
 ### 4. Where it hits (hit map + blast picture)
 
@@ -152,4 +155,4 @@ Next: freeze Goal Contract | stop (impact-only)
 - Mermaid or LaTeX
 - Claiming isolation because unit tests passed
 - Inventing business rules the repo and the user did not supply
-- Generating an FSD or starting `dot-dev-workflow` as a second loop
+- Generating an FSD or starting another workflow skill as a second loop

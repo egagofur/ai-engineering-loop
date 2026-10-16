@@ -36,6 +36,8 @@ const {
   formatGenerateAdapterReport,
   parseTypeArg
 } = require('../lib/generate-adapter.js');
+const { detectAdapter } = require('../lib/adapter-detect.js');
+const { checkAdapter } = require('../lib/adapter-check.js');
 const {
   writeWorkflowOverlay,
   formatGenerateWorkflowReport,
@@ -549,26 +551,12 @@ function analyzeRepository(rootDir) {
     discovery.evidence.push('Manifest: pubspec.yaml');
   }
 
-  // 3. Adapter / CI Detection
-  if (fs.existsSync(path.join(rootDir, '.github', 'workflows'))) {
-    discovery.adapter.ciProvider = 'GitHub Actions';
-    discovery.adapter.type = 'github';
-  } else if (fs.existsSync(path.join(rootDir, '.gitlab-ci.yml'))) {
-    discovery.adapter.ciProvider = 'GitLab CI';
-    discovery.adapter.type = 'gitlab';
-  }
-
-  // Check git remote if git folder exists
-  const gitConfigStr = readFileSafe(path.join(rootDir, '.git', 'config'));
-  if (gitConfigStr) {
-    const urlMatch = gitConfigStr.match(/url\s*=\s*(.*)/);
-    if (urlMatch) {
-      discovery.adapter.repoSlug = urlMatch[1].trim();
-      if (discovery.adapter.repoSlug.includes('gitlab.dot.co.id')) {
-        discovery.adapter.type = 'dot';
-      }
-    }
-  }
+  // 3. Adapter / CI Detection (shared with generate-adapter and Studio, #62)
+  const detected = detectAdapter(rootDir);
+  discovery.adapter.type = detected.type;
+  discovery.adapter.ciProvider = detected.ciProvider;
+  discovery.adapter.repoSlug = detected.remote || null;
+  discovery.evidence.push(`Adapter: ${detected.type} (${detected.reason})`);
 
   return discovery;
 }
@@ -2258,12 +2246,12 @@ function handleState() {
 
 function handleDoctor() {
   const json = process.argv.includes('--json');
-  const result = runDoctor(path.join(__dirname, '..'));
+  const result = runDoctor(path.join(__dirname, '..'), { projectDir: CWD });
   if (json) console.log(JSON.stringify(result));
   else {
     console.log(`AI Engineering Loop doctor: ${result.ok ? 'READY' : 'NOT READY'}`);
     for (const check of result.checks) {
-      console.log(`${check.passed ? '✓' : '✗'} ${check.id}: ${check.detail}`);
+      console.log(`${check.passed ? '✓' : check.level === 'warn' ? '!' : '✗'} ${check.id}: ${check.detail}`);
     }
   }
   if (!result.ok) process.exit(1);
@@ -3228,6 +3216,18 @@ function handleDeliver() {
     if (approve && !by) {
       throw Object.assign(new Error('--approve requires --by <name> (the approving human).'), { code: 'INVALID_USAGE' });
     }
+    // Adapter preflight (#63): UNATTENDED stops before anything is written;
+    // ASSISTED only warns, because a human is approving this delivery.
+    // A configured-vs-detected mismatch can be deliberate, so it never blocks.
+    const adapterProblems = checkAdapter(CWD).filter((item) => !item.passed);
+    const blocking = adapterProblems.filter((item) => item.id !== 'adapter-detected');
+    if (mode === RUN_MODES.UNATTENDED && blocking.length) {
+      throw Object.assign(
+        new Error(`Adapter preflight failed; nothing was written. ${blocking.map((item) => `${item.id}: ${item.detail}`).join('; ')}`),
+        { code: 'ADAPTER_PREFLIGHT_FAILED' }
+      );
+    }
+    for (const item of adapterProblems) console.error(`! ${item.id}: ${item.detail}`);
     const approved = [];
     if (approve && run.workflow) {
       const workflow = workflowStatus(CWD, { runId });
