@@ -13,6 +13,14 @@ An adapter is not a second engineering OS. It runs **after Judge `PASS`**. It mu
 | **`gitlab`** | GitLab.com or self-hosted GitLab (not DOT) | [`gitlab/`](gitlab/) |
 | **`dot`** | DOT delivery (GitLab + multi-branch + Coreview + Mattermost) | [`dot/`](dot/) |
 
+`init`, `generate-adapter` and Studio share one detector (`lib/adapter-detect.js`):
+
+1. The `origin` remote host (or the first remote; worktrees work): the DOT GitLab host → `dot`, `github.com` → `github`, other GitLab hosts → `gitlab`.
+2. If the remote says nothing: `.github/workflows/` → `github`, `.gitlab-ci.yml` → `gitlab`.
+3. Otherwise `standard`.
+
+Each prints the reason it chose a type.
+
 Pick one with `npx ai-engineering-loop generate-adapter`. The agent **asks** (grill). Do not copy a neighbour's adapter.
 
 Custom tools (Linear, Slack, Bitbucket): still start from `standard`, then name those tools in `.ai-engineering-loop/adapter.md`. Do not put secrets in the file.

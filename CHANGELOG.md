@@ -4,6 +4,13 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+### One adapter detector for `init`, `generate-adapter` and Studio (#62)
+
+- **Fixed:** `generate-adapter` and Studio recommended `gitlab` for a DOT GitLab remote while `init` chose `dot`, so accepting their recommendation silently dropped the DOT pipeline. All three now call `lib/adapter-detect.js` and agree.
+- **Changed:** the remote host now wins over CI files. A GitHub remote without `.github/workflows/` is `github` (was `standard`); CI files only decide when the remote host is unknown or missing.
+- **Changed:** the `origin` remote is read (fallback: the first remote) instead of the first `url =` line in `.git/config`, so submodule URLs and `upstream` no longer win. Linked worktrees (`.git` is a file) are detected.
+- **Added:** `generate-adapter` prints the reason next to `recommended:`, Studio's bootstrap returns `adapters.reason`, and `init` records it in the context evidence.
+
 ### Audit / REPORT_ONLY review policy and a non-contradictory header (#57)
 
 - **Fixed:** the execution header could say `Execution Mode: CONTEXT_ISOLATION_ONLY` next to `Native Subagent Invocation: AVAILABLE` with no explanation, for example on recipe `audit` runs in Antigravity. Now the mode line carries the reason: `CONTEXT_ISOLATION_ONLY (reason: <why>)`. The independent and no-subagent headers are unchanged.
