@@ -65,9 +65,9 @@ test('task-impact-inquiry is adapter-neutral: same copy for every host, EN + ID 
   fs.mkdirSync(path.join(home, '.claude'));
   fs.mkdirSync(path.join(home, '.grok'));
   applyHostSync({ packageRoot: ROOT, home });
-  const src = fs.readFileSync(path.join(ROOT, 'adapters/quality/skills/task-impact-inquiry/SKILL.md'), 'utf8');
+  const src = fs.readFileSync(path.join(ROOT, 'adapters/quality/skills/task-impact-inquiry/SKILL.md'), 'utf8').replace(/\r\n?/g, '\n');
   for (const rel of ['.claude/skills/task-impact-inquiry/SKILL.md', '.agents/skills/task-impact-inquiry/SKILL.md']) {
-    assert.strictEqual(fs.readFileSync(path.join(home, rel), 'utf8'), src, rel);
+    assert.strictEqual(fs.readFileSync(path.join(home, rel), 'utf8').replace(/\r\n?/g, '\n'), src, rel);
   }
   const description = src.match(/^description: (.*)$/m)[1];
   assert.match(description, /check the impact/);
