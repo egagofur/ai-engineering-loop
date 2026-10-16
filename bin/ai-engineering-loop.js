@@ -37,6 +37,7 @@ const {
   parseTypeArg
 } = require('../lib/generate-adapter.js');
 const { detectAdapter } = require('../lib/adapter-detect.js');
+const { checkAdapter } = require('../lib/adapter-check.js');
 const {
   writeWorkflowOverlay,
   formatGenerateWorkflowReport,
@@ -2245,12 +2246,12 @@ function handleState() {
 
 function handleDoctor() {
   const json = process.argv.includes('--json');
-  const result = runDoctor(path.join(__dirname, '..'));
+  const result = runDoctor(path.join(__dirname, '..'), { projectDir: CWD });
   if (json) console.log(JSON.stringify(result));
   else {
     console.log(`AI Engineering Loop doctor: ${result.ok ? 'READY' : 'NOT READY'}`);
     for (const check of result.checks) {
-      console.log(`${check.passed ? '✓' : '✗'} ${check.id}: ${check.detail}`);
+      console.log(`${check.passed ? '✓' : check.level === 'warn' ? '!' : '✗'} ${check.id}: ${check.detail}`);
     }
   }
   if (!result.ok) process.exit(1);
@@ -3215,6 +3216,18 @@ function handleDeliver() {
     if (approve && !by) {
       throw Object.assign(new Error('--approve requires --by <name> (the approving human).'), { code: 'INVALID_USAGE' });
     }
+    // Adapter preflight (#63): UNATTENDED stops before anything is written;
+    // ASSISTED only warns, because a human is approving this delivery.
+    // A configured-vs-detected mismatch can be deliberate, so it never blocks.
+    const adapterProblems = checkAdapter(CWD).filter((item) => !item.passed);
+    const blocking = adapterProblems.filter((item) => item.id !== 'adapter-detected');
+    if (mode === RUN_MODES.UNATTENDED && blocking.length) {
+      throw Object.assign(
+        new Error(`Adapter preflight failed; nothing was written. ${blocking.map((item) => `${item.id}: ${item.detail}`).join('; ')}`),
+        { code: 'ADAPTER_PREFLIGHT_FAILED' }
+      );
+    }
+    for (const item of adapterProblems) console.error(`! ${item.id}: ${item.detail}`);
     const approved = [];
     if (approve && run.workflow) {
       const workflow = workflowStatus(CWD, { runId });
