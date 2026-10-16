@@ -20,6 +20,9 @@ flowchart TD
     
     PushBranch --> CreateMR[Create Merge Request via glab]
     CreateMR --> CaptureMR[Capture MR URL & ID for Multi-Branch / Bot Triage]
+    CaptureMR --> Gate[Pipeline + Sonar gate: sonar.md]
+    Gate --> Triage[Coreview triage: coreview.md]
+    Triage --> Ready[Move card to Ready to review: Step 4]
 ```
 
 ---
@@ -150,3 +153,49 @@ glab mr create \
 ## Note for Deployment
 - No manual database migrations required. (or specify migration command if applicable)
 ```
+
+---
+
+## 6. Step 4: Move the Card to "Ready to review"
+
+Run this only when all three hold:
+
+1. The MR pipeline passed and the Sonar gate is PASS or SKIPPED ([`sonar.md`](sonar.md)).
+2. The Coreview triage report is printed ([`coreview.md`](coreview.md)).
+3. An issue is linked to this MR (Step 2).
+
+If the Sonar gate is FAIL, stop here. Do not move the card, and do not notify.
+
+### A. No card linked: skip cleanly
+
+If Step 2 found no issue and none was created (for example, the tracker is not this repo and the user did not name one), print `Card: none linked (skipped)` and continue to Mattermost. Do not create an issue just to move it.
+
+### B. Read the board lists and the card's current labels
+
+GitLab board columns are labels. Find the label of the "Ready to review" list and of every other list:
+
+```bash
+glab api "projects/:fullpath/boards"                # lists[].label.name per board
+glab api "projects/:fullpath/issues/<issue-iid>"    # labels[] on the card
+```
+
+The target label is the list label whose name equals `Ready to review` (case-insensitive). If `.ai-engineering-loop/adapter.md` names `board_ready_label`, use that instead. No such list on any board: print `Card: no "Ready to review" list (skipped)` and continue.
+
+### C. Move it (idempotent)
+
+- The card already has the target label and no other list label: print `Card: already in Ready to review` and do nothing.
+- Otherwise add the target label and remove only the **other board-list labels** currently on the card. Leave every non-list label alone.
+
+```bash
+glab issue update <issue-iid> --repo <repo> \
+  --label "Ready to review" \
+  --unlabel "<other list label currently on the card>"
+```
+
+Re-read the issue and print:
+
+```text
+Card: #<issue-iid> -> Ready to review (removed: <labels or none>)
+```
+
+Running Step 4 twice must not change anything the second time.
