@@ -16,18 +16,24 @@ flowchart TD
         PASS --> Issue[1. GitLab Issue Card via glab]
         Issue --> BaseMR[2. One Merge Request via glab]
         BaseMR --> AskPropagate{User named extra envs this turn?}
-        AskPropagate -->|No| CoreviewTriage[3. External @coreview-bot Review Triage]
+        AskPropagate -->|No| Gate[3. Pipeline + Sonar quality gate]
         AskPropagate -->|Yes| MultiBranch[Optional cherry-pick staging / develop]
-        MultiBranch --> CoreviewTriage
-        CoreviewTriage --> MattermostDispatch[4. Mattermost Markdown Notification via MCP]
+        MultiBranch --> Gate
+        Gate -->|FAIL| Fix[Fix on the same MR, push]
+        Fix --> Gate
+        Gate -->|PASS or SKIPPED| CoreviewTriage[4. External @coreview-bot Review Triage]
+        CoreviewTriage --> Ready[5. Move card to Ready to review]
+        Ready --> MattermostDispatch[6. Mattermost Markdown Notification via MCP]
     end
 ```
+
+**Stage 8 order:** issue → MR → pipeline + Sonar gate → Coreview triage → card to "Ready to review" → Mattermost. A Sonar `FAIL` blocks the card move and the notification until a new pipeline passes.
 
 ---
 
 ## 2. Adapter Modules
 
-The DOT adapter is organized into four dedicated specification modules:
+The DOT adapter is organized into five specification modules:
 
 1. **[GitLab Integration (`gitlab.md`)](gitlab.md)**:
    - CLI automation with `glab`.
@@ -38,11 +44,15 @@ The DOT adapter is organized into four dedicated specification modules:
    - Related `feat/…` or `fix/…`: stay. One MR. Do not open three MRs.
    - Base: `origin/develop` when develop is in use (default branch is `develop`), including when HEAD is `main`. HEAD being `main` does not override an in-use `develop` default. `origin/main` only when develop is unused leftover (default branch is `main` / `master`). Do not force leftover develop.
    - Cherry-pick extra envs only if the user named them this turn. Chat `setuju` is not propagate.
-3. **[Coreview External Reviewer Triage (`coreview.md`)](coreview.md)**:
+3. **[Pipeline and Sonar Quality Gate (`sonar.md`)](sonar.md)**:
+   - Wait for the MR pipeline, read the Sonar quality gate from the pipeline job or the MR comment (`glab` only).
+   - `FAIL` loops back to a fix on the same MR; it blocks the card move and Mattermost. No Sonar → `SKIPPED`, never a silent PASS.
+4. **[Coreview External Reviewer Triage (`coreview.md`)](coreview.md)**:
    - Ingestion of `@coreview-bot` automated PR comments.
    - Mandatory Phase 8 Triage reporting gate before Mattermost dispatch.
    - Rigorous evaluation of bot suggestions into `VALID` (fix on the same topic MR; do not cherry-pick unless the user named extra envs this turn) vs `HALU` (false positive pushback) using principles from `gitlab-mr-feedback` and `receiving-code-review`.
-4. **[Mattermost Notifications (`mattermost.md`)](mattermost.md)**:
+   - After triage: move the issue card to **"Ready to review"** (`gitlab.md` Step 4; idempotent, skips when no card is linked).
+5. **[Mattermost Notifications (`mattermost.md`)](mattermost.md)**:
    - Repository-to-channel resolution using persistent configuration.
    - MCP `mattermost_send_message` dispatch with mandatory `from: "AI Agent"` attribution.
    - Environment-tagged Markdown blocks (`[MR DEV]`, `[MR STAGING]`, `[MR MAIN]`) formatted with strict **`no-ai-slop`** human-written standards.
@@ -51,16 +61,16 @@ The DOT adapter is organized into four dedicated specification modules:
 
 ## 3. Official DOT Engineering Skills Integration
 
-This adapter composes the DOT skill suite. `task-impact-inquiry` ships in this package (`adapters/dot/skills/task-impact-inquiry/`) and `sync-hosts` upserts it to Claude, Grok, and Gemini. Other DOT skills (router, workflow) still update-if-exists only.
+This adapter composes the DOT skill suite. `task-impact-inquiry` is adapter-neutral and ships in `adapters/quality/skills/task-impact-inquiry/`; `sync-hosts` upserts it to every enabled host. On DOT repos it is mandatory in Stage 1. Other DOT skills (router, workflow) still update-if-exists only.
 
-On a DOT repo (`adapter_type: dot`), **run `ai-engineering-loop`**, not the old 9-phase `dot-dev-workflow`, as the engineering OS. Stage 1 grill **includes** `task-impact-inquiry`. Do not run a second interview. After Judge `PASS`, Stage 8 is `dot-dev-workflow` delivery (GitLab, cherry-pick, Coreview, Mattermost). Canonical copies: `adapters/dot/skills/`. See `core/grill-policy.md`.
+On a DOT repo (`adapter_type: dot`), **run `ai-engineering-loop`**, not the old 9-phase `dot-dev-workflow`, as the engineering OS. Stage 1 grill **includes** `task-impact-inquiry`. Do not run a second interview. After Judge `PASS`, Stage 8 is `dot-dev-workflow` delivery (GitLab, cherry-pick, Coreview, Mattermost). Canonical DOT copies: `adapters/dot/skills/` (`task-impact-inquiry`: `adapters/quality/skills/`). See `core/grill-policy.md`.
 
 | Skill | Primary Role & Governance |
 | :--- | :--- |
 | **`ai-engineering-loop`** | Engineering OS (Stages 0-7). Use this for DOT bugfix/feature/refactor. |
 | **`dot-dev-workflow`** | Stage 8 delivery only after Judge PASS. Not a parallel engineering loop. |
 | **`dot-dev-skill-router`** | Routes commit-bound DOT work to `ai-engineering-loop`, then Stage 8. |
-| **`task-impact-inquiry`** | Business blast radius (lifecycle sketch, four pillars, ASCII picture). Canonical: `adapters/dot/skills/task-impact-inquiry/`. Host copies: `~/.claude/skills/`, `~/.agents/skills/` (Codex, Gemini CLI, Grok, and other shared-folder hosts), `~/.gemini/config/skills/` (Antigravity). Fills Stage 1 grill; impact-only stops after the matrix. Not a parallel OS. |
+| **`task-impact-inquiry`** | Business blast radius (lifecycle sketch, four pillars, ASCII picture). Canonical: `adapters/quality/skills/task-impact-inquiry/` (adapter-neutral, EN + ID triggers). Host copies: `~/.claude/skills/`, `~/.agents/skills/` (Codex, Gemini CLI, Grok, and other shared-folder hosts), `~/.gemini/config/skills/` (Antigravity). Fills Stage 1 grill; impact-only stops after the matrix. Not a parallel OS. |
 | **`backend-development`** | Framework-agnostic backend guidelines (clean naming, database queries, security, error handling). |
 | **`backend-safety-guardrails`** | 6 architectural backend safety invariants (queue bypass, BigInt, status recalculation loops). |
 | **`devils-advocate`** | Legacy DOT pre-commit skill. On AEL, Stages 6-7 are package Devil's Advocate + Judge. Do not re-run this skill after Judge PASS. |

@@ -1,6 +1,6 @@
 ---
 name: dot-dev-workflow
-description: DOT Stage 8 delivery after AI Engineering Loop Judge PASS. GitLab issue/MR, one topic-branch MR (extra env cherry-pick only if named this turn), Coreview triage, Mattermost. Not a substitute for ai-engineering-loop.
+description: DOT Stage 8 delivery after AI Engineering Loop Judge PASS. GitLab issue/MR, one topic-branch MR (extra env cherry-pick only if named this turn), pipeline + Sonar gate, Coreview triage, card to Ready to review, Mattermost. Not a substitute for ai-engineering-loop.
 ---
 
 # DOT Delivery Workflow (Stage 8)
@@ -22,7 +22,7 @@ If `ai-engineering-loop` is missing on this host, say so and stop. Do not silent
 | Phase 2 impact inquiry | AEL Stage 1 grill + `task-impact-inquiry` |
 | Phase 3-5 code / tests / tsc | AEL Stages 4-5 (`policies/tdd-policy.md`, `.ai-engineering-loop/verification.md`) |
 | Phase 6 `devils-advocate` | AEL Stages 6-7 (Finding Ledger + Judge PASS/ITERATE/ESCALATE) |
-| Phase 7-9 glab / Coreview / Mattermost | **This skill** (AEL Stage 8). Prefer `adapters/dot/` in the AEL package when present. |
+| Phase 7-9 glab / Sonar / Coreview / board / Mattermost | **This skill** (AEL Stage 8). Prefer `adapters/dot/` in the AEL package when present. |
 
 `git commit`, `git push`, and `glab mr create` are forbidden until Judge `PASS`.
 
@@ -63,7 +63,23 @@ git commit -m "<type>(<scope>): <summary>"
 
 ---
 
-## Stage 8b — Coreview and MR discussions
+## Stage 8b — Pipeline and Sonar gate
+
+Follow `adapters/dot/sonar.md` when present. Wait for the MR pipeline, then read the Sonar quality gate from the pipeline's Sonar job (`glab ci trace <job-id>`) or the Sonar MR comment (`glab mr view <id> --comments`). Print:
+
+```text
+Sonar Gate
+MR: !<id>
+Pipeline: #<id> <passed|failed>
+Quality gate: <PASS | FAIL | SKIPPED>
+Action: <none | fix>
+```
+
+FAIL: fix on the same topic MR, re-verify, push, wait for the new pipeline. While FAIL, do not move the card and do not send Mattermost. No Sonar on the project is `SKIPPED`, never PASS. Use `glab` only; no tokens in prompts.
+
+---
+
+## Stage 8c — Coreview and MR discussions
 
 Follow `adapters/dot/coreview.md` when present, plus `gitlab-mr-feedback` and `receiving-code-review`.
 
@@ -91,9 +107,15 @@ glab api "projects/:fullpath/merge_requests/<mr-id>/discussions/<discussion_id>/
 
 ---
 
-## Stage 8c — Mattermost (`no-ai-slop`)
+## Stage 8d — Card to "Ready to review"
 
-Follow `adapters/dot/mattermost.md` when present.
+Follow `adapters/dot/gitlab.md` Step 4 when present. Only after Sonar PASS/SKIPPED and the printed triage. No linked card: print `Card: none linked (skipped)`. Otherwise add the `Ready to review` list label and remove only other board-list labels (`glab issue update <iid> --label "Ready to review" --unlabel "<old list label>"`). Already there: change nothing.
+
+---
+
+## Stage 8e — Mattermost (`no-ai-slop`)
+
+Follow `adapters/dot/mattermost.md` when present. Send only after the Sonar Gate (PASS/SKIPPED), triage, and card lines are printed.
 
 1. Resolve channel and PIC from `~/.gemini/config/mattermost-channel-mapping.json`. If PIC is missing, ask the user and save it.
 2. Send via MCP `mattermost_send_message` with `from: "AI Agent"`. Use the Mattermost CLI only if MCP fails. Do not send twice.

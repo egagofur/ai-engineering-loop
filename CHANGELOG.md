@@ -4,6 +4,28 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+### Adapter checks in `doctor` and a `deliver` preflight (#63)
+
+- **Added:** `doctor` run inside an initialized project now checks the adapter: unknown `adapter_type` (error, with a "did you mean" suggestion), a missing spec (error), `gh`/`glab` missing or not logged in for the chosen type (warning; `dot` checks the DOT host), a missing `adapter.md` (warning), and a configured type that differs from the shared detector (warning). Warnings print with `!` and do not make doctor fail. Doctor on the package itself is unchanged.
+- **Added:** `deliver` runs the same checks before it approves or writes anything. UNATTENDED fails with `ADAPTER_PREFLIGHT_FAILED` on any problem except the detector mismatch; ASSISTED prints warnings and continues.
+
+### One adapter detector for `init`, `generate-adapter` and Studio (#62)
+
+- **Fixed:** `generate-adapter` and Studio recommended `gitlab` for a DOT GitLab remote while `init` chose `dot`, so accepting their recommendation silently dropped the DOT pipeline. All three now call `lib/adapter-detect.js` and agree.
+- **Changed:** the remote host now wins over CI files. A GitHub remote without `.github/workflows/` is `github` (was `standard`); CI files only decide when the remote host is unknown or missing.
+- **Changed:** the `origin` remote is read (fallback: the first remote) instead of the first `url =` line in `.git/config`, so submodule URLs and `upstream` no longer win. Linked worktrees (`.git` is a file) are detected.
+- **Added:** `generate-adapter` prints the reason next to `recommended:`, Studio's bootstrap returns `adapters.reason`, and `init` records it in the context evidence.
+
+### `task-impact-inquiry` is adapter-neutral (#64)
+
+- **Changed:** the skill moved from `adapters/dot/skills/` to `adapters/quality/skills/task-impact-inquiry/` (still installed by default, not part of the opt-in `quality` pack). Its triggers are now English plus Indonesian, and the DOT-only process references (`dot-dev-workflow`, BullMQ) were replaced with neutral wording. `sync-hosts` installs global skill folders that every project shares, so gating on one project's `adapter_type` could not be correct; neutral content was the safe option. On `adapter_type: dot` the blast-radius grill stays mandatory (`core/grill-policy.md`, `adapters/dot/README.md`).
+
+### DOT Stage 8: Sonar quality gate and "Ready to review" card move (#65)
+
+- **Added:** `adapters/dot/sonar.md`. After the MR, wait for the pipeline and read the Sonar quality gate from the pipeline's Sonar job or the Sonar MR comment (`glab` only, no tokens). It prints a `Sonar Gate` report. `FAIL` loops back to a fix on the same MR. A project without Sonar is `SKIPPED`, never PASS.
+- **Added:** `adapters/dot/gitlab.md` Step 4 moves the issue card to the "Ready to review" board list after a Sonar PASS/SKIPPED gate and the printed Coreview triage. It only swaps board-list labels, is idempotent, and skips cleanly when no card or list exists (`board_ready_label` in `adapter.md` overrides the label).
+- **Changed:** DOT Stage 8 order is now issue → MR → pipeline + Sonar gate → Coreview triage → card to "Ready to review" → Mattermost (`adapters/dot/README.md`, `mattermost.md` preconditions, `dot-dev-workflow` Stages 8a–8e). A Sonar `FAIL` blocks both the card move and the notification.
+
 ### Host certification tiers and an instruction-only `AGENTS.md` digest (#60)
 
 - **Changed (breaking):** the numeric `tier` in `lib/hosts/registry.js` is replaced by `certification: full | experimental | instruction-only` plus `certifiedBy`. **full** requires a recorded real `default` recipe run with reviewer subagents and every gate (`certifiedBy: { recipe, aelVersion, date }`), and the registry test enforces it. No run is recorded yet, so no host is `full`. The 14 hosts with file-based reviewer agents are `experimental`, and the 6 without (Windsurf/Devin, Amp, Zed, Goose, Cline, Roo) are `instruction-only`. `hosts list --json` returns `certification` instead of `tier`.
