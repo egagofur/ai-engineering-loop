@@ -51,16 +51,16 @@ The DOT adapter is organized into four dedicated specification modules:
 
 ## 3. Official DOT Engineering Skills Integration
 
-This adapter composes the DOT skill suite. `task-impact-inquiry` ships in this package (`adapters/dot/skills/task-impact-inquiry/`) and `sync-hosts` upserts it to Claude, Grok, and Gemini. Other DOT skills (router, workflow) still update-if-exists only.
+This adapter composes the DOT skill suite. `task-impact-inquiry` is adapter-neutral and ships in `adapters/quality/skills/task-impact-inquiry/`; `sync-hosts` upserts it to every enabled host. On DOT repos it is mandatory in Stage 1. Other DOT skills (router, workflow) still update-if-exists only.
 
-On a DOT repo (`adapter_type: dot`), **run `ai-engineering-loop`**, not the old 9-phase `dot-dev-workflow`, as the engineering OS. Stage 1 grill **includes** `task-impact-inquiry`. Do not run a second interview. After Judge `PASS`, Stage 8 is `dot-dev-workflow` delivery (GitLab, cherry-pick, Coreview, Mattermost). Canonical copies: `adapters/dot/skills/`. See `core/grill-policy.md`.
+On a DOT repo (`adapter_type: dot`), **run `ai-engineering-loop`**, not the old 9-phase `dot-dev-workflow`, as the engineering OS. Stage 1 grill **includes** `task-impact-inquiry`. Do not run a second interview. After Judge `PASS`, Stage 8 is `dot-dev-workflow` delivery (GitLab, cherry-pick, Coreview, Mattermost). Canonical DOT copies: `adapters/dot/skills/` (`task-impact-inquiry`: `adapters/quality/skills/`). See `core/grill-policy.md`.
 
 | Skill | Primary Role & Governance |
 | :--- | :--- |
 | **`ai-engineering-loop`** | Engineering OS (Stages 0-7). Use this for DOT bugfix/feature/refactor. |
 | **`dot-dev-workflow`** | Stage 8 delivery only after Judge PASS. Not a parallel engineering loop. |
 | **`dot-dev-skill-router`** | Routes commit-bound DOT work to `ai-engineering-loop`, then Stage 8. |
-| **`task-impact-inquiry`** | Business blast radius (lifecycle sketch, four pillars, ASCII picture). Canonical: `adapters/dot/skills/task-impact-inquiry/`. Host copies: `~/.claude/skills/`, `~/.agents/skills/` (Codex, Gemini CLI, Grok, and other shared-folder hosts), `~/.gemini/config/skills/` (Antigravity). Fills Stage 1 grill; impact-only stops after the matrix. Not a parallel OS. |
+| **`task-impact-inquiry`** | Business blast radius (lifecycle sketch, four pillars, ASCII picture). Canonical: `adapters/quality/skills/task-impact-inquiry/` (adapter-neutral, EN + ID triggers). Host copies: `~/.claude/skills/`, `~/.agents/skills/` (Codex, Gemini CLI, Grok, and other shared-folder hosts), `~/.gemini/config/skills/` (Antigravity). Fills Stage 1 grill; impact-only stops after the matrix. Not a parallel OS. |
 | **`backend-development`** | Framework-agnostic backend guidelines (clean naming, database queries, security, error handling). |
 | **`backend-safety-guardrails`** | 6 architectural backend safety invariants (queue bypass, BigInt, status recalculation loops). |
 | **`devils-advocate`** | Legacy DOT pre-commit skill. On AEL, Stages 6-7 are package Devil's Advocate + Judge. Do not re-run this skill after Judge PASS. |

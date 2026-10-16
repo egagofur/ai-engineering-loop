@@ -60,6 +60,30 @@ test('sync upserts task-impact-inquiry onto Claude, Grok, and Gemini', () => {
   assert.match(gemini, /Business blast radius|blast radius/);
 });
 
+test('task-impact-inquiry is adapter-neutral: same copy for every host, EN + ID triggers, no DOT-only process (#64)', () => {
+  const home = tmpHome();
+  fs.mkdirSync(path.join(home, '.claude'));
+  fs.mkdirSync(path.join(home, '.grok'));
+  applyHostSync({ packageRoot: ROOT, home });
+  const src = fs.readFileSync(path.join(ROOT, 'adapters/quality/skills/task-impact-inquiry/SKILL.md'), 'utf8');
+  for (const rel of ['.claude/skills/task-impact-inquiry/SKILL.md', '.agents/skills/task-impact-inquiry/SKILL.md']) {
+    assert.strictEqual(fs.readFileSync(path.join(home, rel), 'utf8'), src, rel);
+  }
+  const description = src.match(/^description: (.*)$/m)[1];
+  assert.match(description, /check the impact/);
+  assert.match(description, /cek impactnya/);
+  assert.doesNotMatch(src, /dot-dev-workflow|BullMQ/);
+  assert.match(src, /adapter_type: dot/, 'DOT stays mandatory, described as one adapter among others');
+  assert.ok(!fs.existsSync(path.join(ROOT, 'adapters/dot/skills/task-impact-inquiry')), 'no stale DOT copy');
+  // DOT references still resolve to the shipped file.
+  for (const doc of ['core/grill-policy.md', 'adapters/dot/README.md']) {
+    const text = fs.readFileSync(path.join(ROOT, doc), 'utf8');
+    for (const [ref] of text.matchAll(/adapters\/[a-z/-]*task-impact-inquiry[a-zA-Z/.]*/g)) {
+      assert.ok(fs.existsSync(path.join(ROOT, ref)), `${doc}: ${ref}`);
+    }
+  }
+});
+
 test('sync upserts backend-development skill and references onto Claude, Grok, Gemini, and Codex-compatible agents', () => {
   const home = tmpHome();
   fs.mkdirSync(path.join(home, '.claude'));

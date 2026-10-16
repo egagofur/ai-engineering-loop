@@ -169,7 +169,7 @@ test('Core skill passes Judge a 4-call ledger-only prompt and keeps the loop qua
 });
 
 test('task-impact-inquiry is Claude-safe and ships to Claude, the shared folder, and Antigravity', () => {
-  const skill = readRepo('adapters/dot/skills/task-impact-inquiry/SKILL.md');
+  const skill = readRepo('adapters/quality/skills/task-impact-inquiry/SKILL.md');
   const { fm } = parseFrontmatter(skill, 'task-impact-inquiry');
   assert.doesNotMatch(fm, /^description:\s*>-?/m);
   assert.doesNotMatch(skill, /```mermaid/);
