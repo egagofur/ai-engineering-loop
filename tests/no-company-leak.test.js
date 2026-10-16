@@ -7,6 +7,8 @@ const path = require('path');
 const { listPackageFiles } = require('../lib/package-audit.js');
 
 const ROOT = path.join(__dirname, '..');
+// The shared adapter detector (#62) is the one place that names the DOT host.
+const DETECTOR = 'lib/adapter-detect.js';
 
 const FINGERPRINTS = [
   { re: /dotify/i, label: 'dotify' },
@@ -37,10 +39,10 @@ test('packaged files do not embed real client tickets, schema, or machine paths'
     }
     if (text.includes('\u0000')) continue;
 
-    if (r !== 'bin/ai-engineering-loop.js' && /gitlab\.dot\.co\.id/.test(text)) {
-      hits.push(`${r}: gitlab.dot.co.id (allowed only as adapter auto-detect in bin/)`);
+    if (r !== DETECTOR && /gitlab\.dot\.co\.id/.test(text)) {
+      hits.push(`${r}: gitlab.dot.co.id (allowed only as the host constant in ${DETECTOR})`);
     }
-    if (r === 'bin/ai-engineering-loop.js' && /gitlab\.dot\.co\.id\/.+/.test(text)) {
+    if (r === DETECTOR && /gitlab\.dot\.co\.id\/.+/.test(text)) {
       hits.push(`${r}: gitlab.dot.co.id with a path (ticket URL)`);
     }
 
