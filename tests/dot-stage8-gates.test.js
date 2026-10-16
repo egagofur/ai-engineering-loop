@@ -9,7 +9,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
+const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/\r\n?/g, '\n');
 
 function inOrder(text, labels, file) {
   let at = -1;
@@ -58,6 +58,7 @@ test('Stage 8 commands use glab only and never carry tokens', () => {
     const blocks = [...text.matchAll(/```bash\n([\s\S]*?)```/g)].map((m) => m[1]);
     const commands = blocks.flatMap((block) => block.split('\n')).map((line) => line.trim())
       .filter((line) => line && !line.startsWith('#') && !line.startsWith('--') && !line.startsWith('-F'));
+    assert.ok(commands.length >= 2, `${rel}: expected bash commands, got ${commands.length}`);
     for (const line of commands) {
       assert.match(line, /^(glab|git|npx)\b/, `${rel}: unexpected command "${line}"`);
       assert.doesNotMatch(line, /curl|PRIVATE-TOKEN|SONAR_TOKEN|api\/qualitygates|sonar\.login/i, `${rel}: ${line}`);
