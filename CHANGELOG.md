@@ -16,6 +16,10 @@ All notable changes to this project are documented here. Versions follow [Semant
 - **Changed:** the `origin` remote is read (fallback: the first remote) instead of the first `url =` line in `.git/config`, so submodule URLs and `upstream` no longer win. Linked worktrees (`.git` is a file) are detected.
 - **Added:** `generate-adapter` prints the reason next to `recommended:`, Studio's bootstrap returns `adapters.reason`, and `init` records it in the context evidence.
 
+### `task-impact-inquiry` is adapter-neutral (#64)
+
+- **Changed:** the skill moved from `adapters/dot/skills/` to `adapters/quality/skills/task-impact-inquiry/` (still installed by default, not part of the opt-in `quality` pack). Its triggers are now English plus Indonesian, and the DOT-only process references (`dot-dev-workflow`, BullMQ) were replaced with neutral wording. `sync-hosts` installs global skill folders that every project shares, so gating on one project's `adapter_type` could not be correct; neutral content was the safe option. On `adapter_type: dot` the blast-radius grill stays mandatory (`core/grill-policy.md`, `adapters/dot/README.md`).
+
 ### Audit / REPORT_ONLY review policy and a non-contradictory header (#57)
 
 - **Fixed:** the execution header could say `Execution Mode: CONTEXT_ISOLATION_ONLY` next to `Native Subagent Invocation: AVAILABLE` with no explanation, for example on recipe `audit` runs in Antigravity. Now the mode line carries the reason: `CONTEXT_ISOLATION_ONLY (reason: <why>)`. The independent and no-subagent headers are unchanged.
