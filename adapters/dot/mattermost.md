@@ -8,6 +8,16 @@ This gives QA, product, and reviewers visibility when the delivery pipeline fini
 
 ---
 
+## 2. Preconditions (gate)
+
+Send only after all of these are printed in the conversation:
+
+1. Sonar Gate report with `Quality gate: PASS` or `SKIPPED` ([`sonar.md`](sonar.md)). On `FAIL`, do not send.
+2. Phase 8 Triage report ([`coreview.md`](coreview.md)).
+3. Card line from [`gitlab.md`](gitlab.md) Step 4 (`-> Ready to review`, `already in Ready to review`, or `skipped`).
+
+---
+
 ## 2. Channel Resolution & Dispatch Flow
 
 ```text

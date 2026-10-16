@@ -20,6 +20,12 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 - **Changed:** the skill moved from `adapters/dot/skills/` to `adapters/quality/skills/task-impact-inquiry/` (still installed by default, not part of the opt-in `quality` pack). Its triggers are now English plus Indonesian, and the DOT-only process references (`dot-dev-workflow`, BullMQ) were replaced with neutral wording. `sync-hosts` installs global skill folders that every project shares, so gating on one project's `adapter_type` could not be correct; neutral content was the safe option. On `adapter_type: dot` the blast-radius grill stays mandatory (`core/grill-policy.md`, `adapters/dot/README.md`).
 
+### DOT Stage 8: Sonar quality gate and "Ready to review" card move (#65)
+
+- **Added:** `adapters/dot/sonar.md`. After the MR, wait for the pipeline and read the Sonar quality gate from the pipeline's Sonar job or the Sonar MR comment (`glab` only, no tokens). It prints a `Sonar Gate` report. `FAIL` loops back to a fix on the same MR. A project without Sonar is `SKIPPED`, never PASS.
+- **Added:** `adapters/dot/gitlab.md` Step 4 moves the issue card to the "Ready to review" board list after a Sonar PASS/SKIPPED gate and the printed Coreview triage. It only swaps board-list labels, is idempotent, and skips cleanly when no card or list exists (`board_ready_label` in `adapter.md` overrides the label).
+- **Changed:** DOT Stage 8 order is now issue → MR → pipeline + Sonar gate → Coreview triage → card to "Ready to review" → Mattermost (`adapters/dot/README.md`, `mattermost.md` preconditions, `dot-dev-workflow` Stages 8a–8e). A Sonar `FAIL` blocks both the card move and the notification.
+
 ### Audit / REPORT_ONLY review policy and a non-contradictory header (#57)
 
 - **Fixed:** the execution header could say `Execution Mode: CONTEXT_ISOLATION_ONLY` next to `Native Subagent Invocation: AVAILABLE` with no explanation, for example on recipe `audit` runs in Antigravity. Now the mode line carries the reason: `CONTEXT_ISOLATION_ONLY (reason: <why>)`. The independent and no-subagent headers are unchanged.
