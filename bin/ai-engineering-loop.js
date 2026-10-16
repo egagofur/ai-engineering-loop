@@ -36,6 +36,7 @@ const {
   formatGenerateAdapterReport,
   parseTypeArg
 } = require('../lib/generate-adapter.js');
+const { detectAdapter } = require('../lib/adapter-detect.js');
 const {
   writeWorkflowOverlay,
   formatGenerateWorkflowReport,
@@ -549,26 +550,12 @@ function analyzeRepository(rootDir) {
     discovery.evidence.push('Manifest: pubspec.yaml');
   }
 
-  // 3. Adapter / CI Detection
-  if (fs.existsSync(path.join(rootDir, '.github', 'workflows'))) {
-    discovery.adapter.ciProvider = 'GitHub Actions';
-    discovery.adapter.type = 'github';
-  } else if (fs.existsSync(path.join(rootDir, '.gitlab-ci.yml'))) {
-    discovery.adapter.ciProvider = 'GitLab CI';
-    discovery.adapter.type = 'gitlab';
-  }
-
-  // Check git remote if git folder exists
-  const gitConfigStr = readFileSafe(path.join(rootDir, '.git', 'config'));
-  if (gitConfigStr) {
-    const urlMatch = gitConfigStr.match(/url\s*=\s*(.*)/);
-    if (urlMatch) {
-      discovery.adapter.repoSlug = urlMatch[1].trim();
-      if (discovery.adapter.repoSlug.includes('gitlab.dot.co.id')) {
-        discovery.adapter.type = 'dot';
-      }
-    }
-  }
+  // 3. Adapter / CI Detection (shared with generate-adapter and Studio, #62)
+  const detected = detectAdapter(rootDir);
+  discovery.adapter.type = detected.type;
+  discovery.adapter.ciProvider = detected.ciProvider;
+  discovery.adapter.repoSlug = detected.remote || null;
+  discovery.evidence.push(`Adapter: ${detected.type} (${detected.reason})`);
 
   return discovery;
 }
