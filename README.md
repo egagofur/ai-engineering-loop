@@ -167,28 +167,30 @@ Under the hood, these moments use eight evidence-backed stages. The rigor is the
 AI Engineering Loop is designed to work with the tools developers already use:
 
 <!-- hosts-table:start (generated from lib/hosts/registry.js; run npm run build:hosts-table) -->
-| Host | id | Skill folder | Reviewer agents | Detected by |
-|---|---|---|---|---|
-| Claude Code | `claude` | `~/.claude/skills` | `~/.claude/agents` | `~/.claude`, `claude` |
-| Codex CLI | `codex` | `~/.agents/skills` (shared) | `~/.codex/agents` | `~/.codex`, `codex` |
-| Gemini CLI | `gemini` | `~/.agents/skills` (shared) | `~/.gemini/agents` | `~/.gemini`, `gemini` |
-| Antigravity (IDE / 2.0) | `antigravity` | `~/.gemini/config/skills` | `~/.gemini/config/agents` | `~/.gemini/antigravity`, `antigravity` |
-| Antigravity CLI (agy) | `antigravity-cli` | `~/.gemini/antigravity-cli/skills` | `~/.gemini/config/agents` | `~/.gemini/antigravity-cli`, `agy` |
-| Grok CLI | `grok` | `~/.agents/skills` (shared) | `~/.grok/agents` | `~/.grok`, `grok` |
-| Cursor (editor + CLI) | `cursor` | `~/.agents/skills` (shared) | `~/.cursor/agents` | `~/.cursor`, `cursor-agent`, `cursor` |
-| GitHub Copilot (CLI / VS Code) | `copilot` | `~/.agents/skills` (shared) | `~/.copilot/agents` | `~/.copilot`, `copilot` |
-| OpenCode | `opencode` | `~/.agents/skills` (shared) | `~/.config/opencode/agents` | `~/.config/opencode`, `opencode` |
-| Windsurf / Devin Desktop | `windsurf` | `~/.agents/skills` (shared) | none (in-session review) | `~/.codeium/windsurf`, `~/.config/devin` |
-| Amp | `amp` | `~/.agents/skills` (shared) | none (in-session review) | `~/.config/amp`, `amp` |
-| Factory Droid | `factory` | `~/.agents/skills` (shared) | `~/.factory/droids` | `~/.factory`, `droid` |
-| Augment (Auggie) | `augment` | `~/.agents/skills` (shared) | `~/.augment/agents` | `~/.augment`, `auggie` |
-| Zed | `zed` | `~/.agents/skills` (shared) | none (in-session review) | `~/.config/zed`, `~/Library/Application Support/Zed`, `zed` |
-| Goose | `goose` | `~/.agents/skills` (shared) | none (in-session review) | `~/.config/goose`, `goose` |
-| Cline | `cline` | `~/.cline/skills` | none (in-session review) | `~/.cline`, `cline` |
-| Roo Code | `roo` | `~/.agents/skills` (shared) | none (in-session review) | `~/.roo` |
-| Kiro (IDE + CLI) | `kiro` | `~/.kiro/skills` | `~/.kiro/agents` | `~/.kiro`, `kiro-cli`, `kiro` |
-| Qwen Code | `qwen` | `~/.qwen/skills` | `~/.qwen/agents` | `~/.qwen`, `qwen` |
-| JetBrains Junie | `junie` | `~/.agents/skills` (shared) | `~/.junie/agents` | `~/.junie`, `junie` |
+| Host | id | Certification | Skill folder | Reviewer agents | Detected by |
+|---|---|---|---|---|---|
+| Claude Code | `claude` | experimental | `~/.claude/skills` | `~/.claude/agents` | `~/.claude`, `claude` |
+| Codex CLI | `codex` | experimental | `~/.agents/skills` (shared) | `~/.codex/agents` | `~/.codex`, `codex` |
+| Gemini CLI | `gemini` | experimental | `~/.agents/skills` (shared) | `~/.gemini/agents` | `~/.gemini`, `gemini` |
+| Antigravity (IDE / 2.0) | `antigravity` | experimental | `~/.gemini/config/skills` | `~/.gemini/config/agents` | `~/.gemini/antigravity`, `antigravity` |
+| Antigravity CLI (agy) | `antigravity-cli` | experimental | `~/.gemini/antigravity-cli/skills` | `~/.gemini/config/agents` | `~/.gemini/antigravity-cli`, `agy` |
+| Grok CLI | `grok` | experimental | `~/.agents/skills` (shared) | `~/.grok/agents` | `~/.grok`, `grok` |
+| Cursor (editor + CLI) | `cursor` | experimental | `~/.agents/skills` (shared) | `~/.cursor/agents` | `~/.cursor`, `cursor-agent`, `cursor` |
+| GitHub Copilot (CLI / VS Code) | `copilot` | experimental | `~/.agents/skills` (shared) | `~/.copilot/agents` | `~/.copilot`, `copilot` |
+| OpenCode | `opencode` | experimental | `~/.agents/skills` (shared) | `~/.config/opencode/agents` | `~/.config/opencode`, `opencode` |
+| Windsurf / Devin Desktop | `windsurf` | instruction-only | `~/.agents/skills` (shared) | none (in-session review) | `~/.codeium/windsurf`, `~/.config/devin` |
+| Amp | `amp` | instruction-only | `~/.agents/skills` (shared) | none (in-session review) | `~/.config/amp`, `amp` |
+| Factory Droid | `factory` | experimental | `~/.agents/skills` (shared) | `~/.factory/droids` | `~/.factory`, `droid` |
+| Augment (Auggie) | `augment` | experimental | `~/.agents/skills` (shared) | `~/.augment/agents` | `~/.augment`, `auggie` |
+| Zed | `zed` | instruction-only | `~/.agents/skills` (shared) | none (in-session review) | `~/.config/zed`, `~/Library/Application Support/Zed`, `zed` |
+| Goose | `goose` | instruction-only | `~/.agents/skills` (shared) | none (in-session review) | `~/.config/goose`, `goose` |
+| Cline | `cline` | instruction-only | `~/.cline/skills` | none (in-session review) | `~/.cline`, `cline` |
+| Roo Code | `roo` | instruction-only | `~/.agents/skills` (shared) | none (in-session review) | `~/.roo` |
+| Kiro (IDE + CLI) | `kiro` | experimental | `~/.kiro/skills` | `~/.kiro/agents` | `~/.kiro`, `kiro-cli`, `kiro` |
+| Qwen Code | `qwen` | experimental | `~/.qwen/skills` | `~/.qwen/agents` | `~/.qwen`, `qwen` |
+| JetBrains Junie | `junie` | experimental | `~/.agents/skills` (shared) | `~/.junie/agents` | `~/.junie`, `junie` |
+
+Certification: **full** = a real `default` recipe run with reviewer subagents and every gate is recorded for this host; **experimental** = reviewer subagents install, no recorded run; **instruction-only** = no subagents, review runs in-session (`CONTEXT_ISOLATION_ONLY`; compact digest: `npx ai-engineering-loop docs AGENTS`).
 
 Not supported (no native skills): Aider, Continue.
 <!-- hosts-table:end -->
