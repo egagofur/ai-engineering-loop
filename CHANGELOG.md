@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+### Host certification tiers and an instruction-only `AGENTS.md` digest (#60)
+
+- **Changed (breaking):** the numeric `tier` in `lib/hosts/registry.js` is replaced by `certification: full | experimental | instruction-only` plus `certifiedBy`. **full** requires a recorded real `default` recipe run with reviewer subagents and every gate (`certifiedBy: { recipe, aelVersion, date }`), and the registry test enforces it. No run is recorded yet, so no host is `full`. The 14 hosts with file-based reviewer agents are `experimental`, and the 6 without (Windsurf/Devin, Amp, Zed, Goose, Cline, Roo) are `instruction-only`. `hosts list --json` returns `certification` instead of `tier`.
+- **Added:** the README host table, `hosts list` and `hosts doctor` show the tier.
+- **Added:** a compact digest for instruction-only hosts, generated from `skill-src/ai-engineering-loop/digest.md` to `agents/instruction-only/AGENTS.md` (at most 2 KB; the build fails above that, and `check:skills` catches drift). Read it with `npx ai-engineering-loop docs AGENTS`. Documented in `references/loop-hosts.md`.
+
 ### Audit / REPORT_ONLY review policy and a non-contradictory header (#57)
 
 - **Fixed:** the execution header could say `Execution Mode: CONTEXT_ISOLATION_ONLY` next to `Native Subagent Invocation: AVAILABLE` with no explanation, for example on recipe `audit` runs in Antigravity. Now the mode line carries the reason: `CONTEXT_ISOLATION_ONLY (reason: <why>)`. The independent and no-subagent headers are unchanged.

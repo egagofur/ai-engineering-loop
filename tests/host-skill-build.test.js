@@ -27,7 +27,7 @@ test('generated host skills match skill-src (drift check)', () => {
 
 test('one host-neutral skill: every output is byte-identical (#48)', () => {
   const byName = new Map();
-  for (const out of buildHostSkills(ROOT)) {
+  for (const out of buildHostSkills(ROOT).filter((item) => item.kind !== 'digest')) {
     const name = out.path.split('/ai-engineering-loop/')[1];
     if (!byName.has(name)) byName.set(name, out.content);
     assert.strictEqual(out.content, byName.get(name), `${out.path} differs from its sibling copy`);

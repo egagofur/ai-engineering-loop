@@ -2,6 +2,10 @@
 
 Read only your host's section, before the first Devil's Advocate (DA) or Judge spawn. Every host shares the loop, budgets, and gates; only the spawn mechanics differ. REPORT_ONLY (`audit`) uses the same spawn tool for one `devil-advocate` report review (`loop-maker`); never report CONTEXT_ISOLATION_ONLY next to an AVAILABLE subagent tool without a reason. Modes: `TRUE_INDEPENDENT_AGENT`, `ISOLATED_AGENT_INSTANCE`, `FRESH_PROCESS_AGENT`, `CONTEXT_ISOLATION_ONLY`, `UNAVAILABLE`.
 
+## Certification tiers
+
+`hosts list` and `hosts doctor` show each host's tier (`lib/hosts/registry.js`). **full**: a real `default` recipe run with reviewer subagents and every gate is recorded (`certifiedBy`: recipe, AEL version, date). **experimental**: reviewer subagents install, no recorded run; follow your section below and report the mode you actually got. **instruction-only**: no subagents; run DA and Judge in-session as `CONTEXT_ISOLATION_ONLY`. The compact rules for these hosts: `npx ai-engineering-loop docs AGENTS` (≤2 KB). No host is `full` until such a run is recorded.
+
 ## Claude Code (and Kiro-backed strict proxies)
 
 Strict proxies (including Kiro) return HTTP 400 `REQUEST_BODY_INVALID` on unknown keys:
