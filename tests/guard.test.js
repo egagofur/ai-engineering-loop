@@ -107,6 +107,12 @@ test('ASSISTED warns: edits outside Goal scope, denied paths, and destructive ba
   assert.deepStrictEqual(events.map((event) => event.rules[0]), ['scope-outside', 'scope-denied', 'git-reset-hard']);
   assert.ok(events.every((event) => event.decision === 'warn' && event.mode === 'ASSISTED'));
   assert.strictEqual(events[0].target, 'README.md', 'targets are repository-relative, never absolute');
+  // Hosts may report the path through a symlink (macOS /var -> /private/var).
+  const link = `${ctx.repo}-link`;
+  fs.symlinkSync(ctx.repo, link);
+  assert.strictEqual(checkGuard(ctx.repo, { tool: 'edit', input: { path: path.join(link, 'src/list.js') } }).decision, 'allow');
+  assert.strictEqual(checkGuard(ctx.repo, { tool: 'edit', input: { path: path.join(link, 'src/new/file.js') } }).decision, 'allow', 'new files under a symlinked root');
+  assert.deepStrictEqual(checkGuard(ctx.repo, { tool: 'edit', input: { path: path.join(link, 'README.md') } }).rules, ['scope-outside']);
 });
 
 test('UNATTENDED blocks; the confirmed impact map defines scope when the Goal has none', () => {
