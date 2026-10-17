@@ -71,6 +71,7 @@ const impactMap = require('../lib/impact-map.js');
 const guard = require('../lib/guard.js');
 const guardHooks = require('../lib/guard-hooks.js');
 const receipts = require('../lib/receipt.js');
+const { learn } = require('../lib/learn.js');
 const {
   createContextPack,
   contextPackSummary
@@ -3497,6 +3498,30 @@ function handleVerifyReceipt() {
   }
 }
 
+function handleLearn() {
+  const json = process.argv.includes('--json');
+  try {
+    const maxAge = argValue('--max-age-runs');
+    const result = learn(CWD, {
+      dryRun: process.argv.includes('--dry-run'),
+      prune: process.argv.includes('--prune'),
+      ...(maxAge == null ? {} : { maxAgeRuns: parsePositiveIntegerArg('--max-age-runs', maxAge) })
+    });
+    const { document } = result;
+    if (json) {
+      console.log(JSON.stringify({ ok: true, written: result.written, path: result.path, pruned: result.pruned, learnings: document }));
+      return;
+    }
+    log.success(`✓ ${document.entries.length} learning(s) from ${document.sourceRuns} Run(s)${result.written ? ` → ${result.path}` : ' (dry run, nothing written)'}`);
+    for (const entry of document.entries.slice(0, 10)) {
+      console.log(`- ${entry.id} [${entry.axis}, ${entry.severity}, ×${entry.occurrences}] ${entry.lesson}`);
+    }
+    for (const item of result.pruned) console.log(`  pruned ${item.id} (${item.reason})`);
+  } catch (err) {
+    stageJsonError(err, json, 'LEARN_FAILED');
+  }
+}
+
 // Command: docs (read-only packaged specs)
 function handleDocs() {
   const json = process.argv.includes('--json');
@@ -3645,6 +3670,10 @@ Commands:
                writes RUN_DIR/receipt.json + receipt.md (paste into the PR/MR body); digest stored in delivery.json
   verify-receipt  Re-check a delivery receipt: artifact hashes, frozen Goal, AC evidence, verdict, head SHA
                [--run <id> | <repository-relative-receipt.json>] [--head <sha>] [--json]   exit 1 on mismatch (CI)
+  learn        Mine past Runs' VALID findings into .ai-engineering-loop/learnings.json (+ .md) for context packs
+               [--dry-run] [--prune] [--max-age-runs <n>] [--json]
+               deterministic and deduped with runId provenance; --prune drops lessons whose files are gone
+               or not seen in the last <n> Runs (default 20); maker / devil-advocate packs get the top entries
   docs         Print a packaged spec without needing the package source tree
                list [--json]
                <name> [--section <heading>] [--json]   e.g. docs grill-policy --section "When to grill"
@@ -3821,6 +3850,9 @@ switch (command) {
     break;
   case 'review-pack':
     handleReviewPack();
+    break;
+  case 'learn':
+    handleLearn();
     break;
   case 'verify-receipt':
     handleVerifyReceipt();
