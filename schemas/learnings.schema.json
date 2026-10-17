@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/egagofur/ai-engineering-loop/schemas/learnings.schema.json",
+  "title": "AI Engineering Loop Project Learnings",
+  "type": "object",
+  "required": ["schemaVersion", "generator", "sourceRuns", "entries", "suppressed"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "generator": { "type": "string" },
+    "sourceRuns": { "type": "integer", "minimum": 0 },
+    "latestRunId": { "type": ["string", "null"] },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "axis", "severity", "lesson", "locations", "occurrences", "runIds", "firstRunId", "lastRunId"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^L-[a-f0-9]{10}$" },
+          "axis": { "enum": ["spec", "standards"] },
+          "severity": { "enum": ["BLOCKER", "HIGH", "MEDIUM", "LOW"] },
+          "lesson": { "type": "string", "minLength": 1, "maxLength": 300 },
+          "locations": { "type": "array", "items": { "type": "string" } },
+          "occurrences": { "type": "integer", "minimum": 1 },
+          "runIds": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+          "firstRunId": { "type": "string" },
+          "lastRunId": { "type": "string" },
+          "lastSeenAt": { "type": "string" },
+          "supersededBy": { "description": "Set by a human; the next learn run suppresses the entry", "type": "string" }
+        }
+      }
+    },
+    "suppressed": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "reason"],
+        "properties": {
+          "id": { "type": "string" },
+          "reason": { "enum": ["files-removed", "stale", "superseded"] },
+          "supersededBy": { "type": "string" },
+          "lastRunId": { "type": ["string", "null"] }
+        }
+      }
+    }
+  },
+  "additionalProperties": true
+}

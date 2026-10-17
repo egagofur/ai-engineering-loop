@@ -4,6 +4,13 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+### `ael learn`: past Runs become project learnings for context packs (#61)
+
+- **Added:** `learn [--dry-run] [--prune] [--max-age-runs <n>]` (`lib/learn.js`, `schemas/learnings.schema.json`). It reads every Run's `findings.json`, keeps only VALID findings that were not rejected (drift findings from #71 are skipped), clusters them per axis by word overlap, and writes deterministic, deduped `.ai-engineering-loop/learnings.json` and `learnings.md` with occurrence counts and source `runIds`. Text is redacted with the `safe-context` secret and home-path filters.
+- **Added:** `--prune` suppresses lessons whose files are gone or that have not recurred in the newest N Runs (default 20); an entry with `supersededBy` is suppressed on the next run. A suppressed lesson returns only when it recurs in a newer Run.
+- **Added:** Maker and Devil's Advocate context packs (`context maker|devil-advocate`, `review-pack`) include up to 5 relevant `learnings` within 10% of the stage token budget, counted in `estimatedTokens`; Judge packs get none.
+- **Docs:** `core/learnings.md` (`docs learnings`); the Stage 8 reference runs `learn` after delivery.
+
 ### Proof-carrying PR receipt: `receipt.json` and `verify-receipt` (#70)
 
 - **Added:** `schemas/receipt.schema.json` and `lib/receipt.js`. `deliver` (incl. `--approve`) writes `RUN_DIR/receipt.json` and `receipt.md` as its last step: the frozen Goal with its hashes, every AC with its evidence (claimed-vs-reality row, verification commands with output sha256, hosted links), the finding-ledger summary and Judge verdict, impact drift and guard counts, base/head SHA, the sha256 of every referenced artifact, and an overall digest. An AC without evidence is an explicit ❌ (`MISSING`), never dropped.
