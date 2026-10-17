@@ -26,6 +26,15 @@
         },
         "additionalProperties": true
       }
+    },
+    "scope": {
+      "description": "Optional file scope frozen with the Goal (#59). Absent = no path enforcement. Globs: ** crosses directories, * stays in one segment, a trailing / is a directory prefix.",
+      "type": "object",
+      "properties": {
+        "allowedPaths": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "deniedPaths": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": true

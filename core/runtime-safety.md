@@ -19,6 +19,30 @@ npx ai-engineering-loop run --mode unattended "task"
 
 The repository policy lives at `.ai-engineering-loop/runtime-policy.json`. Invalid policy fails closed. Do not change a policy merely because an agent asks to bypass a gate.
 
+## Runtime guardrails (scope freeze and destructive commands)
+
+Gates check artifacts after a stage. The guard checks each tool call **before** it runs:
+
+```bash
+npx ai-engineering-loop guard check --tool edit --path src/list.js
+npx ai-engineering-loop guard check --tool bash --command "git push --force"
+npx ai-engineering-loop hooks install        # Claude Code: .claude/settings.json PreToolUse hook
+npx ai-engineering-loop hooks status | uninstall
+```
+
+| Check | Rule |
+|---|---|
+| Edit / Write / MultiEdit / NotebookEdit | Blocked or warned when the file is outside the Run scope or matches `scope.deniedPaths`. `.ai-engineering-loop/` (Run artifacts) is always writable. A `REPORT_ONLY` Run may not edit at all. |
+| Bash | `rm` with recursive + force flags, `DROP TABLE/DATABASE/SCHEMA`, `TRUNCATE`, `git push --force` / `-f` / `--force-with-lease` / `+refspec`, `git reset --hard`, `git clean` with `-f` and `-d`. |
+
+**Scope** = the frozen Goal's optional `scope.allowedPaths` plus the confirmed blast-radius map (`impact confirm`, see `docs blast-radius-map`). `scope.deniedPaths` always applies. A Goal without `scope` and without a confirmed map has no path enforcement (backward compatible). Globs: `**` crosses directories, `*` and `?` stay inside one segment, a trailing `/` is a directory prefix; paths are repository-relative.
+
+**Decision** by Run mode: `ASSISTED` → `warn` (the Claude hook answers `ask`, so the human decides); `UNATTENDED` and `REPORT_ONLY` → `block` (`deny`; CLI exit code 2). With no active Run the policy `defaultMode` applies and nothing is recorded.
+
+**Evidence:** every warn and block is appended to `RUN_DIR/guard-events.json` (tool, rule ids, reasons, mode, redacted repository-relative target). `gate <name>` prints the counts and `--json` returns `guard: { warn, block, rules }`.
+
+**Enforced vs advisory:** only hosts with a native pre-tool hook API are **enforced** (Claude Code today, `hooks` in `lib/hosts/registry.js`). Every other host is **advisory**: the loop instructions ask the agent to run `guard check` itself, and nothing stops a call it skips. `hosts list`, `hosts doctor`, and the README host table show the column. The guard is not a sandbox: it does not isolate the OS or the network; UNATTENDED still uses the disposable worktree.
+
 ## Token budget and emergency stop
 
 Check the budget once after `run` and again before each new iteration, and record provider-reported usage whenever the host returns it:

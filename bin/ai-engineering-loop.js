@@ -68,6 +68,8 @@ const {
 } = require('../lib/gates.js');
 const { initialTierState } = require('../lib/tier.js');
 const impactMap = require('../lib/impact-map.js');
+const guard = require('../lib/guard.js');
+const guardHooks = require('../lib/guard-hooks.js');
 const {
   createContextPack,
   contextPackSummary
@@ -1908,6 +1910,7 @@ function handleGate() {
     }
     const run = executeGate(gate, target.runId);
     const judge = gate === 'review' && run.tier ? judgeRequirement(CWD, run) : null;
+    const guardEvents = guard.guardSummary(CWD, run.runId);
     if (json) {
       console.log(JSON.stringify({
         ok: true,
@@ -1916,13 +1919,17 @@ function handleGate() {
         iteration: run.iteration,
         gate,
         ...(run.tier ? { tier: run.tier.current } : {}),
-        ...(judge ? { judgeRequired: judge.required, judgeReasons: judge.reasons } : {})
+        ...(judge ? { judgeRequired: judge.required, judgeReasons: judge.reasons } : {}),
+        guard: guardEvents
       }));
     } else {
       log.success(`✓ ${gate} gate passed`);
       console.log(`- Run: ${run.runId}`);
       console.log(`- State: ${run.state}, iteration ${run.iteration}`);
       if (run.tier) console.log(`- Tier: ${run.tier.current}`);
+      if (guardEvents.warn || guardEvents.block) {
+        console.log(`- Guard: ${guardEvents.block} blocked, ${guardEvents.warn} warned (${guardEvents.rules.join(', ')}); see guard-events.json`);
+      }
       if (judge) {
         console.log(judge.required
           ? `- Judge: REQUIRED (${judge.reasons.join('; ')}). Spawn the Judge subagent, write verdict.json, then gate judge.`
@@ -3195,6 +3202,75 @@ async function handleVerify() {
   }
 }
 
+function readGuardInput() {
+  const source = argValue('--input') || (process.argv.includes('--hook') ? '-' : null);
+  if (source == null) {
+    const target = argValue('--path');
+    const commandText = argValue('--command');
+    if (target == null && commandText == null) {
+      throw Object.assign(new Error('guard check needs --input -|<file>, --path <file>, or --command <text>'), { code: 'INVALID_USAGE' });
+    }
+    return target != null ? { path: target } : { command: commandText };
+  }
+  const text = source === '-' ? fs.readFileSync(0, 'utf8') : fs.readFileSync(path.resolve(CWD, source), 'utf8');
+  try {
+    return JSON.parse(text);
+  } catch (cause) {
+    throw Object.assign(new Error(`guard input is not JSON: ${cause.message}`), { code: 'INVALID_USAGE' });
+  }
+}
+
+function handleGuard() {
+  const action = args[1] && !args[1].startsWith('--') ? args[1] : 'check';
+  const json = process.argv.includes('--json');
+  const hook = argValue('--hook');
+  try {
+    if (action !== 'check') throw Object.assign(new Error('guard supports: check'), { code: 'INVALID_USAGE' });
+    if (hook != null && hook !== 'claude') throw Object.assign(new Error('--hook supports: claude'), { code: 'INVALID_USAGE' });
+    const result = guard.checkGuard(CWD, { tool: argValue('--tool'), input: readGuardInput(), runId: argValue('--run') });
+    if (hook === 'claude') {
+      const output = guard.claudeHookOutput(result);
+      if (output) console.log(JSON.stringify(output));
+      return;
+    }
+    if (json) console.log(JSON.stringify({ ok: true, ...result }));
+    else {
+      const mark = { allow: '✓', warn: '!', block: '✗' }[result.decision];
+      console.log(`${mark} ${result.decision} (${result.tool}, ${result.mode}${result.runId ? `, run ${result.runId}` : ', no active run'})`);
+      for (const reason of result.reasons) console.log(`- ${reason}`);
+    }
+    if (result.decision === 'block') process.exitCode = 2;
+  } catch (err) {
+    if (hook) {
+      console.error(`ai-engineering-loop guard: ${err.message}`);
+      process.exitCode = 1;
+      return;
+    }
+    stageJsonError(err, json, 'GUARD_FAILED');
+  }
+}
+
+function handleHooks() {
+  const action = args[1] && !args[1].startsWith('--') ? args[1] : 'status';
+  const json = process.argv.includes('--json');
+  try {
+    const options = { host: argValue('--host') || 'claude' };
+    let result;
+    if (action === 'install') result = guardHooks.installHooks(CWD, options);
+    else if (action === 'uninstall') result = guardHooks.uninstallHooks(CWD, options);
+    else if (action === 'status') result = guardHooks.hooksStatus(CWD, options);
+    else throw Object.assign(new Error('hooks must be install, uninstall, or status'), { code: 'INVALID_USAGE' });
+    if (json) console.log(JSON.stringify({ ok: true, action, ...result }));
+    else {
+      const verb = action === 'status' ? '' : (result.changed ? ' (updated)' : ' (already up to date)');
+      log.success(`✓ ${result.host} guard hooks ${result.installed ? 'installed' : 'not installed'} in ${result.settings}${verb}`);
+      if (result.installed) console.log('- Edit/Write outside the Run scope and destructive Bash commands: ASSISTED asks, UNATTENDED blocks.');
+    }
+  } catch (err) {
+    stageJsonError(err, json, 'HOOKS_FAILED');
+  }
+}
+
 function handleImpact() {
   const action = args[1] && !args[1].startsWith('--') ? args[1] : 'show';
   const json = process.argv.includes('--json');
@@ -3504,6 +3580,14 @@ Commands:
                  confirmed paths become the Run's allowed scope; verify reports changes outside it
                skip --by <name> --reason <text> [--run <id>]   trivial goals (copy, CSS, comments)
                drift [--run <id>] [--json]   compare the gated Maker diff with the map
+  guard        Runtime guardrail for one tool call: allow | warn | block (warn/block recorded in the Run)
+               check --tool edit|bash (--input -|<file> | --path <file> | --command <text>) [--run <id>] [--json]
+               check --hook claude   read a Claude Code PreToolUse payload on stdin and answer deny/ask
+                 edit: outside Goal scope.allowedPaths + confirmed impact map, or in scope.deniedPaths
+                 bash: rm -rf, DROP TABLE/TRUNCATE, git push --force, git reset --hard, git clean -fd
+                 ASSISTED warns (the host asks), UNATTENDED and REPORT_ONLY block (exit 2)
+  hooks        Install native pre-tool hooks that call guard check (enforced hosts: Claude Code)
+               install | uninstall | status [--host claude] [--json]   writes .claude/settings.json
   review-pack  Build the Devil's Advocate pack: fast-path, diff hunks, escalation floor, tier
                [--run <id>] [--base <git-ref>] [--profile lean|standard|thorough] [--json]
   deliver      Approve READY approval nodes, write delivery.json, and pass the delivery gate
@@ -3604,7 +3688,7 @@ if (['init', 'run', 'status', 'refresh'].includes(command)) {
   maybeAutoUpdate();
 }
 
-if (!['setup', 'hosts', 'sync-hosts', '-h', '--help', '-v', '--version'].includes(command)) maybeSetupHint();
+if (!['setup', 'hosts', 'sync-hosts', 'guard', '-h', '--help', '-v', '--version'].includes(command)) maybeSetupHint();
 if (command === 'status') maybeNewHostsNotice();
 
 switch (command) {
@@ -3673,6 +3757,12 @@ switch (command) {
     break;
   case 'verify':
     handleVerify();
+    break;
+  case 'guard':
+    handleGuard();
+    break;
+  case 'hooks':
+    handleHooks();
     break;
   case 'impact':
     handleImpact();
