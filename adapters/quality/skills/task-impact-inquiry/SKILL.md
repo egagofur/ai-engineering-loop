@@ -33,6 +33,8 @@ Green unit tests later are not proof that siblings, approvals, or downstream job
 
 Impact-only (no implementation): run this skill and stop after the report.
 
+Inside a Run, the CLI writes a heuristic blast-radius map when the Goal is frozen (`RUN_DIR/impact-map.json`). Use it as the starting matrix, then record the outcome: `npx ai-engineering-loop impact confirm --run <runId> --by <name> [--allow <glob>]... [--remove <path>]...`. The confirmed paths become the Run's allowed scope, and verify reports changes outside it.
+
 Commit-bound work: run this inside AEL Stage 1, then freeze. Do not run it a second time after grill.
 
 ## Host notes
