@@ -4,6 +4,14 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+### Proof-carrying PR receipt: `receipt.json` and `verify-receipt` (#70)
+
+- **Added:** `schemas/receipt.schema.json` and `lib/receipt.js`. `deliver` (incl. `--approve`) writes `RUN_DIR/receipt.json` and `receipt.md` as its last step: the frozen Goal with its hashes, every AC with its evidence (claimed-vs-reality row, verification commands with output sha256, hosted links), the finding-ledger summary and Judge verdict, impact drift and guard counts, base/head SHA, the sha256 of every referenced artifact, and an overall digest. An AC without evidence is an explicit ❌ (`MISSING`), never dropped.
+- **Added:** `deliver --host <id> --model <id> --head <sha> --evidence AC-N=<https-url>`. Evidence links must be `http(s)` without credentials; the receipt carries no secrets or local absolute paths.
+- **Changed:** `delivery.json` stores `receipt: { path, digest }` (`schemas/delivery.schema.json`).
+- **Added:** `verify-receipt [--run <id> | <receipt.json>] [--head <sha>]` re-hashes the artifacts and Goal, checks every AC has evidence, the verdict is PASS with no blocking finding, and the head SHA matches; exit 1 on any mismatch.
+- **Changed:** the GitHub, GitLab and DOT MR templates have a Receipt section; the Stage 8 reference says to paste `receipt.md` unchanged. Spec: `core/pr-receipt.md` (`docs pr-receipt`).
+
 ### Hook-enforced runtime guardrails: scope freeze and destructive commands (#59)
 
 - **Added:** optional `scope: { allowedPaths, deniedPaths }` (repository-relative globs) in the Goal contract, frozen with the Goal and validated by the Goal gate. Absent = no path enforcement.

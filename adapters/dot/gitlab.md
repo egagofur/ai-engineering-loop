@@ -123,6 +123,9 @@ glab mr create \
 ```
 
 #### Standardized MR Description Template:
+
+The **Receipt** section is `RUN_DIR/receipt.md` written by `deliver` (commit first so it binds `HEAD`; screenshots as hosted links via `--evidence AC-N=<https-url>`). Paste it unchanged; a ❌ line stays ❌. Check: `npx ai-engineering-loop verify-receipt --run <runId> --head <mr-head-sha>`.
+
 ```markdown
 ## Issue
 <GitLab Issue URL>
@@ -149,6 +152,9 @@ glab mr create \
 
 ## Screenshot / Video
 <!-- Attach screenshots, terminal test logs, or UI captures if available -->
+
+## Receipt
+<paste RUN_DIR/receipt.md from `deliver` here: one ✅/❌ line per AC with its evidence>
 
 ## Note for Deployment
 - No manual database migrations required. (or specify migration command if applicable)

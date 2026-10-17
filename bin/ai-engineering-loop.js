@@ -70,6 +70,7 @@ const { initialTierState } = require('../lib/tier.js');
 const impactMap = require('../lib/impact-map.js');
 const guard = require('../lib/guard.js');
 const guardHooks = require('../lib/guard-hooks.js');
+const receipts = require('../lib/receipt.js');
 const {
   createContextPack,
   contextPackSummary
@@ -3427,25 +3428,72 @@ function handleDeliver() {
     if (!delivery && !(destination && summary)) {
       throw Object.assign(new Error('Pass --destination <where> and --summary <text>, or write delivery.json first.'), { code: 'INVALID_USAGE' });
     }
+    // Proof-carrying receipt (#70): the final deliver step, after approval.
+    // Missing gate artifacts leave no receipt; the delivery gate then reports them.
+    let receipt = null;
+    try {
+      receipt = receipts.writeReceipt(CWD, {
+        runId,
+        host: argValue('--host'),
+        model: argValue('--model'),
+        head: argValue('--head'),
+        evidenceLinks: repeatedArg('--evidence'),
+        aelVersion: VERSION
+      });
+    } catch (err) {
+      if (err.code !== 'RECEIPT_INPUT_MISSING') throw err;
+    }
     delivery = {
       ...(delivery || {}),
       schemaVersion: 1,
       runId,
       ...(destination ? { destination } : {}),
       ...(summary ? { summary } : {}),
-      ...(approve ? { humanApproved: true, approvedBy: by } : {})
+      ...(approve ? { humanApproved: true, approvedBy: by } : {}),
+      ...(receipt ? { receipt: { path: receipt.path, digest: receipt.receipt.digest } } : {})
     };
     fs.writeFileSync(deliveryPath, `${JSON.stringify(delivery, null, 2)}\n`, { mode: 0o600 });
     const next = executeGate('delivery', runId);
-    const result = { ok: true, runId, state: next.state, approvedNodes: approved, humanApproved: delivery.humanApproved === true };
+    const result = {
+      ok: true,
+      runId,
+      state: next.state,
+      approvedNodes: approved,
+      humanApproved: delivery.humanApproved === true,
+      receipt: receipt && { path: receipt.path, markdown: receipt.markdownPath, digest: receipt.receipt.digest, missingEvidence: receipt.missing }
+    };
     if (json) console.log(JSON.stringify(result));
     else {
       log.success('✓ delivery gate passed');
       console.log(`- State: ${next.state}`);
       if (approved.length) console.log(`- Approved: ${approved.join(', ')} by ${by}`);
+      if (receipt) console.log(`- Receipt: ${receipt.path} (digest ${receipt.receipt.digest.slice(0, 12)}); paste ${receipt.markdownPath} into the PR/MR body`);
+      if (receipt?.missing.length) console.log(`! Missing AC evidence (❌ in the receipt): ${receipt.missing.join(', ')}`);
     }
   } catch (err) {
     stageJsonError(err, json, 'DELIVER_FAILED');
+  }
+}
+
+function handleVerifyReceipt() {
+  const json = process.argv.includes('--json');
+  try {
+    const positional = args.slice(1).find((arg, index, list) => !arg.startsWith('--') && !['--run', '--head'].includes(list[index - 1]));
+    const result = receipts.verifyReceipt(CWD, {
+      runId: argValue('--run'),
+      receiptPath: positional,
+      head: argValue('--head')
+    });
+    if (json) console.log(JSON.stringify(result));
+    else if (result.ok) {
+      log.success(`✓ receipt verified (${result.path}, digest ${result.digest.slice(0, 12)})`);
+    } else {
+      log.error(`Receipt check failed (${result.path})`);
+      for (const problem of result.problems) console.error(`- ${problem.code}: ${problem.detail}`);
+    }
+    if (!result.ok) process.exitCode = 1;
+  } catch (err) {
+    stageJsonError(err, json, 'VERIFY_RECEIPT_FAILED');
   }
 }
 
@@ -3593,6 +3641,10 @@ Commands:
   deliver      Approve READY approval nodes, write delivery.json, and pass the delivery gate
                [--run <id>] [--destination <where> --summary <text>] [--approve --by <name>] [--json]
                ASSISTED requires --approve --by <name>, given only after explicit human approval
+               [--host <id>] [--model <id>] [--head <sha>] [--evidence AC-N=<https-url>]...
+               writes RUN_DIR/receipt.json + receipt.md (paste into the PR/MR body); digest stored in delivery.json
+  verify-receipt  Re-check a delivery receipt: artifact hashes, frozen Goal, AC evidence, verdict, head SHA
+               [--run <id> | <repository-relative-receipt.json>] [--head <sha>] [--json]   exit 1 on mismatch (CI)
   docs         Print a packaged spec without needing the package source tree
                list [--json]
                <name> [--section <heading>] [--json]   e.g. docs grill-policy --section "When to grill"
@@ -3769,6 +3821,9 @@ switch (command) {
     break;
   case 'review-pack':
     handleReviewPack();
+    break;
+  case 'verify-receipt':
+    handleVerifyReceipt();
     break;
   case 'deliver':
     handleDeliver();

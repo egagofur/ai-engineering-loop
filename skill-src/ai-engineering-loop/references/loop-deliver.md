@@ -6,4 +6,5 @@
 - Preview remote payloads; never include context packs, usage ledgers, raw logs, or credentials.
 - ASSISTED: wait for explicit human approval and never infer it. Then one call: `npx ai-engineering-loop deliver --run <runId> --destination <where> --summary <text> --approve --by <name>` (approves READY approval nodes, writes `RUN_DIR/delivery.json` with `humanApproved: true`, runs `gate delivery`). Without `--approve` it refuses in ASSISTED.
 - Long form: `node status --run <runId>`, `node approve delivery-approval --yes --by <name> --run <runId>` for each READY approval node, write `RUN_DIR/delivery.json`, then `gate delivery`. If the gate says a node is not READY, follow its prerequisite hint; never bypass approval.
+- Commit before `deliver` (its receipt binds `HEAD`; screenshots: `--evidence AC-N=<https-url>`). Paste `RUN_DIR/receipt.md` into the PR/MR Receipt section unchanged; ❌ stays ❌ (`docs pr-receipt`).
 - Only the delivery gate completes the run.
