@@ -7,10 +7,10 @@ const {
   catalogSummary
 } = require('../lib/evaluation.js');
 
-test('production evaluation catalog contains twenty-four valid, diverse fixtures', () => {
+test('production evaluation catalog contains twenty-five valid, diverse fixtures', () => {
   const fixtures = loadEvaluationCases();
   const summary = catalogSummary(fixtures);
-  assert.strictEqual(fixtures.length, 24);
+  assert.strictEqual(fixtures.length, 25);
   assert.ok(Object.keys(summary.categories).length >= 6);
   assert.ok(summary.verdicts.PASS >= 2);
   assert.ok(summary.verdicts.ITERATE >= 10);
@@ -27,7 +27,7 @@ test('oracle-equivalent results score without false PASS or secret leakage', () 
     output: 'Synthetic evaluation result'
   }));
   const score = scoreEvaluationResults(fixtures, results);
-  assert.strictEqual(score.passed, 24);
+  assert.strictEqual(score.passed, 25);
   assert.strictEqual(score.incorrectPasses, 0);
   assert.strictEqual(score.secretLeaks, 0);
 });
