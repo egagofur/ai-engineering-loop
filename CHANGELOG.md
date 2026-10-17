@@ -4,6 +4,10 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+_No changes yet._
+
+## 1.17.0 - 2026-10-17
+
 ### `ael learn`: past Runs become project learnings for context packs (#61)
 
 - **Added:** `learn [--dry-run] [--prune] [--max-age-runs <n>]` (`lib/learn.js`, `schemas/learnings.schema.json`). It reads every Run's `findings.json`, keeps only VALID findings that were not rejected (drift findings from #71 are skipped), clusters them per axis by word overlap, and writes deterministic, deduped `.ai-engineering-loop/learnings.json` and `learnings.md` with occurrence counts and source `runIds`. Text is redacted with the `safe-context` secret and home-path filters.
