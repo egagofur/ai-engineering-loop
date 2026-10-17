@@ -1,6 +1,6 @@
 # Local Workflow Studio
 
-Workflow Studio is a localhost-only visual control plane for declarative recipes and recipe-bound runs. It can create a named run and start the controlled local workflow runtime after an audited Goal Freeze. It does not execute models, shell commands, arbitrary node code, or inject prompts into an external AI conversation. The existing recipe compiler and controlled workflow runtime remain the source of truth.
+Workflow Studio is a localhost-only live view of recipe-bound and classic CLI runs. It is the place to glance at what the agent is doing and whether the run is still compliant. It does not execute models, shell commands, arbitrary node code, or inject prompts into an external AI conversation. The existing recipe compiler and controlled workflow runtime remain the source of truth.
 
 ## Start
 
@@ -12,100 +12,58 @@ The CLI binds only to `127.0.0.1`, creates a random process-local session token,
 
 The server rejects non-local `Host` headers. Static assets are bundled in the npm package; there are no CDNs, analytics, remote fonts, or browser-side model calls. Responses use a restrictive Content Security Policy and are not cached.
 
-## Authoring model
+Studio watches one project root — the working directory where it was launched. The header shows that root. `status --json` and `run --json` include `studioUrl` when a Studio process for that root is alive. That field identifies the running Studio; it is tokenless and returns 401 without a session. Do not write the session token to disk or into agent-visible output. Open the browser session from the tokenized URL printed by `ael studio`.
 
-The canvas loads built-in and project recipes through the same APIs as the CLI:
+## Real-time sync
 
-1. Select a recipe.
-2. Fork a protected built-in by changing its ID.
-3. Drag allowlisted node types from the library, use the global Add Node control, or use the contextual output `+` to create and connect a successor.
-4. Move or multi-select nodes, drag an output port to connect existing nodes, and remove a connection from its midpoint control.
-5. Edit a node Display Name inline without changing its stable Technical ID.
-6. Import validated JSON through an explicit Replace, Merge with deterministic conflict renaming, or Cancel preview; export the current workflow as JSON.
-7. Pan, lasso, zoom, fit, auto-layout, and use undo/redo without changing recipe semantics.
-8. Review graph validation and hashes for every compatible mode.
-9. Install only after explicit confirmation.
+Studio does not poll `/api/live` on a timer. One `RunWatcher` per process recursively watches `.ai-engineering-loop/runs/` and `current.json`. On a change it re-reads only the changed artifact and pushes a typed event on `GET /api/events` (SSE).
 
-Installation writes a private temporary candidate, invokes the existing atomic installer, and removes the candidate. Built-ins cannot be overwritten. Replacing a project recipe still requires the version policy enforced by `recipe install --replace`.
+Event types: `run.created`, `run.state`, `lifecycle`, `artifact.impact`, `artifact.drift`, `artifact.guard`, `artifact.verification`, `artifact.findings`, `artifact.verdict`, `artifact.receipt`, `current.changed`, `presence`. Each event carries `runId`, a monotonic `seq`, and a minimal payload.
 
-Canvas positions and viewport state are not recipe fields and never contribute to the graph hash. Studio stores them under private `.ai-engineering-loop/studio-layouts/` files, validates IDs and coordinate bounds, rejects symlinks, and writes atomically. This keeps visual organization independent from execution semantics.
+The first SSE frame is `hello` with `mode` (`watch` or `poll`), `root`, `currentRunId`, and `seq`. The status pill shows `live: watch` or `live: poll`. Where `fs.watch` is unavailable (or `AEL_STUDIO_FS_WATCH=0`), Studio falls back to a 1 s stat-poll of the same files.
 
-Visual connections are first-class `edges[]` with stable Edge IDs and Technical ID endpoints. Legacy `dependsOn` recipes migrate in memory without modifying their source; Save or Export emits the current Edge representation. The compiler projects Edges back to runtime dependencies so legacy and migrated recipes retain the same execution order and graph hash. Studio rejects duplicate, dangling, self-referential, and cyclic Edges, then applies the complete safety-backbone and mode validation before installation.
+`Last-Event-ID` and `?after=<seq>` replay from an in-memory ring. A gap larger than the ring sends `resync`; the client then reloads `/api/bootstrap`. If the event stream ends or errors, the client reconnects with `setTimeout` backoff (500 ms, 1 s, 2 s, max 5 s) and resumes from the last `seq`; a failed resume falls back to `/api/bootstrap`. The Retry button still calls the same resync. The stream covers every run in the project. The UI follows `current.json` by default and can pin any run, including a classic run with no bound workflow and a run driven with `--run <id>` that is not current.
 
-## Custom Agents
+`GET /api/runs/:id/lifecycle` remains as a bounded REST ledger. `GET /api/runs/:id/lifecycle/stream` and `POST /api/import/*` return 404.
 
-**Create Custom Agent** adds an `agent` node with a basic prompt, explicit capability and MCP references, input/output artifact contracts, token limit, timeout, and retry policy. Unsupported authority, arbitrary shell fields, raw secret values, and unsafe schema paths are rejected.
+## Live run view
 
-A Custom Agent reaching `READY` waits for an external operator. Studio can mark it running, record redacted activity, retry it, or complete it with a valid run-bound evidence artifact. Readiness is not represented as independent model execution.
+The default route is the live run view:
+
+- stage rail goal → maker → verify → review → judge → deliver, with the current stage and heartbeat age;
+- tier, mode, iteration, and budget;
+- compliance chips for guard warns/blocks, impact drift, and receipt verification;
+- pending questions, decisions, and approvals as the top banner;
+- a merged timeline of lifecycle, activity, and execution events.
+
+The Goal Contract stays a side sheet of this view (draft, review, freeze, unfreeze). Start with AI Agent still copies a run-bound handoff into the clipboard.
+
+## Runs
+
+**Runs** is a slim history list. Open a row to pin it in the live view as a read-only replay. Artifact inspection still accepts only regular files inside the owning run, rejects path traversal and symlinks, enforces a size bound, and redacts recognized secrets.
+
+## Wiring existing nodes
+
+Studio is read-only for workflow *structure*. Do not create, duplicate, delete, or import nodes here. Author recipes as files and use `recipe create|clone|install`.
+
+**Wiring** keeps the canvas for edges between nodes that already exist: add, remove, or re-point a connection, plus fit, zoom, tidy/auto-layout, and undo/redo for those edge edits. Node moves are layout-only (`PUT /api/layout`) and never enter the graph hash.
+
+Every wiring change is validated by `POST /api/validate`, which is the same `lib/recipe.js` compiler and safety backbone (goal-contract → maker → verification → devil-advocate → judge → delivery/report, plus a human approval before delivery in ASSISTED). An edge set that breaks the backbone is rejected with the compiler's named error and cannot be saved. The server also rejects a recipe whose node set differs from the loaded base (`baseRecipeId`): same node ids, types, and node config; only edges, `dependsOn`, and layout may change. That failure is `STUDIO_STRUCTURE_READ_ONLY` and lists added, removed, and changed node ids. A builtin may still be installed as `<id>-local` when the nodes are unchanged. A valid change is installed only after the confirm dialog (`POST /api/install`). Built-in recipe ids stay reserved; Studio installs a project copy.
 
 ## Stage 8 delivery adapter
 
-The default canvas labels the lifecycle coverage from Stage 1 through Stage 8; Maker contains the Stage 2–4 diagnosis, planning, and implementation sequence. Delivery nodes expose the project-level Stage 8 adapter selected in `.ai-engineering-loop/adapter.md`. Studio can select the shipped `standard`, `github`, `gitlab`, or `dot` adapters and shows the adapter inferred from the repository remote.
-
-An adapter belongs to the project, not to one delivery node. For a custom adapter, **Custom with AI** copies a bounded builder request that tells an agent to use the existing `generate-adapter` Q1–Q5 protocol, preserve Stages 0–7, require Judge `PASS`, and keep credentials out of configuration. Once that agent writes `.ai-engineering-loop/adapter.md`, Studio discovers the custom adapter on refresh. The browser never accepts arbitrary adapter code or executes delivery commands.
-
-## Live execution
-
-The trigger/root node owns the task input and local Execute control. Studio first creates a Run with an immutable Technical ID and human-readable Display Name. A deterministic task-derived name is used when no safe proposal is available. The Goal Contract must contain numbered acceptance criteria with evidence and failure cases and must pass an explicit Goal Freeze before Execute can start the local runtime.
-
-Goal Freeze records actor, timestamp, version, and content hash. Unfreeze requires an actor and reason, increments the Goal version, resets the workflow to its Goal gate, and leaves previous evidence bound to the previous version.
-
-For a recipe-bound current run, Studio polls a small live snapshot rather than reloading the recipe catalog. It displays:
-
-- current node states and the append-only event stream;
-- an animated connector leaving the running node;
-- provider-recorded run token spend and configured limit;
-- explicit approval and retry controls;
-- a short redacted activity message reported by the host:
-
-```bash
-ai-engineering-loop node activity <node-id> \
-  --message "Comparing the failing test with the implementation"
-```
-
-Activity can only be attached to a `RUNNING` node. It is capped at 240 printable characters, secret-redacted before persistence, and added to the integrity-bound workflow event chain.
-
-## Run History
-
-The separate **Runs** workspace reads every valid persisted Run rather than replacing Workflows with execution records. It supports text, status, mode, and date filters and shows human-readable names, technical IDs, Goal state, decisions, events, evidence presence, and bounded artifacts. Corrupt Run records are isolated so valid siblings remain available.
-
-Run History is read-only. Artifact inspection accepts only regular files inside the owning Run, rejects path traversal and symlinks, enforces a size bound, and redacts recognized secrets before returning content.
-
-## Decision memory
-
-Studio can record a concise decision and rationale against the current run. Decision memory is private runtime data under the run directory, is bounded to 100 entries, and is redacted before persistence. It becomes part of exported handoffs so the next developer or agent receives the “why,” not only the final state.
-
-Do not use decision memory as a credential store or as a replacement for a repository ADR when a durable architectural decision belongs in version control.
-
-## Knowledge handoff
-
-The top bar provides two forms:
-
-- **Copy Brief** creates a human-readable developer summary.
-- **Export Handoff** downloads a machine-readable `.ael-handoff.json` bundle for another agent.
-
-The bundle contains objective, workflow state, artifact descriptors, decisions, transitions, and ready next actions. It deliberately excludes source contents. Strings pass through secret and home-path redaction, and the complete canonical manifest is bound to `bundleHash`.
-
-Verify a received bundle before trusting it:
-
-```bash
-ai-engineering-loop handoff inspect run-id.ael-handoff.json
-ai-engineering-loop handoff brief run-id.ael-handoff.json
-```
-
-Inspection accepts only regular files smaller than 1 MiB inside the repository, rejects symlinks and path escapes, and fails if any field no longer matches the bundle hash.
+Delivery nodes still expose the project-level Stage 8 adapter in `.ai-engineering-loop/adapter.md`. `POST /api/adapter/select` can select the shipped `standard`, `github`, `gitlab`, or `dot` adapters. The browser never accepts arbitrary adapter code or executes delivery commands.
 
 ## Trust boundary
 
-Studio improves authoring and observability; it does not weaken runtime gates:
+Studio improves observability; it does not weaken runtime gates:
 
 - graph validation does not imply execution permission;
 - local execution requires exactly one permitted trigger/root and an audited frozen Goal;
 - command nodes remain disabled;
-- Custom Agents wait for an external operator and cannot grant undeclared authority;
 - approvals remain explicit state transitions;
 - connector edits cannot bypass the required safety backbone;
 - Run History cannot mutate persisted runs or artifacts;
 - delivery adapters cannot run before Judge `PASS`;
 - token data comes only from the provider-recorded usage ledger;
-- handoff integrity proves the bundle has not changed after export, not that every original claim was true.
+- the event stream never exposes file contents outside the run-dir artifacts already served.

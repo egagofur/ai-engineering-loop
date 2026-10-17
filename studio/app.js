@@ -4,20 +4,41 @@ const NODE_WIDTH = 224;
 const NODE_PORT_Y = 54;
 const MIN_ZOOM = 0.2;
 const MAX_ZOOM = 2.5;
+const DISPLAY_NAME_MAX = 80;
+const STAGES = [
+  { id: 'goal', label: 'goal', types: ['goal-contract'] },
+  { id: 'maker', label: 'maker', types: ['maker'] },
+  { id: 'verify', label: 'verify', types: ['verification'] },
+  { id: 'review', label: 'review', types: ['devil-advocate'] },
+  { id: 'judge', label: 'judge', types: ['judge'] },
+  { id: 'deliver', label: 'deliver', types: ['delivery', 'approval', 'report'] }
+];
+const TERMINAL_RUN_STATES = new Set(['DELIVERED', 'REPORTED', 'ESCALATED', 'CANCELLED']);
+const GRAPH_STATES = Object.freeze(['active', 'passed', 'failed', 'skipped', 'waiting', 'idle']);
+
 const byId = (id) => document.getElementById(id);
 const escapeHtml = (value) => String(value ?? '').replace(
   /[&<>"']/g,
   (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]
 );
 
-let catalog;
+function formField(name) {
+  return byId(name) || document.querySelector?.(`[name="${name}"]`) || { value: '', disabled: false, hidden: false };
+}
+
+function scenePart(selector) {
+  const scene = byId('scene');
+  if (!scene?.querySelector) return { innerHTML: '', style: {}, append() {}, setAttribute() {}, querySelector() { return null; } };
+  return scene.querySelector(selector) || scene;
+}
+
+let catalog = { recipes: [], live: null, root: '', watchMode: 'watch' };
 let draft;
 let source;
 let loadedRecipeId;
 let selectedId;
 let selectedIds = new Set();
 let selectedEdgeId;
-let liveTimer;
 let validationSequence = 0;
 let positions = new Map();
 let viewport = { x: 0, y: 0, scale: 1 };
@@ -27,27 +48,32 @@ let interaction;
 let connection;
 let layoutTimer;
 let spacePressed = false;
-let pendingConnectionSource;
 let runs = [];
 let goal = { text: '', version: 1, frozen: false, draftRevision: 0, draftHash: null };
 let activeRunId;
-let pendingImport;
 let hydratedGoalKey;
 let selectedCheckoutRun;
-let lifecycleRunId;
-let lifecycleSequence = 0;
 let lifecycleEvents = [];
 let agentPresence = { status: 'UNKNOWN', lastHeartbeatAt: null };
-let followExecution = true;
-let lastFollowedNode;
-let lifecycleStream;
 let handoffCopiedRunId;
 let onboardingDismissed = false;
+let workspace = 'live';
+let pinnedRunId = null;
+let lastEventSeq = 0;
+let eventAbort;
+let eventsReady = false;
+let liveArtifacts = {};
 let liveRenderScheduled = false;
+let reconnectTimer = null;
+let reconnectAttempt = 0;
+let resumeFallbackUsed = false;
+const RECONNECT_BACKOFF_MS = [500, 1000, 2000, 5000];
 
-const DISPLAY_NAME_MAX = 80;
-const ROOT_TYPES = new Set(['goal-contract', 'trigger']);
-const TERMINAL_RUN_STATES = new Set(['DELIVERED', 'REPORTED', 'ESCALATED', 'CANCELLED']);
+function graphStateClass(value) {
+  const normalized = String(value || 'idle').toLowerCase();
+  if (normalized === 'running' || normalized === 'in_progress' || normalized === 'working') return 'active';
+  return GRAPH_STATES.includes(normalized) ? normalized : 'idle';
+}
 
 function displayName(item) {
   return item?.displayName || item?.name || item?.id || 'Untitled';
@@ -107,24 +133,8 @@ function authoringRecipe(recipe = draft) {
   return exported;
 }
 
-function validDisplayName(value) {
-  const name = String(value || '').trim();
-  if (!name) return 'Display Name is required.';
-  if (name.length > DISPLAY_NAME_MAX) return `Display Name must be ${DISPLAY_NAME_MAX} characters or fewer.`;
-  if (/[\u0000-\u001f\u007f]/.test(name)) return 'Display Name cannot contain control characters.';
-  return '';
-}
-
-function isInputTarget(target) {
-  return target instanceof Element && Boolean(target.closest('input,textarea,select,button,[contenteditable="true"],dialog'));
-}
-
-function csv(value) {
-  return String(value || '').split(',').map((item) => item.trim()).filter(Boolean);
-}
-
-function slug(value) {
-  return String(value || 'run').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 64) || 'run';
+function applyDisplayName() {
+  return false;
 }
 
 async function api(url, options = {}) {
@@ -139,10 +149,6 @@ async function api(url, options = {}) {
     throw error;
   }
   return payload;
-}
-
-function recipeSummary() {
-  return catalog.recipes.find((recipe) => recipe.id === draft.id);
 }
 
 function layoutPayload() {
@@ -185,10 +191,13 @@ function ensurePositions() {
 }
 
 function applyViewport() {
-  byId('scene').style.transform = `translate(${viewport.x}px,${viewport.y}px) scale(${viewport.scale})`;
-  byId('canvas').style.backgroundPosition = `${viewport.x}px ${viewport.y}px`;
-  byId('canvas').style.backgroundSize = `${32 * viewport.scale}px ${32 * viewport.scale}px`;
-  byId('zoom-level').textContent = `${Math.round(viewport.scale * 100)}%`;
+  const scene = byId('scene');
+  const canvas = byId('canvas');
+  if (scene?.style) scene.style.transform = `translate(${viewport.x}px,${viewport.y}px) scale(${viewport.scale})`;
+  if (canvas?.style) {
+    canvas.style.backgroundPosition = `${viewport.x}px ${viewport.y}px`;
+    canvas.style.backgroundSize = `${32 * viewport.scale}px ${32 * viewport.scale}px`;
+  }
 }
 
 function screenToWorld(clientX, clientY) {
@@ -197,11 +206,6 @@ function screenToWorld(clientX, clientY) {
     x: (clientX - rect.left - viewport.x) / viewport.scale,
     y: (clientY - rect.top - viewport.y) / viewport.scale
   };
-}
-
-function worldAtCanvasCenter() {
-  const rect = byId('canvas').getBoundingClientRect();
-  return screenToWorld(rect.left + rect.width / 2, rect.top + rect.height / 2);
 }
 
 function edgePath(from, to) {
@@ -225,7 +229,7 @@ function loopBounds(loopGroup) {
 }
 
 function renderLoopGroups() {
-  const container = byId('loop-groups');
+  const container = scenePart('.loop-groups');
   container.innerHTML = '';
   for (const loopGroup of draft?.loopGroups || []) {
     const bounds = loopBounds(loopGroup);
@@ -240,34 +244,8 @@ function renderLoopGroups() {
     element.innerHTML = `
       <header>
         <span><b>${escapeHtml(loopGroup.displayName)}</b><small>ITERATION ${escapeHtml(runtime?.iteration || 1)} / ${escapeHtml(loopGroup.maxIterations)}</small></span>
-        <button type="button" aria-label="Remove ${escapeHtml(loopGroup.displayName)} group">Ungroup</button>
       </header>
     `;
-    element.querySelector('button').onclick = (event) => {
-      event.stopPropagation();
-      draft.loopGroups = draft.loopGroups.filter((candidate) => candidate.id !== loopGroup.id);
-      captureHistory();
-      renderGraph();
-      validateDraft();
-    };
-    element.querySelector('header').onpointerdown = (event) => {
-      if (event.button !== 0 || event.target.closest('button')) return;
-      event.preventDefault();
-      event.stopPropagation();
-      const world = screenToWorld(event.clientX, event.clientY);
-      interaction = {
-        type: 'group',
-        pointerId: event.pointerId,
-        groupId: loopGroup.id,
-        start: world,
-        element: byId('canvas'),
-        origins: new Map(loopGroup.nodeIds.map((nodeId) => [nodeId, { ...positions.get(nodeId) }]))
-      };
-      selectedIds = new Set(loopGroup.nodeIds);
-      selectedId = loopGroup.decisionNodeId;
-      updateSelection();
-      byId('canvas').setPointerCapture(event.pointerId);
-    };
     container.append(element);
   }
 }
@@ -290,14 +268,16 @@ function stageLabel(node, index) {
     delivery: 'STAGE 08',
     report: 'REPORT'
   };
-  return stages[node.type] || `CUSTOM ${String(index + 1).padStart(2, '0')}`;
+  return stages[node.type] || `STEP ${String(index + 1).padStart(2, '0')}`;
 }
 
 function renderEdges() {
-  const group = byId('edge-paths');
-  const controls = byId('edge-controls');
+  const group = scenePart('.edge-paths');
+  const controls = scenePart('.edge-controls');
+  const preview = scenePart('.preview-edge');
   group.innerHTML = '';
   controls.innerHTML = '';
+  if (preview?.style && preview !== byId('scene')) preview.setAttribute?.('d', preview.getAttribute?.('d') || '');
   if (!draft) return;
   draft.edges.forEach((edge) => {
     const from = positions.get(edge.from);
@@ -305,7 +285,7 @@ function renderEdges() {
     if (!from || !to) return;
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('d', edgePath(from, to));
-    const state = catalog.live?.edges?.find((candidate) => candidate.id === edge.id)?.state || 'idle';
+    const state = graphStateClass(catalog.live?.edges?.find((candidate) => candidate.id === edge.id)?.state);
     path.setAttribute(
       'class',
       `edge edge-${state}${selectedEdgeId === edge.id ? ' selected' : ''}`
@@ -313,7 +293,6 @@ function renderEdges() {
     path.setAttribute('marker-end', 'url(#arrow)');
     path.dataset.edgeId = edge.id;
     group.append(path);
-
     const midpoint = {
       x: (from.x + NODE_WIDTH + to.x) / 2,
       y: (from.y + to.y) / 2 + NODE_PORT_Y
@@ -330,19 +309,6 @@ function renderEdges() {
       event.stopPropagation();
       deleteEdge(edge.id);
     };
-    let hideTimer;
-    path.onpointerenter = () => {
-      clearTimeout(hideTimer);
-      control.classList.add('visible');
-    };
-    path.onpointerleave = () => {
-      hideTimer = setTimeout(() => control.classList.remove('visible'), 100);
-    };
-    control.onpointerenter = () => {
-      clearTimeout(hideTimer);
-      control.classList.add('visible');
-    };
-    control.onpointerleave = () => control.classList.remove('visible');
     controls.append(control);
     const label = edgeLoopLabel(edge);
     if (label) {
@@ -354,478 +320,64 @@ function renderEdges() {
       controls.append(badge);
     }
   });
-  for (const loopGroup of draft.loopGroups || []) {
-    const from = positions.get(loopGroup.decisionNodeId);
-    const to = positions.get(loopGroup.repeatTargetId);
-    const bounds = loopBounds(loopGroup);
-    if (!from || !to || !bounds) continue;
-    const returnPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    returnPath.setAttribute(
-      'd',
-      `M${from.x + NODE_WIDTH} ${from.y + NODE_PORT_Y} H${bounds.right + 28} V${bounds.top - 18} H${to.x - 28} V${to.y + NODE_PORT_Y} H${to.x}`
-    );
-    returnPath.setAttribute('class', 'edge loop-return');
-    returnPath.setAttribute('marker-end', 'url(#arrow)');
-    group.append(returnPath);
-    const label = document.createElement('span');
-    label.className = 'edge-label loop-label';
-    label.style.left = `${bounds.right + 28}px`;
-    label.style.top = `${bounds.top - 18}px`;
-    label.textContent = loopGroup.repeatLabel;
-    controls.append(label);
-  }
 }
 
 function nodeMarkup(node, index) {
   const runtimeNode = catalog.live?.nodes?.[node.id];
-  const lifecycleActivity = activeLifecycleNodeId() === node.id
-    ? activeLifecycleEvent()?.message
-    : '';
-  const outgoing = draft.edges.some((edge) => edge.from === node.id);
-  const root = rootCandidates().length === 1 && rootCandidates()[0].id === node.id;
   return `
     <button class="port port-in" aria-label="Input for ${escapeHtml(node.id)}" tabindex="-1"></button>
     <small>${escapeHtml(stageLabel(node, index))} / ${escapeHtml(node.type.toUpperCase())}</small>
-    <button class="node-title" title="Double-click to edit Display Name">${escapeHtml(displayName(node))}</button>
+    <span class="node-title">${escapeHtml(displayName(node))}</span>
     <span class="technical-id">${escapeHtml(node.id)}</span>
-    <span class="status">● ${escapeHtml(runtimeNode?.status || 'DRAFT')}</span>
-    ${runtimeNode?.activity || lifecycleActivity ? `<p class="node-activity">${escapeHtml(runtimeNode?.activity || lifecycleActivity)}</p>` : ''}
+    <span class="status">● ${escapeHtml(runtimeNode?.status || 'READY')}</span>
     <button class="port port-out" aria-label="Connect from ${escapeHtml(node.id)}" tabindex="-1"></button>
-    ${outgoing ? '' : `<button class="output-add" title="Add connected node" aria-label="Add node connected after ${escapeHtml(displayName(node))}">+</button>`}
-    ${root ? `<div class="execute-pod"><input class="task-input" aria-label="Task for this run" placeholder="Describe this run’s task" value="${escapeHtml(catalog.live?.run?.task || '')}"><button class="execute-trigger">${goal.frozen ? 'Execute' : 'Set Goal'}</button><span class="execute-hint">${goal.frozen ? 'Local runtime only' : 'Freeze Goal first'}</span></div>` : ''}
   `;
 }
 
-function activeLifecycleEvent() {
-  const latest = lifecycleEvents.at(-1) || null;
-  if (!latest || ['NODE_COMPLETED', 'RUN_COMPLETED'].includes(latest.type)) return null;
-  return latest;
-}
-
-function activeLifecycleNodeId() {
-  const event = activeLifecycleEvent();
-  if (event?.nodeId) return event.nodeId;
-  if (event?.phase) {
-    const scopedNode = draft?.nodes.find((node) =>
-      node.id === event.phase || node.type === event.phase || node.legacyGate === event.phase
-    );
-    if (scopedNode) return scopedNode.id;
-  }
-  if (event?.phase === 'goal' || event?.type?.startsWith('GOAL_')) {
-    return draft?.nodes.find((node) => node.type === 'goal-contract')?.id || null;
-  }
-  return null;
-}
-
 function renderGraph() {
+  if (!draft) return;
   ensurePositions();
   renderLoopGroups();
   const container = byId('nodes');
+  if (!container) return;
   container.innerHTML = '';
   draft.nodes.forEach((node, index) => {
     const position = positions.get(node.id);
     const runtimeNode = catalog.live?.nodes?.[node.id];
     const element = document.createElement('article');
     element.dataset.nodeId = node.id;
-    const lifecycleActive = activeLifecycleNodeId() === node.id &&
-      !['DISCONNECTED', 'UNKNOWN'].includes(agentPresence.status);
-    element.className = `node ${runtimeNode?.status.toLowerCase() || ''} ${lifecycleActive ? 'agent-active' : ''} ${selectedIds.has(node.id) ? 'selected' : ''}`;
+    element.className = `node ${graphStateClass(runtimeNode?.status)} ${selectedIds.has(node.id) ? 'selected' : ''}`;
     element.style.left = `${position.x}px`;
     element.style.top = `${position.y}px`;
     element.innerHTML = nodeMarkup(node, index);
     element.addEventListener('pointerdown', beginNodeInteraction);
-    element.querySelector('.port-out').addEventListener('pointerdown', beginConnection);
-    element.querySelector('.node-title').addEventListener('dblclick', beginInlineRename);
-    element.querySelector('.output-add')?.addEventListener('click', openContextualAdd);
-    element.querySelector('.execute-trigger')?.addEventListener('click', executeFromTrigger);
+    element.querySelector('.port-out')?.addEventListener('pointerdown', beginConnection);
     container.append(element);
   });
   renderEdges();
   applyViewport();
 }
 
-function updateRuntimePresentation() {
-  if (!draft) return;
-  for (const element of document.querySelectorAll('.node')) {
-    const nodeId = element.dataset.nodeId;
-    const runtimeNode = catalog.live?.nodes?.[nodeId];
-    element.classList.remove('running', 'passed', 'failed', 'blocked', 'ready', 'pending', 'skipped', 'agent-active', 'agent-idle', 'agent-disconnected');
-    if (runtimeNode?.status) element.classList.add(runtimeNode.status.toLowerCase());
-    if (activeLifecycleNodeId() === nodeId) {
-      if (agentPresence.status === 'WORKING') element.classList.add('agent-active');
-      if (agentPresence.status === 'IDLE') element.classList.add('agent-idle');
-      if (agentPresence.status === 'DISCONNECTED') element.classList.add('agent-disconnected');
-    }
-    element.querySelector('.status').textContent = `● ${runtimeNode?.status || 'DRAFT'}`;
-    const existingActivity = element.querySelector('.node-activity');
-    const lifecycleActivity = activeLifecycleNodeId() === nodeId
-      ? activeLifecycleEvent()?.message
-      : '';
-    const activity = runtimeNode?.activity || lifecycleActivity;
-    if (activity) {
-      if (existingActivity) existingActivity.textContent = activity;
-      else element.querySelector('.status').insertAdjacentHTML('afterend', `<p class="node-activity">${escapeHtml(activity)}</p>`);
-    } else {
-      existingActivity?.remove();
-    }
-  }
-  renderLoopGroups();
-  renderEdges();
-}
-
 function updateSelection() {
-  document.querySelectorAll('.node').forEach((element) => {
+  document.querySelectorAll?.('.node')?.forEach?.((element) => {
     element.classList.toggle('selected', selectedIds.has(element.dataset.nodeId));
   });
-  const actions = byId('selection-actions');
-  actions.hidden = selectedIds.size < 2;
-  byId('selection-count').textContent = `${selectedIds.size} nodes`;
-  const grouped = [...selectedIds].some((nodeId) =>
-    (draft?.loopGroups || []).some((group) => group.nodeIds.includes(nodeId))
-  );
-  byId('create-loop-group').disabled = grouped;
-  byId('create-loop-group').title = grouped ? 'Ungroup selected steps before creating another Loop Group' : '';
-}
-
-function renderRecipeDetails() {
-  const existing = recipeSummary();
-  byId('inspector-label').textContent = 'WORKFLOW';
-  byId('inspector-title').textContent = draft.id;
-  byId('inspector-title').contentEditable = 'false';
-  byId('inspector-title').onkeydown = null;
-  byId('inspector-title').onblur = null;
-  byId('details').innerHTML = `
-    <div class="source-line"><span>${escapeHtml(source.toUpperCase())}</span><span>${draft.nodes.length} NODES</span></div>
-    <label for="recipe-id">Name</label><input id="recipe-id" value="${escapeHtml(draft.id)}">
-    <label for="recipe-description">Description</label><textarea id="recipe-description">${escapeHtml(draft.description)}</textarea>
-    ${existing?.source === 'builtin' ? '<p class="hint">Saving creates a project copy. The built-in remains unchanged.</p>' : ''}
-    <details>
-      <summary>Advanced settings</summary>
-      <div class="settings-body">
-        <label for="recipe-version">Version</label><input id="recipe-version" type="number" min="1" value="${escapeHtml(draft.version)}">
-        <label for="recipe-modes">Run modes</label>
-        <select id="recipe-modes" multiple>
-          ${['REPORT_ONLY', 'ASSISTED', 'UNATTENDED'].map((mode) => `<option ${draft.compatibleModes.includes(mode) ? 'selected' : ''}>${mode}</option>`).join('')}
-        </select>
-      </div>
-    </details>
-    <button id="apply-recipe">Apply changes</button>
-  `;
-  byId('apply-recipe').onclick = applyRecipeDetails;
 }
 
 function selectNode(nodeId, { additive = false } = {}) {
-  const node = draft.nodes.find((candidate) => candidate.id === nodeId);
-  if (!node) return;
   if (additive) {
     if (selectedIds.has(nodeId)) selectedIds.delete(nodeId);
     else selectedIds.add(nodeId);
   } else {
     selectedIds = new Set([nodeId]);
   }
-  selectedEdgeId = null;
   selectedId = nodeId;
+  selectedEdgeId = null;
   updateSelection();
-  const runtimeNode = catalog.live?.nodes?.[nodeId];
-  byId('inspector-label').textContent = 'NODE';
-  byId('inspector-title').textContent = displayName(node);
-  byId('inspector-title').contentEditable = 'true';
-  byId('inspector-title').title = 'Edit Display Name';
-  byId('inspector-title').onkeydown = (event) => {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      event.currentTarget.blur();
-    } else if (event.key === 'Escape') {
-      event.currentTarget.textContent = displayName(node);
-      event.currentTarget.blur();
-    }
-  };
-  byId('inspector-title').onblur = (event) => applyDisplayName(node, event.currentTarget.textContent);
-  byId('inspector-panel').classList.add('open');
-  byId('details').innerHTML = `
-    <div class="source-line"><span>${escapeHtml(node.type.toUpperCase())}</span><span>${escapeHtml(runtimeNode?.status || 'DRAFT')}</span></div>
-    <div id="name-validation" class="validation-message" aria-live="polite"></div>
-    <label for="node-id">Technical ID</label><input id="node-id" value="${escapeHtml(node.id)}" disabled>
-    ${node.type === 'delivery' ? deliveryAdapterControls() : ''}
-    <details>
-      <summary>Settings</summary>
-      <div class="settings-body">
-        <label>Type</label><input value="${escapeHtml(node.type)}" disabled>
-        <label for="node-dependencies">Inputs</label>
-        <input id="node-dependencies" value="${escapeHtml((node.dependsOn || []).join(', '))}" placeholder="Connect nodes on the canvas">
-        ${node.type === 'agent' ? `
-          <label for="node-extra">Role</label><input id="node-extra" value="${escapeHtml(node.role || '')}">
-          ${node.prompt != null ? customAgentFields(node) : ''}
-          <label for="node-tokens">Token limit</label><input id="node-tokens" type="number" min="1" value="${escapeHtml(node.context?.maxTokens || '')}">
-        ` : node.type === 'approval' ? `
-          <label for="node-extra">Approval message</label><textarea id="node-extra">${escapeHtml(node.message || '')}</textarea>
-        ` : node.type === 'condition' ? `
-          <label for="condition-field">Field</label>
-          <select id="condition-field">${['run.mode', 'run.state', 'run.iteration', 'run.task'].map((field) => `<option ${node.expression?.field === field ? 'selected' : ''}>${field}</option>`).join('')}</select>
-          <label for="condition-operator">Rule</label>
-          <select id="condition-operator">${['equals', 'notEquals', 'contains', 'exists', 'isEmpty', 'greaterThan', 'lessThan'].map((operator) => `<option ${node.expression?.operator === operator ? 'selected' : ''}>${operator}</option>`).join('')}</select>
-          <label for="condition-value">Value</label><input id="condition-value" value="${escapeHtml(node.expression?.value ?? '')}">
-        ` : ''}
-      </div>
-    </details>
-    <div class="button-row"><button id="apply-node">Apply</button>${catalog.nodeTypes.find((type) => type.type === node.type)?.builtIn ? '' : '<button id="duplicate-node">Duplicate</button>'}<button id="delete-node" class="danger">Delete</button></div>
-    ${runtimeControls(node, runtimeNode)}
-  `;
-  byId('apply-node').onclick = applyNodeDetails;
-  if (byId('duplicate-node')) byId('duplicate-node').onclick = duplicateSelectedNode;
-  byId('delete-node').onclick = deleteSelectedNode;
-  if (byId('select-adapter')) byId('select-adapter').onclick = selectDeliveryAdapter;
-  if (byId('generate-adapter')) byId('generate-adapter').onclick = copyAdapterBuilderPrompt;
-  bindRuntimeControls(node);
-}
-
-function customAgentFields(node) {
-  return `
-    <label for="custom-node-prompt">Prompt</label><textarea id="custom-node-prompt">${escapeHtml(node.prompt || '')}</textarea>
-    <label for="custom-node-capabilities">Capabilities</label><input id="custom-node-capabilities" value="${escapeHtml((node.capabilityRefs || []).join(', '))}">
-    <label for="custom-node-mcp">MCP references</label><input id="custom-node-mcp" value="${escapeHtml((node.mcpRefs || []).join(', '))}">
-    <label for="custom-node-inputs">Input artifacts</label><input id="custom-node-inputs" value="${escapeHtml((node.inputArtifacts || []).join(', '))}">
-    <label for="custom-node-output">Output artifact</label><input id="custom-node-output" value="${escapeHtml(node.outputArtifacts?.[0]?.artifact || '')}">
-    <label for="custom-node-schema">Output schema</label><input id="custom-node-schema" value="${escapeHtml(node.outputArtifacts?.[0]?.schema || 'schemas/report.schema.json')}">
-    <label for="custom-node-timeout">Timeout (sec)</label><input id="custom-node-timeout" type="number" min="1" value="${escapeHtml(Math.round((node.timeoutMs || 900000) / 1000))}">
-    <label for="custom-node-retries">Maximum attempts</label><input id="custom-node-retries" type="number" min="1" value="${escapeHtml(node.retry?.maxAttempts ?? 2)}">
-  `;
-}
-
-function applyDisplayName(node, value) {
-  const error = validDisplayName(value);
-  const message = byId('name-validation');
-  if (error) {
-    if (message) message.textContent = error;
-    byId('inspector-title').textContent = displayName(node);
-    return false;
-  }
-  const next = value.trim();
-  if (next === displayName(node)) return true;
-  node.displayName = next;
-  captureHistory();
-  renderGraph();
-  selectNode(node.id);
-  return true;
-}
-
-function beginInlineRename(event) {
-  event.preventDefault();
-  event.stopPropagation();
-  const node = draft.nodes.find((candidate) => candidate.id === event.currentTarget.closest('.node').dataset.nodeId);
-  const input = document.createElement('input');
-  input.className = 'inline-rename';
-  input.maxLength = DISPLAY_NAME_MAX;
-  input.value = displayName(node);
-  event.currentTarget.replaceWith(input);
-  input.focus();
-  input.select();
-  let saved = false;
-  const finish = () => {
-    if (saved) return;
-    saved = true;
-    const error = validDisplayName(input.value);
-    if (error) notify(error);
-    else if (input.value.trim() !== displayName(node)) {
-      node.displayName = input.value.trim();
-      captureHistory();
-    }
-    renderGraph();
-    selectNode(node.id);
-  };
-  input.onkeydown = (keyEvent) => {
-    if (keyEvent.key === 'Enter') input.blur();
-    if (keyEvent.key === 'Escape') {
-      input.value = displayName(node);
-      input.blur();
-    }
-  };
-  input.onblur = finish;
-}
-
-function deliveryAdapterControls() {
-  const current = catalog.adapters.current;
-  const options = [...catalog.adapters.types];
-  if (current && !options.includes(current)) options.push(current);
-  return `
-    <section class="adapter-controls">
-      <label for="delivery-adapter">Delivery adapter</label>
-      <select id="delivery-adapter">
-        ${options.map((type) => `<option ${type === (current || catalog.adapters.recommended) ? 'selected' : ''}>${escapeHtml(type)}</option>`).join('')}
-      </select>
-      <p class="hint">${current
-        ? `${escapeHtml(current)} is active for this project.`
-        : `Recommended: ${escapeHtml(catalog.adapters.recommended)}.`}</p>
-      <div class="button-row"><button id="select-adapter">Use adapter</button><button id="generate-adapter">Create custom</button></div>
-    </section>
-  `;
-}
-
-async function selectDeliveryAdapter() {
-  const type = byId('delivery-adapter').value;
-  if (!catalog.adapters.types.includes(type)) {
-    return notify('Custom adapters are changed through the guarded AI adapter builder.');
-  }
-  try {
-    await api('/api/adapter/select', { method: 'POST', body: JSON.stringify({ type }) });
-    catalog.adapters.current = type;
-    selectNode(selectedId);
-    notify(`${type} is now the project Stage 8 adapter.`);
-  } catch (error) {
-    notify(error.message);
-  }
-}
-
-async function copyAdapterBuilderPrompt() {
-  const prompt = [
-    'Use the ai-engineering-loop generate-adapter skill for this repository.',
-    'Ask Q1-Q5 before writing. Build a custom Stage 8 delivery adapter only.',
-    'Preserve Stages 0-7, require Judge PASS, never store credentials, and use explicit approval for remote side effects.',
-    'After validation, write .ai-engineering-loop/adapter.md so Workflow Studio discovers it.'
-  ].join(' ');
-  try {
-    await navigator.clipboard.writeText(prompt);
-    notify('Guarded custom-adapter prompt copied for your AI agent.');
-  } catch (error) {
-    notify(error.message);
-  }
-}
-
-function runtimeControls(node, runtimeNode) {
-  if (!catalog.live || !runtimeNode) return '';
-  const approve = node.type === 'approval' && runtimeNode.status === 'READY' ? '<button id="approve-node">APPROVE</button>' : '';
-  const retry = ['FAILED', 'RUNNING'].includes(runtimeNode.status) ? '<button id="retry-node">RETRY</button>' : '';
-  const custom = node.type === 'agent' && node.prompt && ['READY', 'RUNNING'].includes(runtimeNode.status) ? `
-    <p class="hint">This node is waiting for an external operator. Studio does not execute the agent independently.</p>
-    <button id="copy-agent-command">Copy command</button>
-    ${runtimeNode.status === 'READY'
-      ? '<button id="start-agent-node">Mark running</button>'
-      : '<label for="agent-evidence">Run-bound evidence JSON path</label><input id="agent-evidence" placeholder=".ai-engineering-loop/runs/…/agent-report.json"><button id="complete-agent-node">Complete with evidence</button>'}
-  ` : '';
-  const activity = runtimeNode.status === 'RUNNING'
-    ? '<label for="runtime-activity">SAFE ACTIVITY UPDATE</label><input id="runtime-activity" maxlength="240"><button id="send-activity">REPORT ACTIVITY</button>'
-    : '';
-  return approve || retry || activity || custom
-    ? `<section class="runtime-controls"><label>RUNTIME CONTROL</label>${custom}${activity}<div class="button-row">${approve}${retry}</div></section>`
-    : '';
-}
-
-function bindRuntimeControls(node) {
-  const runId = catalog.live?.run?.runId;
-  if (byId('approve-node')) byId('approve-node').onclick = () => mutateNode('/api/node/approve', { runId, nodeId: node.id });
-  if (byId('retry-node')) byId('retry-node').onclick = () => mutateNode('/api/node/retry', { runId, nodeId: node.id });
-  if (byId('send-activity')) {
-    byId('send-activity').onclick = () => mutateNode('/api/node/activity', {
-      runId, nodeId: node.id, message: byId('runtime-activity').value
-    });
-  }
-  if (byId('copy-agent-command')) byId('copy-agent-command').onclick = async () => {
-    await navigator.clipboard.writeText(`ai-engineering-loop node start ${node.id} --run ${runId}`);
-    notify('External operator command copied.');
-  };
-  if (byId('start-agent-node')) byId('start-agent-node').onclick = () => mutateNode('/api/node/start', { runId, nodeId: node.id });
-  if (byId('complete-agent-node')) byId('complete-agent-node').onclick = () => mutateNode('/api/node/complete', {
-    runId,
-    nodeId: node.id,
-    artifact: byId('agent-evidence').value.trim()
-  });
-}
-
-async function mutateNode(endpoint, body) {
-  try {
-    await api(endpoint, { method: 'POST', body: JSON.stringify(body) });
-    await refreshLive();
-    if (selectedId) selectNode(selectedId);
-  } catch (error) {
-    notify(error.message);
-  }
-}
-
-function applyRecipeDetails() {
-  draft.id = byId('recipe-id').value.trim();
-  draft.version = Number(byId('recipe-version').value);
-  draft.description = byId('recipe-description').value.trim();
-  draft.compatibleModes = [...byId('recipe-modes').selectedOptions].map((option) => option.value);
-  captureHistory();
-  renderGraph();
-  renderRecipeDetails();
-  validateDraft();
-}
-
-function applyNodeDetails() {
-  const node = draft.nodes.find((candidate) => candidate.id === selectedId);
-  if (!node) return;
-  if (!applyDisplayName(node, byId('inspector-title').textContent)) return;
-  const inputs = csv(byId('node-dependencies').value);
-  draft.edges = draft.edges.filter((edge) => edge.to !== node.id);
-  inputs.forEach((from, index) => {
-    if (from !== node.id && draft.nodes.some((candidate) => candidate.id === from)) {
-      draft.edges.push({ id: uniqueEdgeId(from, node.id), from, to: node.id });
-    }
-  });
-  syncDependencies();
-  if (node.type === 'agent') {
-    node.role = byId('node-extra').value.trim();
-    node.context = { ...(node.context || {}), maxTokens: Number(byId('node-tokens').value) };
-    if (node.prompt != null) {
-      node.prompt = byId('custom-node-prompt').value.trim();
-      node.capabilityRefs = csv(byId('custom-node-capabilities').value);
-      node.mcpRefs = csv(byId('custom-node-mcp').value);
-      node.inputArtifacts = csv(byId('custom-node-inputs').value);
-      node.outputArtifacts = [{
-        artifact: byId('custom-node-output').value.trim(),
-        schema: byId('custom-node-schema').value.trim()
-      }];
-      node.tokenLimit = Number(byId('node-tokens').value);
-      node.timeoutMs = Number(byId('custom-node-timeout').value) * 1000;
-      node.retry = {
-        maxAttempts: Number(byId('custom-node-retries').value),
-        backoffMs: node.retry?.backoffMs || 1000
-      };
-    }
-  } else if (node.type === 'approval') {
-    node.message = byId('node-extra').value.trim();
-  } else if (node.type === 'condition') {
-    const field = byId('condition-field').value;
-    const operator = byId('condition-operator').value;
-    const rawValue = byId('condition-value').value.trim();
-    node.expression = { field, operator };
-    if (!['exists', 'isEmpty'].includes(operator)) {
-      node.expression.value = field === 'run.iteration' || ['greaterThan', 'lessThan'].includes(operator) ? Number(rawValue) : rawValue;
-    }
-  }
-  captureHistory();
-  renderGraph();
-  selectNode(node.id);
-  validateDraft();
-  saveLayoutSoon();
-}
-
-function deleteSelectedNode() {
-  if (!selectedIds.size) return;
-  const removed = new Set(selectedIds);
-  const containingGroup = (draft.loopGroups || []).find((group) =>
-    group.nodeIds.some((nodeId) => removed.has(nodeId))
-  );
-  if (containingGroup) {
-    notify(`Ungroup “${containingGroup.displayName}” before deleting its steps.`);
-    return;
-  }
-  draft.nodes = draft.nodes.filter((node) => !removed.has(node.id));
-  draft.edges = draft.edges.filter((edge) => !removed.has(edge.from) && !removed.has(edge.to));
-  syncDependencies();
-  removed.forEach((id) => positions.delete(id));
-  selectedId = null;
-  selectedIds.clear();
-  captureHistory();
-  renderGraph();
-  renderRecipeDetails();
-  byId('inspector-panel').classList.remove('open');
-  validateDraft();
-  saveLayoutSoon();
 }
 
 function deleteEdge(id) {
+  if (!draft) return;
   const before = draft.edges.length;
   draft.edges = draft.edges.filter((edge) => edge.id !== id);
   if (draft.edges.length === before) return;
@@ -836,103 +388,34 @@ function deleteEdge(id) {
   validateDraft();
 }
 
-function uniqueNodeId(type) {
-  let suffix = draft.nodes.length + 1;
-  while (draft.nodes.some((node) => node.id === `${type}-${suffix}`)) suffix += 1;
-  return `${type}-${suffix}`;
-}
-
-function createNode(type, id = uniqueNodeId(type)) {
-  const label = catalog.nodeTypes.find((candidate) => candidate.type === type)?.label || type.replaceAll('-', ' ');
-  const node = { id, type, displayName: label, dependsOn: [] };
-  if (type === 'agent') {
-    Object.assign(node, {
-      role: 'analyst',
-      context: { maxFiles: 10, maxTokens: 4000 },
-      output: { artifact: `${id}-output`, schema: 'schemas/report.schema.json' }
-    });
-  } else if (type === 'approval') {
-    node.message = 'Approve continuation.';
-  } else if (type === 'condition') {
-    node.expression = { field: 'run.mode', operator: 'equals', value: 'ASSISTED' };
-  }
-  return node;
-}
-
-function addNode(type, position = worldAtCanvasCenter()) {
-  const node = createNode(type);
-  draft.nodes.push(node);
-  if (pendingConnectionSource) {
-    draft.edges.push({ id: uniqueEdgeId(pendingConnectionSource, node.id), from: pendingConnectionSource, to: node.id });
-    syncDependencies();
-    pendingConnectionSource = null;
-  }
-  positions.set(node.id, { x: position.x - NODE_WIDTH / 2, y: position.y - NODE_PORT_Y });
-  captureHistory();
-  renderGraph();
-  selectNode(node.id);
-  byId('library-panel').classList.remove('open');
-  validateDraft();
-}
-
-function duplicateSelectedNode() {
-  if (!selectedIds.size) return;
-  const originals = draft.nodes.filter((node) => selectedIds.has(node.id));
-  const mapping = new Map();
-  const clones = originals.map((original) => {
-    const clone = structuredClone(original);
-    clone.id = uniqueNodeId(original.type);
-    while (draft.nodes.some((node) => node.id === clone.id) || mapping.has(clone.id)) clone.id = `${clone.id}-copy`;
-    clone.displayName = `${displayName(original)} copy`;
-    if (clone.output?.artifact) clone.output.artifact = `${clone.id}-output`;
-    mapping.set(original.id, clone.id);
-    const originalPosition = positions.get(original.id);
-    positions.set(clone.id, { x: originalPosition.x + 36, y: originalPosition.y + 132 });
-    draft.nodes.push(clone);
-    return clone;
-  });
-  const copiedEdges = draft.edges.filter((edge) => mapping.has(edge.from) && mapping.has(edge.to)).map((edge) => ({
-    id: uniqueEdgeId(mapping.get(edge.from), mapping.get(edge.to)),
-    from: mapping.get(edge.from),
-    to: mapping.get(edge.to)
-  }));
-  draft.edges.push(...copiedEdges);
+function addEdge(from, to) {
+  if (!draft || from === to) return false;
+  if (draft.edges.some((edge) => edge.from === from && edge.to === to)) return false;
+  if (transitivelyDependsOn(from, to)) return false;
+  if (!draft.nodes.some((node) => node.id === from) || !draft.nodes.some((node) => node.id === to)) return false;
+  draft.edges.push({ id: uniqueEdgeId(from, to), from, to });
   syncDependencies();
-  const cloneIds = new Set(clones.map((node) => node.id));
-  selectedId = clones.at(-1)?.id;
   captureHistory();
   renderGraph();
-  if (selectedId) selectNode(selectedId);
-  selectedIds = cloneIds;
-  updateSelection();
   validateDraft();
+  return true;
 }
 
-function openContextualAdd(event) {
-  event.stopPropagation();
-  pendingConnectionSource = event.currentTarget.closest('.node').dataset.nodeId;
-  byId('library-panel').classList.add('open');
-}
-
-function renderPalette() {
-  byId('palette').innerHTML = catalog.nodeTypes.filter((node) => node.executable).map((node) => `
-    <button class="palette-item" draggable="true" data-node-type="${escapeHtml(node.type)}">
-      <b>${escapeHtml(node.label)}</b><small>${escapeHtml(node.category.toUpperCase())}</small>
-    </button>
-  `).join('');
-  document.querySelectorAll('[data-node-type]').forEach((button) => {
-    button.onclick = () => addNode(button.dataset.nodeType);
-    button.ondragstart = (event) => {
-      event.dataTransfer.setData('application/x-ael-node-type', button.dataset.nodeType);
-      event.dataTransfer.effectAllowed = 'copy';
-    };
-  });
+function repointEdge(id, from, to) {
+  const edge = draft?.edges.find((candidate) => candidate.id === id);
+  if (!edge) return false;
+  edge.from = from;
+  edge.to = to;
+  syncDependencies();
+  captureHistory();
+  renderGraph();
+  validateDraft();
+  return true;
 }
 
 function beginNodeInteraction(event) {
-  if (event.button !== 0 || event.target.closest('.port,.output-add,.execute-pod,.node-title,.inline-rename')) return;
+  if (event.button !== 0 || event.target.closest?.('.port')) return;
   event.stopPropagation();
-  setFollowExecution(false);
   const element = event.currentTarget;
   const nodeId = element.dataset.nodeId;
   if (event.shiftKey) {
@@ -953,13 +436,12 @@ function beginNodeInteraction(event) {
     origins: new Map([...selectedIds].map((id) => [id, { ...positions.get(id) }]))
   };
   element.classList.add('dragging');
-  element.setPointerCapture(event.pointerId);
+  element.setPointerCapture?.(event.pointerId);
 }
 
 function beginPan(event) {
   if (event.button !== 0 && event.button !== 1) return;
   event.preventDefault();
-  setFollowExecution(false);
   interaction = {
     type: 'pan',
     pointerId: event.pointerId,
@@ -968,16 +450,20 @@ function beginPan(event) {
     viewportX: viewport.x,
     viewportY: viewport.y
   };
-  byId('canvas').setPointerCapture(event.pointerId);
+  byId('canvas').setPointerCapture?.(event.pointerId);
 }
 
 function handlePointerMove(event) {
   if (connection) {
     const from = positions.get(connection.sourceId);
-    const target = screenToWorld(event.clientX, event.clientY);
-    const start = { x: from.x + NODE_WIDTH, y: from.y + NODE_PORT_Y };
-    const bend = Math.max(55, Math.abs(target.x - start.x) * 0.42);
-    byId('preview-edge').setAttribute('d', `M${start.x} ${start.y} C${start.x + bend} ${start.y},${target.x - bend} ${target.y},${target.x} ${target.y}`);
+    const preview = scenePart('.preview-edge');
+    if (from && preview?.setAttribute) {
+      const target = screenToWorld(event.clientX, event.clientY);
+      const start = { x: from.x + NODE_WIDTH, y: from.y + NODE_PORT_Y };
+      const bend = Math.max(55, Math.abs(target.x - start.x) * 0.42);
+      preview.style.display = 'block';
+      preview.setAttribute('d', `M${start.x} ${start.y} C${start.x + bend} ${start.y},${target.x - bend} ${target.y},${target.x} ${target.y}`);
+    }
     return;
   }
   if (!interaction || interaction.pointerId !== event.pointerId) return;
@@ -989,22 +475,13 @@ function handlePointerMove(event) {
     interaction.origins.forEach((start, id) => {
       const next = { x: start.x + delta.x, y: start.y + delta.y };
       positions.set(id, next);
-      const nodeElement = document.querySelector(`.node[data-node-id="${CSS.escape(id)}"]`);
+      const nodeElement = document.querySelector?.(`.node[data-node-id="${CSS.escape(id)}"]`);
       if (nodeElement) {
         nodeElement.style.left = `${next.x}px`;
         nodeElement.style.top = `${next.y}px`;
       }
     });
     renderEdges();
-  } else if (interaction.type === 'group') {
-    const world = screenToWorld(event.clientX, event.clientY);
-    const delta = { x: world.x - interaction.start.x, y: world.y - interaction.start.y };
-    interaction.origins.forEach((start, id) => {
-      positions.set(id, { x: start.x + delta.x, y: start.y + delta.y });
-    });
-    renderGraph();
-  } else if (interaction.type === 'lasso') {
-    updateLasso(event);
   } else {
     viewport.x = interaction.viewportX + event.clientX - interaction.startX;
     viewport.y = interaction.viewportY + event.clientY - interaction.startY;
@@ -1015,10 +492,7 @@ function handlePointerMove(event) {
 function finishPointer(event) {
   if (connection && connection.pointerId === event.pointerId) return finishConnection(event);
   if (!interaction || interaction.pointerId !== event.pointerId) return;
-  if (interaction.type === 'node' || interaction.type === 'group') {
-    interaction.element.classList.remove('dragging');
-    captureHistory();
-  } else if (interaction.type === 'lasso') finishLasso();
+  if (interaction.type === 'node') interaction.element.classList.remove('dragging');
   interaction = null;
   saveLayoutSoon();
 }
@@ -1028,8 +502,9 @@ function beginConnection(event) {
   event.stopPropagation();
   const sourceId = event.currentTarget.closest('.node').dataset.nodeId;
   connection = { sourceId, pointerId: event.pointerId };
-  byId('preview-edge').style.display = 'block';
-  event.currentTarget.setPointerCapture(event.pointerId);
+  const preview = scenePart('.preview-edge');
+  if (preview?.style) preview.style.display = 'block';
+  event.currentTarget.setPointerCapture?.(event.pointerId);
 }
 
 function transitivelyDependsOn(nodeId, targetId, seen = new Set()) {
@@ -1043,86 +518,132 @@ function transitivelyDependsOn(nodeId, targetId, seen = new Set()) {
 function finishConnection(event) {
   const sourceId = connection.sourceId;
   connection = null;
-  byId('preview-edge').style.display = 'none';
-  const targetElement = document.elementFromPoint(event.clientX, event.clientY)?.closest('.node');
+  const preview = scenePart('.preview-edge');
+  if (preview?.style) preview.style.display = 'none';
+  const targetElement = document.elementFromPoint?.(event.clientX, event.clientY)?.closest?.('.node');
   const targetId = targetElement?.dataset.nodeId;
   if (!targetId || targetId === sourceId) return;
-  const target = draft.nodes.find((node) => node.id === targetId);
   if (draft.edges.some((edge) => edge.from === sourceId && edge.to === targetId)) return notify('Nodes are already connected.');
   if (transitivelyDependsOn(sourceId, targetId)) return notify('Connection rejected: it would create a cycle.');
-  draft.edges.push({ id: uniqueEdgeId(sourceId, targetId), from: sourceId, to: targetId });
-  syncDependencies();
-  captureHistory();
+  addEdge(sourceId, targetId);
+}
+
+function zoomAt(nextScale, clientX, clientY) {
+  const scale = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, nextScale));
+  const pivot = clientX == null ? worldAtCanvasCenter() : screenToWorld(clientX, clientY);
+  const rect = byId('canvas').getBoundingClientRect();
+  const next = clientX == null
+    ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+    : { x: clientX, y: clientY };
+  viewport.scale = scale;
+  const world = screenToWorld(next.x, next.y);
+  viewport.x += (world.x - pivot.x) * scale;
+  viewport.y += (world.y - pivot.y) * scale;
+  applyViewport();
+  saveLayoutSoon();
+}
+
+function worldAtCanvasCenter() {
+  const rect = byId('canvas').getBoundingClientRect();
+  return screenToWorld(rect.left + rect.width / 2, rect.top + rect.height / 2);
+}
+
+function handleWheel(event) {
+  event.preventDefault();
+  zoomAt(viewport.scale * (event.deltaY < 0 ? 1.08 : 0.92), event.clientX, event.clientY);
+}
+
+function autoLayout({ record = true } = {}) {
+  positions = defaultGraphPositions();
   renderGraph();
-  selectNode(targetId);
-  validateDraft();
+  if (record) captureHistory();
+  saveLayoutSoon();
 }
 
-function beginLasso(event) {
-  setFollowExecution(false);
-  const start = screenToWorld(event.clientX, event.clientY);
-  interaction = { type: 'lasso', pointerId: event.pointerId, start, current: start, additive: event.shiftKey };
-  const marquee = byId('selection-marquee');
-  marquee.style.display = 'block';
-  marquee.style.left = `${start.x}px`;
-  marquee.style.top = `${start.y}px`;
-  marquee.style.width = '0';
-  marquee.style.height = '0';
-  byId('canvas').setPointerCapture(event.pointerId);
+function fitView() {
+  if (!draft?.nodes.length) return;
+  ensurePositions();
+  const canvas = byId('canvas').getBoundingClientRect();
+  const xs = draft.nodes.map((node) => positions.get(node.id).x);
+  const ys = draft.nodes.map((node) => positions.get(node.id).y);
+  const width = Math.max(...xs) - Math.min(...xs) + NODE_WIDTH + 160;
+  const height = Math.max(...ys) - Math.min(...ys) + 200;
+  viewport.scale = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.min(canvas.width / width, canvas.height / height)));
+  viewport.x = (canvas.width - width * viewport.scale) / 2 - Math.min(...xs) * viewport.scale + 40;
+  viewport.y = (canvas.height - height * viewport.scale) / 2 - Math.min(...ys) * viewport.scale + 40;
+  applyViewport();
+  saveLayoutSoon();
 }
 
-function updateLasso(event) {
-  interaction.current = screenToWorld(event.clientX, event.clientY);
-  const left = Math.min(interaction.start.x, interaction.current.x);
-  const top = Math.min(interaction.start.y, interaction.current.y);
-  const right = Math.max(interaction.start.x, interaction.current.x);
-  const bottom = Math.max(interaction.start.y, interaction.current.y);
-  const marquee = byId('selection-marquee');
-  Object.assign(marquee.style, {
-    left: `${left}px`, top: `${top}px`, width: `${right - left}px`, height: `${bottom - top}px`
-  });
-  const next = interaction.additive ? new Set(selectedIds) : new Set();
-  positions.forEach((position, id) => {
-    if (position.x < right && position.x + NODE_WIDTH > left && position.y < bottom && position.y + 110 > top) next.add(id);
-  });
-  selectedIds = next;
-  selectedId = [...next].at(-1) || null;
-  updateSelection();
-}
-
-function finishLasso() {
-  byId('selection-marquee').style.display = 'none';
-  const finalSelection = new Set(selectedIds);
-  if (selectedId) selectNode(selectedId);
-  selectedIds = finalSelection;
-  updateSelection();
-}
-
-function rootCandidates() {
-  if (!draft) return [];
-  const incoming = new Set(draft.edges.map((edge) => edge.to));
-  return draft.nodes.filter((node) => ROOT_TYPES.has(node.type) || !incoming.has(node.id));
-}
-
-async function executeFromTrigger(event) {
-  event.stopPropagation();
-  const candidates = rootCandidates();
-  if (candidates.length !== 1) return notify(`Execute requires exactly one trigger/root; found ${candidates.length}.`);
-  const task = event.currentTarget.closest('.execute-pod').querySelector('.task-input').value.trim();
-  if (task) byId('goal-task').value = task;
-  if (!goal.frozen || !activeRunId) {
-    byId('goal-dialog').showModal();
-    return notify('Save and freeze the Goal Contract before execution.');
+function captureHistory({ reset = false } = {}) {
+  const snapshot = JSON.stringify({ draft, positions: Object.fromEntries(positions) });
+  if (reset) {
+    history = [snapshot];
+    historyIndex = 0;
+  } else if (history[historyIndex] !== snapshot) {
+    history = history.slice(0, historyIndex + 1);
+    history.push(snapshot);
+    historyIndex = history.length - 1;
   }
+  if (byId('undo')) byId('undo').disabled = historyIndex <= 0;
+  if (byId('redo')) byId('redo').disabled = historyIndex >= history.length - 1;
+}
+
+function restoreHistory(index) {
+  if (index < 0 || index >= history.length) return;
+  historyIndex = index;
+  const snapshot = JSON.parse(history[index]);
+  draft = snapshot.draft;
+  positions = new Map(Object.entries(snapshot.positions));
+  if (!draft.nodes.some((node) => node.id === selectedId)) selectedId = null;
+  renderGraph();
+  validateDraft();
+  saveLayoutSoon();
+  if (byId('undo')) byId('undo').disabled = historyIndex <= 0;
+  if (byId('redo')) byId('redo').disabled = historyIndex >= history.length - 1;
+}
+
+function saveLayoutSoon() {
+  clearTimeout(layoutTimer);
+  if (!loadedRecipeId || draft.id !== loadedRecipeId) return;
+  layoutTimer = setTimeout(async () => {
+    try {
+      await api('/api/layout', {
+        method: 'PUT',
+        body: JSON.stringify({ recipeId: loadedRecipeId, layout: layoutPayload() })
+      });
+    } catch {
+      // Canvas work remains in memory and install still submits the layout.
+    }
+  }, 350);
+}
+
+async function validateDraft() {
+  const sequence = ++validationSequence;
   try {
-    await api(`/api/runs/${encodeURIComponent(activeRunId)}/execute`, {
+    const result = await api('/api/validate', {
       method: 'POST',
-      body: '{}'
+      body: JSON.stringify({ recipe: draft, baseRecipeId: loadedRecipeId })
     });
-    notify('Local runtime started. External AI dispatch remains disabled.');
-    await refreshLive();
+    if (sequence !== validationSequence) return result;
+    const hash = result.plans[0].graphHash;
+    byId('integrity').textContent = `VALID / ${hash.slice(0, 8)}…${hash.slice(-4)}`;
+    byId('integrity').className = 'valid';
+    byId('review').disabled = false;
+    byId('review-data').textContent = JSON.stringify({
+      recipe: draft.id,
+      version: draft.version,
+      modes: result.plans.map((plan) => plan.mode),
+      nodes: draft.nodes.length,
+      graphHashes: result.plans.map((plan) => plan.graphHash)
+    }, null, 2);
+    return result;
   } catch (error) {
-    notify(error.message);
+    if (sequence !== validationSequence) return null;
+    byId('integrity').textContent = `INVALID / ${error.message}`;
+    byId('integrity').className = 'invalid';
+    byId('review').disabled = true;
+    return null;
   }
 }
 
@@ -1160,14 +681,14 @@ function validateGoalForm(contract) {
 }
 
 async function ensureStudioRun() {
-  if (activeRunId && catalog.live?.run && !['DELIVERED', 'REPORTED', 'ESCALATED'].includes(catalog.live.run.state)) {
+  if (activeRunId && catalog.live?.run && !TERMINAL_RUN_STATES.has(catalog.live.run.state)) {
     return activeRunId;
   }
   const task = byId('goal-task').value.trim();
   const request = {
     task,
-    constraints: byId('goal-constraints').value.trim(),
-    displayName: byId('goal-run-name').value.trim(),
+    constraints: formField('goal-constraints').value.trim(),
+    displayName: formField('goal-run-name').value.trim(),
     recipeId: loadedRecipeId,
     mode: draft.compatibleModes.includes('ASSISTED') ? 'ASSISTED' : draft.compatibleModes[0]
   };
@@ -1195,7 +716,8 @@ async function ensureStudioRun() {
   }
   activeRunId = created.run.runId;
   renderHandoffState();
-  await refreshLive();
+  await loadLive(activeRunId);
+  await loadRuns();
   return activeRunId;
 }
 
@@ -1211,11 +733,12 @@ function resolveActiveRunConflict(run) {
     byId('active-run-message').textContent = `${run.displayName || run.runId} · ${run.state}`;
     byId('continue-active-run').onclick = async () => {
       activeRunId = run.runId;
+      selectedCheckoutRun = run.runId;
+      pinnedRunId = run.runId;
       renderHandoffState();
       byId('goal-dialog').close();
-      showWorkspace('runs');
-      await loadRuns();
-      await loadRunDetail(run.runId);
+      showWorkspace('live');
+      await loadLive(run.runId);
       finish('continue');
       dialog.close();
     };
@@ -1282,12 +805,11 @@ function renderGoalState() {
   state.textContent = goal.frozen
     ? `Frozen · version ${goal.version} · editing locked`
     : `Draft · version ${goal.version} · editing allowed`;
-  byId('goal-version').textContent = `V${goal.version}`;
   byId('goal-text').disabled = goal.frozen;
   byId('goal-criteria').disabled = goal.frozen;
   byId('goal-task').disabled = goal.frozen;
-  byId('goal-constraints').disabled = goal.frozen;
-  byId('goal-run-name').disabled = goal.frozen;
+  formField('goal-constraints').disabled = goal.frozen;
+  formField('goal-run-name').disabled = goal.frozen;
   byId('save-goal').hidden = goal.frozen;
   byId('review-goal').hidden = goal.frozen;
   byId('confirm-freeze').hidden = true;
@@ -1298,7 +820,7 @@ async function reviewGoal() {
   const contract = await saveGoalFromForm();
   if (!contract) return;
   byId('goal-dialog').showModal();
-  byId('goal-dialog').querySelector('.advanced-goal').open = true;
+  byId('goal-advanced').open = true;
   byId('goal-review').hidden = false;
   byId('goal-review').innerHTML = `
     <strong>${escapeHtml(contract.objective)}</strong>
@@ -1345,20 +867,20 @@ async function freezeGoalFromForm() {
 }
 
 async function unfreezeGoalFromForm() {
-  const fields = byId('unfreeze-fields');
-  if (fields.hidden) {
-    fields.hidden = false;
-    byId('unfreeze-reason').focus();
+  const reason = byId('unfreeze-reason');
+  if (reason.hidden) {
+    reason.hidden = false;
+    reason.focus?.();
     return;
   }
   try {
     const result = await api(`/api/runs/${encodeURIComponent(activeRunId)}/goal/unfreeze`, {
       method: 'POST',
-      body: JSON.stringify({ actor: 'studio-user', reason: byId('unfreeze-reason').value })
+      body: JSON.stringify({ actor: 'studio-user', reason: reason.value })
     });
     goal.frozen = false;
     goal.version = result.run.goal.version;
-    fields.hidden = true;
+    reason.hidden = true;
     renderGoalState();
     renderGraph();
     notify('Goal unfrozen. Previous evidence remains bound to its prior version.');
@@ -1377,156 +899,66 @@ function syncGoalFromLive() {
   }
   activeRunId = nextRunId;
   renderHandoffState();
-  if (!liveGoal) {
-    renderGoalState();
-    return;
-  }
-  goal.version = liveGoal.version || 1;
-  goal.frozen = liveGoal.frozen === true;
-  if (catalog.live.run.task) byId('goal-task').value = catalog.live.run.task;
-  if (catalog.live.run.constraints) byId('goal-constraints').value = catalog.live.run.constraints;
-  if (catalog.live.run.displayName) byId('goal-run-name').value = catalog.live.run.displayName;
-  renderGoalState();
-}
-
-async function refreshGoalDraft(runId) {
-  if (!runId || goal.frozen) return;
-  const result = await api(`/api/runs/${encodeURIComponent(runId)}/goal`);
-  const draftEnvelope = result.draft;
-  if (!draftEnvelope || draftEnvelope.metadata.revision === goal.draftRevision) return;
-  goal.draftRevision = draftEnvelope.metadata.revision;
-  goal.draftHash = draftEnvelope.metadata.contentHash;
-  goal.text = draftEnvelope.contract.objective || '';
-  goal.criteria = draftEnvelope.contract.acceptanceCriteria || [];
-  if (!byId('goal-form').contains(document.activeElement)) {
-    byId('goal-text').value = goal.text;
-    byId('goal-criteria').value = goal.criteria.map((criterion) => (
-      `${criterion.statement} | ${criterion.evidenceRequired} | ${(criterion.failureCases || []).join(' | ')}`
-    )).join('\n');
+  if (liveGoal) {
+    goal.version = liveGoal.version || goal.version;
+    goal.frozen = Boolean(liveGoal.frozen);
   }
   renderGoalState();
 }
 
-async function refreshLifecycle(runId) {
-  if (!runId) {
-    lifecycleStream?.close();
-    lifecycleStream = null;
-    lifecycleRunId = null;
-    lifecycleSequence = 0;
-    lifecycleEvents = [];
-    agentPresence = { status: 'UNKNOWN', lastHeartbeatAt: null };
-    return;
-  }
-  if (lifecycleRunId !== runId) {
-    lifecycleStream?.close();
-    lifecycleStream = null;
-    lifecycleRunId = runId;
-    lifecycleSequence = 0;
-    lifecycleEvents = [];
-    startLifecycleStream(runId);
-  }
+async function copyAgentHandoff(runId = activeRunId) {
+  const created = runId || await ensureStudioRun();
+  if (!created) return;
   try {
-    const result = await api(
-      `/api/runs/${encodeURIComponent(runId)}/lifecycle?after=${lifecycleSequence}&limit=100`
-    );
-    lifecycleEvents = lifecycleEvents.concat(
-      result.lifecycle.events.filter((event) => event.sequence > lifecycleSequence)
-    ).slice(-100);
-    lifecycleSequence = result.lifecycle.nextSequence;
-    agentPresence = result.presence;
-  } catch {
-    agentPresence = { status: 'UNKNOWN', lastHeartbeatAt: null };
+    const result = await api(`/api/runs/${encodeURIComponent(created)}/agent-handoff`);
+    const text = result.handoff?.prompt || result.handoff?.brief || JSON.stringify(result.handoff, null, 2);
+    await navigator.clipboard.writeText(text);
+    handoffCopiedRunId = created;
+    renderHandoffState();
+    notify('Agent handoff copied.');
+  } catch (error) {
+    notify(error.message);
   }
 }
 
-function startLifecycleStream(runId) {
-  if (!window.EventSource || !runId) return;
-  lifecycleStream = new window.EventSource(
-    `/api/runs/${encodeURIComponent(runId)}/lifecycle/stream?after=${lifecycleSequence}`
-  );
-  lifecycleStream.onmessage = (message) => {
-    try {
-      const result = JSON.parse(message.data);
-      lifecycleEvents = lifecycleEvents.concat(
-        result.lifecycle.events.filter((event) => event.sequence > lifecycleSequence)
-      ).slice(-100);
-      lifecycleSequence = Math.max(lifecycleSequence, result.lifecycle.nextSequence);
-      agentPresence = result.presence;
-      scheduleLiveRender();
-    } catch {
-      // The regular cursor poll remains the recovery path.
-    }
-  };
+function renderHandoffState() {
+  const copied = Boolean(handoffCopiedRunId && handoffCopiedRunId === activeRunId);
+  byId('agent-handoff-state').hidden = !copied;
+  byId('agent-handoff-instructions').textContent = copied
+    ? 'Paste it once into your current AI Agent terminal, then keep Studio open to follow persisted progress.'
+    : '';
+  byId('start-agent').textContent = copied ? 'Copy again' : 'Start with AI Agent';
 }
 
-function scheduleLiveRender() {
-  if (liveRenderScheduled) return;
-  liveRenderScheduled = true;
-  const schedule = window.requestAnimationFrame || ((callback) => setTimeout(callback, 16));
-  schedule(() => {
-    liveRenderScheduled = false;
-    renderLive();
-  });
-}
-
-function setFollowExecution(enabled) {
-  followExecution = enabled;
-  const button = byId('follow-execution');
-  button.classList.toggle('active', enabled);
-  button.setAttribute('aria-pressed', String(enabled));
-  button.textContent = enabled ? 'Following' : 'Follow execution';
-  if (enabled) {
-    lastFollowedNode = null;
-    followActiveNode();
-  }
-}
-
-function followActiveNode() {
-  const nodeId = activeLifecycleNodeId();
-  if (!followExecution || !nodeId || nodeId === lastFollowedNode || interaction) return;
-  const position = positions.get(nodeId);
-  if (!position) return;
-  const canvas = byId('canvas').getBoundingClientRect();
-  viewport.x = canvas.width / 2 - (position.x + NODE_WIDTH / 2) * viewport.scale;
-  viewport.y = canvas.height / 2 - (position.y + 54) * viewport.scale;
-  lastFollowedNode = nodeId;
-  applyViewport();
-}
-
-async function hydrateGoalFromLive() {
-  const run = catalog.live?.run;
-  const artifactPath = run?.artifacts?.goalContract?.path;
-  const key = `${run?.runId || ''}:${run?.goal?.version || 1}:${artifactPath || ''}`;
-  if (!artifactPath || hydratedGoalKey === key) return;
-  try {
-    const result = await api(`/api/runs/${encodeURIComponent(run.runId)}/artifacts?path=${encodeURIComponent(artifactPath)}`);
-    const contract = JSON.parse(result.artifact.content);
-    byId('goal-text').value = contract.objective || '';
-    byId('goal-criteria').value = (contract.acceptanceCriteria || []).map((criterion) => (
-      `${criterion.statement} | ${criterion.evidenceRequired} | ${(criterion.failureCases || []).join(' | ')}`
-    )).join('\n');
-    goal.text = contract.objective || '';
-    goal.criteria = contract.acceptanceCriteria || [];
-    hydratedGoalKey = key;
-  } catch {
-    // The Goal remains inspectable through Run History if its bounded artifact cannot be hydrated.
-  }
+function showWorkspace(section) {
+  if (section === 'workflows') section = 'wiring';
+  workspace = section;
+  const live = section === 'live';
+  const showingRuns = section === 'runs';
+  const wiring = section === 'wiring';
+  byId('live-view').hidden = !live;
+  byId('runs-view').hidden = !showingRuns;
+  byId('canvas').hidden = !wiring;
+  byId('show-live').classList.toggle('active', live);
+  byId('show-runs').classList.toggle('active', showingRuns);
+  byId('show-wiring').classList.toggle('active', wiring);
+  byId('show-live').setAttribute('aria-current', live ? 'page' : 'false');
+  byId('show-runs').setAttribute('aria-current', showingRuns ? 'page' : 'false');
+  byId('show-wiring').setAttribute('aria-current', wiring ? 'page' : 'false');
+  if (showingRuns) loadRuns();
+  if (wiring) renderGraph();
 }
 
 async function loadRuns() {
-  const query = byId('run-search').value.trim();
+  const query = byId('run-search')?.value.trim() || '';
   try {
     const params = new URLSearchParams();
     if (query) params.set('q', query);
-    if (byId('run-status').value) params.set('status', byId('run-status').value);
-    if (byId('run-mode').value) params.set('mode', byId('run-mode').value);
-    if (byId('run-from').value) params.set('from', `${byId('run-from').value}T00:00:00.000Z`);
-    if (byId('run-to').value) params.set('to', `${byId('run-to').value}T23:59:59.999Z`);
     const result = await api(`/api/runs${params.size ? `?${params}` : ''}`);
     runs = result.runs;
     const list = byId('run-list');
     if (!runs.length) {
-      list.innerHTML = '<div class="empty-state"><h2>No runs found</h2><p>Create a task from the workflow trigger.</p></div>';
+      list.innerHTML = '<div class="empty-state"><h2>No runs found</h2><p>Create a task from the Goal sheet.</p></div>';
     } else {
       const active = runs.find((run) => !TERMINAL_RUN_STATES.has(run.status));
       const historyRuns = runs.filter((run) => run.runId !== active?.runId);
@@ -1544,7 +976,12 @@ async function loadRuns() {
           : '<p class="muted run-list-empty">Completed Runs will stay here.</p>'
       ].join('');
       list.querySelectorAll('.run-row').forEach((button) => {
-        button.onclick = () => loadRunDetail(button.dataset.runId);
+        button.onclick = () => {
+          pinnedRunId = button.dataset.runId;
+          selectedCheckoutRun = pinnedRunId;
+          showWorkspace('live');
+          loadLive(pinnedRunId);
+        };
       });
     }
     if (result.corrupt.length) {
@@ -1555,529 +992,100 @@ async function loadRuns() {
   }
 }
 
-function runHistoryMarkup(run) {
-  const history = run.history || [];
-  if (!history.length) return '<p class="muted">Waiting for the first Run event.</p>';
-  return history.map((entry) => `
-    <p>
-      <time>${escapeHtml(new Date(entry.at).toLocaleString())}</time>
-      <span><b>${escapeHtml(entry.to)}</b> · ${escapeHtml(entry.gate || 'run update')}</span>
-    </p>
-  `).join('');
+function heartbeatAge(iso) {
+  if (!iso) return 'no heartbeat';
+  const age = Math.max(0, Date.now() - Date.parse(iso));
+  if (!Number.isFinite(age)) return 'no heartbeat';
+  if (age < 2000) return 'just now';
+  if (age < 60000) return `${Math.round(age / 1000)}s ago`;
+  return `${Math.round(age / 60000)}m ago`;
 }
 
-async function loadRunDetail(runId) {
-  try {
-    selectedCheckoutRun = runId;
-    const [result, checkoutResult, interactionResult] = await Promise.all([
-      api(`/api/runs/${encodeURIComponent(runId)}`),
-      api(`/api/runs/${encodeURIComponent(runId)}/checkout`),
-      api(`/api/runs/${encodeURIComponent(runId)}/interactions`)
-    ]);
-    const run = result.run;
-    const checkout = checkoutResult.checkout;
-    const maxX = Math.max(...checkout.nodes.map((node) => node.position.x), 0) + NODE_WIDTH + 80;
-    const maxY = Math.max(...checkout.nodes.map((node) => node.position.y), 0) + 180;
-    const paths = checkout.edges.map((edge) => {
-      const from = checkout.nodes.find((node) => node.id === edge.from);
-      const to = checkout.nodes.find((node) => node.id === edge.to);
-      if (!from || !to) return '';
-      const x1 = from.position.x + NODE_WIDTH;
-      const y1 = from.position.y + NODE_PORT_Y;
-      const x2 = to.position.x;
-      const y2 = to.position.y + NODE_PORT_Y;
-      const state = ['idle', 'active', 'passed', 'failed', 'skipped', 'waiting'].includes(edge.state)
-        ? edge.state
-        : 'idle';
-      return `<path class="edge-${state}" d="M ${x1} ${y1} C ${x1 + 70} ${y1}, ${x2 - 70} ${y2}, ${x2} ${y2}"></path>`;
-    }).join('');
-    const checkoutGroups = (checkout.loopGroups || []).map((group) => {
-      const members = checkout.nodes.filter((node) => group.nodeIds.includes(node.id));
-      if (!members.length) return '';
-      const left = Math.min(...members.map((node) => node.position.x)) - 28;
-      const top = Math.min(...members.map((node) => node.position.y)) - 36;
-      const right = Math.max(...members.map((node) => node.position.x + NODE_WIDTH)) + 28;
-      const bottom = Math.max(...members.map((node) => node.position.y + 108)) + 28;
-      return `<div class="checkout-loop status-${escapeHtml((group.runtime?.status || 'pending').toLowerCase())}" data-checkout-loop="${escapeHtml(group.id)}" style="left:${left}px;top:${top}px;width:${right - left}px;height:${bottom - top}px"><b>${escapeHtml(group.displayName)}</b><span>Iteration ${escapeHtml(group.runtime?.iteration || 1)} / ${escapeHtml(group.maxIterations)}</span></div>`;
-    }).join('');
-    const checkoutBody = checkout.workflowBound
-      ? `
-        <section class="checkout-canvas" style="--checkout-width:${maxX}px;--checkout-height:${maxY}px">
-          <svg viewBox="0 0 ${maxX} ${maxY}" aria-hidden="true">${paths}</svg>
-          ${checkoutGroups}
-          ${checkout.nodes.map((node) => `<button class="checkout-node status-${escapeHtml(node.status.toLowerCase())}" data-checkout-node="${escapeHtml(node.id)}" style="left:${node.position.x}px;top:${node.position.y}px">
-            <small>${escapeHtml(node.type)}${node.loopIteration ? ` · LOOP ${escapeHtml(node.loopIteration)}` : ''}</small><strong>${escapeHtml(node.displayName)}</strong><span data-node-status>${escapeHtml(node.status)}</span>
-          </button>`).join('')}
-        </section>
-        <section id="node-io-panel" class="node-io-panel"><div class="empty-state"><h3>Select a node</h3><p>Inspect its real Input, Output, Evidence, and Timeline.</p></div></section>
-      `
-      : `
-        <section class="classic-run">
-          <small>CLASSIC RUN · LIVE TRACKING</small>
-          <h3>This Run started before automatic workflow binding was available.</h3>
-          <p>Goal changes, stage gates, evidence, and Agent questions are still monitored here. New Runs show the full node canvas automatically.</p>
-          <div id="classic-run-timeline" class="timeline">${runHistoryMarkup(run)}</div>
-        </section>
-      `;
-    byId('run-detail').innerHTML = `
-      <header class="checkout-header">
-        <div><button id="checkout-back" class="quiet">← Run History</button><small>READ-ONLY CHECKOUT · <span id="checkout-run-status">${escapeHtml(run.status)}</span></small><h2>${escapeHtml(run.displayName)}</h2><p>${escapeHtml(run.task)}</p></div>
-        <div class="checkout-actions"><button id="copy-agent-handoff">Copy for AI Agent</button>${checkout.workflowBound ? '<button id="duplicate-run-workflow" class="primary">Duplicate as Workflow</button>' : ''}</div>
-      </header>
-      <div class="checkout-meta"><span>${escapeHtml(run.runId)}</span><span id="checkout-goal-state">${run.goalFrozen ? `Goal frozen V${escapeHtml(run.goalVersion)}` : 'Goal draft'}</span><span>${checkout.workflowBound ? 'Actual node states' : 'Live stage history'}</span></div>
-      ${checkoutBody}
-      <section class="agent-interactions"><header><div><small>LIVE AGENT INTERACTIONS</small><h3>Questions from the Agent</h3></div><span>Updates automatically</span></header><div id="interaction-list"></div></section>
-    `;
-    renderInteractions(interactionResult.interactions);
-    byId('checkout-back').onclick = () => {
-      selectedCheckoutRun = null;
-      byId('run-detail').innerHTML = '<div class="empty-state"><h2>Select a run</h2><p>Open a read-only checkout to inspect actual node evidence.</p></div>';
-    };
-    byId('copy-agent-handoff').onclick = () => copyAgentHandoff(runId);
-    if (checkout.workflowBound) byId('duplicate-run-workflow').onclick = async () => {
-      try {
-        const duplicate = await api(`/api/runs/${encodeURIComponent(runId)}/duplicate`, {
-          method: 'POST',
-          body: JSON.stringify({ recipeId: `${slug(run.displayName)}-copy` })
-        });
-        draft = normalizeDraftGraph(structuredClone(duplicate.preview.recipe));
-        positions = new Map(checkout.nodes.map((node) => [node.id, node.position]));
-        loadedRecipeId = null;
-        captureHistory({ reset: true });
-        renderGraph();
-        renderRecipeDetails();
-        validateDraft();
-        showWorkspace('workflows');
-        notify('Run duplicated into a new editable workflow. History was not changed.');
-      } catch (error) {
-        notify(error.message);
-      }
-    };
-    byId('run-detail').querySelectorAll('[data-checkout-node]').forEach((button) => {
-      button.onclick = () => loadNodeIo(runId, button.dataset.checkoutNode);
-    });
-  } catch (error) {
-    byId('run-detail').innerHTML = `<p class="validation-message">${escapeHtml(error.message)}</p>`;
+function currentStageId(live) {
+  const nodes = live?.nodes || {};
+  const running = Object.entries(nodes).find(([, node]) => node?.status === 'RUNNING');
+  if (running) {
+    const type = live.plan?.nodes?.find((node) => node.id === running[0])?.type;
+    const stage = STAGES.find((item) => item.types.includes(type));
+    if (stage) return stage.id;
   }
-}
-
-function renderArtifactPreview(artifact) {
-  if (!artifact) return '<p class="muted">No artifact was recorded for this node.</p>';
-  if (artifact.unavailable) return `<p class="validation-message">Artifact unavailable: ${escapeHtml(artifact.code)}</p>`;
-  return `<p class="artifact-path">${escapeHtml(artifact.descriptor.path)}</p><button class="artifact-download" data-artifact-download="${escapeHtml(artifact.descriptor.path)}">Download copy</button><pre>${escapeHtml(artifact.preview.content)}</pre>`;
-}
-
-async function loadNodeIo(runId, nodeId) {
-  const panel = byId('node-io-panel');
-  try {
-    const { io } = await api(`/api/runs/${encodeURIComponent(runId)}/nodes/${encodeURIComponent(nodeId)}`);
-    const running = io.node.status === 'RUNNING';
-    const interactionEmpty = io.agentInteractionsAvailable === false
-      ? 'Agent Interaction is temporarily unavailable. Other node evidence remains valid.'
-      : 'No Agent Interaction was recorded for this Run.';
-    panel.innerHTML = `
-      <header class="node-io-head"><div><small>NODE INSPECTOR · ${escapeHtml(io.node.status)}</small><h3>${escapeHtml(io.node.displayName)}</h3></div><p class="mono">Duration: ${io.durationMs == null ? 'Not available' : `${Number(io.durationMs)} ms`} · Loop Iteration: ${io.loopIteration == null ? 'Not available' : escapeHtml(String(io.loopIteration))}</p></header>
-      <nav class="io-tabs" role="tablist" aria-label="Node details">
-        ${['Input', 'Live Activity', 'Output', 'Evidence', 'Timeline'].map((label, index) => `<button class="io-tab" role="tab" aria-selected="${index === 0}" data-io-tab="${slug(label)}">${label}</button>`).join('')}
-      </nav>
-      <div class="node-data-grid">
-        <section class="io-pane active" data-io-pane="input"><h4>Input</h4>${io.input.task ? `<p><b>Task</b><br>${escapeHtml(io.input.task)}</p>` : ''}${io.input.constraints ? `<p><b>Constraints</b><br>${escapeHtml(io.input.constraints)}</p>` : ''}${io.input.dependencies.length ? io.input.dependencies.map((dependency) => `<p><b>${escapeHtml(dependency.nodeId)}</b> · ${escapeHtml(dependency.status)}</p>${renderArtifactPreview(dependency.artifact)}`).join('') : '<p class="muted">Root input from this Run.</p>'}</section>
-        <section class="io-pane" data-io-pane="live-activity"><h4>Live Activity</h4><p class="muted">Interaction scope: ${escapeHtml(io.agentInteractionScope || 'RUN')} — questions and answers belong to the whole Run, not only this node.</p><p class="node-progress">${running ? 'In progress · waiting for persisted output' : escapeHtml(io.node.status)}</p><div class="timeline">${io.agentInteractions.map((event) => `<p><time>${escapeHtml(event.at)}</time><strong>${escapeHtml(event.type)}</strong> ${escapeHtml(String(event.message ?? ''))}</p>`).join('') || `<p class="muted">${escapeHtml(interactionEmpty)}</p>`}</div></section>
-        <section class="io-pane" data-io-pane="output"><h4>Output</h4><p><b>${running ? 'In progress' : escapeHtml(io.output.status)}</b>${io.output.reason ? ` · ${escapeHtml(io.output.reason)}` : ''}</p>${running ? '<p class="muted">Output will appear after the Agent records a terminal node event.</p>' : renderArtifactPreview(io.output.artifact)}</section>
-        <section class="io-pane" data-io-pane="evidence"><h4>Evidence</h4>${renderArtifactPreview(io.evidence)}</section>
-        <section class="io-pane" data-io-pane="timeline"><h4>Timeline</h4><div class="timeline">${io.timeline.map((event) => `<p><time>${escapeHtml(event.at)}</time><strong>${escapeHtml(event.type)}</strong></p>`).join('') || '<p class="muted">No node events yet.</p>'}</div></section>
-      </div>`;
-    panel.querySelectorAll('[data-io-tab]').forEach((button) => {
-      button.onclick = () => {
-        panel.querySelectorAll('[data-io-tab]').forEach((tab) => {
-          tab.setAttribute('aria-selected', String(tab === button));
-        });
-        panel.querySelectorAll('[data-io-pane]').forEach((pane) => {
-          pane.classList.toggle('active', pane.dataset.ioPane === button.dataset.ioTab);
-        });
-      };
-    });
-    panel.querySelectorAll('[data-artifact-download]').forEach((button) => {
-      button.onclick = async () => {
-        try {
-          const result = await api(`/api/runs/${encodeURIComponent(runId)}/artifacts?path=${encodeURIComponent(button.dataset.artifactDownload)}`);
-          const blob = new Blob([result.artifact.content], { type: 'text/plain' });
-          const link = document.createElement('a');
-          link.href = URL.createObjectURL(blob);
-          link.download = button.dataset.artifactDownload.split('/').at(-1);
-          link.click();
-          URL.revokeObjectURL(link.href);
-        } catch (error) {
-          notify(error.message);
-        }
-      };
-    });
-  } catch (error) {
-    panel.innerHTML = `<p class="validation-message">${escapeHtml(error.message)}</p>`;
+  const journey = live?.journey?.current;
+  if (journey) {
+    const match = STAGES.find((item) => item.id === String(journey).toLowerCase()
+      || item.label === String(journey).toLowerCase());
+    if (match) return match.id;
   }
+  return STAGES[0].id;
 }
 
-function renderInteractions(result) {
-  const target = byId('interaction-list');
-  if (!target) return;
-  target.innerHTML = result.questions.length ? result.questions.map((question) => `
-    <article class="agent-question ${question.answer ? 'answered' : 'pending'}">
-      <small>Q${escapeHtml(question.number)} · ${escapeHtml(question.actor)}</small>
-      <p>${escapeHtml(question.message)}</p>
-      ${question.answer ? `<div class="agent-answer"><b>Answer</b><p>${escapeHtml(question.answer.message)}</p></div>` : `<form data-answer="${escapeHtml(question.questionId)}"><textarea maxlength="8000" required placeholder="Answer so the Agent can continue…"></textarea><button class="primary">Send answer</button></form>`}
-    </article>
-  `).join('') : '<p class="muted">No questions yet. The Agent can post Q1, Q2, Q3 from the Run-bound CLI.</p>';
-  target.querySelectorAll('[data-answer]').forEach((form) => {
-    form.onsubmit = async (event) => {
-      event.preventDefault();
-      try {
-        await api(`/api/runs/${encodeURIComponent(selectedCheckoutRun)}/questions/${encodeURIComponent(form.dataset.answer)}/answer`, {
-          method: 'POST',
-          body: JSON.stringify({ message: form.querySelector('textarea').value, actor: 'studio-user' })
-        });
-        await refreshCheckoutInteractions();
-      } catch (error) {
-        notify(error.message);
-      }
-    };
+function scheduleLiveRender() {
+  if (liveRenderScheduled) return;
+  liveRenderScheduled = true;
+  const schedule = typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function'
+    ? window.requestAnimationFrame.bind(window)
+    : (callback) => setTimeout(callback, 16);
+  schedule(() => {
+    liveRenderScheduled = false;
+    renderLive();
   });
-}
-
-async function refreshCheckoutInteractions() {
-  if (!selectedCheckoutRun || !byId('interaction-list')) return;
-  try {
-    const result = await api(`/api/runs/${encodeURIComponent(selectedCheckoutRun)}/interactions`);
-    renderInteractions(result.interactions);
-  } catch {
-    // Corrupt or unavailable Run data is isolated and does not affect another Run.
-  }
-}
-
-async function refreshSelectedCheckout() {
-  const runId = selectedCheckoutRun;
-  if (!runId || !byId('checkout-run-status')) return;
-  try {
-    const [detail, checkoutResult] = await Promise.all([
-      api(`/api/runs/${encodeURIComponent(runId)}`),
-      api(`/api/runs/${encodeURIComponent(runId)}/checkout`)
-    ]);
-    if (selectedCheckoutRun !== runId) return;
-    const run = detail.run;
-    const checkout = checkoutResult.checkout;
-    byId('checkout-run-status').textContent = run.status;
-    byId('checkout-goal-state').textContent = run.goalFrozen
-      ? `Goal frozen V${run.goalVersion}`
-      : 'Goal draft';
-    if (!checkout.workflowBound) {
-      const timeline = byId('classic-run-timeline');
-      if (timeline) timeline.innerHTML = runHistoryMarkup(run);
-      return;
-    }
-    for (const node of checkout.nodes) {
-      const element = document.querySelector(`[data-checkout-node="${CSS.escape(node.id)}"]`);
-      if (!element) continue;
-      for (const status of ['pending', 'ready', 'running', 'passed', 'failed', 'skipped', 'blocked']) {
-        element.classList.remove(`status-${status}`);
-      }
-      element.classList.add(`status-${node.status.toLowerCase()}`);
-      const status = element.querySelector('[data-node-status]');
-      if (status) status.textContent = node.status;
-    }
-    for (const group of checkout.loopGroups || []) {
-      const element = document.querySelector(`[data-checkout-loop="${CSS.escape(group.id)}"]`);
-      if (!element) continue;
-      const counter = element.querySelector('span');
-      if (counter) counter.textContent = `Iteration ${group.runtime?.iteration || 1} / ${group.maxIterations}`;
-    }
-  } catch {
-    // Keep the last valid checkout visible during a transient refresh failure.
-  }
-}
-
-async function copyAgentHandoff(runId = activeRunId) {
-  try {
-    const targetRunId = runId || await ensureStudioRun();
-    if (!targetRunId) return;
-    const result = await api(`/api/runs/${encodeURIComponent(targetRunId)}/agent-handoff`);
-    await navigator.clipboard.writeText(result.handoff.prompt);
-    handoffCopiedRunId = targetRunId;
-    renderHandoffState();
-    notify('Run-bound prompt copied. Paste it into your AI coding Agent.');
-  } catch (error) {
-    byId('goal-validation').textContent = error.message;
-  }
-}
-
-function renderHandoffState() {
-  const copied = Boolean(handoffCopiedRunId && handoffCopiedRunId === activeRunId);
-  byId('agent-handoff-state').hidden = !copied;
-  byId('agent-handoff-instructions').textContent = copied
-    ? 'Paste it once into your current AI Agent terminal, then keep Studio open to follow persisted progress.'
-    : '';
-  byId('start-agent').textContent = copied ? 'Copy again' : 'Start with AI Agent';
-}
-
-function showWorkspace(section) {
-  const showingRuns = section === 'runs';
-  byId('runs-view').hidden = !showingRuns;
-  byId('canvas').hidden = showingRuns;
-  byId('workflow-context').hidden = showingRuns;
-  byId('review').hidden = showingRuns;
-  byId('show-runs').classList.toggle('active', showingRuns);
-  byId('show-runs').setAttribute('aria-current', showingRuns ? 'page' : 'false');
-  byId('show-workflows').classList.toggle('active', !showingRuns);
-  byId('show-workflows').setAttribute('aria-current', showingRuns ? 'false' : 'page');
-  if (showingRuns) loadRuns();
-}
-
-async function previewImport() {
-  try {
-    const importedRecipe = JSON.parse(byId('import-source').value);
-    const result = await api('/api/import/preview', {
-      method: 'POST',
-      body: JSON.stringify({ existingRecipe: draft, importedRecipe, operation: 'merge' })
-    });
-    pendingImport = { importedRecipe, mergePlan: result.plan };
-    byId('import-preview').innerHTML = `
-      <strong>${escapeHtml(importedRecipe.id || 'Imported workflow')}</strong>
-      <p>${escapeHtml(importedRecipe.nodes?.length || 0)} nodes · ${escapeHtml(importedRecipe.edges?.length || 0)} explicit Edges</p>
-      <p>${Object.values(result.plan.nodeIdMap).filter((id, index) => id !== Object.keys(result.plan.nodeIdMap)[index]).length} node ID conflict(s) will be renamed.</p>
-    `;
-    byId('import-choices').hidden = false;
-  } catch (error) {
-    pendingImport = null;
-    byId('import-choices').hidden = true;
-    byId('import-preview').innerHTML = `<p class="validation-message">${escapeHtml(error.message)}</p>`;
-  }
-}
-
-async function applyImport(operation) {
-  if (!pendingImport) return;
-  try {
-    const plan = operation === 'merge'
-      ? pendingImport.mergePlan
-      : { operation: 'replace', nodeIdMap: {}, edgeIdMap: {} };
-    const result = await api('/api/import/apply', {
-      method: 'POST',
-      body: JSON.stringify({
-        existingRecipe: draft,
-        importedRecipe: pendingImport.importedRecipe,
-        plan
-      })
-    });
-    draft = normalizeDraftGraph(structuredClone(result.recipe));
-    positions = new Map();
-    ensurePositions();
-    selectedIds.clear();
-    selectedId = null;
-    captureHistory();
-    renderGraph();
-    renderRecipeDetails();
-    validateDraft();
-    byId('import-dialog').close();
-    notify(`${operation === 'merge' ? 'Merged' : 'Replaced'} canvas from validated JSON.`);
-  } catch (error) {
-    byId('import-preview').innerHTML = `<p class="validation-message">${escapeHtml(error.message)}</p>`;
-  }
-}
-
-function exportWorkflowJson() {
-  const blob = new Blob([`${JSON.stringify(authoringRecipe(), null, 2)}\n`], { type: 'application/json' });
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = `${draft.id}.workflow.json`;
-  link.click();
-  URL.revokeObjectURL(link.href);
-}
-
-function createCustomAgentFromForm(event) {
-  event.preventDefault();
-  const id = uniqueNodeId('agent');
-  const name = byId('custom-name').value.trim();
-  const prompt = byId('custom-prompt').value.trim();
-  const error = validDisplayName(name);
-  if (error || !prompt) return notify(error || 'Custom Agent prompt is required.');
-  const artifact = byId('custom-output').value.trim() || `${id}-report`;
-  const node = {
-    id,
-    type: 'agent',
-    displayName: name,
-    prompt,
-    capabilityRefs: csv(byId('custom-capabilities').value),
-    mcpRefs: csv(byId('custom-mcp').value),
-    inputArtifacts: csv(byId('custom-inputs').value),
-    outputArtifacts: [{ artifact, schema: 'schemas/report.schema.json' }],
-    tokenLimit: Number(byId('custom-tokens').value),
-    timeoutMs: Number(byId('custom-timeout').value) * 1000,
-    retry: { maxAttempts: Number(byId('custom-retries').value), backoffMs: 1000 }
-  };
-  draft.nodes.push(node);
-  if (pendingConnectionSource) {
-    draft.edges.push({ id: uniqueEdgeId(pendingConnectionSource, id), from: pendingConnectionSource, to: id });
-    pendingConnectionSource = null;
-  }
-  syncDependencies();
-  const center = worldAtCanvasCenter();
-  positions.set(id, { x: center.x - NODE_WIDTH / 2, y: center.y - NODE_PORT_Y });
-  captureHistory();
-  renderGraph();
-  selectNode(id);
-  validateDraft();
-  byId('custom-dialog').close();
-}
-
-function zoomAt(nextScale, clientX, clientY) {
-  const scale = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, nextScale));
-  const rect = byId('canvas').getBoundingClientRect();
-  const x = clientX ?? rect.left + rect.width / 2;
-  const y = clientY ?? rect.top + rect.height / 2;
-  const world = screenToWorld(x, y);
-  viewport.scale = scale;
-  viewport.x = x - rect.left - world.x * scale;
-  viewport.y = y - rect.top - world.y * scale;
-  applyViewport();
-  saveLayoutSoon();
-}
-
-function handleWheel(event) {
-  event.preventDefault();
-  setFollowExecution(false);
-  if (event.ctrlKey || event.metaKey) {
-    zoomAt(viewport.scale * Math.exp(-event.deltaY * 0.002), event.clientX, event.clientY);
-  } else {
-    viewport.x -= event.deltaX;
-    viewport.y -= event.deltaY;
-    applyViewport();
-    saveLayoutSoon();
-  }
-}
-
-function autoLayout({ record = true } = {}) {
-  positions = defaultGraphPositions();
-  renderGraph();
-  fitView();
-  if (record) captureHistory();
-  saveLayoutSoon();
-}
-
-function fitView() {
-  ensurePositions();
-  if (!positions.size) return;
-  const rect = byId('canvas').getBoundingClientRect();
-  const values = [...positions.values()];
-  const minX = Math.min(...values.map((position) => position.x));
-  const minY = Math.min(...values.map((position) => position.y));
-  const maxX = Math.max(...values.map((position) => position.x + NODE_WIDTH));
-  const maxY = Math.max(...values.map((position) => position.y + 140));
-  const padding = 100;
-  viewport.scale = Math.max(MIN_ZOOM, Math.min(1.35, Math.min(
-    (rect.width - padding * 2) / Math.max(1, maxX - minX),
-    (rect.height - padding * 2) / Math.max(1, maxY - minY)
-  )));
-  viewport.x = (rect.width - (maxX - minX) * viewport.scale) / 2 - minX * viewport.scale;
-  viewport.y = (rect.height - (maxY - minY) * viewport.scale) / 2 - minY * viewport.scale;
-  applyViewport();
-  saveLayoutSoon();
-}
-
-function captureHistory({ reset = false } = {}) {
-  const snapshot = JSON.stringify({ draft, positions: Object.fromEntries(positions) });
-  if (reset) {
-    history = [snapshot];
-    historyIndex = 0;
-  } else if (history[historyIndex] !== snapshot) {
-    history = history.slice(0, historyIndex + 1);
-    history.push(snapshot);
-    historyIndex = history.length - 1;
-  }
-  byId('undo').disabled = historyIndex <= 0;
-  byId('redo').disabled = historyIndex >= history.length - 1;
-}
-
-function restoreHistory(index) {
-  if (index < 0 || index >= history.length) return;
-  historyIndex = index;
-  const snapshot = JSON.parse(history[index]);
-  draft = snapshot.draft;
-  positions = new Map(Object.entries(snapshot.positions));
-  if (!draft.nodes.some((node) => node.id === selectedId)) selectedId = null;
-  renderGraph();
-  if (selectedId) selectNode(selectedId);
-  else renderRecipeDetails();
-  validateDraft();
-  saveLayoutSoon();
-  byId('undo').disabled = historyIndex <= 0;
-  byId('redo').disabled = historyIndex >= history.length - 1;
-}
-
-function saveLayoutSoon() {
-  clearTimeout(layoutTimer);
-  if (!loadedRecipeId || draft.id !== loadedRecipeId) return;
-  layoutTimer = setTimeout(async () => {
-    try {
-      await api('/api/layout', {
-        method: 'PUT',
-        body: JSON.stringify({ recipeId: loadedRecipeId, layout: layoutPayload() })
-      });
-    } catch {
-      // Canvas work remains in memory and install still submits the layout.
-    }
-  }, 350);
-}
-
-async function validateDraft() {
-  const sequence = ++validationSequence;
-  try {
-    const result = await api('/api/validate', { method: 'POST', body: JSON.stringify({ recipe: draft }) });
-    if (sequence !== validationSequence) return;
-    const hash = result.plans[0].graphHash;
-    byId('integrity').textContent = `VALID / ${hash.slice(0, 8)}…${hash.slice(-4)}`;
-    byId('integrity').className = 'valid';
-    byId('review').disabled = false;
-    byId('review-data').textContent = JSON.stringify({
-      recipe: draft.id,
-      version: draft.version,
-      modes: result.plans.map((plan) => plan.mode),
-      nodes: draft.nodes.length,
-      graphHashes: result.plans.map((plan) => plan.graphHash)
-    }, null, 2);
-  } catch (error) {
-    if (sequence !== validationSequence) return;
-    byId('integrity').textContent = `INVALID / ${error.message}`;
-    byId('integrity').className = 'invalid';
-    byId('review').disabled = true;
-  }
 }
 
 function renderLive() {
   const live = catalog.live;
+  const summary = byId('run-summary');
+  const rail = byId('stage-rail');
+  const journey = byId('run-journey');
+  const meta = byId('live-view')?.querySelector?.('.live-meta');
+  const banner = byId('live-view')?.querySelector?.('.pending-banner');
   if (!live) {
-    byId('run-summary').textContent = 'No active run';
-    byId('active-stage').textContent = 'No active run';
-    byId('activity').textContent = 'Waiting for a recipe-bound workflow.';
-    byId('events').innerHTML = '';
-    byId('budget').textContent = '—';
-    byId('meter').style.width = '0';
-    byId('agent-presence').textContent = 'Agent unavailable';
-    byId('agent-presence').className = 'agent-presence unknown';
-    const dock = byId('run-activity-dock');
-    if (dock) dock.hidden = true;
-    updateRuntimePresentation();
+    if (summary) summary.textContent = 'No active run';
+    if (rail) {
+      rail.innerHTML = STAGES.map((stage) => `<li class="pending">${escapeHtml(stage.label)}</li>`).join('');
+    }
+    if (meta) meta.innerHTML = '';
+    if (banner) {
+      banner.hidden = true;
+      banner.innerHTML = '';
+    }
+    if (journey) journey.innerHTML = '';
     return;
   }
-  const lifecycleNodeId = activeLifecycleNodeId();
-  const active = live.plan.nodes.find((node) => node.id === lifecycleNodeId)
-    || live.plan.nodes.find((node) => live.nodes[node.id].status === 'RUNNING')
-    || live.plan.nodes.find((node) => live.nodes[node.id].status === 'READY');
-  const runtimeNode = active ? live.nodes[active.id] : null;
-  const lifecycle = activeLifecycleEvent();
-  byId('run-summary').textContent = active ? `${active.id} · ${runtimeNode.status}` : `Run ${live.run.state}`;
-  byId('active-stage').textContent = active?.id || 'Run complete';
-  byId('activity').textContent = lifecycle?.message ||
-    (active ? runtimeNode.activity || `${runtimeNode.status} · attempt ${runtimeNode.attempts}` : `Final state: ${live.run.state}`);
+  const stageId = currentStageId(live);
+  const run = live.run || {};
+  const presence = live.presence || agentPresence;
+  if (summary) {
+    summary.textContent = `${run.displayName || run.runId || 'run'} · ${run.state || ''} · ${heartbeatAge(presence.lastHeartbeatAt)}`;
+  }
+  if (rail) {
+    rail.innerHTML = STAGES.map((stage) => {
+      const current = stage.id === stageId;
+      return `<li class="${current ? 'active' : 'pending'}">${escapeHtml(stage.label)}</li>`;
+    }).join('');
+  }
+  const artifacts = live.artifacts || liveArtifacts;
+  const guard = artifacts['artifact.guard'] || {};
+  const drift = artifacts['artifact.drift'] || {};
+  const receipt = artifacts['artifact.receipt'] || {};
+  if (meta) {
+    meta.innerHTML = `
+      <span>${escapeHtml(run.tier?.current || run.mode || '')}</span>
+      <span>iter ${escapeHtml(String(run.iteration ?? '—'))}</span>
+      <span>${escapeHtml(String(live.budget?.spentThisRun ?? 0))} / ${escapeHtml(String(live.budget?.perRunTokenLimit ?? 0))} tokens</span>
+      <span class="chip">${escapeHtml(String(guard.warn || 0))} warn · ${escapeHtml(String(guard.block || 0))} block</span>
+      <span class="chip">drift ${escapeHtml(String(drift.outOfMapCount || 0))}</span>
+      <span class="chip">${receipt.verified ? 'receipt ok' : 'receipt pending'}</span>
+    `;
+  }
+  const pending = live.interactions?.pending || [];
+  if (banner) {
+    banner.hidden = pending.length === 0;
+    banner.innerHTML = pending.map((question) =>
+      `<p><strong>Q${escapeHtml(String(question.number))}</strong> ${escapeHtml(question.message)}</p>`
+    ).join('');
+  }
   const journeyStatuses = new Set(['pending', 'active', 'complete']);
   const degradedSources = live.journey?.degradedSources || [];
-  byId('run-journey').innerHTML = (live.journey?.steps || []).map((step) => {
+  const timeline = (live.journey?.steps || []).map((step) => {
     const status = String(step?.status || '').toLowerCase();
     const safeStatus = journeyStatuses.has(status) ? status : 'unknown';
     const label = String(step?.id || '').replaceAll('_', ' ');
@@ -2088,82 +1096,217 @@ function renderLive() {
           : ` · ${Number(live.journey.pendingQuestions)} unanswered`)
       : '';
     return `<li class="${safeStatus}">${escapeHtml(label + suffix + blocked)}</li>`;
-  }).join('') + (degradedSources.length
-    ? `<li class="unknown">${escapeHtml(`${degradedSources.join(' and ')} unavailable — journey may be incomplete`)}</li>`
-    : '');
-  const presenceLabel = {
-    WORKING: 'Agent working',
-    IDLE: 'Agent appears idle',
-    DISCONNECTED: 'Agent disconnected',
-    UNKNOWN: 'Waiting for Agent'
-  }[agentPresence.status] || 'Waiting for Agent';
-  byId('agent-presence').textContent = presenceLabel;
-  byId('agent-presence').className = `agent-presence ${agentPresence.status.toLowerCase()}`;
-  const spent = live.budget.spentThisRun;
-  const limit = live.budget.perRunTokenLimit;
-  byId('meter').style.width = `${Math.min(100, limit ? (spent / limit) * 100 : 0)}%`;
-  byId('budget').textContent = `${spent.toLocaleString()} / ${limit.toLocaleString()} TOKENS`;
-  const liveEventsHtml = lifecycleEvents.slice(-7).reverse().map((event) => `
-    <p class="${event.type === 'NODE_ACTIVITY' || event.type.includes('START') ? 'event-active' : ''}">
-      ${escapeHtml(event.at.slice(11, 19))} · ${escapeHtml(event.type)} · ${escapeHtml(event.message)}
-    </p>
-  `).join('') || live.events.slice(-7).reverse().map((event) => `
-    <p>${escapeHtml(event.at.slice(11, 19))} · ${escapeHtml(event.type)}</p>
-  `).join('');
-  const eventsDetailNote = live.summary?.eventsTruncated
-    ? '<p class="muted">Older workflow events are kept out of live polling; node detail and lifecycle stream load them on demand.</p>'
-    : '';
-  byId('events').innerHTML = liveEventsHtml + eventsDetailNote;
-  renderRunActivityDock(live, active, runtimeNode, lifecycle);
-  updateRuntimePresentation();
-  followActiveNode();
-}
-
-function renderRunActivityDock(live, active, runtimeNode, lifecycle) {
-  const dock = byId('run-activity-dock');
-  if (!dock) return;
-  dock.hidden = false;
-  byId('run-activity-scope').textContent = active ? 'NODE ACTIVITY' : 'RUN ACTIVITY';
-  byId('run-activity-title').textContent = active ? displayName(active) : `Run ${live.run.state}`;
-  byId('run-activity-message').textContent = lifecycle?.message ||
-    runtimeNode?.activity || (active ? runtimeNode?.status : 'Waiting for the next persisted event.');
-  byId('run-activity-status').textContent = runtimeNode?.status || agentPresence.status || live.run.state;
-  const inspect = byId('inspect-live-node');
-  inspect.hidden = !active;
-  inspect.dataset.nodeId = active?.id || '';
-  byId('run-activity-timeline').innerHTML = lifecycleEvents.slice(-4).reverse().map((event) => `
-    <span><time>${escapeHtml(String(event.at || '').slice(11, 19))}</time>${escapeHtml(event.message || event.type)}</span>
-  `).join('');
+  }).join('');
+  const eventsHtml = (lifecycleEvents.slice(-8).reverse().map((event) =>
+    `<li class="event">${escapeHtml(String(event.at || '').slice(11, 19))} · ${escapeHtml(event.type)} · ${escapeHtml(event.message || '')}</li>`
+  ).join(''));
+  if (journey) {
+    journey.innerHTML = timeline + eventsHtml + (degradedSources.length
+      ? `<li class="unknown">${escapeHtml(`${degradedSources.join(' and ')} unavailable — journey may be incomplete`)}</li>`
+      : '');
+  }
 }
 
 function maybeOpenOnboarding() {
   const dialog = byId('goal-dialog');
-  if (catalog.live || dialog.open || onboardingDismissed) return;
+  if (!eventsReady || catalog.live || dialog.open || onboardingDismissed) return;
   dialog.showModal();
 }
 
-async function refreshLive() {
+function setConnectionLost(lost, message) {
+  byId('live-connection-state').hidden = !lost;
+  byId('live-connection-message').textContent = lost
+    ? (message || 'Studio connection lost. Your last valid Run view is preserved.')
+    : '';
+}
+
+function followedRunId() {
+  return pinnedRunId || catalog.currentRunId || catalog.live?.run?.runId || null;
+}
+
+function eventTouchesFollowed(event) {
+  const followed = followedRunId();
+  if (!followed) return true;
+  if (!event.runId) return true;
+  return event.runId === followed;
+}
+
+async function loadLive(runId) {
+  const query = runId ? `?runId=${encodeURIComponent(runId)}` : '';
+  const result = await api(`/api/live${query}`);
+  catalog.live = result.live;
+  liveArtifacts = result.live?.artifacts || {};
+  lifecycleEvents = result.live?.lifecycle?.events || lifecycleEvents;
+  agentPresence = result.live?.presence || agentPresence;
+  syncGoalFromLive();
+  renderLive();
+  if (workspace === 'wiring') renderGraph();
+  return result.live;
+}
+
+function applyEvent(event) {
+  if (!event || event.type === 'hello') return;
+  if (event.type === 'resync') {
+    resync();
+    return;
+  }
+  lastEventSeq = Math.max(lastEventSeq, Number(event.seq) || 0);
+  if (event.type === 'current.changed') {
+    catalog.currentRunId = event.payload?.runId || event.runId;
+    if (!pinnedRunId) loadLive(catalog.currentRunId).then(() => maybeOpenOnboarding()).catch(() => {});
+    return;
+  }
+  if (!eventTouchesFollowed(event) && event.type !== 'run.created') return;
+  if (event.type === 'run.created' || event.type === 'run.state') {
+    if (catalog.live?.run && event.runId === catalog.live.run.runId) {
+      Object.assign(catalog.live.run, event.payload || {});
+    }
+    if (event.type === 'run.created' && !catalog.live) loadLive(event.runId).catch(() => {});
+  } else if (event.type === 'lifecycle') {
+    const incoming = event.payload?.events || [];
+    lifecycleEvents = lifecycleEvents.concat(incoming).slice(-100);
+    if (event.payload?.presence) agentPresence = event.payload;
+    else if (catalog.live) catalog.live.lifecycle = event.payload;
+  } else if (event.type === 'presence') {
+    agentPresence = event.payload || agentPresence;
+    if (catalog.live) catalog.live.presence = agentPresence;
+  } else if (String(event.type).startsWith('artifact.')) {
+    liveArtifacts[event.type] = event.payload;
+    if (catalog.live) {
+      catalog.live.artifacts = catalog.live.artifacts || {};
+      catalog.live.artifacts[event.type] = event.payload;
+    }
+  }
+  scheduleLiveRender();
+}
+
+function parseSseBlock(block) {
+  let type = 'message';
+  let data = '';
+  let id = '';
+  for (const line of block.split('\n')) {
+    if (line.startsWith('event:')) type = line.slice(6).trim();
+    else if (line.startsWith('data:')) data += line.slice(5).trim();
+    else if (line.startsWith('id:')) id = line.slice(3).trim();
+  }
+  if (!data) return { type, event: null, id };
   try {
-    const result = await api('/api/live');
-    catalog.live = result.live;
+    return { type, event: JSON.parse(data), id };
+  } catch {
+    return { type, event: null, id };
+  }
+}
+
+function dispatchSse(buffer) {
+  const parts = buffer.split('\n\n');
+  const rest = parts.pop();
+  for (const block of parts) {
+    if (!block.trim()) continue;
+    const parsed = parseSseBlock(block);
+    if (parsed.type === 'hello' && parsed.event) {
+      catalog.watchMode = parsed.event.mode || catalog.watchMode;
+      catalog.root = parsed.event.root || catalog.root;
+      catalog.currentRunId = parsed.event.currentRunId;
+      lastEventSeq = parsed.event.seq || lastEventSeq;
+      eventsReady = true;
+      reconnectAttempt = 0;
+      resumeFallbackUsed = false;
+      clearReconnectTimer();
+      setConnectionLost(false);
+      updateChrome();
+      maybeOpenOnboarding();
+      continue;
+    }
+    if (parsed.event) applyEvent(parsed.event);
+  }
+  return rest;
+}
+
+async function consumeEvents(signal) {
+  const params = lastEventSeq > 0 ? `?after=${encodeURIComponent(lastEventSeq)}` : '';
+  const headers = lastEventSeq > 0 ? { 'Last-Event-ID': String(lastEventSeq) } : {};
+  const response = await fetch(`/api/events${params}`, { signal, headers });
+  if (!response.ok) {
+    const error = new Error('Studio event stream failed');
+    error.code = lastEventSeq > 0 ? 'EVENT_RESUME_FAILED' : 'EVENT_STREAM_FAILED';
+    throw error;
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    buffer = dispatchSse(buffer);
+  }
+  throw new Error('event stream ended');
+}
+
+function clearReconnectTimer() {
+  if (reconnectTimer == null) return;
+  clearTimeout(reconnectTimer);
+  reconnectTimer = null;
+}
+
+function scheduleReconnect() {
+  if (reconnectTimer != null) return;
+  setConnectionLost(true);
+  const delay = RECONNECT_BACKOFF_MS[Math.min(reconnectAttempt, RECONNECT_BACKOFF_MS.length - 1)];
+  reconnectAttempt += 1;
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    startEventStream();
+  }, delay);
+  reconnectTimer?.unref?.();
+}
+
+function startEventStream() {
+  if (typeof AbortController !== 'function') {
+    setConnectionLost(true, 'Studio connection lost. Your last valid Run view is preserved.');
+    return;
+  }
+  if (eventAbort) eventAbort.abort();
+  eventAbort = new AbortController();
+  consumeEvents(eventAbort.signal).catch((error) => {
+    if (error?.name === 'AbortError') return;
+    if (error?.code === 'EVENT_RESUME_FAILED' && !resumeFallbackUsed) {
+      resumeFallbackUsed = true;
+      resync();
+      return;
+    }
+    scheduleReconnect();
+  });
+}
+
+async function resync() {
+  clearReconnectTimer();
+  reconnectAttempt = 0;
+  try {
+    const result = await api('/api/bootstrap');
+    catalog = { ...catalog, ...result };
+    liveArtifacts = result.live?.artifacts || liveArtifacts;
+    lifecycleEvents = result.live?.lifecycle?.events || lifecycleEvents;
+    agentPresence = result.live?.presence || agentPresence;
+    lastEventSeq = result.eventSeq || lastEventSeq;
+    eventsReady = true;
+    setConnectionLost(false);
+    updateChrome();
     syncGoalFromLive();
-    await refreshLifecycle(catalog.live?.run?.runId);
-    await refreshGoalDraft(catalog.live?.run?.runId);
-    await hydrateGoalFromLive();
-    byId('live-connection-state').hidden = true;
     renderLive();
-    await refreshSelectedCheckout();
-    await refreshCheckoutInteractions();
-    if (!byId('runs-view').hidden) await loadRuns();
     maybeOpenOnboarding();
+    startEventStream();
     return true;
   } catch {
-    // A transient refresh failure must not discard the last valid draft or Run snapshot.
-    byId('live-connection-message').textContent =
-      'Studio connection lost. Your last valid Run view is preserved.';
-    byId('live-connection-state').hidden = false;
+    setConnectionLost(true);
+    scheduleReconnect();
     return false;
   }
+}
+
+function updateChrome() {
+  if (byId('watched-root')) byId('watched-root').textContent = catalog.root || '—';
+  if (byId('live-mode')) byId('live-mode').textContent = `live: ${catalog.watchMode || 'watch'}`;
 }
 
 async function loadRecipe() {
@@ -2178,25 +1321,24 @@ async function loadRecipe() {
   selectedId = null;
   selectedIds.clear();
   selectedEdgeId = null;
-  byId('inspector-panel').classList.remove('open');
   positions = new Map(Object.entries(saved.layout?.positions || {}));
   ensurePositions();
   viewport = saved.layout?.viewport || { x: 0, y: 0, scale: 1 };
   renderGraph();
   if (!saved.layout || (draft.nodes.length <= 12 && viewport.scale < 0.45)) fitView();
-  renderRecipeDetails();
   captureHistory({ reset: true });
-  validateDraft();
+  await validateDraft();
 }
 
 async function refreshCatalog(selectedRecipe) {
-  catalog = await api('/api/bootstrap');
+  const result = await api('/api/bootstrap');
+  catalog = { ...catalog, ...result };
+  updateChrome();
   const selector = byId('recipe');
   selector.innerHTML = catalog.recipes.map((recipe) => (
     `<option value="${escapeHtml(recipe.id)}">${escapeHtml(recipe.id)} · v${escapeHtml(recipe.version)}</option>`
   )).join('');
   if (selectedRecipe && catalog.recipes.some((recipe) => recipe.id === selectedRecipe)) selector.value = selectedRecipe;
-  renderPalette();
   syncGoalFromLive();
   renderLive();
 }
@@ -2208,41 +1350,21 @@ function bindCanvas() {
       selectedId = null;
       if (!event.shiftKey) selectedIds.clear();
       updateSelection();
-      renderRecipeDetails();
-      byId('inspector-panel').classList.remove('open');
       if (event.button === 1 || spacePressed) beginPan(event);
-      else if (event.button === 0) beginLasso(event);
     }
   });
   canvas.addEventListener('pointermove', handlePointerMove);
   canvas.addEventListener('pointerup', finishPointer);
   canvas.addEventListener('pointercancel', finishPointer);
   canvas.addEventListener('wheel', handleWheel, { passive: false });
-  canvas.addEventListener('dragover', (event) => {
-    if (!event.dataTransfer.types.includes('application/x-ael-node-type')) return;
-    event.preventDefault();
-    canvas.classList.add('drop-ready');
-  });
-  canvas.addEventListener('dragleave', () => canvas.classList.remove('drop-ready'));
-  canvas.addEventListener('drop', (event) => {
-    event.preventDefault();
-    canvas.classList.remove('drop-ready');
-    const type = event.dataTransfer.getData('application/x-ael-node-type');
-    if (type) addNode(type, screenToWorld(event.clientX, event.clientY));
-  });
   byId('auto-layout').onclick = () => autoLayout();
   byId('fit-view').onclick = fitView;
-  byId('fit-view-rail').onclick = fitView;
-  byId('zoom-in').onclick = () => zoomAt(viewport.scale * 1.2);
-  byId('zoom-out').onclick = () => zoomAt(viewport.scale / 1.2);
   byId('undo').onclick = () => restoreHistory(historyIndex - 1);
   byId('redo').onclick = () => restoreHistory(historyIndex + 1);
-  byId('follow-execution').onclick = () => setFollowExecution(!followExecution);
-  setFollowExecution(followExecution);
 }
 
 function editableTarget(target) {
-  return target.matches('input,textarea,select,[contenteditable="true"]');
+  return target.matches?.('input,textarea,select,[contenteditable="true"]');
 }
 
 document.addEventListener('keydown', (event) => {
@@ -2258,84 +1380,42 @@ document.addEventListener('keydown', (event) => {
   } else if (modifier && event.key.toLowerCase() === 'y') {
     event.preventDefault();
     restoreHistory(historyIndex + 1);
-  } else if (modifier && event.key.toLowerCase() === 'a' && byId('canvas').contains(document.activeElement)) {
-    event.preventDefault();
-    selectedIds = new Set(draft.nodes.map((node) => node.id));
-    selectedId = [...selectedIds].at(-1) || null;
-    updateSelection();
   } else if ((event.key === 'Delete' || event.key === 'Backspace') && selectedEdgeId) {
     event.preventDefault();
     deleteEdge(selectedEdgeId);
-  } else if ((event.key === 'Delete' || event.key === 'Backspace') && selectedIds.size) {
-    event.preventDefault();
-    deleteSelectedNode();
   }
 });
 document.addEventListener('keyup', (event) => {
   if (event.code === 'Space') spacePressed = false;
 });
-window.addEventListener('blur', () => { spacePressed = false; });
 
-byId('copy').onclick = async () => {
-  try {
-    const handoff = await api('/api/handoff?audience=developer');
-    await navigator.clipboard.writeText(handoff.brief);
-    notify('Redacted developer brief copied.');
-  } catch (error) {
-    notify(error.message);
-  }
+byId('review').onclick = () => {
+  if (byId('review').disabled) return;
+  byId('confirm').showModal();
 };
-
-byId('download').onclick = async () => {
-  try {
-    const handoff = await api('/api/handoff?audience=agent');
-    const blob = new Blob([JSON.stringify(handoff.bundle, null, 2)], { type: 'application/json' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `${handoff.bundle.runId}.ael-handoff.json`;
-    link.click();
-    URL.revokeObjectURL(link.href);
-    notify('Integrity-bound handoff exported.');
-  } catch (error) {
-    notify(error.message);
-  }
-};
-
-byId('record-decision').onclick = async () => {
-  if (!catalog.live) return notify('Start a workflow run before recording a decision.');
-  try {
-    await api('/api/decision', {
-      method: 'POST',
-      body: JSON.stringify({
-        runId: catalog.live.run.runId,
-        summary: byId('decision-summary').value,
-        rationale: byId('decision-rationale').value,
-        consequences: []
-      })
-    });
-    byId('decision-summary').value = '';
-    byId('decision-rationale').value = '';
-    notify('Redacted decision recorded for handoff.');
-  } catch (error) {
-    notify(error.message);
-  }
-};
-
-byId('review').onclick = () => byId('confirm').showModal();
-byId('cancel').onclick = () => byId('confirm').close();
 byId('install').onclick = async () => {
   try {
+    const recipe = authoringRecipe();
+    const exists = catalog.recipes.some((item) => item.id === recipe.id && item.source !== 'builtin');
+    if (source === 'builtin') {
+      recipe.id = `${recipe.id}-local`;
+      recipe.version = 1;
+    } else if (exists) {
+      recipe.version = Number(recipe.version) + 1;
+    }
+    const replacing = catalog.recipes.some((item) => item.id === recipe.id && item.source !== 'builtin');
     await api('/api/install', {
       method: 'POST',
       body: JSON.stringify({
-        recipe: draft,
+        recipe,
         layout: layoutPayload(),
-        replace: catalog.recipes.some((recipe) => recipe.id === draft.id)
+        replace: replacing,
+        baseRecipeId: loadedRecipeId
       })
     });
     byId('confirm').close();
-    notify('Recipe and private canvas layout installed atomically.');
-    await refreshCatalog(draft.id);
+    notify('Wiring installed. The compiler accepted the graph.');
+    await refreshCatalog(recipe.id);
     await loadRecipe();
   } catch (error) {
     notify(error.message);
@@ -2349,93 +1429,13 @@ function notify(text) {
   setTimeout(() => { message.style.display = 'none'; }, 4000);
 }
 
-function openLoopDialog() {
-  const members = draft.nodes.filter((node) => selectedIds.has(node.id));
-  if (members.length < 2) return notify('Select at least two steps for a Loop Group.');
-  if ((draft.loopGroups || []).some((group) => group.nodeIds.some((id) => selectedIds.has(id)))) {
-    return notify('A step can only belong to one Loop Group.');
-  }
-  const options = members.map((node) =>
-    `<option value="${escapeHtml(node.id)}">${escapeHtml(displayName(node))}</option>`
-  ).join('');
-  for (const id of ['loop-entry', 'loop-decision', 'loop-repeat-target']) byId(id).innerHTML = options;
-  const incomingEntry = members.find((node) =>
-    draft.edges.some((edge) => edge.to === node.id && !selectedIds.has(edge.from))
-  ) || members[0];
-  const outgoing = draft.edges.find((edge) =>
-    selectedIds.has(edge.from) && !selectedIds.has(edge.to)
-  );
-  if (!outgoing) return notify('Connect the Loop decision step to its Continue step first.');
-  const decision = outgoing
-    ? members.find((node) => node.id === outgoing.from)
-    : members.find((node) => ['decision', 'judge', 'condition'].includes(node.type)) || members.at(-1);
-  const exitIds = new Set(draft.edges
-    .filter((edge) => selectedIds.has(edge.from) && !selectedIds.has(edge.to))
-    .map((edge) => edge.to));
-  const exitCandidates = draft.nodes.filter((node) => exitIds.has(node.id));
-  byId('loop-exit-target').innerHTML = exitCandidates.map((node) =>
-    `<option value="${escapeHtml(node.id)}">${escapeHtml(displayName(node))}</option>`
-  ).join('');
-  byId('loop-entry').value = incomingEntry.id;
-  byId('loop-repeat-target').value = incomingEntry.id;
-  byId('loop-decision').value = decision.id;
-  if (outgoing) byId('loop-exit-target').value = outgoing.to;
-  byId('loop-name').value = '';
-  byId('loop-dialog').showModal();
-}
-
-function createLoopGroupFromForm(event) {
-  event.preventDefault();
-  const display = byId('loop-name').value.trim();
-  const repeatOutcome = byId('loop-repeat-outcome').value.trim();
-  const exitOutcome = byId('loop-exit-outcome').value.trim();
-  if (repeatOutcome === exitOutcome) return notify('Repeat and Continue outcomes must be different.');
-  let id = slug(display || 'iteration-loop');
-  const occupied = new Set((draft.loopGroups || []).map((group) => group.id));
-  for (let suffix = 2; occupied.has(id); suffix += 1) id = `${slug(display || 'iteration-loop')}-${suffix}`;
-  const loopGroup = {
-    id,
-    displayName: display,
-    nodeIds: draft.nodes.filter((node) => selectedIds.has(node.id)).map((node) => node.id),
-    entryNodeId: byId('loop-entry').value,
-    decisionNodeId: byId('loop-decision').value,
-    repeatTargetId: byId('loop-repeat-target').value,
-    exitTargetId: byId('loop-exit-target').value,
-    maxIterations: Number(byId('loop-max').value),
-    repeatOutcome,
-    exitOutcome,
-    repeatLabel: byId('loop-repeat-label').value.trim(),
-    exitLabel: byId('loop-exit-label').value.trim()
-  };
-  draft.loopGroups.push(loopGroup);
-  captureHistory();
-  renderGraph();
-  validateDraft();
-  byId('loop-dialog').close();
-  notify(`Loop Group “${display}” created.`);
-}
-
 async function initialize() {
-  await refreshCatalog('default');
   byId('recipe').onchange = loadRecipe;
   bindCanvas();
-  byId('toggle-library').onclick = () => byId('library-panel').classList.toggle('open');
-  byId('close-library').onclick = () => byId('library-panel').classList.remove('open');
-  byId('show-workflows').onclick = () => showWorkspace('workflows');
+  byId('show-live').onclick = () => showWorkspace('live');
   byId('show-runs').onclick = () => showWorkspace('runs');
+  byId('show-wiring').onclick = () => showWorkspace('wiring');
   byId('run-search').oninput = loadRuns;
-  for (const id of ['run-status', 'run-mode', 'run-from', 'run-to']) byId(id).onchange = loadRuns;
-  byId('import-json').onclick = () => byId('import-dialog').showModal();
-  byId('export-json').onclick = exportWorkflowJson;
-  byId('preview-import').onclick = previewImport;
-  byId('import-file').onchange = async (event) => {
-    const [file] = event.currentTarget.files;
-    if (file) byId('import-source').value = await file.text();
-  };
-  byId('merge-import').onclick = () => applyImport('merge');
-  byId('replace-import').onclick = () => applyImport('replace');
-  byId('create-custom').onclick = () => byId('custom-dialog').showModal();
-  byId('custom-form').onsubmit = createCustomAgentFromForm;
   byId('open-goal').onclick = () => {
     renderGoalState();
     byId('goal-dialog').showModal();
@@ -2445,42 +1445,20 @@ async function initialize() {
   byId('review-goal').onclick = reviewGoal;
   byId('confirm-freeze').onclick = freezeGoalFromForm;
   byId('unfreeze-goal').onclick = unfreezeGoalFromForm;
-  byId('duplicate-selection').onclick = duplicateSelectedNode;
-  byId('delete-selection').onclick = deleteSelectedNode;
-  byId('create-loop-group').onclick = openLoopDialog;
-  byId('loop-form').onsubmit = createLoopGroupFromForm;
-  document.querySelectorAll('[data-close]').forEach((button) => {
+  byId('retry-live-connection').onclick = resync;
+  document.querySelectorAll?.('[data-close]')?.forEach?.((button) => {
     button.onclick = () => byId(button.dataset.close).close();
   });
-  document.querySelectorAll('.dialog-maximize').forEach((button) => {
+  document.querySelectorAll?.('.dialog-maximize')?.forEach?.((button) => {
     button.onclick = () => button.closest('dialog').classList.toggle('maximized');
   });
-  byId('workflow-settings').onclick = () => {
-    selectedId = null;
-    updateSelection();
-    renderRecipeDetails();
-    byId('inspector-panel').classList.add('open');
-  };
-  byId('close-inspector').onclick = () => byId('inspector-panel').classList.remove('open');
-  byId('toggle-execution').onclick = () => byId('execution-panel').classList.toggle('open');
-  byId('close-execution').onclick = () => byId('execution-panel').classList.remove('open');
-  byId('open-live-details').onclick = () => byId('execution-panel').classList.add('open');
-  byId('inspect-live-node').onclick = async (event) => {
-    const nodeId = event.currentTarget.dataset.nodeId;
-    if (!activeRunId || !nodeId) return;
-    showWorkspace('runs');
-    await loadRuns();
-    await loadRunDetail(activeRunId);
-    await loadNodeIo(activeRunId, nodeId);
-  };
-  byId('retry-live-connection').onclick = refreshLive;
   byId('goal-dialog').addEventListener('close', () => {
     onboardingDismissed = true;
   });
+  showWorkspace('live');
+  await refreshCatalog('default');
   await loadRecipe();
-  await refreshLive();
-  clearInterval(liveTimer);
-  liveTimer = setInterval(refreshLive, 1800);
+  startEventStream();
 }
 
 initialize().catch((error) => notify(error.message));

@@ -11,6 +11,7 @@
  */
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const { execSync, spawn } = require('child_process');
@@ -72,6 +73,12 @@ const guard = require('../lib/guard.js');
 const guardHooks = require('../lib/guard-hooks.js');
 const receipts = require('../lib/receipt.js');
 const { learn } = require('../lib/learn.js');
+const {
+  runBench,
+  compareBenches,
+  formatCompare,
+  parseBenchTimeoutSeconds
+} = require('../lib/bench.js');
 const {
   createContextPack,
   contextPackSummary
@@ -185,7 +192,7 @@ const {
   readHandoff,
   verifyHandoff
 } = require('../lib/handoff.js');
-const { createStudioServer } = require('../lib/studio-server.js');
+const { createStudioServer, readStudioUrl } = require('../lib/studio-server.js');
 
 const VERSION = require('../package.json').version;
 const CWD = process.cwd();
@@ -890,6 +897,7 @@ function statusJson() {
     status: 'NOT_INITIALIZED',
     packageVersion: VERSION,
     project: path.basename(CWD),
+    studioUrl: readStudioUrl(CWD),
     hostSkills: hostSkillStatus({ home: homeDir(), version: VERSION })
   };
   if (fs.existsSync(CONTEXT_DIR)) {
@@ -1441,7 +1449,8 @@ function handleRun() {
       hostSkills: (() => {
         const h = hostSkillStatus({ home: homeDir(), version: VERSION });
         return { stale: h.stale, staleFiles: h.staleFiles, installedVersion: h.installedVersion, packageVersion: VERSION };
-      })()
+      })(),
+      studioUrl: readStudioUrl(CWD)
     }, null, 2));
     return;
   }
@@ -3608,6 +3617,67 @@ function handleVerifyReceipt() {
   }
 }
 
+function handleBench() {
+  const json = process.argv.includes('--json');
+  const rest = process.argv.slice(3);
+  try {
+    if (rest[0] === 'compare') {
+      const ids = [];
+      for (let index = 1; index < rest.length; index += 1) {
+        const arg = rest[index];
+        if (arg === '--json') continue;
+        if (arg.startsWith('--')) {
+          throw Object.assign(new Error(`Unknown argument for bench compare: ${arg}`), { code: 'BENCH_USAGE' });
+        }
+        ids.push(arg);
+      }
+      if (ids.length !== 2) {
+        throw Object.assign(new Error('bench compare needs exactly two bench ids'), { code: 'BENCH_USAGE' });
+      }
+      const comparison = compareBenches(CWD, ids[0], ids[1]);
+      if (json) console.log(JSON.stringify(comparison));
+      else process.stdout.write(formatCompare(comparison));
+      return;
+    }
+    const modeArg = argValue('--mode');
+    const repeatArg = argValue('--repeat');
+    const timeoutArg = argValue('--timeout');
+    const result = runBench({
+      rootDir: CWD,
+      home: homeDir(),
+      realHome: os.homedir(),
+      host: argValue('--host'),
+      model: argValue('--model'),
+      bin: argValue('--bin'),
+      sandboxHome: process.argv.includes('--sandbox-home'),
+      hostArgs: repeatedArg('--host-arg'),
+      scenarioIds: repeatedArg('--scenario'),
+      repeat: repeatArg == null ? 1 : parsePositiveIntegerArg('--repeat', repeatArg),
+      timeoutMs: timeoutArg == null ? undefined : parseBenchTimeoutSeconds(timeoutArg),
+      mode: modeArg == null ? 'ASSISTED' : normalizeMode(modeArg),
+      args: rest,
+      env: process.env,
+      aelVersion: VERSION
+    });
+    const relativeDir = path.relative(CWD, result.directory).split(path.sep).join('/');
+    if (json) {
+      const { directory: _directory, ...body } = result;
+      console.log(JSON.stringify({ ...body, directory: relativeDir }));
+      return;
+    }
+    const rate = result.summary.complianceRate;
+    log.success(`✓ bench ${result.benchId} (${result.target.host}/${result.target.model})`);
+    console.log(`- Status: ${result.status}`);
+    console.log(`- Compliance: ${rate == null ? 'unknown' : `${Math.round(rate * 1000) / 10}%`}`);
+    console.log(`- Report: ${relativeDir}/report.md`);
+    if (result.instructionViolations.length) {
+      console.log(`- Top violation: ${result.instructionViolations[0].type} (×${result.instructionViolations[0].count})`);
+    }
+  } catch (err) {
+    stageJsonError(err, json, 'BENCH_FAILED');
+  }
+}
+
 function handleLearn() {
   const json = process.argv.includes('--json');
   try {
@@ -3667,14 +3737,14 @@ Usage:
 Commands:
   init         Bootstrap .ai-engineering-loop/ context from repository discovery
   status       Check the validity, readiness, and baseline freshness of context
-               --json  print context and host-skill freshness as JSON (no writes)
+               --json  print context, host-skill freshness, and studioUrl (tokenless Studio identity; browser session comes from ael studio)
   refresh      Reconcile drifted context against repository non-destructively
   run [task]   Start or resume a stateful engineering run and instruct the agent (never writes to home)
                --new  start a new run even when another run is active
                --mode report-only|assisted|unattended
                --recipe <id>  bind an immutable compiled workflow plan
                --tier T0|T1|T2 --tier-reason <text>  override the automatic tier (recorded)
-               --json  print runId, tier, recipe, and workflowSource
+               --json  print runId, tier, tier reasons, subagent count, recipe, workflowSource, and studioUrl (tokenless; browser session comes from ael studio)
                --abandon [--run <id>] --reason <text> --by <name> [--yes] [--json]
                       close a stale run as CANCELLED (kept on disk) and release current.json;
                       ASSISTED asks to confirm, UNATTENDED needs --yes from a human
@@ -3750,6 +3820,18 @@ Commands:
                --results <dir>  score host-generated JSON results
                --cases <dir>    use another compatible fixture catalog
                --json           print machine-readable metrics
+  bench        Compliance self-check for one chosen host and model
+               [--host <id> --model <id>] [--scenario <id>]... [--repeat <n>]
+               [--bin <path>] [--host-arg <arg>]... [--sandbox-home]
+               [--mode assisted|unattended|report-only] [--timeout <seconds>] [--json]
+               One target per invocation. Default mode is ASSISTED; the scenario file's
+               scripted approver answers Goal freeze, impact confirm, and deliver --approve.
+               --mode unattended is opt-in. Default timeout is 20 minutes.
+               The host keeps the real HOME so it can authenticate. AEL_HOME is a temp dir.
+               --bin and --sandbox-home give the host a temp HOME (tests use this).
+               A missing binary is UNAVAILABLE, not a model failure.
+               Progress lines go to stderr. Writes .ai-engineering-loop/bench/<benchId>/{results.json,report.md,hardening.md}
+               bench compare <benchIdA> <benchIdB> [--json]   read-only side-by-side table
   escalation   Compute the minimum Judge model tier from deterministic risk signals
                --run <id>  target a non-current run
                --json      print machine-readable reasons
@@ -3818,7 +3900,7 @@ Commands:
                show <id> [--json]
                validate <id> [--mode <mode>] [--json]
                explain | graph | simulate <id> [--mode <mode>] [--json]
-  studio       Open the localhost-only visual workflow editor
+  studio       Open the localhost-only live-run Studio
                [--port <0-65535>] [--no-open]
   handoff      Export or verify a redacted, integrity-bound knowledge transfer
                create [--run <id>] [--audience developer|agent|auditor]
@@ -3886,7 +3968,7 @@ if (['init', 'run', 'status', 'refresh'].includes(command)) {
   maybeAutoUpdate();
 }
 
-if (!['setup', 'hosts', 'sync-hosts', 'guard', '-h', '--help', '-v', '--version'].includes(command)) maybeSetupHint();
+if (!['setup', 'hosts', 'sync-hosts', 'guard', 'bench', '-h', '--help', '-v', '--version'].includes(command)) maybeSetupHint();
 if (command === 'status') maybeNewHostsNotice();
 
 switch (command) {
@@ -3946,6 +4028,9 @@ switch (command) {
     break;
   case 'eval':
     handleEval();
+    break;
+  case 'bench':
+    handleBench();
     break;
   case 'escalation':
     handleEscalation();

@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "t2-payment-idempotency",
+  "title": "T2 payment charge is idempotent",
+  "tier": "T2",
+  "mode": "ASSISTED",
+  "task": "Make the payment charge function idempotent on a repeated payment id",
+  "expectedTerminalState": "DELIVERED",
+  "expectedImpactPaths": ["src/payment.js"],
+  "verifyCommand": "node --version",
+  "files": [
+    { "path": "src/payment.js", "content": "const seen = new Set();\nmodule.exports = (id) => { seen.add(id); return { charged: true, id }; };\n" },
+    { "path": "package.json", "content": "{\"name\":\"bench-t2-payment\",\"private\":true}\n" }
+  ],
+  "solution": [
+    { "path": "src/payment.js", "content": "const seen = new Set();\nmodule.exports = (id) => {\n  if (seen.has(id)) return { charged: false, id, duplicate: true };\n  seen.add(id);\n  return { charged: true, id };\n};\n" }
+  ],
+  "goal": {
+    "objective": "A repeated payment id must not charge twice",
+    "acceptanceCriteria": [
+      {
+        "id": "AC-1",
+        "statement": "second call with the same id returns duplicate: true and charged: false",
+        "evidenceRequired": "node --version exit 0",
+        "failureCases": ["the same payment id charges twice"]
+      }
+    ]
+  },
+  "traps": [],
+  "approvals": { "freeze": true, "impact": "confirm", "deliver": true, "by": "scripted-approver" }
+}
