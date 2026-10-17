@@ -283,10 +283,11 @@ test('DA-05 duration describes only the latest completed attempt', () => {
 
 test('AC-11 first-run controls expose bounded and keyboard-accessible semantics', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'studio', 'index.html'), 'utf8');
-  assert.match(html, /id="goal-task"[^>]*required[^>]*aria-describedby="goal-task-help"/);
-  assert.match(html, /id="goal-task-help"/);
+  assert.match(html, /<label for="goal-task">/);
+  assert.match(html, /id="goal-task"[^>]*required/);
   assert.match(html, /id="start-agent"[^>]*aria-describedby="agent-handoff-instructions"/);
   assert.match(html, /id="cancel-active-run-conflict"/);
+  assert.match(html, /id="show-live"[^>]*aria-current="page"/);
 });
 
 test('AC-12 keeps the existing CLI and packaged Studio entry points', () => {
@@ -359,32 +360,34 @@ test('Stage 8 Run completion never carries a node scope', () => {
   assert.match(cli, /\.\.\.\(!runCompleted && lifecycleNode \? \{ nodeId: lifecycleNode\.id \} : \{\}\)/);
 });
 
-test('AC-14 Run Activity Dock exposes persisted Run and node focus without a fake node', () => {
+test('AC-14 live run view exposes persisted Run progress without a fake node', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'studio', 'index.html'), 'utf8');
   const app = fs.readFileSync(path.join(__dirname, '..', 'studio', 'app.js'), 'utf8');
-  assert.match(html, /id="run-activity-dock"[^>]*aria-live="polite"/);
-  assert.match(html, /id="inspect-live-node"/);
-  assert.match(app, /renderRunActivityDock\(live, active, runtimeNode, lifecycle\)/);
-  assert.match(app, /inspect\.dataset\.nodeId = active\?\.id \|\| ''/);
+  assert.match(html, /id="live-view"/);
+  assert.match(html, /id="run-journey"[^>]*aria-label="Run progress"/);
+  assert.match(html, /id="stage-rail"/);
+  assert.equal(html.includes('id="run-activity-dock"'), false);
+  assert.match(app, /function renderLive\(/);
   assert.match(app, /degradedSources\.join\(' and '\).*unavailable — journey may be incomplete/s);
+  assert.doesNotMatch(app, /fake node|placeholder-node/i);
 });
 
-test('AC-15 Node Inspector keeps human-readable tabs and honest running output', () => {
+test('AC-15 live run view keeps honest running output without a node inspector', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'studio', 'index.html'), 'utf8');
   const app = fs.readFileSync(path.join(__dirname, '..', 'studio', 'app.js'), 'utf8');
-  const css = fs.readFileSync(path.join(__dirname, '..', 'studio', 'styles.css'), 'utf8');
-  for (const label of ['Input', 'Live Activity', 'Output', 'Evidence', 'Timeline']) {
-    assert.ok(app.includes(`'${label}'`) || app.includes(`>${label}<`));
-  }
-  assert.match(app, /running \? 'In progress'/);
-  assert.match(app, /role="tablist"/);
-  assert.match(css, /\.io-tab\[aria-selected=true\]/);
+  assert.equal(html.includes('id="inspector"'), false);
+  assert.match(app, /function heartbeatAge/);
+  assert.match(app, /receipt pending/);
+  assert.match(app, /heartbeatAge\(presence\.lastHeartbeatAt\)/);
+  assert.match(html, /id="run-summary"/);
+  assert.match(html, /id="stage-rail"/);
 });
 
 test('AC-16 semantic node and connector states remain distinct without a passed glow', () => {
   const app = fs.readFileSync(path.join(__dirname, '..', 'studio', 'app.js'), 'utf8');
   const css = fs.readFileSync(path.join(__dirname, '..', 'studio', 'styles.css'), 'utf8');
+  assert.match(app, /const GRAPH_STATES = Object\.freeze\(\['active', 'passed', 'failed', 'skipped', 'waiting', 'idle'\]\)/);
   for (const state of ['active', 'passed', 'failed', 'skipped', 'waiting', 'idle']) {
-    assert.ok(app.includes(`'${state}'`), `missing semantic state ${state}`);
     assert.match(css, new RegExp(`edge-${state}`));
   }
   assert.match(css, /\.node\.passed\{border:1px solid/);

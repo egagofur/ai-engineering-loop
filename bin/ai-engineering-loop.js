@@ -192,7 +192,7 @@ const {
   readHandoff,
   verifyHandoff
 } = require('../lib/handoff.js');
-const { createStudioServer } = require('../lib/studio-server.js');
+const { createStudioServer, readStudioUrl } = require('../lib/studio-server.js');
 
 const VERSION = require('../package.json').version;
 const CWD = process.cwd();
@@ -897,6 +897,7 @@ function statusJson() {
     status: 'NOT_INITIALIZED',
     packageVersion: VERSION,
     project: path.basename(CWD),
+    studioUrl: readStudioUrl(CWD),
     hostSkills: hostSkillStatus({ home: homeDir(), version: VERSION })
   };
   if (fs.existsSync(CONTEXT_DIR)) {
@@ -1445,7 +1446,8 @@ function handleRun() {
       hostSkills: (() => {
         const h = hostSkillStatus({ home: homeDir(), version: VERSION });
         return { stale: h.stale, staleFiles: h.staleFiles, installedVersion: h.installedVersion, packageVersion: VERSION };
-      })()
+      })(),
+      studioUrl: readStudioUrl(CWD)
     }, null, 2));
     return;
   }
@@ -3625,14 +3627,14 @@ Usage:
 Commands:
   init         Bootstrap .ai-engineering-loop/ context from repository discovery
   status       Check the validity, readiness, and baseline freshness of context
-               --json  print context and host-skill freshness as JSON (no writes)
+               --json  print context, host-skill freshness, and studioUrl (tokenless Studio identity; browser session comes from ael studio)
   refresh      Reconcile drifted context against repository non-destructively
   run [task]   Start or resume a stateful engineering run and instruct the agent (never writes to home)
                --new  start a new run even when another run is active
                --mode report-only|assisted|unattended
                --recipe <id>  bind an immutable compiled workflow plan
                --tier T0|T1|T2 --tier-reason <text>  override the automatic tier (recorded)
-               --json  print runId, tier, tier reasons, and subagent count only
+               --json  print runId, tier, tier reasons, subagent count, and studioUrl (tokenless; browser session comes from ael studio)
                --abandon [--run <id>] --reason <text> --by <name> [--yes] [--json]
                       close a stale run as CANCELLED (kept on disk) and release current.json;
                       ASSISTED asks to confirm, UNATTENDED needs --yes from a human
@@ -3781,7 +3783,7 @@ Commands:
                show <id> [--json]
                validate <id> [--mode <mode>] [--json]
                explain | graph | simulate <id> [--mode <mode>] [--json]
-  studio       Open the localhost-only visual workflow editor
+  studio       Open the localhost-only live-run Studio
                [--port <0-65535>] [--no-open]
   handoff      Export or verify a redacted, integrity-bound knowledge transfer
                create [--run <id>] [--audience developer|agent|auditor]

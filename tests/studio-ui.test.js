@@ -120,9 +120,15 @@ function studioContext(base, token) {
     navigator: { clipboard: { writeText: async () => {} } },
     setTimeout,
     clearTimeout,
+    AbortController,
+    TextDecoder,
     setInterval: () => 1,
     clearInterval() {},
-    window: { addEventListener() {} }
+    requestAnimationFrame: (callback) => setTimeout(callback, 0),
+    window: {
+      addEventListener() {},
+      requestAnimationFrame: (callback) => setTimeout(callback, 0)
+    }
   });
   return { context, elements, listeners };
 }
@@ -135,9 +141,22 @@ async function waitFor(predicate, timeoutMs = 2000) {
   }
 }
 
+test('Studio default route is the live run view and keeps about 40% of the previous element ids', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'studio', 'index.html'), 'utf8');
+  const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
+  assert.ok(ids.includes('live-view'));
+  assert.ok(ids.includes('show-live'));
+  assert.ok(ids.length <= 54, `default route has ${ids.length} ids; 40% of 135 is 54`);
+  assert.equal(html.includes('id="library-panel"'), false);
+  assert.equal(html.includes('id="custom-dialog"'), false);
+  assert.equal(html.includes('id="import-dialog"'), false);
+  assert.equal(html.includes('id="create-loop-group"'), false);
+  assert.match(html, /id="show-live"[^>]*aria-current="page"/);
+});
+
 test('Studio canvas boots against its authenticated API and graph actions preserve Technical IDs', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-studio-ui-'));
-  const instance = createStudioServer(root, { token: 'ui-test-token' });
+  const instance = createStudioServer(root, { token: 'ui-test-token', watch: false, pollMs: 60_000 });
   await new Promise((resolve, reject) => {
     instance.server.once('error', reject);
     instance.server.listen(0, '127.0.0.1', resolve);
@@ -161,39 +180,26 @@ test('Studio canvas boots against its authenticated API and graph actions preser
     assert.equal(vm.runInContext('draft.edges.length', context), initialEdges);
 
     const originalId = vm.runInContext('draft.nodes[0].id', context);
-    vm.runInContext("applyDisplayName(draft.nodes[0], 'Readable Goal')", context);
+    const originalName = vm.runInContext('draft.nodes[0].displayName', context);
+    assert.equal(vm.runInContext("applyDisplayName(draft.nodes[0], 'Readable Goal')", context), false);
     assert.equal(vm.runInContext('draft.nodes[0].id', context), originalId);
-    assert.equal(vm.runInContext('draft.nodes[0].displayName', context), 'Readable Goal');
-    assert.equal(vm.runInContext("applyDisplayName(draft.nodes[0], '   ')", context), false);
-    assert.equal(vm.runInContext('draft.nodes[0].displayName', context), 'Readable Goal');
+    assert.equal(vm.runInContext('draft.nodes[0].displayName', context), originalName);
     assert.equal(vm.runInContext(
       "authoringRecipe().nodes.every((node) => !Object.hasOwn(node, 'dependsOn'))",
       context
     ), true);
-
-    const initialNodes = vm.runInContext('draft.nodes.length', context);
-    vm.runInContext(
-      "pendingConnectionSource = draft.nodes[0].id; addNode('condition', { x: 500, y: 300 })",
-      context
-    );
-    assert.equal(vm.runInContext('draft.nodes.length', context), initialNodes + 1);
+    assert.equal(vm.runInContext('typeof addNode', context), 'undefined');
+    assert.equal(vm.runInContext('typeof duplicateSelectedNode', context), 'undefined');
+    const nodeCount = vm.runInContext('draft.nodes.length', context);
+    vm.runInContext("addEdge('goal', 'verification')", context);
+    assert.equal(vm.runInContext('draft.nodes.length', context), nodeCount);
     assert.equal(vm.runInContext(
-      'draft.edges.some((edge) => edge.from === draft.nodes[0].id && edge.to === draft.nodes.at(-1).id)',
+      "draft.edges.some((edge) => edge.from === 'goal' && edge.to === 'verification')",
       context
     ), true);
-
-    const connectedPair = vm.runInContext('[draft.nodes[0].id, draft.nodes.at(-1).id]', context);
-    vm.runInContext(
-      'selectedIds = new Set([draft.nodes[0].id, draft.nodes.at(-1).id]); duplicateSelectedNode()',
-      context
-    );
-    assert.equal(vm.runInContext('selectedIds.size', context), 2);
-    assert.equal(vm.runInContext('draft.nodes.length', context), initialNodes + 3);
-    assert.equal(vm.runInContext(
-      'draft.edges.some((edge) => selectedIds.has(edge.from) && selectedIds.has(edge.to))',
-      context
-    ), true);
-    assert.equal(connectedPair.length, 2);
+    await waitFor(() => elements.get('review').disabled === false);
+    elements.get('review').onclick();
+    assert.equal(elements.get('confirm').open, true);
 
     vm.runInContext('showWorkspace("runs")', context);
     await waitFor(() => Boolean(elements.get('run-list').innerHTML));
@@ -215,8 +221,9 @@ test('Studio canvas boots against its authenticated API and graph actions preser
     await elements.get('continue-active-run').onclick();
     assert.equal(await continueChoice, null);
     assert.equal(vm.runInContext('selectedCheckoutRun', context), firstRun.run.runId);
+    await waitFor(() => elements.get('active-run-dialog').open === false);
 
-    vm.runInContext('activeRunId = null; catalog.live = null', context);
+    vm.runInContext('activeRunId = null; catalog.live = null; pinnedRunId = null', context);
     const replaceChoice = vm.runInContext('ensureStudioRun()', context);
     await waitFor(() => elements.get('active-run-dialog').open === true);
     elements.get('replace-active-run').onclick();
@@ -230,7 +237,7 @@ test('Studio canvas boots against its authenticated API and graph actions preser
 
 test('AC-1 empty Studio opens the simple task-first experience with advanced Goal fields optional', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-studio-ui-'));
-  const instance = createStudioServer(root, { token: 'ui-test-token' });
+  const instance = createStudioServer(root, { token: 'ui-test-token', watch: false, pollMs: 60_000 });
   await new Promise((resolve, reject) => {
     instance.server.once('error', reject);
     instance.server.listen(0, '127.0.0.1', resolve);
@@ -259,7 +266,7 @@ test('AC-1 empty Studio opens the simple task-first experience with advanced Goa
 
 test('AC-4 successful clipboard handoff shows persistent paste and copy-again guidance', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-studio-ui-'));
-  const instance = createStudioServer(root, { token: 'ui-test-token' });
+  const instance = createStudioServer(root, { token: 'ui-test-token', watch: false, pollMs: 60_000 });
   await new Promise((resolve, reject) => {
     instance.server.once('error', reject);
     instance.server.listen(0, '127.0.0.1', resolve);
@@ -288,7 +295,7 @@ test('AC-4 successful clipboard handoff shows persistent paste and copy-again gu
 
 test('AC-6 Goal review shows the exact failure table and integrity metadata before explicit freeze', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-studio-ui-'));
-  const instance = createStudioServer(root, { token: 'ui-test-token' });
+  const instance = createStudioServer(root, { token: 'ui-test-token', watch: false, pollMs: 60_000 });
   await new Promise((resolve, reject) => {
     instance.server.once('error', reject);
     instance.server.listen(0, '127.0.0.1', resolve);
@@ -322,7 +329,7 @@ test('AC-6 Goal review shows the exact failure table and integrity metadata befo
 
 test('AC-9 cancelling an active-Run conflict resolves without replacing or mutating the Run', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-studio-ui-'));
-  const instance = createStudioServer(root, { token: 'ui-test-token' });
+  const instance = createStudioServer(root, { token: 'ui-test-token', watch: false, pollMs: 60_000 });
   await new Promise((resolve, reject) => {
     instance.server.once('error', reject);
     instance.server.listen(0, '127.0.0.1', resolve);
@@ -359,7 +366,7 @@ test('AC-9 cancelling an active-Run conflict resolves without replacing or mutat
 
 test('AC-10 a reconnect failure keeps valid state and exposes a bounded manual retry', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-studio-ui-'));
-  const instance = createStudioServer(root, { token: 'ui-test-token' });
+  const instance = createStudioServer(root, { token: 'ui-test-token', watch: false, pollMs: 60_000 });
   await new Promise((resolve, reject) => {
     instance.server.once('error', reject);
     instance.server.listen(0, '127.0.0.1', resolve);
@@ -375,7 +382,7 @@ test('AC-10 a reconnect failure keeps valid state and exposes a bounded manual r
     await waitFor(() => elements.get('integrity').textContent.startsWith('VALID'));
     const validDraftId = vm.runInContext('draft.id', context);
     context.fetch = async () => { throw new Error('offline'); };
-    await vm.runInContext('refreshLive()', context);
+    await vm.runInContext('resync()', context);
     assert.equal(elements.get('live-connection-state').hidden, false);
     assert.match(elements.get('live-connection-message').textContent, /connection lost/i);
     assert.equal(typeof elements.get('retry-live-connection').onclick, 'function');
@@ -387,7 +394,7 @@ test('AC-10 a reconnect failure keeps valid state and exposes a bounded manual r
 
 test('DA-02 failed initial live loading does not masquerade as an empty first-run Studio', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-studio-ui-'));
-  const instance = createStudioServer(root, { token: 'ui-test-token' });
+  const instance = createStudioServer(root, { token: 'ui-test-token', watch: false, pollMs: 60_000 });
   await new Promise((resolve, reject) => {
     instance.server.once('error', reject);
     instance.server.listen(0, '127.0.0.1', resolve);
@@ -397,7 +404,7 @@ test('DA-02 failed initial live loading does not masquerade as an empty first-ru
     const { context, elements } = studioContext(base, instance.token);
     const authenticatedFetch = context.fetch;
     context.fetch = (url, options) => (
-      String(url) === '/api/live'
+      String(url).includes('/api/events')
         ? Promise.reject(new Error('offline'))
         : authenticatedFetch(url, options)
     );
@@ -419,7 +426,7 @@ test('DA-02 failed initial live loading does not masquerade as an empty first-ru
 
 test('DA-06 malformed journey presentation degrades to a safe pending status', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-studio-ui-'));
-  const instance = createStudioServer(root, { token: 'ui-test-token' });
+  const instance = createStudioServer(root, { token: 'ui-test-token', watch: false, pollMs: 60_000 });
   await new Promise((resolve, reject) => {
     instance.server.once('error', reject);
     instance.server.listen(0, '127.0.0.1', resolve);
@@ -446,6 +453,94 @@ test('DA-06 malformed journey presentation degrades to a safe pending status', a
     }; renderLive()`, context);
     assert.doesNotMatch(elements.get('run-journey').innerHTML, /onmouseover|<unsafe>/);
     assert.match(elements.get('run-journey').innerHTML, /class="unknown"/);
+  } finally {
+    await new Promise((resolve) => instance.server.close(resolve));
+  }
+});
+
+test('Studio reconnects to /api/events with after=lastSeq when the stream ends', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-studio-ui-'));
+  const instance = createStudioServer(root, { token: 'ui-test-token', watch: false, pollMs: 60_000 });
+  await new Promise((resolve, reject) => {
+    instance.server.once('error', reject);
+    instance.server.listen(0, '127.0.0.1', resolve);
+  });
+  try {
+    const base = `http://127.0.0.1:${instance.server.address().port}`;
+    const { context, elements } = studioContext(base, instance.token);
+    const realFetch = context.fetch;
+    const realSetTimeout = context.setTimeout;
+    const scheduled = [];
+    const eventCalls = [];
+    const lastSeq = 12;
+    context.setTimeout = (fn, ms, ...rest) => {
+      if (ms === 500 || ms === 1000 || ms === 2000 || ms === 5000) {
+        scheduled.push({ fn, ms });
+        return 0;
+      }
+      return realSetTimeout(fn, ms, ...rest);
+    };
+    context.fetch = async (url, options = {}) => {
+      const href = String(url);
+      if (href.includes('/api/events')) {
+        eventCalls.push({ href, headers: options.headers || {} });
+        const hello = `event: hello\ndata: ${JSON.stringify({
+          type: 'hello',
+          seq: lastSeq,
+          mode: 'poll',
+          root: '/tmp/studio',
+          currentRunId: null
+        })}\n\n`;
+        const encoded = Buffer.from(hello, 'utf8');
+        const hang = eventCalls.length > 1;
+        let sent = false;
+        return {
+          ok: true,
+          body: {
+            getReader() {
+              return {
+                async read() {
+                  if (!sent) {
+                    sent = true;
+                    return { done: false, value: encoded };
+                  }
+                  if (hang) {
+                    await new Promise((_, reject) => {
+                      const abort = options.signal;
+                      const fail = () => {
+                        const error = new Error('aborted');
+                        error.name = 'AbortError';
+                        reject(error);
+                      };
+                      if (!abort) return;
+                      if (abort.aborted) fail();
+                      else abort.addEventListener('abort', fail);
+                    });
+                  }
+                  return { done: true, value: undefined };
+                }
+              };
+            }
+          }
+        };
+      }
+      return realFetch(url, options);
+    };
+    vm.runInContext(
+      fs.readFileSync(path.join(__dirname, '..', 'studio', 'app.js'), 'utf8'),
+      context,
+      { filename: 'studio/app.js' }
+    );
+    await waitFor(() => elements.get('integrity').textContent.startsWith('VALID'));
+    await waitFor(() => scheduled.some((item) => item.ms === 500));
+    assert.equal(eventCalls.length, 1);
+    scheduled[0].fn();
+    await waitFor(() => eventCalls.length >= 2);
+    assert.match(eventCalls[1].href, /after=12/);
+    const resumeHeaders = eventCalls[1].headers;
+    assert.equal(String(resumeHeaders['Last-Event-ID'] || resumeHeaders['last-event-id']), '12');
+    assert.equal(typeof elements.get('retry-live-connection').onclick, 'function');
+    vm.runInContext('eventAbort && eventAbort.abort(); clearReconnectTimer()', context);
   } finally {
     await new Promise((resolve) => instance.server.close(resolve));
   }
