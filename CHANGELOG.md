@@ -4,7 +4,12 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
-_No changes yet._
+### Personal workflow onboarding (#81)
+
+- **Added:** `workflow interview|propose|accept|reject|suggest`. With no concrete task the skill offers to build a personal recipe, start a task, or show status, and does not create a Run. Interview questions come pre-filled from the last 20 run summaries (80% majority). `propose` compiles a candidate through the recipe safety backbone. `accept --by` is the only way to install it.
+- **Added:** the personal recipe, its version history, proposals, and `workflow-history.jsonl` live under the AEL home (`AEL_HOME` or `~/.ai-engineering-loop`), never in a repository. Each terminal Run appends a summary of counts and a repo hash. Suggestions are proposals only; a rejected proposal stays quiet until new evidence outgrows the old one.
+- **Changed:** `run` resolves project-required (`workflow.requiredRecipe`, `workflow.allowPersonal: false`, required project nodes, `adapter.md`) then the personal recipe, then the built-in default (`audit` for REPORT_ONLY). `run --json` reports `workflowSource`. `run --recipe` cannot bypass the project-required layer. UNATTENDED cannot accept (`HUMAN_REQUIRED`).
+- **Docs:** `core/personal-workflow.md` (`docs personal-workflow`).
 
 ## 1.17.0 - 2026-10-17
 
