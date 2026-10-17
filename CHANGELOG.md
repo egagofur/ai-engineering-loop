@@ -4,6 +4,16 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+_No changes yet._
+
+## 2.0.0 - 2026-10-17
+
+### Breaking changes
+
+- Studio no longer creates or edits nodes (#80). Wiring mode only edits edges between existing nodes. `POST /api/import/preview` and `POST /api/import/apply` return 404. Author recipes as files plus `recipe create|clone|install`.
+- `GET /api/runs/:id/lifecycle/stream` returns 404; subscribe to `GET /api/events` instead (#80).
+- **Upgrade:** run `ai-engineering-loop sync-hosts` once after upgrading so installed host skills match 2.0.0.
+
 ### Personal workflow onboarding (#81)
 
 - **Added:** `workflow interview|propose|accept|reject|suggest`. With no concrete task the skill offers to build a personal recipe, start a task, or show status, and does not create a Run. Interview questions come pre-filled from the last 20 run summaries (80% majority). `propose` compiles a candidate through the recipe safety backbone. `accept --by` is the only way to install it.
