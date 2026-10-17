@@ -599,7 +599,7 @@ test('AC7 violations link to skill-src headings, rank by frequency, and hardenin
   assert.ok(golden.includes('hard-gate'));
 });
 
-test('AC8 scenarios cover T0 T1 T2 and traps, and eval still validates the 24-case catalog', () => {
+test('AC8 scenarios cover T0 T1 T2 and traps, and eval still validates the 25-case catalog', () => {
   const fixtures = loadBenchScenarios();
   const summary = catalogSummary(fixtures);
   assert.ok(fixtures.length >= 6 && fixtures.length <= 8, `expected 6-8 scenarios, got ${fixtures.length}`);
@@ -611,7 +611,7 @@ test('AC8 scenarios cover T0 T1 T2 and traps, and eval still validates the 24-ca
   assert.ok(kinds.has('missing-evidence'));
   assert.ok(summary.traps >= 2);
   const cases = loadEvaluationCases();
-  assert.strictEqual(cases.length, 24);
+  assert.strictEqual(cases.length, 25);
   assert.ok(!cases.some((item) => String(item.id || '').startsWith('trap-')));
   const evaluated = spawnSync(process.execPath, [CLI, 'eval', '--json'], {
     cwd: ROOT,
@@ -620,7 +620,7 @@ test('AC8 scenarios cover T0 T1 T2 and traps, and eval still validates the 24-ca
   });
   assert.strictEqual(evaluated.status, 0, evaluated.stdout + evaluated.stderr);
   const body = JSON.parse(evaluated.stdout);
-  assert.strictEqual(body.total, 24);
+  assert.strictEqual(body.total, 25);
   assert.strictEqual(body.mode, 'catalog');
 });
 

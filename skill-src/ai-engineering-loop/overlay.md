@@ -1,6 +1,6 @@
 @@ outputs: .claude/skills/ai-engineering-loop, .agents/skills/ai-engineering-loop
 @@ refLine: Stage details: `references/loop-*.md` beside this file (also via `docs`), read only on entering that stage.
-@@ reportIntro: When a subagent actually returned its own result (Grok: its own `subagent_id`):
+@@ reportIntro: When a subagent returned its own result (Grok: its own `subagent_id`):
 @@ frontmatter
 ---
 name: ai-engineering-loop

@@ -93,7 +93,17 @@ def resolve_config_key(key: str, context: ExecutionContext) -> Any:
 
 ---
 
-## 4. Conflict Resolution & Escalation Rules
+## 4. Recipe resolution
+
+Recipe choice is a separate lookup from task-scoped keys. Immutable safety still wins.
+
+1. **Project-required.** The engineering backbone, `adapter.md` required nodes, project recipe nodes marked `required`, and `workflow.requiredRecipe` or `workflow.allowPersonal: false` in `.ai-engineering-loop/runtime-policy.json`. An explicit `run --recipe` cannot bypass this layer.
+2. **User personal workflow.** `~/.ai-engineering-loop/workflow/personal.json` (or `$AEL_HOME/.ai-engineering-loop/workflow/personal.json`) when the project does not pin a recipe. Project-required nodes are merged in and the result must pass the recipe compiler.
+3. **Built-in default.** `recipes/default.json`, or `audit` for `REPORT_ONLY`.
+
+`run --json` reports `workflowSource` as `project-required`, `personal`, or `builtin`. Details: [Personal workflow](./personal-workflow.md).
+
+## 5. Conflict Resolution & Escalation Rules
 
 1. **Refinement vs Contradiction**:
    - *Refinement (Allowed)*: Profile says "Run unit tests"; Repo config specifies `pnpm run test:unit`. $\rightarrow$ Valid refinement.

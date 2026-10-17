@@ -13,6 +13,8 @@ Recipes are loaded from two locations:
 
 Built-in IDs are reserved and cannot be shadowed by a project file. Recipe IDs and node IDs use lowercase letters, numbers, and hyphens. Recipe files and the project recipe directory must be regular filesystem entries; symlinks are rejected.
 
+A per-user default is not a project file. `run` resolves a pinned project recipe, then the user's personal recipe, then these built-ins. See [Personal workflow](./personal-workflow.md).
+
 The package includes:
 
 | Recipe | Purpose | Modes |

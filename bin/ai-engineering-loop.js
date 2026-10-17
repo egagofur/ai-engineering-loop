@@ -1367,21 +1367,20 @@ function handleRun() {
     let mode = modeArg ? normalizeMode(modeArg) : (startsNewRun ? policy.defaultMode : null);
     let workflow = null;
     let requestedRunId = null;
-    const selectedRecipeId = recipeArg || (
-      startsNewRun
-        ? (mode === RUN_MODES.REPORT_ONLY ? 'audit' : 'default')
-        : null
-    );
-    if (selectedRecipeId) {
-      const { recipe } = loadRecipe(CWD, selectedRecipeId);
+    if (startsNewRun || recipeArg) {
+      const resolved = require('../lib/personal-workflow.js').resolveRunWorkflow(CWD, {
+        mode: mode || (current ? current.mode : null),
+        recipeId: recipeArg || null
+      });
+      const recipe = resolved.recipe;
       if (!mode && current) mode = current.mode;
-      if (startsNewRun && !modeArg && !recipe.compatibleModes.includes(mode)) {
+      if (startsNewRun && !modeArg && mode && !recipe.compatibleModes.includes(mode)) {
         if (recipe.compatibleModes.length !== 1) {
           throw new Error(`Recipe ${recipe.id} requires an explicit compatible --mode.`);
         }
         mode = recipe.compatibleModes[0];
       }
-      const plan = compileRecipe(recipe, { mode });
+      const plan = compileRecipe(recipe, { mode: mode || recipe.compatibleModes[0] });
       if (startsNewRun) {
         requestedRunId = newRunId();
         workflow = createWorkflowBundle(plan, requestedRunId, {
@@ -1393,6 +1392,8 @@ function handleRun() {
             task
           }
         });
+        workflow.workflowSource = resolved.source;
+        if (resolved.reason) workflow.workflowReason = resolved.reason;
       } else {
         workflow = { plan };
       }
@@ -1435,6 +1436,8 @@ function handleRun() {
       tierReasons: run.tier ? run.tier.reasons : [],
       subagents: run.tier ? { T0: 0, T1: 1, T2: 2 }[run.tier.current] : 2,
       recipe: run.workflow ? run.workflow.recipeId : null,
+      workflowSource: run.workflow ? (run.workflow.workflowSource || null) : null,
+      ...(run.workflow && run.workflow.workflowReason ? { workflowReason: run.workflow.workflowReason } : {}),
       budget: (() => {
         try {
           const b = budgetStatus(CWD, { runId: run.runId });
@@ -1464,6 +1467,10 @@ function handleRun() {
       .filter((node) => runtime.state.nodes[node.id].status === 'READY')
       .map((node) => node.id);
     console.log(`- Recipe: ${runResult.run.workflow.recipeId} (${runResult.run.workflow.graphHash})`);
+    if (runResult.run.workflow.workflowSource) {
+      const why = runResult.run.workflow.workflowReason ? ` (${runResult.run.workflow.workflowReason})` : '';
+      console.log(`- Workflow source: ${runResult.run.workflow.workflowSource}${why}`);
+    }
     console.log(`- Ready nodes: ${ready.join(', ') || 'none'}`);
   }
 
@@ -2651,6 +2658,109 @@ function handleMigrate() {
   }
 }
 
+function workflowFail(err, json) {
+  if (json) {
+    console.log(JSON.stringify({
+      ok: false,
+      code: err.code || 'PERSONAL_WORKFLOW_FAILED',
+      error: err.message,
+      details: err.details || []
+    }));
+  } else {
+    log.error(err.message);
+    for (const detail of err.details || []) console.error(`- ${detail}`);
+  }
+  process.exit(1);
+}
+
+function readAnswersFile(file) {
+  if (!file) {
+    throw Object.assign(new Error('workflow propose requires --answers <file>'), { code: 'ANSWERS_REQUIRED' });
+  }
+  const absolute = path.resolve(CWD, file);
+  let stat;
+  try {
+    stat = fs.lstatSync(absolute);
+  } catch {
+    throw Object.assign(new Error(`Answers file not found: ${file}`), { code: 'ANSWERS_NOT_FOUND' });
+  }
+  if (stat.isSymbolicLink() || !stat.isFile()) {
+    throw Object.assign(new Error('Answers file must be a regular file'), { code: 'UNSAFE_ANSWERS_PATH' });
+  }
+  try {
+    return JSON.parse(fs.readFileSync(absolute, 'utf8'));
+  } catch (cause) {
+    throw Object.assign(new Error(`Answers JSON is invalid: ${cause.message}`), { code: 'INVALID_ANSWERS' });
+  }
+}
+
+function workflowMode() {
+  const explicit = argValue('--mode');
+  if (explicit) return explicit;
+  try {
+    const current = getCurrentRun(CWD);
+    if (current && !TERMINAL_STATES.has(current.state)) return current.mode;
+  } catch {
+    // No run is not a mode.
+  }
+  return null;
+}
+
+function handleWorkflow() {
+  const action = process.argv[3] || '';
+  const json = process.argv.includes('--json');
+  const personal = require('../lib/personal-workflow.js');
+  try {
+    if (action === 'interview') {
+      const result = personal.interviewQuestions();
+      console.log(json ? JSON.stringify({ ok: true, ...result }) : JSON.stringify({ ok: true, ...result }, null, 2));
+      return;
+    }
+    if (action === 'propose') {
+      const result = personal.proposeFromAnswers(readAnswersFile(argValue('--answers')), { rootDir: CWD });
+      console.log(JSON.stringify({
+        ok: true,
+        id: result.proposal.id,
+        status: result.proposal.status,
+        valid: true,
+        diff: result.diff
+      }));
+      return;
+    }
+    if (action === 'accept' || action === 'reject') {
+      const proposalId = argValue('--proposal');
+      if (!proposalId) throw Object.assign(new Error(`workflow ${action} requires --proposal <id>`), { code: 'PROPOSAL_REQUIRED' });
+      const result = action === 'accept'
+        ? personal.acceptProposal({ proposalId, by: argValue('--by'), mode: workflowMode() })
+        : personal.rejectProposal({ proposalId, by: argValue('--by'), mode: workflowMode() });
+      console.log(JSON.stringify({
+        ok: true,
+        id: result.proposal.id,
+        status: result.proposal.status,
+        ...(result.recipe ? { recipeId: result.recipe.id, version: result.recipe.version, replacedVersion: result.replacedVersion } : {})
+      }));
+      return;
+    }
+    if (action === 'suggest') {
+      const result = personal.suggestProposals({ rootDir: CWD });
+      console.log(JSON.stringify({
+        ok: true,
+        historyCount: result.historyCount,
+        proposals: result.proposals.map((item) => ({
+          id: item.id,
+          kind: item.kind,
+          status: item.status,
+          evidence: item.evidence
+        }))
+      }));
+      return;
+    }
+    throw Object.assign(new Error('Unknown workflow action. Use interview|propose|accept|reject|suggest'), { code: 'UNKNOWN_WORKFLOW_ACTION' });
+  } catch (err) {
+    workflowFail(err, json);
+  }
+}
+
 function handleRecipe() {
   const action = process.argv[3] || 'list';
   const id = process.argv[4];
@@ -3634,7 +3744,7 @@ Commands:
                --mode report-only|assisted|unattended
                --recipe <id>  bind an immutable compiled workflow plan
                --tier T0|T1|T2 --tier-reason <text>  override the automatic tier (recorded)
-               --json  print runId, tier, tier reasons, subagent count, and studioUrl (tokenless; browser session comes from ael studio)
+               --json  print runId, tier, tier reasons, subagent count, recipe, workflowSource, and studioUrl (tokenless; browser session comes from ael studio)
                --abandon [--run <id>] --reason <text> --by <name> [--yes] [--json]
                       close a stale run as CANCELLED (kept on disk) and release current.json;
                       ASSISTED asks to confirm, UNATTENDED needs --yes from a human
@@ -3706,7 +3816,7 @@ Commands:
                --limit <n>       bound query/related result count
                --include-ignored include CSS, generated, lockfile, and .aelcontextignore paths
                --json      print only pack metadata; never print packed content
-  eval         Validate the 24-case production evaluation catalog
+  eval         Validate the 25-case production evaluation catalog
                --results <dir>  score host-generated JSON results
                --cases <dir>    use another compatible fixture catalog
                --json           print machine-readable metrics
@@ -3772,6 +3882,13 @@ Commands:
   projects     Registry of local projects with .ai-engineering-loop/ (~/.ai-engineering-loop/projects.json)
                list|add [dir]|remove [dir] [--json]
                scan --root <dir> [--depth 4]
+  workflow     Build or adapt the per-user personal recipe (writes only under the AEL home)
+               interview [--json]
+               propose --answers <file> [--json]
+               accept --proposal <id> --by <name> [--json]
+               reject --proposal <id> --by <name> [--json]
+               suggest [--json]
+               UNATTENDED cannot accept or reject (HUMAN_REQUIRED)
   recipe       Inspect and compile declarative workflow recipes (does not execute nodes)
                list [--json]
                catalog [--json]
@@ -3953,6 +4070,9 @@ switch (command) {
     break;
   case 'migrate':
     handleMigrate();
+    break;
+  case 'workflow':
+    handleWorkflow();
     break;
   case 'recipe':
     handleRecipe();

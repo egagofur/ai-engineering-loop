@@ -4,10 +4,18 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+### Personal workflow onboarding (#81)
+
+- **Added:** `workflow interview|propose|accept|reject|suggest`. With no concrete task the skill offers to build a personal recipe, start a task, or show status, and does not create a Run. Interview questions come pre-filled from the last 20 run summaries (80% majority). `propose` compiles a candidate through the recipe safety backbone. `accept --by` is the only way to install it.
+- **Added:** the personal recipe, its version history, proposals, and `workflow-history.jsonl` live under the AEL home (`AEL_HOME` or `~/.ai-engineering-loop`), never in a repository. Each terminal Run appends a summary of counts and a repo hash. Suggestions are proposals only; a rejected proposal stays quiet until new evidence outgrows the old one.
+- **Changed:** `run` resolves project-required (`workflow.requiredRecipe`, `workflow.allowPersonal: false`, required project nodes, `adapter.md`) then the personal recipe, then the built-in default (`audit` for REPORT_ONLY). `run --json` reports `workflowSource`. `run --recipe` cannot bypass the project-required layer. UNATTENDED cannot accept (`HUMAN_REQUIRED`).
+- **Added:** eval case `25-no-task-onboarding`; the always-loaded skill gains a no-task line (offer `workflow interview` or a task; no Run), with details in `loop-commands`.
+- **Docs:** `core/personal-workflow.md` (`docs personal-workflow`).
+
 ### `ael bench`: compliance self-check for one host and model (#79)
 
 - **Added:** `bench [--host <id> --model <id>] [--scenario <id>]... [--repeat <n>] [--bin <path>] [--host-arg <arg>]... [--sandbox-home] [--mode assisted|unattended|report-only] [--timeout <seconds>] [--json]`. One target per invocation. Each scenario runs in a fresh temp repo. `AEL_HOME` is a temp directory. The host process keeps the real `HOME` so it can authenticate; `--bin` and `--sandbox-home` use a temp `HOME` instead. Skills are installed in the temp repo (the directories that host reads), and `node_modules/.bin/ai-engineering-loop` shims this checkout so `npx` does not download the published package. Default timeout is 20 minutes. A missing binary is `UNAVAILABLE`, not a model failure. Default mode is ASSISTED; the scenario's scripted approver answers Goal freeze, impact confirm, and `deliver --approve`. `--mode unattended` is opt-in. Progress lines go to stderr.
-- **Added:** `evals/scenarios/` (T0 docs, T1 features, T2 auth/payment, and traps) and `schemas/bench-scenario.schema.json`. The 24-case `evals/cases` judgment suite is unchanged.
+- **Added:** `evals/scenarios/` (T0 docs, T1 features, T2 auth/payment, and traps) and `schemas/bench-scenario.schema.json`. The `evals/cases` judgment suite is unchanged by the bench.
 - **Added:** scoring from Run artifacts only (`state.json`, `guard-events.json`, `impact-drift.json`, `verifyReceipt()`, the usage ledger, the harness clock). Tokens are parsed from host JSON when the host provides it (Claude Code and Codex). Grok CLI `-p` is plain text, so its tokens stay unknown, never `0`. `budget record --unavailable` is the same unknown. Bench-only host templates: Grok `--no-auto-update --always-approve`, Claude `--dangerously-skip-permissions`, Codex `--full-auto`. `--host-arg` appends extra flags. `--bin` overrides the binary.
 - **Added:** `.ai-engineering-loop/bench/<benchId>/{results.json,report.md,hardening.md}` (`schemas/bench-result.schema.json`). The report is per-gate compliance, guard violations, scope drift, receipt validity, and p50/p90 time and tokens for that single target. `hardening.md` maps each violation to a `skill-src/` instruction, ranked by frequency, with a text-tightening or hard-gate suggestion. Suggestions are not applied. There is no routing or model recommendation.
 - **Added:** `bench compare <benchIdA> <benchIdB>` prints a read-only side-by-side table.

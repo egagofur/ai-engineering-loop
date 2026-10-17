@@ -7,6 +7,10 @@
 
 - Never run `update apply|auto|rollback|policy` unless the user asks; the CLI applies updates itself under the user's policy (`docs runtime-safety`).
 
+## Personal workflow
+
+No task (`ael`, "hi", "what can you do"): offer, numbered, 1) build my workflow, 2) start a task, 3) show status. Do not create a Run or edit files. For 1: `workflow interview --json`, show the pre-filled answers with their evidence, let the user confirm or change them, write the answers to a temp file, then `workflow propose --answers <file> --json` and show the diff. Install only after the user says yes: `workflow accept --proposal <id> --by <name>`. At a no-task start or at Deliver, show at most one pending `workflow suggest` proposal. Never accept for the user. The safety backbone cannot be removed (`docs personal-workflow`).
+
 ## Studio
 
 Stage commands (`run`, `goal`, `gate`, `verify`, `review-pack`, `deliver`, `node start|activity|complete`) stream into an open Studio; `status --json` reports `studioUrl`. Emit `npx ai-engineering-loop activity heartbeat --run <runId> --phase <phase> --message <short factual summary>` only during long manual work, never before every stage. Before asking the human, persist the question with `npx ai-engineering-loop interaction question --run <runId> --id <id> --message <text>` so it appears once in Studio.
