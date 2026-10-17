@@ -4,6 +4,14 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+### Hook-enforced runtime guardrails: scope freeze and destructive commands (#59)
+
+- **Added:** optional `scope: { allowedPaths, deniedPaths }` (repository-relative globs) in the Goal contract, frozen with the Goal and validated by the Goal gate. Absent = no path enforcement.
+- **Added:** `guard check --tool edit|bash` returns `allow | warn | block` with rule ids and reasons. Edits are checked against the Goal scope plus the confirmed impact map (#71) and `deniedPaths`; Bash is checked for `rm -rf`, `DROP TABLE`/`TRUNCATE`, `git push --force`, `git reset --hard` and `git clean -fd`. ASSISTED warns, UNATTENDED and REPORT_ONLY block (exit 2). Every warn/block is written to `RUN_DIR/guard-events.json`, and `gate` prints the counts (`guard` in `--json`).
+- **Added:** `hooks install | uninstall | status` writes an idempotent Claude Code `PreToolUse` hook to the project's `.claude/settings.json` (`guard check --hook claude` answers `deny` / `ask`). Other hooks in the file are kept.
+- **Added:** the host registry marks guardrails as **enforced** (native hooks: Claude Code) or **advisory**; shown in `hosts list`, `hosts doctor` and the README host table.
+- **Docs:** `core/runtime-safety.md` "Runtime guardrails"; the Maker reference tells advisory hosts to call `guard check` themselves.
+
 ### Blast-radius impact map before Stage 3 (#71)
 
 - **Added:** `schemas/impact-map.schema.json` and `lib/impact-map.js`. Freezing the Goal (`goal freeze` or `gate goal`) writes a DRAFT `RUN_DIR/impact-map.json` listing files, modules, endpoints, DB tables/migrations and tests, each with a confidence and a reason. It is a deterministic scan of the repository index against keywords from the frozen Goal (English and Indonesian filler words dropped), so it works on every adapter. `gate maker` writes it too if it is still missing.

@@ -63,8 +63,9 @@ test('hosts list and hosts doctor print the tier', () => {
   const report = hostsDoctor({ home, selection, plan: [] });
   assert.strictEqual(report.hosts.find((row) => row.id === 'claude').certification, 'experimental');
   const text = formatHostsDoctor(report);
-  assert.match(text, /claude\s+\[experimental\]/);
-  assert.match(text, /goose\s+\[instruction-only\]/);
+  assert.match(text, /claude\s+\[experimental, guardrails enforced\]/);
+  assert.match(text, /goose\s+\[instruction-only, guardrails advisory\]/);
+  assert.match(formatHostsList(rows, selection), /goose\s+yes\s+instruction-only\s+advisory/);
 });
 
 test('AGENTS.md digest is generated, at most 2 KB, and served by docs AGENTS', () => {
