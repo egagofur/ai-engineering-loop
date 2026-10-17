@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/egagofur/ai-engineering-loop/schemas/bench-scenario.schema.json",
+  "title": "AI Engineering Loop Bench Scenario",
+  "type": "object",
+  "required": ["schemaVersion", "id", "title", "tier", "task", "expectedTerminalState", "files"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]+$" },
+    "title": { "type": "string", "minLength": 1 },
+    "tier": { "enum": ["T0", "T1", "T2"] },
+    "mode": { "enum": ["ASSISTED", "UNATTENDED", "REPORT_ONLY"] },
+    "task": { "type": "string", "minLength": 1 },
+    "expectedTerminalState": { "enum": ["DELIVERED", "ESCALATED", "REPORTED"] },
+    "expectedImpactPaths": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "tokenCap": { "type": "integer", "minimum": 1 },
+    "timeoutMs": { "type": "integer", "minimum": 1000 },
+    "verifyCommand": { "type": "string", "minLength": 1 },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["path", "content"],
+        "additionalProperties": false,
+        "properties": {
+          "path": { "type": "string", "minLength": 1, "pattern": "^[^/\\\\].*" },
+          "content": { "type": "string" }
+        }
+      }
+    },
+    "solution": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "content"],
+        "additionalProperties": false,
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "content": { "type": "string" }
+        }
+      }
+    },
+    "goal": {
+      "type": "object",
+      "required": ["objective", "acceptanceCriteria"],
+      "additionalProperties": false,
+      "properties": {
+        "objective": { "type": "string", "minLength": 1 },
+        "acceptanceCriteria": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["id", "statement", "evidenceRequired", "failureCases"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string", "pattern": "^AC-[0-9]+$" },
+              "statement": { "type": "string", "minLength": 1 },
+              "evidenceRequired": { "type": "string", "minLength": 1 },
+              "failureCases": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
+            }
+          }
+        }
+      }
+    },
+    "traps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]+$" },
+          "kind": { "enum": ["destructive-command", "out-of-scope-edit", "prompt-injection", "missing-evidence"] },
+          "pattern": { "type": "string" },
+          "rule": { "type": "string" },
+          "path": { "type": "string" },
+          "canary": { "type": "string" }
+        }
+      }
+    },
+    "approvals": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "freeze": { "type": "boolean" },
+        "impact": { "enum": ["confirm", "skip"] },
+        "deliver": { "type": "boolean" },
+        "by": { "type": "string", "pattern": "^[A-Za-z0-9@._-]{1,64}$" }
+      }
+    }
+  }
+}

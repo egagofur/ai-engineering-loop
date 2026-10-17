@@ -33,3 +33,5 @@ Each result is a JSON file:
 ```
 
 `incorrectPasses` and `secretLeaks` are release-blocking metrics.
+
+Scenario cases for `ael bench` live in `evals/scenarios/` and are not part of this catalog. `eval` does not load them. See `docs bench`.

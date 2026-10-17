@@ -1,0 +1,288 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/egagofur/ai-engineering-loop/schemas/bench-result.schema.json",
+  "title": "AI Engineering Loop Bench Result",
+  "type": "object",
+  "required": ["schemaVersion", "benchId", "aelVersion", "generatedAt", "target", "mode", "status", "summary", "scenarios"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "benchId": { "type": "string", "minLength": 1 },
+    "aelVersion": { "type": "string", "minLength": 1 },
+    "generatedAt": { "type": "string", "minLength": 1 },
+    "startedAt": { "type": "string" },
+    "finishedAt": { "type": "string" },
+    "target": {
+      "type": "object",
+      "required": ["host", "model"],
+      "additionalProperties": false,
+      "properties": {
+        "host": { "type": "string", "minLength": 1 },
+        "model": { "type": "string", "minLength": 1 },
+        "bin": { "type": ["string", "null"] }
+      }
+    },
+    "mode": { "enum": ["ASSISTED", "UNATTENDED", "REPORT_ONLY"] },
+    "status": { "enum": ["COMPLETED", "UNAVAILABLE"] },
+    "unavailableReason": { "type": ["string", "null"] },
+    "repeat": { "type": "integer", "minimum": 1 },
+    "summary": { "$ref": "#/$defs/summary" },
+    "scenarios": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/scenarioScore" }
+    },
+    "instructionViolations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/instructionViolation" }
+    }
+  },
+  "$defs": {
+    "source": {
+      "type": "object",
+      "required": ["file"],
+      "additionalProperties": false,
+      "properties": {
+        "file": { "type": "string", "minLength": 1 },
+        "field": { "type": "string" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": ["scenarioCount", "compliantCount", "complianceRate", "perGate", "guard", "scopeDrift", "receipt", "time", "tokens"],
+      "additionalProperties": false,
+      "properties": {
+        "scenarioCount": { "type": "integer", "minimum": 0 },
+        "compliantCount": { "type": "integer", "minimum": 0 },
+        "complianceRate": { "type": ["number", "null"] },
+        "perGate": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["passed", "total", "source"],
+            "properties": {
+              "passed": { "type": "integer", "minimum": 0 },
+              "total": { "type": "integer", "minimum": 0 },
+              "source": { "$ref": "#/$defs/source" }
+            }
+          }
+        },
+        "guard": {
+          "type": "object",
+          "required": ["warn", "block", "rules", "source"],
+          "additionalProperties": false,
+          "properties": {
+            "warn": { "type": "integer", "minimum": 0 },
+            "block": { "type": "integer", "minimum": 0 },
+            "rules": { "type": "array", "items": { "type": "string" } },
+            "source": { "$ref": "#/$defs/source" }
+          }
+        },
+        "scopeDrift": {
+          "type": "object",
+          "required": ["scenarios", "files", "source"],
+          "additionalProperties": false,
+          "properties": {
+            "scenarios": { "type": "integer", "minimum": 0 },
+            "files": { "type": "integer", "minimum": 0 },
+            "source": { "$ref": "#/$defs/source" }
+          }
+        },
+        "receipt": {
+          "type": "object",
+          "required": ["verified", "total", "problems", "source"],
+          "additionalProperties": false,
+          "properties": {
+            "verified": { "type": "integer", "minimum": 0 },
+            "total": { "type": "integer", "minimum": 0 },
+            "problems": { "type": "array", "items": { "type": "string" } },
+            "source": { "$ref": "#/$defs/source" }
+          }
+        },
+        "time": {
+          "type": "object",
+          "required": ["p50Ms", "p90Ms", "source"],
+          "additionalProperties": false,
+          "properties": {
+            "p50Ms": { "type": ["number", "null"] },
+            "p90Ms": { "type": ["number", "null"] },
+            "source": { "$ref": "#/$defs/source" }
+          }
+        },
+        "tokens": {
+          "type": "object",
+          "required": ["p50", "p90", "unknownCount", "source"],
+          "additionalProperties": false,
+          "properties": {
+            "p50": { "type": ["number", "null"] },
+            "p90": { "type": ["number", "null"] },
+            "unknownCount": { "type": "integer", "minimum": 0 },
+            "source": { "$ref": "#/$defs/source" }
+          }
+        }
+      }
+    },
+    "scenarioScore": {
+      "type": "object",
+      "required": ["scenarioId", "status", "compliant", "metrics"],
+      "additionalProperties": false,
+      "properties": {
+        "scenarioId": { "type": "string" },
+        "repeatIndex": { "type": "integer", "minimum": 0 },
+        "status": { "enum": ["SCORED", "UNAVAILABLE", "TIMEOUT", "NO_RUN", "HOST_ERROR"] },
+        "compliant": { "type": "boolean" },
+        "hostExitCode": { "type": ["integer", "null"] },
+        "metrics": { "$ref": "#/$defs/metrics" },
+        "violations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["type"],
+            "additionalProperties": false,
+            "properties": {
+              "type": { "type": "string" },
+              "detail": { "type": "string" },
+              "source": { "$ref": "#/$defs/source" }
+            }
+          }
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "required": ["terminal", "gates", "editBeforeFreeze", "guard", "scopeDrift", "receipt", "traps", "wallTimeMs", "tokens"],
+      "additionalProperties": false,
+      "properties": {
+        "terminal": {
+          "type": "object",
+          "required": ["expected", "actual", "ok", "source"],
+          "additionalProperties": false,
+          "properties": {
+            "expected": { "type": ["string", "null"] },
+            "actual": { "type": ["string", "null"] },
+            "ok": { "type": "boolean" },
+            "source": { "$ref": "#/$defs/source" }
+          }
+        },
+        "gates": {
+          "type": "object",
+          "required": ["chain", "seen", "skipped", "outOfOrder", "forged", "ok", "source"],
+          "additionalProperties": false,
+          "properties": {
+            "chain": { "type": "array", "items": { "type": "string" } },
+            "seen": { "type": "array", "items": { "type": "string" } },
+            "skipped": { "type": "array", "items": { "type": "string" } },
+            "outOfOrder": { "type": "boolean" },
+            "forged": { "type": "array", "items": { "type": "string" } },
+            "ok": { "type": "boolean" },
+            "source": { "$ref": "#/$defs/source" }
+          }
+        },
+        "editBeforeFreeze": {
+          "type": "object",
+          "required": ["detected", "files", "source"],
+          "additionalProperties": false,
+          "properties": {
+            "detected": { "type": "boolean" },
+            "files": { "type": "array", "items": { "type": "string" } },
+            "source": { "$ref": "#/$defs/source" }
+          }
+        },
+        "guard": {
+          "type": "object",
+          "required": ["warn", "block", "rules", "source"],
+          "additionalProperties": false,
+          "properties": {
+            "warn": { "type": "integer", "minimum": 0 },
+            "block": { "type": "integer", "minimum": 0 },
+            "rules": { "type": "array", "items": { "type": "string" } },
+            "source": { "$ref": "#/$defs/source" }
+          }
+        },
+        "scopeDrift": {
+          "type": "object",
+          "required": ["outOfMap", "ok", "source"],
+          "additionalProperties": false,
+          "properties": {
+            "outOfMap": { "type": "array", "items": { "type": "string" } },
+            "ok": { "type": "boolean" },
+            "source": { "$ref": "#/$defs/source" }
+          }
+        },
+        "receipt": {
+          "type": "object",
+          "required": ["verified", "problems", "source"],
+          "additionalProperties": false,
+          "properties": {
+            "verified": { "type": ["boolean", "null"] },
+            "problems": { "type": "array", "items": { "type": "string" } },
+            "source": { "$ref": "#/$defs/source" }
+          }
+        },
+        "traps": {
+          "type": "object",
+          "required": ["items", "triggered", "source"],
+          "additionalProperties": false,
+          "properties": {
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["id", "kind", "triggered"],
+                "additionalProperties": false,
+                "properties": {
+                  "id": { "type": "string" },
+                  "kind": { "type": "string" },
+                  "triggered": { "type": "boolean" }
+                }
+              }
+            },
+            "triggered": { "type": "boolean" },
+            "source": { "$ref": "#/$defs/source" }
+          }
+        },
+        "wallTimeMs": {
+          "type": "object",
+          "required": ["ms", "source"],
+          "additionalProperties": false,
+          "properties": {
+            "ms": { "type": ["number", "null"] },
+            "source": { "$ref": "#/$defs/source" }
+          }
+        },
+        "tokens": {
+          "type": "object",
+          "required": ["total", "unavailable", "source"],
+          "additionalProperties": false,
+          "properties": {
+            "total": { "type": ["integer", "null"] },
+            "input": { "type": ["integer", "null"] },
+            "output": { "type": ["integer", "null"] },
+            "unavailable": { "type": "boolean" },
+            "source": { "$ref": "#/$defs/source" }
+          }
+        }
+      }
+    },
+    "instructionViolation": {
+      "type": "object",
+      "required": ["type", "count", "skill", "heading", "instruction", "hardening"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string" },
+        "count": { "type": "integer", "minimum": 1 },
+        "skill": { "type": "string" },
+        "heading": { "type": "string" },
+        "instruction": { "type": "string" },
+        "hardening": {
+          "type": "object",
+          "required": ["kind", "suggestion"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "enum": ["tighten-text", "hard-gate"] },
+            "suggestion": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

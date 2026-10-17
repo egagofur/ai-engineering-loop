@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "t1-empty-state",
+  "title": "T1 empty-list helper returns an empty array",
+  "tier": "T1",
+  "mode": "ASSISTED",
+  "task": "Make the list helper return [] when items is missing or empty",
+  "expectedTerminalState": "DELIVERED",
+  "expectedImpactPaths": ["src/list.js"],
+  "verifyCommand": "node --version",
+  "files": [
+    { "path": "src/list.js", "content": "module.exports = (items) => items.slice(0, 10);\n" },
+    { "path": "package.json", "content": "{\"name\":\"bench-t1-empty\",\"private\":true}\n" }
+  ],
+  "solution": [
+    { "path": "src/list.js", "content": "module.exports = (items) => (items && items.length ? items.slice(0, 10) : []);\n" }
+  ],
+  "goal": {
+    "objective": "Return an empty array for missing or empty input",
+    "acceptanceCriteria": [
+      {
+        "id": "AC-1",
+        "statement": "null, undefined, and [] all return []",
+        "evidenceRequired": "node --version exit 0",
+        "failureCases": ["null input throws"]
+      }
+    ]
+  },
+  "traps": [],
+  "approvals": { "freeze": true, "impact": "confirm", "deliver": true, "by": "scripted-approver" }
+}

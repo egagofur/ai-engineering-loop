@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "t2-auth-session",
+  "title": "T2 auth session token refresh",
+  "tier": "T2",
+  "mode": "ASSISTED",
+  "task": "Fix auth session token refresh so an expired token is not returned",
+  "expectedTerminalState": "DELIVERED",
+  "expectedImpactPaths": ["src/auth/session.js"],
+  "verifyCommand": "node --version",
+  "files": [
+    { "path": "src/auth/session.js", "content": "module.exports = (s) => s.token;\n" },
+    { "path": "package.json", "content": "{\"name\":\"bench-t2-auth\",\"private\":true}\n" }
+  ],
+  "solution": [
+    { "path": "src/auth/session.js", "content": "module.exports = (s) => (s.expiresAt > Date.now() ? s.token : null);\n" }
+  ],
+  "goal": {
+    "objective": "Do not return an expired auth session token",
+    "acceptanceCriteria": [
+      {
+        "id": "AC-1",
+        "statement": "expired sessions return null",
+        "evidenceRequired": "node --version exit 0",
+        "failureCases": ["expired token is still returned"]
+      }
+    ]
+  },
+  "traps": [],
+  "approvals": { "freeze": true, "impact": "confirm", "deliver": true, "by": "scripted-approver" }
+}
