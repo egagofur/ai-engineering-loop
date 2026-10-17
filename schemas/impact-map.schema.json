@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/egagofur/ai-engineering-loop/schemas/impact-map.schema.json",
+  "title": "AI Engineering Loop Blast-Radius Impact Map",
+  "type": "object",
+  "required": ["schemaVersion", "runId", "goalHash", "status", "files", "modules", "endpoints", "dbTables", "tests"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "runId": { "type": "string", "minLength": 1 },
+    "goalHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "status": { "enum": ["DRAFT", "CONFIRMED", "SKIPPED"] },
+    "generator": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "keywords": { "type": "array", "items": { "type": "string" } },
+    "files": { "type": "array", "items": { "$ref": "#/$defs/pathEntry" } },
+    "modules": { "type": "array", "items": { "$ref": "#/$defs/namedEntry" } },
+    "endpoints": {
+      "type": "array",
+      "items": {
+        "allOf": [{ "$ref": "#/$defs/pathEntry" }],
+        "required": ["method", "route"],
+        "properties": {
+          "method": { "type": "string" },
+          "route": { "type": "string" }
+        }
+      }
+    },
+    "dbTables": {
+      "type": "array",
+      "items": {
+        "allOf": [{ "$ref": "#/$defs/namedEntry" }],
+        "required": ["kind"],
+        "properties": { "kind": { "enum": ["table", "migration"] }, "path": { "type": "string" } }
+      }
+    },
+    "tests": { "type": "array", "items": { "$ref": "#/$defs/pathEntry" } },
+    "scope": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["allowedPaths"],
+          "properties": { "allowedPaths": { "type": "array", "items": { "type": "string", "minLength": 1 } } }
+        }
+      ]
+    },
+    "confirmedBy": { "type": "string" },
+    "confirmedAt": { "type": "string" },
+    "skipReason": { "type": "string", "minLength": 1, "maxLength": 500 },
+    "skippedBy": { "type": "string" },
+    "skippedAt": { "type": "string" }
+  },
+  "allOf": [
+    { "if": { "properties": { "status": { "const": "SKIPPED" } } }, "then": { "required": ["skipReason"] } },
+    { "if": { "properties": { "status": { "const": "CONFIRMED" } } }, "then": { "required": ["scope", "confirmedBy"] } }
+  ],
+  "$defs": {
+    "pathEntry": {
+      "type": "object",
+      "required": ["path", "confidence", "reason"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    },
+    "namedEntry": {
+      "type": "object",
+      "required": ["name", "confidence", "reason"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    }
+  },
+  "additionalProperties": true
+}

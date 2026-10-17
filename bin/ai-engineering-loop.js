@@ -67,6 +67,7 @@ const {
   judgeRequirement
 } = require('../lib/gates.js');
 const { initialTierState } = require('../lib/tier.js');
+const impactMap = require('../lib/impact-map.js');
 const {
   createContextPack,
   contextPackSummary
@@ -1822,9 +1823,12 @@ function executeGate(gate, runId) {
       });
     }
   }
+  if (gate === 'maker') ensureImpactMap(target.runId);
   const run = target.workflow
     ? applyWorkflowGate(CWD, gate, { runId: target.runId }).run
     : applyGate(CWD, gate, { runId: target.runId });
+  if (gate === 'goal') ensureImpactMap(target.runId);
+  if (gate === 'verification') recordImpactDrift(target.runId);
   const runCompleted = run.state === 'DELIVERED' || run.state === 'REPORTED';
   appendRunLifecycle(CWD, target.runId, {
     type: runCompleted
@@ -1837,6 +1841,31 @@ function executeGate(gate, runId) {
     message: `${lifecycleNode?.displayName || gate} completed`
   });
   return run;
+}
+
+// Blast-radius map (#71): written into the Run once the Goal is frozen, so it
+// exists before Stage 3. Best effort: a scan failure never blocks a gate.
+function ensureImpactMap(runId) {
+  try {
+    if (impactMap.loadImpactMap(CWD, runId)) return null;
+    const result = impactMap.generateImpactMap(CWD, { runId });
+    console.error(`- Impact map: ${result.path} (DRAFT; review it with \`impact show\`, then \`impact confirm --by <name>\` or \`impact skip --reason <text>\`)`);
+    return result;
+  } catch (err) {
+    console.error(`! impact map not written: ${err.message}`);
+    return null;
+  }
+}
+
+// Drift of the gated Maker diff against the map, recorded with verification;
+// the review gate turns out-of-map files into LOW ledger findings.
+function recordImpactDrift(runId) {
+  try {
+    return impactMap.detectImpactDrift(CWD, { runId }).drift;
+  } catch (err) {
+    console.error(`! impact drift not checked: ${err.message}`);
+    return null;
+  }
 }
 
 // `gate maker --from-git` (issue #35): write the working-tree diff (tracked and
@@ -2918,6 +2947,7 @@ function handleGoal() {
         actor: argValue('--by') || 'human',
         message: 'Goal Contract frozen'
       });
+      ensureImpactMap(runId);
     } else {
       const error = new Error('goal must be show, draft, or freeze');
       error.code = 'INVALID_USAGE';
@@ -3125,6 +3155,7 @@ async function handleVerify() {
       return;
     }
     const run = executeGate('verification', runId);
+    const drift = impactMap.loadImpactDrift(CWD, runId) || { mapStatus: 'MISSING', outOfMap: [] };
     const compact = compactRun(CWD, { runId });
     let claimed = { path: '.ai-engineering-loop/tasks/claimed-vs-reality.md', created: false };
     try {
@@ -3139,6 +3170,7 @@ async function handleVerify() {
       tier: run.tier ? run.tier.current : null,
       commands,
       testCounts: recorded.summary.testCounts,
+      impactDrift: { mapStatus: drift.mapStatus, outOfMap: drift.outOfMap },
       compact: compact.paths,
       claimedVsReality: claimed,
       next: run.tier && run.tier.current === 'T0'
@@ -3150,11 +3182,78 @@ async function handleVerify() {
       log.success('✓ verification recorded and gated');
       for (const c of commands) console.log(`- ${c.command}: exit ${c.exitCode}`);
       console.log(`- State: ${run.state}`);
+      if (drift.outOfMap.length) {
+        console.log(`! ${drift.outOfMap.length} file(s) changed outside the ${drift.mapStatus} impact map (LOW finding at review): ${drift.outOfMap.join(', ')}`);
+      } else if (drift.mapStatus === 'MISSING') {
+        console.log('! No impact map for this Run; drift was not checked');
+      }
       console.log(`- Claimed-vs-reality: ${claimed.path}${claimed.created ? ' (scaffolded; fill it from the command output)' : ''}`);
       console.log(`- Next: ${result.next}`);
     }
   } catch (err) {
     stageJsonError(err, json, 'VERIFY_FAILED');
+  }
+}
+
+function handleImpact() {
+  const action = args[1] && !args[1].startsWith('--') ? args[1] : 'show';
+  const json = process.argv.includes('--json');
+  try {
+    const runId = requiredRunId('impact');
+    let result;
+    if (action === 'map') {
+      const limit = argValue('--limit');
+      result = impactMap.generateImpactMap(CWD, {
+        runId,
+        force: process.argv.includes('--force'),
+        ...(limit == null ? {} : { limit: parsePositiveIntegerArg('--limit', limit) })
+      });
+    } else if (action === 'confirm') {
+      result = impactMap.confirmImpactMap(CWD, {
+        runId,
+        by: argValue('--by'),
+        allow: repeatedArg('--allow'),
+        remove: repeatedArg('--remove')
+      });
+    } else if (action === 'skip') {
+      result = impactMap.skipImpactMap(CWD, { runId, by: argValue('--by'), reason: argValue('--reason') });
+    } else if (action === 'show') {
+      const map = impactMap.loadImpactMap(CWD, runId);
+      if (!map) throw Object.assign(new Error('No impact map yet. Run `impact map` first.'), { code: 'IMPACT_MAP_MISSING' });
+      result = { map, path: `.ai-engineering-loop/runs/${runId}/${impactMap.IMPACT_MAP_FILE}` };
+    } else if (action === 'drift') {
+      const drift = impactMap.detectImpactDrift(CWD, { runId });
+      result = { map: null, drift: drift.drift, path: drift.path };
+    } else {
+      throw Object.assign(new Error('impact must be map, show, confirm, skip, or drift'), { code: 'INVALID_USAGE' });
+    }
+    if (json) {
+      console.log(JSON.stringify({ ok: true, runId, action, path: result.path, ...(result.map ? { map: result.map } : {}), ...(result.drift ? { drift: result.drift } : {}) }, null, 2));
+      return;
+    }
+    if (result.drift) {
+      log.success(`✓ impact drift checked (${result.drift.mapStatus})`);
+      console.log(`- Changed: ${result.drift.changedFiles.length}, outside the map: ${result.drift.outOfMap.length}`);
+      for (const file of result.drift.outOfMap) console.log(`  ! ${file}`);
+      return;
+    }
+    const { map } = result;
+    log.success(`✓ impact map ${map.status} (${result.path})`);
+    if (map.status === 'SKIPPED') {
+      console.log(`- Skipped: ${map.skipReason}`);
+      return;
+    }
+    for (const key of ['files', 'modules', 'endpoints', 'dbTables', 'tests']) {
+      console.log(`- ${key}: ${map[key].length}`);
+      for (const entry of map[key].slice(0, 10)) {
+        const label = entry.route ? `${entry.method} ${entry.route} (${entry.path})` : (entry.path && key !== 'dbTables' ? entry.path : entry.name);
+        console.log(`  ${label}  [${entry.confidence}] ${entry.reason}`);
+      }
+    }
+    if (map.status === 'CONFIRMED') console.log(`- Allowed scope: ${map.scope.allowedPaths.length} path(s), confirmed by ${map.confirmedBy}`);
+    else console.log('- Next: confirm with `impact confirm --by <name> [--allow <glob>]... [--remove <path>]...` or skip a trivial goal with `impact skip --by <name> --reason <text>`');
+  } catch (err) {
+    stageJsonError(err, json, 'IMPACT_FAILED');
   }
 }
 
@@ -3183,6 +3282,7 @@ function handleReviewPack() {
       estimatedTokens: pack.estimatedTokens,
       truncated: pack.truncated,
       unresolvedFindings: pack.unresolvedFindings,
+      impactDrift: pack.impactDrift,
       fastPath: { eligible: fastPath.eligible, reasons: fastPath.reasons },
       escalation: { requiredTier: escalation.requiredTier, reasons: escalation.reasons.map((r) => r.code) }
     };
@@ -3192,6 +3292,9 @@ function handleReviewPack() {
       console.log(`- Pack: ${result.packPath} (${result.reviewProfile}, ~${result.estimatedTokens} tokens)`);
       console.log(`- Tier: ${tier || 'none'}; Devil's Advocate ${result.devilAdvocateRequired ? 'required' : 'not used (T0)'}`);
       console.log(`- Judge tier floor: ${result.escalation.requiredTier}${result.escalation.reasons.length ? ` (${result.escalation.reasons.join(', ')})` : ''}`);
+      if (result.impactDrift?.outOfMap.length) {
+        console.log(`- Outside the impact map: ${result.impactDrift.outOfMap.join(', ')} (check their side effects)`);
+      }
     }
   } catch (err) {
     stageJsonError(err, json, 'REVIEW_PACK_FAILED');
@@ -3394,6 +3497,13 @@ Commands:
   verify       Record verification commands, gate them, compact, and scaffold claimed-vs-reality
                [--run <id>] [--cmd "<command>"]... [--shell] [--serial] [--timeout-ms <n>] [--json]
                default command: test_unit from .ai-engineering-loop/verification.md; commands run in parallel
+  impact       Blast-radius map of the frozen Goal before Stage 3 (written to the Run on Goal freeze)
+               map [--run <id>] [--limit <n>] [--force] [--json]   files, modules, endpoints, DB tables, tests
+               show [--run <id>] [--json]
+               confirm --by <name> [--allow <glob>]... [--remove <path>]... [--run <id>] [--json]
+                 confirmed paths become the Run's allowed scope; verify reports changes outside it
+               skip --by <name> --reason <text> [--run <id>]   trivial goals (copy, CSS, comments)
+               drift [--run <id>] [--json]   compare the gated Maker diff with the map
   review-pack  Build the Devil's Advocate pack: fast-path, diff hunks, escalation floor, tier
                [--run <id>] [--base <git-ref>] [--profile lean|standard|thorough] [--json]
   deliver      Approve READY approval nodes, write delivery.json, and pass the delivery gate
@@ -3563,6 +3673,9 @@ switch (command) {
     break;
   case 'verify':
     handleVerify();
+    break;
+  case 'impact':
+    handleImpact();
     break;
   case 'review-pack':
     handleReviewPack();

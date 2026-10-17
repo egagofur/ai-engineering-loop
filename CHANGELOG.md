@@ -4,7 +4,12 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
-_No changes yet._
+### Blast-radius impact map before Stage 3 (#71)
+
+- **Added:** `schemas/impact-map.schema.json` and `lib/impact-map.js`. Freezing the Goal (`goal freeze` or `gate goal`) writes a DRAFT `RUN_DIR/impact-map.json` listing files, modules, endpoints, DB tables/migrations and tests, each with a confidence and a reason. It is a deterministic scan of the repository index against keywords from the frozen Goal (English and Indonesian filler words dropped), so it works on every adapter. `gate maker` writes it too if it is still missing.
+- **Added:** `impact map | show | confirm | skip | drift`. `confirm --by <name>` (with optional `--allow <glob>` / `--remove <path>`) locks the map and writes `scope.allowedPaths`, the Run's allowed scope. `skip --reason <text>` records why a trivial goal (copy, CSS, comments) has no map.
+- **Added:** after the verification gate the CLI writes `impact-drift.json` (changed files vs the map). `verify` and `review-pack` print out-of-map files, the diff-hunk pack carries `impactDrift`, and the review gate adds one `LOW` finding per out-of-map file to `findings.json` (`source: "impact-map"`). Drift warns; it does not block.
+- **Docs:** `core/blast-radius-map.md` (`docs blast-radius-map`); the Stage 1 reference and `task-impact-inquiry` point at the map.
 
 ## 1.16.0 - 2026-10-16
 

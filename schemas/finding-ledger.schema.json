@@ -17,7 +17,8 @@
           "axis": { "enum": ["spec", "standards"] },
           "severity": { "enum": ["BLOCKER", "HIGH", "MEDIUM", "LOW"] },
           "validity": { "enum": ["VALID", "INVALID"] },
-          "disposition": { "enum": ["STRONG", "ACCEPTABLE", "WEAK"] }
+          "disposition": { "enum": ["STRONG", "ACCEPTABLE", "WEAK"] },
+          "source": { "description": "Producer of a CLI-generated finding, e.g. impact-map for blast-radius drift", "type": "string" }
         },
         "additionalProperties": true
       }
