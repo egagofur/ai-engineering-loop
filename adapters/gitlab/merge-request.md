@@ -31,6 +31,9 @@ glab mr create \
 
 ## Verification
 Commands from `.ai-engineering-loop/verification.md` (exit 0).
+
+## Receipt
+<paste RUN_DIR/receipt.md from `deliver` here: one ✅/❌ line per AC with its evidence>
 EOF
 )" \
   --yes
@@ -39,3 +42,5 @@ EOF
 Link the issue URL in the description when an issue exists.
 
 Do not paste raw diffs, tokens, or local machine paths.
+
+**Receipt.** Commit the change first, then run `deliver` (it binds the receipt to `HEAD`, or pass `--head <sha>`; link hosted screenshots with `--evidence AC-N=<https-url>`). Paste `RUN_DIR/receipt.md` into the Receipt section as-is. A ❌ line is missing evidence: never delete it or flip it to ✅ by hand. Reviewers or CI check it with `npx ai-engineering-loop verify-receipt --run <runId> --head <pr-head-sha>` (exit 1 on any mismatch). Spec: `docs pr-receipt`.

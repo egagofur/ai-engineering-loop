@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/egagofur/ai-engineering-loop/schemas/receipt.schema.json",
+  "title": "AI Engineering Loop Proof-Carrying PR Receipt",
+  "type": "object",
+  "required": ["schemaVersion", "runId", "generatedAt", "host", "base", "head", "goal", "acceptanceCriteria", "verification", "review", "guard", "artifacts", "digest"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "runId": { "type": "string", "minLength": 1 },
+    "generatedAt": { "type": "string", "minLength": 1 },
+    "aelVersion": { "type": ["string", "null"] },
+    "host": {
+      "type": "object",
+      "required": ["id"],
+      "properties": { "id": { "type": "string" }, "model": { "type": ["string", "null"] } }
+    },
+    "base": { "type": "object", "required": ["sha"], "properties": { "sha": { "type": ["string", "null"] } } },
+    "head": { "type": "object", "required": ["sha"], "properties": { "sha": { "type": ["string", "null"] } } },
+    "goal": {
+      "type": "object",
+      "required": ["path", "sha256", "contentHash", "version", "objective"],
+      "properties": {
+        "path": { "type": "string", "pattern": "^[^/]" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "contentHash": { "$ref": "#/$defs/sha256" },
+        "version": { "type": "integer", "minimum": 1 },
+        "objective": { "type": "string" }
+      }
+    },
+    "acceptanceCriteria": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "statement", "status", "evidence"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^AC-[0-9]+$" },
+          "statement": { "type": "string" },
+          "evidenceRequired": { "type": "string" },
+          "status": { "enum": ["PASS", "MISSING"] },
+          "missing": { "type": "array", "items": { "type": "string" } },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["type"],
+              "properties": {
+                "type": { "enum": ["command", "claim", "link"] },
+                "command": { "type": "string" },
+                "exitCode": { "type": ["integer", "null"] },
+                "outputSha256": { "$ref": "#/$defs/sha256" },
+                "url": { "type": "string", "pattern": "^https?://" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "required": ["diffHash", "commands"],
+      "properties": {
+        "diffHash": { "type": "string" },
+        "gitRevision": { "type": "string" },
+        "commands": { "type": "array" },
+        "coverage": { "type": ["object", "null"], "additionalProperties": { "type": "number" } }
+      }
+    },
+    "review": {
+      "type": "object",
+      "required": ["findings", "verdict"],
+      "properties": {
+        "findings": { "type": "object", "required": ["total", "valid", "blocking"] },
+        "verdict": {
+          "type": "object",
+          "required": ["verdict"],
+          "properties": { "verdict": { "enum": ["PASS", "ITERATE", "ESCALATE"] } }
+        }
+      }
+    },
+    "impact": { "type": ["object", "null"] },
+    "guard": { "type": "object", "required": ["warn", "block"] },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "path", "sha256"],
+        "properties": {
+          "name": { "type": "string" },
+          "path": { "type": "string", "pattern": "^[^/]" },
+          "sha256": { "$ref": "#/$defs/sha256" }
+        }
+      }
+    },
+    "digest": { "$ref": "#/$defs/sha256" },
+    "signature": { "description": "Optional detached signature of digest (not produced yet)", "type": "string" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+  },
+  "additionalProperties": true
+}

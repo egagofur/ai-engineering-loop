@@ -9,7 +9,17 @@
     "runId": { "type": "string", "minLength": 1 },
     "destination": { "type": "string", "minLength": 1 },
     "summary": { "type": "string", "minLength": 1 },
-    "humanApproved": { "type": "boolean" }
+    "humanApproved": { "type": "boolean" },
+    "approvedBy": { "type": "string" },
+    "receipt": {
+      "description": "Proof-carrying PR receipt written by deliver (#70)",
+      "type": "object",
+      "required": ["path", "digest"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    }
   },
   "additionalProperties": true
 }
