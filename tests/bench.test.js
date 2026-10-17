@@ -53,6 +53,10 @@ function assertNoRecommendation(text, label) {
   assert.doesNotMatch(text, /recommended model|use model|switch to|model for stage/i, label);
 }
 
+function normalizeEol(text) {
+  return String(text).replace(/\r\n/g, '\n');
+}
+
 function snapshotOptionalFile(filePath) {
   try {
     return { exists: true, content: fs.readFileSync(filePath) };
@@ -286,14 +290,24 @@ test('scenario shim runs this checkout so npx does not download the published pa
     npm_config_update_notifier: 'false'
   };
   const shim = path.join(repo, 'node_modules', '.bin', 'ai-engineering-loop');
-  const direct = spawnSync(shim, ['--version'], { cwd: repo, env, encoding: 'utf8' });
+  const cmdShim = fs.readFileSync(`${shim}.cmd`, 'utf8');
+  assert.strictEqual(cmdShim, `@"${process.execPath}" "${path.resolve(CLI)}" %*\r\n`);
+  const direct = process.platform === 'win32'
+    ? spawnSync(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', `"${shim}.cmd" --version`], {
+      cwd: repo,
+      env,
+      encoding: 'utf8',
+      windowsVerbatimArguments: true
+    })
+    : spawnSync(shim, ['--version'], { cwd: repo, env, encoding: 'utf8' });
   assert.strictEqual(direct.status, 0, direct.stderr);
   assert.match(direct.stdout, new RegExp(`v${version}`));
   const npx = spawnSync('npx', ['--no-install', 'ai-engineering-loop', '--version'], {
     cwd: repo,
     env,
     encoding: 'utf8',
-    timeout: 20000
+    timeout: 20000,
+    shell: process.platform === 'win32'
   });
   if (!(npx.error && npx.error.code === 'ENOENT')) {
     assert.strictEqual(npx.status, 0, `${npx.stdout}\n${npx.stderr}`);
@@ -452,7 +466,10 @@ test('AC4 tokens come from the usage ledger and --unavailable stays unknown', { 
 test('AC5 report.md and results.json cover one target and do not recommend a model', { timeout: HOST_TIMEOUT }, () => {
   const fixed = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'bench-fixed-result.json'), 'utf8'));
   const report = renderBenchReport(fixed);
-  assert.strictEqual(fs.readFileSync(path.join(__dirname, 'fixtures', 'bench-report.golden.md'), 'utf8'), `${report}\n`);
+  assert.strictEqual(
+    normalizeEol(fs.readFileSync(path.join(__dirname, 'fixtures', 'bench-report.golden.md'), 'utf8')),
+    normalizeEol(`${report}\n`)
+  );
   assertNoRecommendation(report, 'golden report');
   assert.strictEqual(hasRouting(fixed), false);
   assert.match(report, /Per-gate:/);
@@ -577,7 +594,7 @@ test('AC7 violations link to skill-src headings, rank by frequency, and hardenin
   assertNoRecommendation(hardening, 'hardening');
   const golden = fs.readFileSync(path.join(__dirname, 'fixtures', 'bench-hardening.golden.md'), 'utf8');
   const fixed = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'bench-fixed-result.json'), 'utf8'));
-  assert.strictEqual(renderHardening(fixed.instructionViolations), golden);
+  assert.strictEqual(normalizeEol(renderHardening(fixed.instructionViolations)), normalizeEol(golden));
   assert.ok(golden.includes('tighten-text'));
   assert.ok(golden.includes('hard-gate'));
 });
