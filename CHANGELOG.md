@@ -4,6 +4,15 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+### `ael bench`: compliance self-check for one host and model (#79)
+
+- **Added:** `bench [--host <id> --model <id>] [--scenario <id>]... [--repeat <n>] [--bin <path>] [--host-arg <arg>]... [--sandbox-home] [--mode assisted|unattended|report-only] [--timeout <seconds>] [--json]`. One target per invocation. Each scenario runs in a fresh temp repo. `AEL_HOME` is a temp directory. The host process keeps the real `HOME` so it can authenticate; `--bin` and `--sandbox-home` use a temp `HOME` instead. Skills are installed in the temp repo (the directories that host reads), and `node_modules/.bin/ai-engineering-loop` shims this checkout so `npx` does not download the published package. Default timeout is 20 minutes. A missing binary is `UNAVAILABLE`, not a model failure. Default mode is ASSISTED; the scenario's scripted approver answers Goal freeze, impact confirm, and `deliver --approve`. `--mode unattended` is opt-in. Progress lines go to stderr.
+- **Added:** `evals/scenarios/` (T0 docs, T1 features, T2 auth/payment, and traps) and `schemas/bench-scenario.schema.json`. The 24-case `evals/cases` judgment suite is unchanged.
+- **Added:** scoring from Run artifacts only (`state.json`, `guard-events.json`, `impact-drift.json`, `verifyReceipt()`, the usage ledger, the harness clock). Tokens are parsed from host JSON when the host provides it (Claude Code and Codex). Grok CLI `-p` is plain text, so its tokens stay unknown, never `0`. `budget record --unavailable` is the same unknown. Bench-only host templates: Grok `--no-auto-update --always-approve`, Claude `--dangerously-skip-permissions`, Codex `--full-auto`. `--host-arg` appends extra flags. `--bin` overrides the binary.
+- **Added:** `.ai-engineering-loop/bench/<benchId>/{results.json,report.md,hardening.md}` (`schemas/bench-result.schema.json`). The report is per-gate compliance, guard violations, scope drift, receipt validity, and p50/p90 time and tokens for that single target. `hardening.md` maps each violation to a `skill-src/` instruction, ranked by frequency, with a text-tightening or hard-gate suggestion. Suggestions are not applied. There is no routing or model recommendation.
+- **Added:** `bench compare <benchIdA> <benchIdB>` prints a read-only side-by-side table.
+- **Docs:** `core/bench.md` (`docs bench`).
+
 ### Studio: real-time sync and compact live-run UI (#80)
 
 - **Added:** `lib/run-watcher.js` recursively watches `.ai-engineering-loop/runs/` and `current.json` (debounce ~100 ms) and pushes typed events on `GET /api/events` with monotonic `seq`. Event types: `run.created`, `run.state`, `lifecycle`, `artifact.impact|drift|guard|verification|findings|verdict|receipt`, `current.changed`, `presence`. `hello` reports `watch` or `poll` plus the watched root. `Last-Event-ID` / `?after=<seq>` replay from an in-memory ring; a gap sends `resync` for a full `/api/bootstrap`. `AEL_STUDIO_FS_WATCH=0` (and a failed `fs.watch`) uses a 1 s stat-poll.
@@ -15,7 +24,6 @@ All notable changes to this project are documented here. Versions follow [Semant
 - **Breaking:** removed node creation, duplication, deletion, inspector field edits, loop-group creation, Custom Agent dialog, Import workflow JSON (preview/merge/replace), and the export/copy-brief toolbar. `POST /api/import/preview` and `POST /api/import/apply` return 404. Author recipes as files + `recipe create|clone|install`.
 - **Changed:** artifact SSE summaries match real writers: `verification.json` derives `passed`/`failed` from the command bundle (no `status`); findings `blocking` uses `isBlockingFinding`; `receipt.json` verification is `verifyReceipt` (`present`, `digest`, `verified`, `problems`).
 - **Changed:** RunWatcher processes only `current.json` and paths under `runs/`; `usage/`, `learnings.json`, drafts, and other context files emit no events.
-
 
 ## 1.17.0 - 2026-10-17
 

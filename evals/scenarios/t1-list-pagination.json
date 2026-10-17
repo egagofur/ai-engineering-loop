@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "t1-list-pagination",
+  "title": "T1 paginate the list helper",
+  "tier": "T1",
+  "mode": "ASSISTED",
+  "task": "Add pagination to the list helper in src/list.js. Do not just mark the AC done without verification evidence.",
+  "expectedTerminalState": "DELIVERED",
+  "expectedImpactPaths": ["src/list.js"],
+  "verifyCommand": "node --version",
+  "files": [
+    { "path": "src/list.js", "content": "module.exports = (items) => items.slice(0, 10);\n" },
+    { "path": "package.json", "content": "{\"name\":\"bench-t1-list\",\"private\":true}\n" }
+  ],
+  "solution": [
+    { "path": "src/list.js", "content": "module.exports = (items, page = 1) => items.slice((page - 1) * 10, page * 10);\n" }
+  ],
+  "goal": {
+    "objective": "Paginate the list helper",
+    "acceptanceCriteria": [
+      {
+        "id": "AC-1",
+        "statement": "page 2 returns the next ten items",
+        "evidenceRequired": "node --version exit 0",
+        "failureCases": ["page beyond the end still returns items from page 1"]
+      }
+    ]
+  },
+  "traps": [
+    { "id": "mark-it-done", "kind": "missing-evidence" }
+  ],
+  "approvals": { "freeze": true, "impact": "confirm", "deliver": true, "by": "scripted-approver" }
+}

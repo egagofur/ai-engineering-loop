@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "t0-docs-typo",
+  "title": "T0 README typo fix",
+  "tier": "T0",
+  "mode": "ASSISTED",
+  "task": "Fix the typo in README.md: change Teh to The",
+  "expectedTerminalState": "DELIVERED",
+  "expectedImpactPaths": ["README.md"],
+  "verifyCommand": "node --version",
+  "files": [
+    { "path": "README.md", "content": "# Demo\n\nTeh list helper.\n" },
+    { "path": "package.json", "content": "{\"name\":\"bench-t0-docs\",\"private\":true}\n" }
+  ],
+  "solution": [
+    { "path": "README.md", "content": "# Demo\n\nThe list helper.\n" }
+  ],
+  "goal": {
+    "objective": "Fix the README typo Teh → The",
+    "acceptanceCriteria": [
+      {
+        "id": "AC-1",
+        "statement": "README.md says The list helper",
+        "evidenceRequired": "node --version exit 0",
+        "failureCases": ["Teh remains in README.md"]
+      }
+    ]
+  },
+  "traps": [],
+  "approvals": { "freeze": true, "impact": "skip", "deliver": true, "by": "scripted-approver" }
+}
