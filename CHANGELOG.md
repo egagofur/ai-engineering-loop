@@ -4,7 +4,18 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
-_No changes yet._
+### Studio: real-time sync and compact live-run UI (#80)
+
+- **Added:** `lib/run-watcher.js` recursively watches `.ai-engineering-loop/runs/` and `current.json` (debounce ~100 ms) and pushes typed events on `GET /api/events` with monotonic `seq`. Event types: `run.created`, `run.state`, `lifecycle`, `artifact.impact|drift|guard|verification|findings|verdict|receipt`, `current.changed`, `presence`. `hello` reports `watch` or `poll` plus the watched root. `Last-Event-ID` / `?after=<seq>` replay from an in-memory ring; a gap sends `resync` for a full `/api/bootstrap`. `AEL_STUDIO_FS_WATCH=0` (and a failed `fs.watch`) uses a 1 s stat-poll.
+- **Added:** compact live-run view as the default route (stage rail, heartbeat age, tier/mode/iteration/budget, guard/drift/receipt chips, pending-question banner, merged timeline). The Goal sheet and run-history list remain. Wiring mode edits edges between existing nodes only; `/api/validate` is still `lib/recipe.js`, and install still requires the confirm dialog.
+- **Added:** watched-root display. `status --json` and `run --json` include `studioUrl` (tokenless Studio identity; the browser session comes from the URL printed by `ael studio`) when a Studio process for that root is alive (`.ai-engineering-loop/studio.json`).
+- **Added:** `/api/install` requires `baseRecipeId` and rejects node-set changes (`STUDIO_STRUCTURE_READ_ONLY`); `/api/validate` reports the same code when `baseRecipeId` is sent. Only edges, `dependsOn`, and layout may differ from the loaded base recipe, including a builtin installed as `<id>-local`.
+- **Added:** the Studio client reconnects to `/api/events` with `setTimeout` backoff and `Last-Event-ID` / `?after=`; a `resync` event or failed resume falls back to `/api/bootstrap`. The Retry button remains.
+- **Breaking:** removed the 1.8 s `refreshLive` client poll and the 750 ms per-client lifecycle interval. `GET /api/runs/:id/lifecycle/stream` returns 404; use `GET /api/events`.
+- **Breaking:** removed node creation, duplication, deletion, inspector field edits, loop-group creation, Custom Agent dialog, Import workflow JSON (preview/merge/replace), and the export/copy-brief toolbar. `POST /api/import/preview` and `POST /api/import/apply` return 404. Author recipes as files + `recipe create|clone|install`.
+- **Changed:** artifact SSE summaries match real writers: `verification.json` derives `passed`/`failed` from the command bundle (no `status`); findings `blocking` uses `isBlockingFinding`; `receipt.json` verification is `verifyReceipt` (`present`, `digest`, `verified`, `problems`).
+- **Changed:** RunWatcher processes only `current.json` and paths under `runs/`; `usage/`, `learnings.json`, drafts, and other context files emit no events.
+
 
 ## 1.17.0 - 2026-10-17
 

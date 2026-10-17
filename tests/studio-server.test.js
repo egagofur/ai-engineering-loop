@@ -13,9 +13,9 @@ function tempRepo() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'ael-studio-'));
 }
 
-async function withServer(operation) {
+async function withServer(operation, options = {}) {
   const root = tempRepo();
-  const instance = createStudioServer(root, { token: 'fixed-test-token' });
+  const instance = createStudioServer(root, { token: 'fixed-test-token', ...options });
   await new Promise((resolve, reject) => {
     instance.server.once('error', reject);
     instance.server.listen(0, '127.0.0.1', resolve);
@@ -29,7 +29,7 @@ async function withServer(operation) {
 }
 
 test('Studio requires a token and establishes an HttpOnly localhost session', async () => {
-  await withServer(async (base, token) => {
+  await withServer(async (base, token, root) => {
     const unauthorized = await fetch(`${base}/api/bootstrap`);
     assert.equal(unauthorized.status, 401);
 
@@ -45,6 +45,8 @@ test('Studio requires a token and establishes an HttpOnly localhost session', as
     assert.equal(body.ok, true);
     assert.ok(body.recipes.some((recipe) => recipe.id === 'default'));
     assert.deepEqual(body.adapters.types, ['standard', 'github', 'gitlab', 'dot']);
+    assert.equal(body.root, require('node:path').resolve(root));
+    assert.match(body.watchMode, /^(watch|poll)$/);
   });
 });
 
@@ -111,14 +113,18 @@ test('Studio exposes ordered lifecycle updates with a reconnect cursor', async (
     assert.deepEqual(secondBody.lifecycle.events.map((event) => event.sequence), [2]);
     assert.equal(secondBody.lifecycle.nextSequence, 2);
 
-    const stream = await fetch(
+    const gone = await fetch(
       `${base}/api/runs/${run.runId}/lifecycle/stream?after=1`,
       { headers }
     );
+    assert.equal(gone.status, 404);
+    assert.equal((await gone.json()).code, 'GONE');
+
+    const stream = await fetch(`${base}/api/events`, { headers });
     assert.match(stream.headers.get('content-type'), /^text\/event-stream/);
     const reader = stream.body.getReader();
     const chunk = new TextDecoder().decode((await reader.read()).value);
-    assert.match(chunk, /"sequence":2/);
+    assert.match(chunk, /event: hello/);
     await reader.cancel();
   });
 });
@@ -455,47 +461,17 @@ test('Studio checks out a Run and exchanges agent questions without changing his
   });
 });
 
-test('Studio previews and applies recipe imports without installing them', async () => {
+test('Studio import endpoints are gone', async () => {
   await withServer(async (base, token) => {
     const headers = { 'x-ael-studio-token': token, 'content-type': 'application/json' };
-    const existing = (await (await fetch(`${base}/api/recipe?id=default`, { headers })).json()).recipe;
-    const imported = structuredClone(existing);
-    imported.id = 'imported';
-
-    const preview = await fetch(`${base}/api/import/preview`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ existingRecipe: existing, importedRecipe: imported, operation: 'merge' })
-    });
-    assert.equal(preview.status, 200);
-    const plan = (await preview.json()).plan;
-    assert.equal(plan.operation, 'merge');
-    assert.ok(Object.keys(plan.nodeIdMap).length > 0);
-
-    const applied = await fetch(`${base}/api/import/apply`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        existingRecipe: existing,
-        importedRecipe: imported,
-        plan: { operation: 'replace', nodeIdMap: {}, edgeIdMap: {} }
-      })
-    });
-    assert.equal(applied.status, 200);
-    const candidate = (await applied.json()).recipe;
-    assert.equal(candidate.id, 'imported');
-    assert.equal(candidate.nodes.length, existing.nodes.length);
-
-    const cancelled = await fetch(`${base}/api/import/apply`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        existingRecipe: existing,
-        importedRecipe: imported,
-        plan: { operation: 'cancel', nodeIdMap: {}, edgeIdMap: {} }
-      })
-    });
-    assert.equal(cancelled.status, 200);
-    assert.deepEqual((await cancelled.json()).recipe, existing);
+    for (const pathName of ['/api/import/preview', '/api/import/apply']) {
+      const response = await fetch(`${base}${pathName}`, {
+        method: 'POST',
+        headers,
+        body: '{}'
+      });
+      assert.equal(response.status, 404);
+      assert.equal((await response.json()).code, 'GONE');
+    }
   });
 });

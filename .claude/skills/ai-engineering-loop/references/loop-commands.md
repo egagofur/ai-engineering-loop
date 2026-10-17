@@ -9,7 +9,7 @@
 
 ## Studio
 
-Stage commands (`run`, `goal`, `gate`, `verify`, `review-pack`, `deliver`, `node start|activity|complete`) publish Studio lifecycle and heartbeats automatically. Emit `npx ai-engineering-loop activity heartbeat --run <runId> --phase <phase> --message <short factual summary>` only during long manual work, never before every stage. Before asking the human, persist the question with `npx ai-engineering-loop interaction question --run <runId> --id <id> --message <text>` so it appears once in Studio.
+Stage commands (`run`, `goal`, `gate`, `verify`, `review-pack`, `deliver`, `node start|activity|complete`) stream into an open Studio; `status --json` reports `studioUrl`. Emit `npx ai-engineering-loop activity heartbeat --run <runId> --phase <phase> --message <short factual summary>` only during long manual work, never before every stage. Before asking the human, persist the question with `npx ai-engineering-loop interaction question --run <runId> --id <id> --message <text>` so it appears once in Studio.
 
 ## Budget
 
