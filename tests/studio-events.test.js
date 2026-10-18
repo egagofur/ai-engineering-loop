@@ -279,7 +279,10 @@ describe('Studio real-time events #80', { concurrency: false }, () => {
         ['verification.json', 'artifact.verification', verificationBundle(run.runId, [verificationCommand()])],
         ['findings.json', 'artifact.findings', findingsBundle(run.runId, ledger)],
         ['verdict.json', 'artifact.verdict', verdictFixture(run.runId)],
-        ['receipt.json', 'artifact.receipt', receiptFixture(run.runId)]
+        ['receipt.json', 'artifact.receipt', receiptFixture(run.runId)],
+        ['delivery.json', 'artifact.delivery', {
+          schemaVersion: 1, runId: run.runId, destination: 'pr', summary: 'x', humanApproved: true, approvedBy: 'ega'
+        }]
       ];
       checkGuard(root, { tool: 'bash', input: { command: 'rm -rf /tmp/ael-guard-fixture' }, runId: run.runId });
       const guardHits = await sse.waitForNew(
@@ -307,6 +310,9 @@ describe('Studio real-time events #80', { concurrency: false }, () => {
         if (type === 'artifact.findings') {
           assert.equal(summary.count, ledger.length);
           assert.equal(summary.blocking, ledger.filter(isBlockingFinding).length);
+        }
+        if (type === 'artifact.delivery') {
+          assert.deepEqual(summary, { destination: 'pr', humanApproved: true, approvedBy: 'ega' });
         }
         if (type === 'artifact.receipt') {
           assert.equal(summary.present, true);

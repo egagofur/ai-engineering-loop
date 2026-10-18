@@ -390,7 +390,9 @@ test('AC-16 semantic node and connector states remain distinct without a passed 
   for (const state of ['active', 'passed', 'failed', 'skipped', 'waiting', 'idle']) {
     assert.match(css, new RegExp(`edge-${state}`));
   }
-  assert.match(css, /\.node\.passed\{border:1px solid/);
+  assert.match(css, /\.node\[data-status="passed"\] \.node-status\{color:#28ad00\}/);
+  assert.match(css, /\.node\[data-status="passed"\] \.node-mark\{display:block/);
+  assert.doesNotMatch(css, /\.node\[data-status="passed"\][^{]*\{[^}]*glow/);
   assert.doesNotMatch(css, /\.node\.passed\{[^}]*glow/);
 });
 
