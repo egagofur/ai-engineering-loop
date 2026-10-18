@@ -4,7 +4,13 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
-_No changes yet._
+### Studio: n8n-style Wiring canvas (#88)
+
+- **Added:** node tiles on the Wiring canvas (type icon, name, one status line that is also the duration slot, no stage or type badge). Edges are cubic Bézier curves; the edge into the RUNNING node animates, and `prefers-reduced-motion` disables that animation. A loop group draws a container labeled `iteration n / max` from live loop state.
+- **Added:** a minimap with one mark per node, zoom controls (+, −, fit, auto-layout, percent), a node side panel with Input, Output, Evidence, and Timeline tabs, a tooltip, and a `?` shortcut sheet (`F`, `L`, `+`, `-`, `0`, arrows, Enter, Esc, undo/redo). `:focus-visible` outlines the controls.
+- **Added:** a dirty-only save bar (change count, Valid or Invalid, Discard, Save) that stays hidden while the wiring is clean. Save still goes through the confirm dialog. A finished run shows a summary card with duration, tests, findings, drift, receipt, and tokens (`unknown` when the ledger has none).
+- **Changed:** auto-layout and fit keep every built-in recipe (default, bugfix, refactor, high-risk, docs-light, audit) inside the canvas at 1280×800 and 1600×1000. The edge delete control appears only on hover or selection. Live updates still arrive on `GET /api/events` via `applyEvent`; the client does not poll.
+- **Changed:** workflow structure stays read-only (#80). The canvas has no create, delete, rename, duplicate, or import control for nodes. Rewiring existing edges is still validated by `POST /api/validate`. A backbone-breaking edge shows the compiler's named error and disables Save. Node-set changes still fail with `STUDIO_STRUCTURE_READ_ONLY`, and `POST /api/import/*` stays 404.
 
 ## 2.0.0 - 2026-10-17
 

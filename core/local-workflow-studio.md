@@ -50,6 +50,38 @@ Studio is read-only for workflow *structure*. Do not create, duplicate, delete, 
 
 Every wiring change is validated by `POST /api/validate`, which is the same `lib/recipe.js` compiler and safety backbone (goal-contract → maker → verification → devil-advocate → judge → delivery/report, plus a human approval before delivery in ASSISTED). An edge set that breaks the backbone is rejected with the compiler's named error and cannot be saved. The server also rejects a recipe whose node set differs from the loaded base (`baseRecipeId`): same node ids, types, and node config; only edges, `dependsOn`, and layout may change. That failure is `STUDIO_STRUCTURE_READ_ONLY` and lists added, removed, and changed node ids. A builtin may still be installed as `<id>-local` when the nodes are unchanged. A valid change is installed only after the confirm dialog (`POST /api/install`). Built-in recipe ids stay reserved; Studio installs a project copy.
 
+## Wiring canvas
+
+### Node tiles
+
+Each existing node is one tile: a type icon, the node name, and exactly one status line. That line is the duration slot (`Passed · 6m 10s` when a duration was recorded). Stage and type text are not repeated as badges on the tile. A loop group draws a container around its nodes and labels it `iteration n / max` from the live loop state.
+
+### Side panel
+
+Click a tile to open the side panel. The tabs are Input, Output, Evidence, and Timeline. Evidence uses the same artifact inspection as the rest of Studio: path traversal and symlinks are rejected, size is bounded, and recognized secrets are redacted.
+
+### Tooltip
+
+Hover or keyboard focus shows a tooltip with the node name, type, stage, and status. The tooltip is separate from the tile, so the tile does not carry a second stage or type badge.
+
+### Minimap and zoom controls
+
+The minimap draws one rectangle per node. Zoom controls are zoom in (+), zoom out (−), fit, auto-layout, and the zoom percent. Fit and auto-layout keep every built-in recipe inside the canvas.
+
+### Shortcuts
+
+The `?` sheet lists the shortcuts: `F` fit, `L` auto-layout, `+` and `-` zoom, `0` reset zoom, arrow keys between nodes, Enter to open the side panel, Esc to close it, and undo/redo for wiring edits. `:focus-visible` outlines the canvas controls.
+
+### Save bar
+
+The dirty-only save bar stays hidden while the wiring is clean. The first edge change shows the change count, Valid or Invalid, Discard, and Save. Save opens the confirm dialog before `POST /api/install`. A backbone-breaking edge shows the compiler's named error and disables Save. Every edit is checked with `POST /api/validate`.
+
+### Run summary card
+
+When a run is DELIVERED, REPORTED, ESCALATED, or CANCELLED, the canvas shows a run summary card with duration, tests, findings, drift, receipt, and tokens. Tokens read `unknown` when the usage ledger has none.
+
+Workflow structure on this canvas stays read-only. There is no control to create, delete, rename, duplicate, or import nodes. Rewiring only connects nodes that already exist. Live tile and summary updates come from `GET /api/events`.
+
 ## Stage 8 delivery adapter
 
 Delivery nodes still expose the project-level Stage 8 adapter in `.ai-engineering-loop/adapter.md`. `POST /api/adapter/select` can select the shipped `standard`, `github`, `gitlab`, or `dot` adapters. The browser never accepts arbitrary adapter code or executes delivery commands.
