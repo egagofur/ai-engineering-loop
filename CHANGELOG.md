@@ -4,7 +4,9 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
-_No changes yet._
+### README refresh for 2.0.0 (#86)
+
+- **Docs:** README Workflow Studio section describes the 2.0 live-run view, real-time `/api/events`, and wiring-only canvas (node creation, duplication, import, and Studio-created Agent nodes are gone). Adds `ael bench` (compliance self-check for your own host and model; slow) and personal workflow (`workflow interview|propose|accept|suggest`, `~/.ai-engineering-loop/workflow/`, `workflow-history.jsonl`, project-required > personal > built-in). Updates the CLI cheat sheet, recipe authoring example, major-update note, and Documentation links.
 
 ## 2.0.0 - 2026-10-17
 
