@@ -44,14 +44,23 @@ class ElementMock {
     this.files = [];
     this.open = false;
     this.listeners = {};
+    this.children = [];
+    this.attributes = {};
+  }
+
+  get innerHTML() { return this._innerHTML; }
+
+  set innerHTML(value) {
+    this._innerHTML = String(value ?? '');
+    if (!this._innerHTML) this.children = [];
   }
 
   addEventListener(type, listener) {
     this.listeners[type] ||= [];
     this.listeners[type].push(listener);
   }
-  setAttribute() {}
-  append() {}
+  setAttribute(name, value) { this.attributes[name] = String(value); }
+  append(...nodes) { this.children.push(...nodes); }
   insertAdjacentHTML(_position, value) { this.innerHTML += value; }
   remove() {}
   setPointerCapture() {}
@@ -541,6 +550,155 @@ test('Studio reconnects to /api/events with after=lastSeq when the stream ends',
     assert.equal(String(resumeHeaders['Last-Event-ID'] || resumeHeaders['last-event-id']), '12');
     assert.equal(typeof elements.get('retry-live-connection').onclick, 'function');
     vm.runInContext('eventAbort && eventAbort.abort(); clearReconnectTimer()', context);
+  } finally {
+    await new Promise((resolve) => instance.server.close(resolve));
+  }
+});
+
+test('Wiring canvas uses one n8n tile per node and fits the default recipe', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-studio-ui-'));
+  const instance = createStudioServer(root, { token: 'ui-test-token', watch: false, pollMs: 60_000 });
+  await new Promise((resolve, reject) => {
+    instance.server.once('error', reject);
+    instance.server.listen(0, '127.0.0.1', resolve);
+  });
+  try {
+    const base = `http://127.0.0.1:${instance.server.address().port}`;
+    const { context, elements } = studioContext(base, instance.token);
+    const paths = [];
+    context.document.createElementNS = () => {
+      const element = new ElementMock();
+      paths.push(element);
+      return element;
+    };
+    vm.runInContext(
+      fs.readFileSync(path.join(__dirname, '..', 'studio', 'app.js'), 'utf8'),
+      context,
+      { filename: 'studio/app.js' }
+    );
+    await waitFor(() => elements.get('integrity').textContent.startsWith('VALID'));
+    vm.runInContext('renderGraph()', context);
+    const rendered = elements.get('nodes').children;
+    const nodeCount = vm.runInContext('draft.nodes.length', context);
+    assert.equal(rendered.length, nodeCount);
+    assert.ok(nodeCount > 1);
+    const types = [
+      'goal-contract', 'maker', 'verification', 'devil-advocate', 'judge',
+      'approval', 'delivery', 'report', 'agent', 'command'
+    ];
+    const generic = vm.runInContext('nodeIcon("unlisted")', context);
+    const seen = new Set();
+    for (const type of types) {
+      const icon = vm.runInContext(`nodeIcon(${JSON.stringify(type)})`, context);
+      assert.match(icon, /<svg/);
+      assert.notEqual(icon, generic);
+      seen.add(icon);
+    }
+    assert.equal(seen.size, types.length);
+    assert.equal(vm.runInContext('nodeIcon("command-runner")', context), generic);
+
+    for (const node of rendered) {
+      const visible = node.innerHTML
+        .replace(/\s(?:title|aria-label)="[^"]*"/g, '')
+        .replace(/<[^>]+>/g, ' ');
+      assert.match(node.innerHTML, /class="node-icon"[\s\S]*<svg/);
+      assert.match(node.innerHTML, /class="node-name"/);
+      assert.equal((node.innerHTML.match(/class="node-status"/g) || []).length, 1);
+      assert.doesNotMatch(node.innerHTML, /class="status"|class="node-title"|class="technical-id"|✓ PASSED/);
+      assert.doesNotMatch(visible, /STAGE|STEP \d/);
+      assert.match(node.title, /·/);
+      assert.ok(node.dataset.status);
+      assert.ok(node.dataset.nodeType);
+      assert.match(node.innerHTML, new RegExp(`title="[^"]*${node.dataset.nodeType}`));
+    }
+
+    const statusLines = vm.runInContext(`(() => {
+      const node = draft.nodes[0];
+      return {
+        duration: nodeStatusLine({ status: 'passed', durationMs: 370000 }),
+        range: nodeStatusLine({
+          status: 'PASSED',
+          startedAt: '2026-10-18T00:00:00.000Z',
+          completedAt: '2026-10-18T00:01:52.000Z'
+        }),
+        unknown: nodeStatusLine({ status: 'passed' }),
+        pending: nodeStatusLine(null)
+      };
+    })()`, context);
+    assert.equal(statusLines.duration, 'Passed · 6m 10s');
+    assert.equal(statusLines.range, 'Passed · 1m 52s');
+    assert.equal(statusLines.unknown, 'Passed');
+    assert.equal(statusLines.pending, 'Pending');
+
+    paths.length = 0;
+    const activeTarget = vm.runInContext(`(() => {
+      const edge = draft.edges[0];
+      catalog.live = { nodes: { [edge.to]: { status: 'RUNNING', durationMs: 124000 } }, edges: [] };
+      renderGraph();
+      return edge.to;
+    })()`, context);
+    const activePaths = paths.filter((path) => /\bedge-active\b/.test(path.attributes.class || ''));
+    const expectedActive = vm.runInContext(
+      `draft.edges.filter((edge) => edge.to === ${JSON.stringify(activeTarget)}).length`,
+      context
+    );
+    assert.equal(activePaths.length, expectedActive);
+    assert.match(activePaths[0].attributes.class, /\bedge-active\b/);
+    const quiet = vm.runInContext(`(() => {
+      const edge = draft.edges[0];
+      catalog.live = { nodes: {}, edges: [{ id: edge.id, state: 'passed' }] };
+      return edgeClassName(edge);
+    })()`, context);
+    assert.doesNotMatch(quiet, /edge-active/);
+    const byState = vm.runInContext(`(() => {
+      const edge = draft.edges[0];
+      catalog.live = { nodes: {}, edges: [{ id: edge.id, state: 'active' }] };
+      return edgeClassName(edge);
+    })()`, context);
+    assert.match(byState, /\bedge-active\b/);
+    assert.equal(vm.runInContext('edgeDeleteClass(draft.edges[0])', context), 'edge-delete');
+
+    const loop = vm.runInContext(`(() => {
+      positions = defaultGraphPositions();
+      const group = draft.loopGroups[0];
+      const bounds = loopBounds(group);
+      const label = loopLabelText(group, { iteration: 2 });
+      const rect = placeLoopLabel(bounds, label);
+      return { label, overlaps: loopLabelOverlapsEdge(rect) };
+    })()`, context);
+    assert.match(loop.label, / · iteration 2 \/ /);
+    assert.equal(loop.overlaps, false);
+
+    const fit = vm.runInContext(`(() => {
+      positions = defaultGraphPositions();
+      const bounds = graphBounds();
+      const next = computeFit(bounds, 1280, 800);
+      const boxes = draft.nodes.map((node) => {
+        const pos = positions.get(node.id);
+        return {
+          id: node.id,
+          left: next.x + pos.x * next.scale,
+          right: next.x + (pos.x + NODE_WIDTH) * next.scale,
+          top: next.y + pos.y * next.scale,
+          bottom: next.y + (pos.y + NODE_BLOCK_HEIGHT) * next.scale
+        };
+      });
+      return { scale: next.scale, boxes };
+    })()`, context);
+    assert.ok(fit.scale >= 0.2 && fit.scale <= 2.5);
+    for (const box of fit.boxes) {
+      assert.ok(box.left >= -0.01 && box.right <= 1280.01, `${box.id} overflows horizontally`);
+      assert.ok(box.top >= -0.01 && box.bottom <= 800.01, `${box.id} overflows vertically`);
+    }
+
+    const css = fs.readFileSync(path.join(__dirname, '..', 'studio', 'styles.css'), 'utf8');
+    const app = fs.readFileSync(path.join(__dirname, '..', 'studio', 'app.js'), 'utf8');
+    assert.match(css, /\.edge-delete\{[^}]*visibility:\s*hidden/);
+    assert.match(css, /\.edge-delete\.visible,\.edge-delete\.selected/);
+    assert.match(css, /prefers-reduced-motion:reduce\)[\s\S]*?animation:\s*none/);
+    assert.match(css, /\.edge\.edge-active\{[^}]*animation:\s*flow/);
+    assert.match(app, /addEventListener\('resize', scheduleFitView\)/);
+    assert.equal(app.includes('edge-label'), false);
   } finally {
     await new Promise((resolve) => instance.server.close(resolve));
   }

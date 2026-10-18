@@ -1,9 +1,14 @@
 'use strict';
 
-const NODE_WIDTH = 224;
-const NODE_PORT_Y = 54;
+const NODE_WIDTH = 104;
+const NODE_PORT_Y = 52;
+const NODE_BLOCK_HEIGHT = 152;
+const FIT_PADDING = 48;
+const LABEL_BLEED = 36;
 const MIN_ZOOM = 0.2;
 const MAX_ZOOM = 2.5;
+const COLUMN_PITCH = 188;
+const ROW_PITCH = 200;
 const DISPLAY_NAME_MAX = 80;
 const STAGES = [
   { id: 'goal', label: 'goal', types: ['goal-contract'] },
@@ -47,6 +52,9 @@ let historyIndex = -1;
 let interaction;
 let connection;
 let layoutTimer;
+let hasFitted = false;
+let resizeFitTimer;
+let edgeHideTimer;
 let spacePressed = false;
 let runs = [];
 let goal = { text: '', version: 1, frozen: false, draftRevision: 0, draftHash: null };
@@ -175,7 +183,7 @@ function defaultGraphPositions() {
     const depth = depthFor(node);
     const row = rows.get(depth) || 0;
     rows.set(depth, row + 1);
-    return [node.id, { x: 80 + depth * 270, y: 110 + row * 150 }];
+    return [node.id, { x: 48 + depth * COLUMN_PITCH, y: 56 + row * ROW_PITCH }];
   }));
 }
 
@@ -208,24 +216,98 @@ function screenToWorld(clientX, clientY) {
   };
 }
 
+function curveBend(x1, x2) {
+  return Math.max(48, Math.abs(x2 - x1) * 0.45);
+}
+
+function curvePath(x1, y1, x2, y2) {
+  const bend = curveBend(x1, x2);
+  return `M${x1} ${y1} C${x1 + bend} ${y1},${x2 - bend} ${y2},${x2} ${y2}`;
+}
+
+function pointOnCurve(x1, y1, x2, y2, t) {
+  const bend = curveBend(x1, x2);
+  const u = 1 - t;
+  return {
+    x: u * u * u * x1 + 3 * u * u * t * (x1 + bend) + 3 * u * t * t * (x2 - bend) + t * t * t * x2,
+    y: u * u * u * y1 + 3 * u * u * t * y1 + 3 * u * t * t * y2 + t * t * t * y2
+  };
+}
+
 function edgePath(from, to) {
-  const startX = from.x + NODE_WIDTH;
-  const startY = from.y + NODE_PORT_Y;
-  const endX = to.x;
-  const endY = to.y + NODE_PORT_Y;
-  const bend = Math.max(55, Math.abs(endX - startX) * 0.42);
-  return `M${startX} ${startY} C${startX + bend} ${startY},${endX - bend} ${endY},${endX} ${endY}`;
+  return curvePath(from.x + NODE_WIDTH, from.y + NODE_PORT_Y, to.x, to.y + NODE_PORT_Y);
+}
+
+function edgeEndpoints(from, to) {
+  return {
+    x1: from.x + NODE_WIDTH,
+    y1: from.y + NODE_PORT_Y,
+    x2: to.x,
+    y2: to.y + NODE_PORT_Y
+  };
 }
 
 function loopBounds(loopGroup) {
   const points = loopGroup.nodeIds.map((nodeId) => positions.get(nodeId)).filter(Boolean);
   if (!points.length) return null;
-  const padding = 44;
-  const left = Math.min(...points.map((point) => point.x)) - padding;
-  const top = Math.min(...points.map((point) => point.y)) - padding;
-  const right = Math.max(...points.map((point) => point.x + NODE_WIDTH)) + padding;
-  const bottom = Math.max(...points.map((point) => point.y + 108)) + padding;
+  const padX = 46;
+  const padTop = 58;
+  const padBottom = 28;
+  const left = Math.min(...points.map((point) => point.x)) - padX;
+  const top = Math.min(...points.map((point) => point.y)) - padTop;
+  const right = Math.max(...points.map((point) => point.x + NODE_WIDTH)) + padX;
+  const bottom = Math.max(...points.map((point) => point.y + NODE_BLOCK_HEIGHT)) + padBottom;
   return { left, top, right, bottom, width: right - left, height: bottom - top };
+}
+
+function loopLabelText(loopGroup, runtime) {
+  const iteration = runtime?.iteration ?? 1;
+  return `${loopGroup.displayName} · iteration ${iteration} / ${loopGroup.maxIterations}`;
+}
+
+function loopLabelOverlapsEdge(rect) {
+  for (const edge of draft?.edges || []) {
+    const from = positions.get(edge.from);
+    const to = positions.get(edge.to);
+    if (!from || !to) continue;
+    const { x1, y1, x2, y2 } = edgeEndpoints(from, to);
+    for (let step = 0; step <= 8; step += 1) {
+      const point = pointOnCurve(x1, y1, x2, y2, step / 8);
+      if (point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function placeLoopLabel(bounds, label) {
+  const height = 26;
+  const width = Math.min(Math.max(bounds.width - 24, 80), 16 + String(label).length * 7.1);
+  const centerLeft = bounds.left + (bounds.width - width) / 2;
+  const candidates = [
+    { left: centerLeft, top: bounds.top - height / 2 },
+    { left: centerLeft, top: bounds.top - height - 10 },
+    { left: bounds.left + 12, top: bounds.top - height - 10 },
+    { left: bounds.right - width - 12, top: bounds.top - height - 10 },
+    { left: centerLeft, top: bounds.bottom + 10 }
+  ];
+  for (const candidate of candidates) {
+    const rect = {
+      left: candidate.left,
+      top: candidate.top,
+      right: candidate.left + width,
+      bottom: candidate.top + height
+    };
+    if (!loopLabelOverlapsEdge(rect)) return rect;
+  }
+  const fallback = candidates[1];
+  return {
+    left: fallback.left,
+    top: fallback.top,
+    right: fallback.left + width,
+    bottom: fallback.top + height
+  };
 }
 
 function renderLoopGroups() {
@@ -235,26 +317,17 @@ function renderLoopGroups() {
     const bounds = loopBounds(loopGroup);
     if (!bounds) continue;
     const runtime = catalog.live?.loopGroups?.[loopGroup.id];
+    const label = loopLabelText(loopGroup, runtime);
+    const rect = placeLoopLabel(bounds, label);
     const element = document.createElement('section');
     element.className = `loop-group ${runtime?.status?.toLowerCase() || 'draft'}`;
     element.style.left = `${bounds.left}px`;
     element.style.top = `${bounds.top}px`;
     element.style.width = `${bounds.width}px`;
     element.style.height = `${bounds.height}px`;
-    element.innerHTML = `
-      <header>
-        <span><b>${escapeHtml(loopGroup.displayName)}</b><small>ITERATION ${escapeHtml(runtime?.iteration || 1)} / ${escapeHtml(loopGroup.maxIterations)}</small></span>
-      </header>
-    `;
+    element.innerHTML = `<header class="loop-pill" style="left:${rect.left - bounds.left}px;top:${rect.top - bounds.top}px;width:${Math.max(0, rect.right - rect.left)}px">${escapeHtml(label)}</header>`;
     container.append(element);
   }
-}
-
-function edgeLoopLabel(edge) {
-  const loopGroup = (draft.loopGroups || []).find((candidate) =>
-    candidate.decisionNodeId === edge.from && candidate.exitTargetId === edge.to
-  );
-  return loopGroup ? loopGroup.exitLabel : '';
 }
 
 function stageLabel(node, index) {
@@ -271,6 +344,48 @@ function stageLabel(node, index) {
   return stages[node.type] || `STEP ${String(index + 1).padStart(2, '0')}`;
 }
 
+function edgeClassName(edge) {
+  const state = graphStateClass(catalog.live?.edges?.find((candidate) => candidate.id === edge.id)?.state);
+  const intoRunning = graphStateClass(catalog.live?.nodes?.[edge.to]?.status) === 'active';
+  const active = state === 'active' || intoRunning;
+  return `edge edge-${state}${active ? ' edge-active' : ''}${selectedEdgeId === edge.id ? ' selected' : ''}`;
+}
+
+function edgeDeleteClass(edge) {
+  return `edge-delete${selectedEdgeId === edge.id ? ' selected' : ''}`;
+}
+
+function bindEdgeAffordance(path, control, edgeId) {
+  const show = () => {
+    clearTimeout(edgeHideTimer);
+    control.classList.add('visible');
+    control.setAttribute('aria-hidden', 'false');
+  };
+  const scheduleHide = () => {
+    clearTimeout(edgeHideTimer);
+    edgeHideTimer = setTimeout(() => {
+      if (selectedEdgeId !== edgeId) {
+        control.classList.remove('visible');
+        control.setAttribute('aria-hidden', 'true');
+      }
+    }, 160);
+  };
+  path.addEventListener('pointerenter', show);
+  path.addEventListener('pointerleave', scheduleHide);
+  control.addEventListener('pointerenter', show);
+  control.addEventListener('pointerleave', scheduleHide);
+  path.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return;
+    event.stopPropagation();
+    event.preventDefault();
+    selectedEdgeId = edgeId;
+    selectedId = null;
+    selectedIds = new Set();
+    updateSelection();
+    renderEdges();
+  });
+}
+
 function renderEdges() {
   const group = scenePart('.edge-paths');
   const controls = scenePart('.edge-controls');
@@ -279,59 +394,126 @@ function renderEdges() {
   controls.innerHTML = '';
   if (preview?.style && preview !== byId('scene')) preview.setAttribute?.('d', preview.getAttribute?.('d') || '');
   if (!draft) return;
+  clearTimeout(edgeHideTimer);
   draft.edges.forEach((edge) => {
     const from = positions.get(edge.from);
     const to = positions.get(edge.to);
     if (!from || !to) return;
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('d', edgePath(from, to));
-    const state = graphStateClass(catalog.live?.edges?.find((candidate) => candidate.id === edge.id)?.state);
-    path.setAttribute(
-      'class',
-      `edge edge-${state}${selectedEdgeId === edge.id ? ' selected' : ''}`
-    );
+    path.setAttribute('class', edgeClassName(edge));
     path.setAttribute('marker-end', 'url(#arrow)');
     path.dataset.edgeId = edge.id;
     group.append(path);
-    const midpoint = {
-      x: (from.x + NODE_WIDTH + to.x) / 2,
-      y: (from.y + to.y) / 2 + NODE_PORT_Y
-    };
+    const ends = edgeEndpoints(from, to);
+    const midpoint = pointOnCurve(ends.x1, ends.y1, ends.x2, ends.y2, 0.5);
     const control = document.createElement('button');
-    control.className = `edge-delete${selectedEdgeId === edge.id ? ' selected' : ''}`;
+    control.type = 'button';
+    control.className = edgeDeleteClass(edge);
     control.dataset.edgeId = edge.id;
     control.style.left = `${midpoint.x}px`;
     control.style.top = `${midpoint.y}px`;
+    control.tabIndex = -1;
     control.title = `${displayName(draft.nodes.find((node) => node.id === edge.from))} → ${displayName(draft.nodes.find((node) => node.id === edge.to))}`;
     control.setAttribute('aria-label', `Delete connection ${control.title}`);
+    control.setAttribute('aria-hidden', selectedEdgeId === edge.id ? 'false' : 'true');
     control.textContent = '×';
     control.onclick = (event) => {
       event.stopPropagation();
       deleteEdge(edge.id);
     };
+    bindEdgeAffordance(path, control, edge.id);
     controls.append(control);
-    const label = edgeLoopLabel(edge);
-    if (label) {
-      const badge = document.createElement('span');
-      badge.className = 'edge-label';
-      badge.style.left = `${midpoint.x}px`;
-      badge.style.top = `${midpoint.y - 22}px`;
-      badge.textContent = label;
-      controls.append(badge);
-    }
   });
+}
+
+const NODE_ICONS = {
+  'goal-contract': '<circle cx="12" cy="12" r="7.2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3.1" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/>',
+  maker: '<path d="M9 7 4 12l5 5M15 7l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+  verification: '<rect x="6" y="3.8" width="12" height="16.4" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 12.2 11.2 14.4 15.2 10.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+  'devil-advocate': '<path d="M12 3.2 19.2 6v5.4c0 4.3-2.9 7.2-7.2 8.8-4.3-1.6-7.2-4.5-7.2-8.8V6Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 8.2v4.4M12 15.4v.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+  judge: '<path d="M12 3.5v16.5M6.5 20h11M3.5 8h17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M3.5 8 1.8 14h4.2ZM20.5 8l1.7 6h-4.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
+  approval: '<circle cx="12" cy="8" r="3.1" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5.2 19.2c.9-3.5 3.2-5.2 6.8-5.2s5.9 1.7 6.8 5.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+  delivery: '<path d="M12 4v10.2M8 10.2 12 14.4l4-4.2M5 19.8h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+  report: '<path d="M7 3.2h7.2L18.2 7.2V20.8H7Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 3.2V7.4h4.2M9.2 12h6M9.2 15.8h6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
+  agent: '<rect x="4.8" y="7" width="14.4" height="10.6" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="9.4" cy="12.2" r="1.1" fill="currentColor"/><circle cx="14.6" cy="12.2" r="1.1" fill="currentColor"/><path d="M12 7V4.2M8 17.6v1.6M16 17.6v1.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+  command: '<rect x="3.2" y="4.6" width="17.6" height="14.2" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M7 9.6 9.8 12.2 7 14.8M12 14.8h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+  generic: '<rect x="5" y="5" width="14" height="14" rx="3.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/>'
+};
+
+function nodeIcon(type) {
+  const body = NODE_ICONS[type] || NODE_ICONS.generic;
+  return `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">${body}</svg>`;
+}
+
+function formatDuration(ms) {
+  if (!Number.isFinite(ms) || ms < 0) return '';
+  const totalSeconds = Math.round(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) return minutes ? `${hours}h ${minutes}m` : `${hours}h`;
+  if (minutes > 0) return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
+  return `${seconds}s`;
+}
+
+function nodeDurationMs(runtime) {
+  if (!runtime || typeof runtime !== 'object') return null;
+  if (runtime.durationMs != null && runtime.durationMs !== '') {
+    const explicit = Number(runtime.durationMs);
+    if (Number.isFinite(explicit) && explicit >= 0) return explicit;
+  }
+  const started = Date.parse(runtime.startedAt);
+  if (!Number.isFinite(started)) return null;
+  const completed = Date.parse(runtime.completedAt);
+  if (Number.isFinite(completed)) return Math.max(0, completed - started);
+  if (graphStateClass(runtime.status) === 'active') return Math.max(0, Date.now() - started);
+  return null;
+}
+
+function statusWord(status) {
+  if (status == null || status === '') return 'Pending';
+  const normalized = String(status).toLowerCase();
+  if (normalized === 'blocked') return 'Blocked';
+  const state = graphStateClass(status);
+  if (state === 'active') return 'Running';
+  if (state === 'passed') return 'Passed';
+  if (state === 'failed') return 'Failed';
+  if (state === 'skipped') return 'Skipped';
+  if (state === 'waiting') return 'Waiting';
+  if (normalized === 'ready' || normalized === 'idle' || normalized === 'pending') return 'Pending';
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function nodeStatusLine(runtime) {
+  const word = statusWord(runtime?.status);
+  const duration = formatDuration(nodeDurationMs(runtime));
+  return duration ? `${word} · ${duration}` : word;
 }
 
 function nodeMarkup(node, index) {
   const runtimeNode = catalog.live?.nodes?.[node.id];
+  const title = `${stageLabel(node, index)} · ${node.type}`;
   return `
     <button class="port port-in" aria-label="Input for ${escapeHtml(node.id)}" tabindex="-1"></button>
-    <small>${escapeHtml(stageLabel(node, index))} / ${escapeHtml(node.type.toUpperCase())}</small>
-    <span class="node-title">${escapeHtml(displayName(node))}</span>
-    <span class="technical-id">${escapeHtml(node.id)}</span>
-    <span class="status">● ${escapeHtml(runtimeNode?.status || 'READY')}</span>
+    <div class="node-tile" title="${escapeHtml(title)}">
+      <span class="node-icon">${nodeIcon(node.type)}</span>
+      <span class="node-mark" aria-hidden="true"></span>
+    </div>
+    <span class="node-name">${escapeHtml(displayName(node))}</span>
+    <span class="node-status">${escapeHtml(nodeStatusLine(runtimeNode))}</span>
     <button class="port port-out" aria-label="Connect from ${escapeHtml(node.id)}" tabindex="-1"></button>
   `;
+}
+
+function nodeFrame(node, index) {
+  const runtime = catalog.live?.nodes?.[node.id];
+  return {
+    status: graphStateClass(runtime?.status),
+    nodeType: node.type,
+    title: `${stageLabel(node, index)} · ${node.type}`,
+    html: nodeMarkup(node, index)
+  };
 }
 
 function renderGraph() {
@@ -343,19 +525,23 @@ function renderGraph() {
   container.innerHTML = '';
   draft.nodes.forEach((node, index) => {
     const position = positions.get(node.id);
-    const runtimeNode = catalog.live?.nodes?.[node.id];
+    const frame = nodeFrame(node, index);
     const element = document.createElement('article');
     element.dataset.nodeId = node.id;
-    element.className = `node ${graphStateClass(runtimeNode?.status)} ${selectedIds.has(node.id) ? 'selected' : ''}`;
+    element.dataset.status = frame.status;
+    element.dataset.nodeType = frame.nodeType;
+    element.title = frame.title;
+    element.className = `node${selectedIds.has(node.id) ? ' selected' : ''}`;
     element.style.left = `${position.x}px`;
     element.style.top = `${position.y}px`;
-    element.innerHTML = nodeMarkup(node, index);
+    element.innerHTML = frame.html;
     element.addEventListener('pointerdown', beginNodeInteraction);
     element.querySelector('.port-out')?.addEventListener('pointerdown', beginConnection);
     container.append(element);
   });
   renderEdges();
   applyViewport();
+  if (!hasFitted) hasFitted = fitView();
 }
 
 function updateSelection() {
@@ -374,6 +560,7 @@ function selectNode(nodeId, { additive = false } = {}) {
   selectedId = nodeId;
   selectedEdgeId = null;
   updateSelection();
+  renderEdges();
 }
 
 function deleteEdge(id) {
@@ -459,10 +646,8 @@ function handlePointerMove(event) {
     const preview = scenePart('.preview-edge');
     if (from && preview?.setAttribute) {
       const target = screenToWorld(event.clientX, event.clientY);
-      const start = { x: from.x + NODE_WIDTH, y: from.y + NODE_PORT_Y };
-      const bend = Math.max(55, Math.abs(target.x - start.x) * 0.42);
       preview.style.display = 'block';
-      preview.setAttribute('d', `M${start.x} ${start.y} C${start.x + bend} ${start.y},${target.x - bend} ${target.y},${target.x} ${target.y}`);
+      preview.setAttribute('d', curvePath(from.x + NODE_WIDTH, from.y + NODE_PORT_Y, target.x, target.y));
     }
     return;
   }
@@ -555,24 +740,57 @@ function handleWheel(event) {
 
 function autoLayout({ record = true } = {}) {
   positions = defaultGraphPositions();
+  hasFitted = false;
   renderGraph();
   if (record) captureHistory();
   saveLayoutSoon();
 }
 
+function graphBounds() {
+  const points = (draft?.nodes || []).map((node) => positions.get(node.id)).filter(Boolean);
+  if (!points.length) return null;
+  const minX = Math.min(...points.map((point) => point.x)) - LABEL_BLEED;
+  const minY = Math.min(...points.map((point) => point.y));
+  const maxX = Math.max(...points.map((point) => point.x + NODE_WIDTH)) + LABEL_BLEED;
+  const maxY = Math.max(...points.map((point) => point.y + NODE_BLOCK_HEIGHT));
+  return { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY };
+}
+
+function computeFit(bounds, canvasWidth, canvasHeight, padding = FIT_PADDING) {
+  const availableW = Math.max(1, canvasWidth - padding * 2);
+  const availableH = Math.max(1, canvasHeight - padding * 2);
+  const scale = Math.min(
+    MAX_ZOOM,
+    Math.max(MIN_ZOOM, Math.min(availableW / Math.max(bounds.width, 1), availableH / Math.max(bounds.height, 1)))
+  );
+  return {
+    scale,
+    x: padding + (availableW - bounds.width * scale) / 2 - bounds.minX * scale,
+    y: padding + (availableH - bounds.height * scale) / 2 - bounds.minY * scale
+  };
+}
+
 function fitView() {
-  if (!draft?.nodes.length) return;
+  if (!draft?.nodes?.length) return false;
   ensurePositions();
-  const canvas = byId('canvas').getBoundingClientRect();
-  const xs = draft.nodes.map((node) => positions.get(node.id).x);
-  const ys = draft.nodes.map((node) => positions.get(node.id).y);
-  const width = Math.max(...xs) - Math.min(...xs) + NODE_WIDTH + 160;
-  const height = Math.max(...ys) - Math.min(...ys) + 200;
-  viewport.scale = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.min(canvas.width / width, canvas.height / height)));
-  viewport.x = (canvas.width - width * viewport.scale) / 2 - Math.min(...xs) * viewport.scale + 40;
-  viewport.y = (canvas.height - height * viewport.scale) / 2 - Math.min(...ys) * viewport.scale + 40;
+  const rect = byId('canvas')?.getBoundingClientRect?.() || { width: 0, height: 0 };
+  if (rect.width < 2 || rect.height < 2) return false;
+  const bounds = graphBounds();
+  if (!bounds) return false;
+  const next = computeFit(bounds, rect.width, rect.height);
+  viewport.scale = next.scale;
+  viewport.x = next.x;
+  viewport.y = next.y;
   applyViewport();
   saveLayoutSoon();
+  return true;
+}
+
+function scheduleFitView() {
+  clearTimeout(resizeFitTimer);
+  resizeFitTimer = setTimeout(() => {
+    if (draft?.nodes?.length) fitView();
+  }, 150);
 }
 
 function captureHistory({ reset = false } = {}) {
@@ -1324,8 +1542,8 @@ async function loadRecipe() {
   positions = new Map(Object.entries(saved.layout?.positions || {}));
   ensurePositions();
   viewport = saved.layout?.viewport || { x: 0, y: 0, scale: 1 };
+  hasFitted = false;
   renderGraph();
-  if (!saved.layout || (draft.nodes.length <= 12 && viewport.scale < 0.45)) fitView();
   captureHistory({ reset: true });
   await validateDraft();
 }
@@ -1348,8 +1566,10 @@ function bindCanvas() {
   canvas.addEventListener('pointerdown', (event) => {
     if (event.target === canvas || event.target === byId('scene') || event.target === byId('nodes') || event.target === byId('edges')) {
       selectedId = null;
+      selectedEdgeId = null;
       if (!event.shiftKey) selectedIds.clear();
       updateSelection();
+      renderEdges();
       if (event.button === 1 || spacePressed) beginPan(event);
     }
   });
@@ -1388,6 +1608,7 @@ document.addEventListener('keydown', (event) => {
 document.addEventListener('keyup', (event) => {
   if (event.code === 'Space') spacePressed = false;
 });
+if (typeof window !== 'undefined') window.addEventListener('resize', scheduleFitView);
 
 byId('review').onclick = () => {
   if (byId('review').disabled) return;
