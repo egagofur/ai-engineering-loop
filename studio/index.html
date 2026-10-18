@@ -37,13 +37,10 @@
     <section class="canvas" id="canvas" tabindex="0" aria-label="Workflow wiring" hidden>
       <div class="canvas-toolbar">
         <select id="recipe" aria-label="Workflow"></select>
-        <button id="undo" title="Undo (Ctrl/Cmd+Z)">↶</button>
-        <button id="redo" title="Redo (Ctrl/Cmd+Shift+Z)">↷</button>
-        <button id="auto-layout">Tidy up</button>
-        <button id="fit-view">Fit</button>
         <output id="integrity" title="Graph integrity">…</output>
         <button class="primary" id="review">Save wiring</button>
       </div>
+      <aside id="node-panel" aria-label="Node inspection" hidden></aside>
       <div id="scene">
         <div class="loop-groups"></div>
         <svg id="edges" aria-hidden="true">
@@ -107,6 +104,26 @@
       <button type="button" id="continue-active-run">Continue current Run</button>
       <button type="button" id="replace-active-run" class="primary">End Run &amp; create new Goal</button>
     </footer>
+  </dialog>
+  <dialog id="shortcut-sheet" aria-label="Keyboard shortcuts">
+    <header>
+      <div><small>KEYBOARD</small><h2>Shortcuts</h2></div>
+      <button type="button" data-close="shortcut-sheet" aria-label="Close shortcuts">×</button>
+    </header>
+    <dl class="shortcut-list">
+      <div><dt>F</dt><dd>Fit to view</dd></div>
+      <div><dt>L</dt><dd>Auto-layout</dd></div>
+      <div><dt>+ / −</dt><dd>Zoom in and out</dd></div>
+      <div><dt>0</dt><dd>Reset zoom to 100%</dd></div>
+      <div><dt>Arrow keys</dt><dd>Move between nodes</dd></div>
+      <div><dt>Enter</dt><dd>Open the selected node</dd></div>
+      <div><dt>Esc</dt><dd>Close the panel or clear the selection</dd></div>
+      <div><dt>Space + drag</dt><dd>Pan</dd></div>
+      <div><dt>Wheel / pinch</dt><dd>Zoom</dd></div>
+      <div><dt>⌘Z / ⇧⌘Z</dt><dd>Undo and redo wiring</dd></div>
+      <div><dt>Delete</dt><dd>Remove the selected connection</dd></div>
+      <div><dt>?</dt><dd>Show or hide these shortcuts</dd></div>
+    </dl>
   </dialog>
   <script src="/app.js"></script>
 </body>

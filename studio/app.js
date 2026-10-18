@@ -4,6 +4,10 @@ const NODE_WIDTH = 104;
 const NODE_PORT_Y = 52;
 const NODE_BLOCK_HEIGHT = 152;
 const FIT_PADDING = 48;
+const PANEL_WIDTH = 400;
+const TOOLTIP_DELAY_MS = 250;
+const MINIMAP_WIDTH = 180;
+const MINIMAP_HEIGHT = 110;
 const LABEL_BLEED = 36;
 const MIN_ZOOM = 0.2;
 const MAX_ZOOM = 2.5;
@@ -75,6 +79,16 @@ let liveRenderScheduled = false;
 let reconnectTimer = null;
 let reconnectAttempt = 0;
 let resumeFallbackUsed = false;
+let panelNodeId = null;
+let panelTab = 'input';
+let panelRequest = 0;
+let panelView = { status: 'empty' };
+let tooltipTimer = null;
+let suppressNodeClick = false;
+let zoomInButton = null;
+let zoomLevelOutput = null;
+let nodeTooltip = null;
+let minimap = null;
 const RECONNECT_BACKOFF_MS = [500, 1000, 2000, 5000];
 
 function graphStateClass(value) {
@@ -206,6 +220,8 @@ function applyViewport() {
     canvas.style.backgroundPosition = `${viewport.x}px ${viewport.y}px`;
     canvas.style.backgroundSize = `${32 * viewport.scale}px ${32 * viewport.scale}px`;
   }
+  updateZoomLabel();
+  renderMinimap();
 }
 
 function screenToWorld(clientX, clientY) {
@@ -435,6 +451,7 @@ function renderEdges() {
     bindEdgeAffordance(path, control, edge.id);
     controls.append(control);
   });
+  renderMinimap();
 }
 
 const NODE_ICONS = {
@@ -528,6 +545,7 @@ function nodeFrame(node, index) {
 
 function renderGraph() {
   if (!draft) return;
+  hideTooltip();
   ensurePositions();
   renderLoopGroups();
   const container = byId('nodes');
@@ -542,22 +560,41 @@ function renderGraph() {
     element.dataset.nodeType = frame.nodeType;
     element.title = frame.title;
     element.className = `node${selectedIds.has(node.id) ? ' selected' : ''}`;
+    element.tabIndex = 0;
+    element.setAttribute('role', 'button');
+    element.setAttribute('tabindex', '0');
+    element.setAttribute('aria-label', `${displayName(node)}, ${statusWord(runtimeFor(node)?.status)}`);
+    element.setAttribute('aria-describedby', 'node-tooltip');
     element.style.left = `${position.x}px`;
     element.style.top = `${position.y}px`;
     element.innerHTML = frame.html;
     element.addEventListener('pointerdown', beginNodeInteraction);
+    element.addEventListener('pointerenter', () => scheduleTooltip(element));
+    element.addEventListener('pointerleave', hideTooltip);
+    element.addEventListener('focus', () => scheduleTooltip(element));
+    element.addEventListener('blur', hideTooltip);
+    element.addEventListener('click', onNodeClick);
     element.querySelector('.port-out')?.addEventListener('pointerdown', beginConnection);
     container.append(element);
   });
   renderEdges();
   applyViewport();
   if (!hasFitted) hasFitted = fitView();
+  if (panelNodeId) renderNodePanel();
+}
+
+function nodeElements() {
+  return Array.from(byId('nodes')?.children || []);
 }
 
 function updateSelection() {
-  document.querySelectorAll?.('.node')?.forEach?.((element) => {
-    element.classList.toggle('selected', selectedIds.has(element.dataset.nodeId));
-  });
+  for (const element of nodeElements()) {
+    const selected = selectedIds.has(element.dataset.nodeId);
+    element.classList.toggle('selected', selected);
+    const names = String(element.className || '').split(/\s+/).filter((name) => name && name !== 'selected');
+    if (selected) names.push('selected');
+    element.className = names.join(' ');
+  }
 }
 
 function selectNode(nodeId, { additive = false } = {}) {
@@ -620,6 +657,7 @@ function beginNodeInteraction(event) {
     return;
   }
   if (!selectedIds.has(nodeId)) selectNode(nodeId);
+  element.focus?.();
   if (spacePressed) return beginPan(event);
   const world = screenToWorld(event.clientX, event.clientY);
   const position = positions.get(nodeId);
@@ -630,7 +668,8 @@ function beginNodeInteraction(event) {
     element,
     offsetX: world.x - position.x,
     offsetY: world.y - position.y,
-    origins: new Map([...selectedIds].map((id) => [id, { ...positions.get(id) }]))
+    origins: new Map([...selectedIds].map((id) => [id, { ...positions.get(id) }])),
+    moved: false
   };
   element.classList.add('dragging');
   element.setPointerCapture?.(event.pointerId);
@@ -662,11 +701,16 @@ function handlePointerMove(event) {
     return;
   }
   if (!interaction || interaction.pointerId !== event.pointerId) return;
+  if (interaction.type === 'minimap') {
+    panFromMinimapEvent(event);
+    return;
+  }
   if (interaction.type === 'node') {
     const world = screenToWorld(event.clientX, event.clientY);
     const position = { x: world.x - interaction.offsetX, y: world.y - interaction.offsetY };
     const origin = interaction.origins.get(interaction.nodeId);
     const delta = { x: position.x - origin.x, y: position.y - origin.y };
+    if (Math.hypot(delta.x, delta.y) > 3) interaction.moved = true;
     interaction.origins.forEach((start, id) => {
       const next = { x: start.x + delta.x, y: start.y + delta.y };
       positions.set(id, next);
@@ -688,7 +732,12 @@ function finishPointer(event) {
   if (connection && connection.pointerId === event.pointerId) return finishConnection(event);
   if (!interaction || interaction.pointerId !== event.pointerId) return;
   if (interaction.type === 'node') interaction.element.classList.remove('dragging');
+  const moved = interaction.type === 'node' && interaction.moved;
   interaction = null;
+  if (moved) {
+    suppressNodeClick = true;
+    setTimeout(() => { suppressNodeClick = false; }, 0);
+  }
   saveLayoutSoon();
 }
 
@@ -744,7 +793,12 @@ function worldAtCanvasCenter() {
 }
 
 function handleWheel(event) {
+  if (closestReal(event.target, '#node-panel')) return;
   event.preventDefault();
+  if (event.ctrlKey) {
+    zoomAt(viewport.scale * Math.exp(-event.deltaY * 0.01), event.clientX, event.clientY);
+    return;
+  }
   zoomAt(viewport.scale * (event.deltaY < 0 ? 1.08 : 0.92), event.clientX, event.clientY);
 }
 
@@ -780,14 +834,24 @@ function computeFit(bounds, canvasWidth, canvasHeight, padding = FIT_PADDING) {
   };
 }
 
+function panelInset() {
+  const panel = byId('node-panel');
+  if (!panel || panel.hidden) return 0;
+  const width = panel.getBoundingClientRect?.().width || 0;
+  const canvasWidth = byId('canvas')?.getBoundingClientRect?.().width || 0;
+  if (width >= 2 && canvasWidth >= 2 && width < canvasWidth - 1) return width;
+  return PANEL_WIDTH;
+}
+
 function fitView() {
   if (!draft?.nodes?.length) return false;
   ensurePositions();
   const rect = byId('canvas')?.getBoundingClientRect?.() || { width: 0, height: 0 };
-  if (rect.width < 2 || rect.height < 2) return false;
+  const width = Math.max(0, rect.width - panelInset());
+  if (width < 2 || rect.height < 2) return false;
   const bounds = graphBounds();
   if (!bounds) return false;
-  const next = computeFit(bounds, rect.width, rect.height);
+  const next = computeFit(bounds, width, rect.height);
   viewport.scale = next.scale;
   viewport.x = next.x;
   viewport.y = next.y;
@@ -1571,9 +1635,580 @@ async function refreshCatalog(selectedRecipe) {
   renderLive();
 }
 
+function closestReal(element, selector) {
+  const node = element?.closest ? element : element?.parentElement;
+  if (typeof node?.closest !== 'function') return null;
+  const found = node.closest(selector);
+  if (!found || typeof found.matches !== 'function' || !found.matches(selector)) return null;
+  return found;
+}
+
+function runtimeFor(node) {
+  if (!node) return null;
+  return catalog.live?.nodes?.[node.id] || null;
+}
+
+function nodeSummary(node) {
+  const runtime = runtimeFor(node) || {};
+  const raw = runtime.activity || runtime.summary || node.summary || node.description || '';
+  const line = String(raw).replace(/\s+/g, ' ').trim();
+  if (!line) return '';
+  return line.length > 160 ? `${line.slice(0, 159)}…` : line;
+}
+
+function nodeDepths() {
+  const depths = new Map();
+  const visiting = new Set();
+  const depthFor = (node) => {
+    if (!node) return 0;
+    if (depths.has(node.id)) return depths.get(node.id);
+    if (visiting.has(node.id)) return 0;
+    visiting.add(node.id);
+    const depth = (node.dependsOn || []).reduce((maximum, dependencyId) => {
+      const dependency = draft.nodes.find((candidate) => candidate.id === dependencyId);
+      return Math.max(maximum, dependency ? depthFor(dependency) + 1 : 0);
+    }, 0);
+    visiting.delete(node.id);
+    depths.set(node.id, depth);
+    return depth;
+  };
+  for (const node of draft?.nodes || []) depthFor(node);
+  return depths;
+}
+
+function columnsByDepth() {
+  const depths = nodeDepths();
+  const columns = new Map();
+  for (const node of draft?.nodes || []) {
+    const depth = depths.get(node.id) || 0;
+    if (!columns.has(depth)) columns.set(depth, []);
+    columns.get(depth).push(node.id);
+  }
+  for (const column of columns.values()) {
+    column.sort((left, right) => (positions.get(left)?.y ?? 0) - (positions.get(right)?.y ?? 0)
+      || String(left).localeCompare(String(right)));
+  }
+  return columns;
+}
+
+function focusNode(nodeId) {
+  nodeElements().find((element) => element.dataset.nodeId === nodeId)?.focus?.();
+}
+
+function clearSelection() {
+  selectedId = null;
+  selectedIds = new Set();
+  selectedEdgeId = null;
+  updateSelection();
+  renderEdges();
+}
+
+function moveSelection(direction) {
+  if (!draft?.nodes?.length) return null;
+  const columns = columnsByDepth();
+  const depths = [...columns.keys()].sort((left, right) => left - right);
+  if (!depths.length) return null;
+  const known = selectedId && draft.nodes.some((node) => node.id === selectedId);
+  if (!known) {
+    const first = columns.get(depths[0])[0];
+    selectNode(first);
+    focusNode(first);
+    return first;
+  }
+  const depth = nodeDepths().get(selectedId) || 0;
+  const column = columns.get(depth) || [];
+  const row = Math.max(0, column.indexOf(selectedId));
+  let next = null;
+  if (direction === 'up') next = column[row - 1] || null;
+  else if (direction === 'down') next = column[row + 1] || null;
+  else {
+    const depthIndex = depths.indexOf(depth);
+    const neighborDepth = depths[depthIndex + (direction === 'right' ? 1 : -1)];
+    if (neighborDepth == null) return selectedId;
+    const neighbor = columns.get(neighborDepth) || [];
+    next = neighbor[Math.min(row, neighbor.length - 1)] || null;
+  }
+  if (!next || next === selectedId) return selectedId;
+  selectNode(next);
+  focusNode(next);
+  return next;
+}
+
+function scheduleTooltip(element) {
+  clearTimeout(tooltipTimer);
+  const nodeId = element?.dataset?.nodeId;
+  tooltipTimer = setTimeout(() => {
+    tooltipTimer = null;
+    if (!nodeId || !draft?.nodes?.some((node) => node.id === nodeId)) return;
+    const current = nodeElements().find((item) => item.dataset.nodeId === nodeId) || element;
+    showTooltip(current);
+  }, TOOLTIP_DELAY_MS);
+}
+
+function hideTooltip() {
+  clearTimeout(tooltipTimer);
+  tooltipTimer = null;
+  if (nodeTooltip) nodeTooltip.hidden = true;
+}
+
+function showTooltip(element) {
+  const node = draft?.nodes?.find((item) => item.id === element?.dataset?.nodeId);
+  if (!node || !nodeTooltip) return;
+  const index = draft.nodes.indexOf(node);
+  const summary = nodeSummary(node);
+  const lines = [
+    `<strong>${escapeHtml(displayName(node))}</strong>`,
+    `<span class="tooltip-type">${escapeHtml(node.type)} · ${escapeHtml(stageLabel(node, index))}</span>`,
+    `<span class="tooltip-status">${escapeHtml(nodeStatusLine(runtimeFor(node)))}</span>`
+  ];
+  if (summary) lines.push(`<span class="tooltip-summary">${escapeHtml(summary)}</span>`);
+  nodeTooltip.innerHTML = lines.join('');
+  const canvasRect = byId('canvas')?.getBoundingClientRect?.() || { left: 0, top: 0, width: 0 };
+  const rect = element.getBoundingClientRect?.() || { left: 0, bottom: 0 };
+  const width = 240;
+  const left = Math.max(8, Math.min(rect.left - canvasRect.left, Math.max(8, canvasRect.width - width - 8)));
+  nodeTooltip.style.left = `${left}px`;
+  nodeTooltip.style.top = `${rect.bottom - canvasRect.top + 8}px`;
+  nodeTooltip.hidden = false;
+}
+
+function onNodeClick(event) {
+  if (closestReal(event.target, '.port')) return;
+  if (event.shiftKey || spacePressed || suppressNodeClick) {
+    suppressNodeClick = false;
+    return;
+  }
+  openNodePanel(event.currentTarget?.dataset?.nodeId);
+}
+
+function headerDuration(node, io) {
+  const fromRuntime = formatDuration(nodeDurationMs(runtimeFor(node)));
+  if (fromRuntime) return fromRuntime;
+  const explicit = Number(io?.durationMs);
+  return Number.isFinite(explicit) ? formatDuration(explicit) : '';
+}
+
+function tabButton(id, label) {
+  const selected = panelTab === id;
+  return `<button type="button" role="tab" id="node-tab-${id}" class="io-tab" data-tab="${id}" aria-selected="${selected ? 'true' : 'false'}" aria-controls="node-pane-${id}" tabindex="${selected ? '0' : '-1'}">${label}</button>`;
+}
+
+function jsonBlock(value) {
+  if (value == null || value === '') return '<p class="muted">None</p>';
+  const text = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+  return `<pre>${escapeHtml(text)}</pre>`;
+}
+
+function artifactBlock(artifact) {
+  if (!artifact) return '<p class="muted">No artifact.</p>';
+  if (artifact.unavailable) {
+    return `<p class="muted">Artifact unavailable (${escapeHtml(artifact.code || 'unknown')}).</p>`;
+  }
+  const preview = artifact.preview || artifact;
+  const path = preview.path || artifact.descriptor?.path || '';
+  return `
+    ${path ? `<p class="artifact-path">${escapeHtml(path)}</p>` : ''}
+    ${preview.content ? `<pre>${escapeHtml(preview.content)}</pre>` : '<p class="muted">No preview.</p>'}
+  `;
+}
+
+function inputPane(io) {
+  const input = io?.input || {};
+  const dependencies = (input.dependencies || []).map((item) =>
+    `<li><strong>${escapeHtml(item.nodeId)}</strong> <span class="muted">${escapeHtml(item.status || '')}</span></li>`
+  ).join('');
+  return `
+    ${input.task ? `<h3>Task</h3><p>${escapeHtml(input.task)}</p>` : '<p class="muted">This node reads its input from upstream nodes.</p>'}
+    ${input.constraints ? `<h3>Constraints</h3><p>${escapeHtml(input.constraints)}</p>` : ''}
+    ${input.goal ? `<h3>Goal</h3>${jsonBlock(input.goal)}` : ''}
+    <h3>Upstream</h3>
+    ${dependencies ? `<ul>${dependencies}</ul>` : '<p class="muted">No upstream nodes.</p>'}
+  `;
+}
+
+function outputPane(io) {
+  const output = io?.output || {};
+  return `
+    <h3>Status</h3>
+    <p>${escapeHtml(output.status || 'Unknown')}</p>
+    ${output.reason ? `<h3>Reason</h3><p>${escapeHtml(output.reason)}</p>` : ''}
+    ${output.loopGroupId ? `<p class="muted">Loop ${escapeHtml(output.loopGroupId)} · iteration ${escapeHtml(String(output.loopIteration ?? '—'))}</p>` : ''}
+    <h3>Artifact</h3>
+    ${artifactBlock(output.artifact)}
+  `;
+}
+
+function evidencePane(view) {
+  const fetched = view.artifacts || [];
+  if (fetched.length) {
+    return fetched.map((artifact) => artifact.error
+      ? `<p class="validation-message">${escapeHtml(artifact.path || 'Artifact')}: ${escapeHtml(artifact.error)}</p>`
+      : `<article class="evidence-card"><p class="artifact-path">${escapeHtml(artifact.path || '')}</p><pre>${escapeHtml(artifact.content || '')}</pre></article>`
+    ).join('');
+  }
+  if (view.io?.evidence) return artifactBlock(view.io.evidence);
+  return '<p class="muted">No evidence recorded for this node.</p>';
+}
+
+function formatEventTime(value) {
+  const text = String(value || '');
+  return text ? text.replace('T', ' ').slice(0, 19) : '—';
+}
+
+function eventForNode(event, nodeId) {
+  if (!event || !nodeId) return false;
+  if (event.nodeId === nodeId) return true;
+  if (Array.isArray(event.changedNodes) && event.changedNodes.includes(nodeId)) return true;
+  if (Array.isArray(event.changes) && event.changes.some((change) => change.nodeId === nodeId)) return true;
+  return false;
+}
+
+function timelinePane(view) {
+  const events = (view.events || []).filter((event) => eventForNode(event, panelNodeId));
+  if (!events.length) return '<p class="muted">No lifecycle events for this node yet.</p>';
+  return `<ol class="panel-timeline">${events.map((event) => `
+    <li>
+      <time>${escapeHtml(formatEventTime(event.at))}</time>
+      <strong>${escapeHtml(event.type || 'event')}</strong>
+      <span>${escapeHtml(event.message || '')}</span>
+    </li>`).join('')}</ol>`;
+}
+
+function paneBody(view) {
+  if (view.status === 'empty') {
+    return '<div class="empty-state"><h3>No run to inspect</h3><p>Start a run from the Goal sheet, or open a past run, to see this node\'s input, output, evidence, and timeline.</p></div>';
+  }
+  if (view.status === 'loading') return '<p class="muted">Loading node details…</p>';
+  if (view.status === 'error') return `<p class="validation-message">${escapeHtml(view.message || 'Could not load this node.')}</p>`;
+  if (panelTab === 'output') return outputPane(view.io);
+  if (panelTab === 'evidence') return evidencePane(view);
+  if (panelTab === 'timeline') return timelinePane(view);
+  return inputPane(view.io);
+}
+
+function renderNodePanel(next) {
+  if (next) panelView = next;
+  const panel = byId('node-panel');
+  const node = draft?.nodes?.find((item) => item.id === panelNodeId);
+  if (!panel || !node) return;
+  const index = draft.nodes.indexOf(node);
+  const runtime = runtimeFor(node);
+  const duration = headerDuration(node, panelView.io);
+  const state = graphStateClass(runtime?.status || panelView.io?.output?.status);
+  const word = statusWord(runtime?.status || panelView.io?.output?.status);
+  panel.innerHTML = `
+    <div class="node-panel-frame">
+      <header class="node-panel-head">
+        <span class="node-icon panel-type-icon">${nodeIcon(node.type)}</span>
+        <div class="node-panel-titles">
+          <h2>${escapeHtml(displayName(node))}</h2>
+          <p>${escapeHtml(node.type)} · ${escapeHtml(stageLabel(node, index))}</p>
+        </div>
+        <div class="node-panel-meta">
+          <span class="status-pill status-${state}">${escapeHtml(word)}</span>
+          ${duration ? `<span class="status-duration">${escapeHtml(duration)}</span>` : ''}
+        </div>
+        <button type="button" class="node-panel-close" aria-label="Close node panel">×</button>
+      </header>
+      <div class="io-tabs" role="tablist" aria-label="Node details">
+        ${tabButton('input', 'Input')}
+        ${tabButton('output', 'Output')}
+        ${tabButton('evidence', 'Evidence')}
+        ${tabButton('timeline', 'Timeline')}
+      </div>
+      <div class="node-panel-body" role="tabpanel" id="node-pane-${panelTab}" aria-labelledby="node-tab-${panelTab}">
+        ${paneBody(panelView)}
+      </div>
+    </div>
+  `;
+}
+
+function collectArtifactPaths(io) {
+  const paths = [];
+  const push = (artifact) => {
+    if (!artifact || artifact.unavailable) return;
+    const path = artifact.preview?.path || artifact.descriptor?.path || artifact.path;
+    if (path && !paths.includes(path)) paths.push(path);
+  };
+  push(io?.evidence);
+  push(io?.output?.artifact);
+  return paths.slice(0, 6);
+}
+
+async function loadPanel(nodeId) {
+  const request = ++panelRequest;
+  const runId = followedRunId();
+  if (!runId) {
+    renderNodePanel({ status: 'empty' });
+    return;
+  }
+  try {
+    const [ioResult, lifeResult] = await Promise.all([
+      api(`/api/runs/${encodeURIComponent(runId)}/nodes/${encodeURIComponent(nodeId)}`),
+      api(`/api/runs/${encodeURIComponent(runId)}/lifecycle?after=0&limit=100`)
+    ]);
+    if (request !== panelRequest || panelNodeId !== nodeId) return;
+    const io = ioResult.io;
+    const artifacts = [];
+    for (const path of collectArtifactPaths(io)) {
+      try {
+        const result = await api(`/api/runs/${encodeURIComponent(runId)}/artifacts?path=${encodeURIComponent(path)}`);
+        artifacts.push(result.artifact);
+      } catch (error) {
+        artifacts.push({ path, error: error.message });
+      }
+    }
+    if (request !== panelRequest || panelNodeId !== nodeId) return;
+    renderNodePanel({
+      status: 'ready',
+      io,
+      events: lifeResult.lifecycle?.events || [],
+      artifacts
+    });
+  } catch (error) {
+    if (request !== panelRequest || panelNodeId !== nodeId) return;
+    renderNodePanel({ status: 'error', message: error.message });
+  }
+}
+
+function openNodePanel(nodeId) {
+  if (!nodeId || !draft?.nodes?.some((node) => node.id === nodeId)) return;
+  const alreadyOpen = panelIsOpen();
+  if (panelNodeId !== nodeId) panelTab = 'input';
+  panelNodeId = nodeId;
+  selectNode(nodeId);
+  focusNode(nodeId);
+  const panel = byId('node-panel');
+  if (!panel) return;
+  panel.hidden = false;
+  byId('canvas')?.classList.add('panel-open');
+  const runId = followedRunId();
+  renderNodePanel(runId ? { status: 'loading' } : { status: 'empty' });
+  if (!alreadyOpen) fitView();
+  if (runId) loadPanel(nodeId);
+}
+
+function closeNodePanel() {
+  panelNodeId = null;
+  panelRequest += 1;
+  panelView = { status: 'empty' };
+  const panel = byId('node-panel');
+  if (panel) {
+    panel.hidden = true;
+    panel.innerHTML = '';
+  }
+  byId('canvas')?.classList.remove('panel-open');
+  hideTooltip();
+  if (workspace === 'wiring' && draft?.nodes?.length) fitView();
+}
+
+function panelIsOpen() {
+  const panel = byId('node-panel');
+  return Boolean(panelNodeId && panel && !panel.hidden);
+}
+
+function onPanelClick(event) {
+  if (closestReal(event.target, '.node-panel-close')) {
+    closeNodePanel();
+    return;
+  }
+  const tab = closestReal(event.target, '[role="tab"]');
+  if (!tab?.dataset?.tab) return;
+  panelTab = tab.dataset.tab;
+  renderNodePanel();
+  byId('node-panel')?.querySelector?.(`[data-tab="${panelTab}"]`)?.focus?.();
+}
+
+function onPanelKeydown(event) {
+  const tab = closestReal(event.target, '[role="tab"]');
+  if (!tab) return;
+  const tabs = Array.from(byId('node-panel')?.querySelectorAll?.('[role="tab"]') || []);
+  const index = tabs.indexOf(tab);
+  if (index < 0) return;
+  let next = index;
+  if (event.key === 'ArrowRight' || event.key === 'ArrowDown') next = (index + 1) % tabs.length;
+  else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') next = (index - 1 + tabs.length) % tabs.length;
+  else if (event.key === 'Home') next = 0;
+  else if (event.key === 'End') next = tabs.length - 1;
+  else return;
+  event.preventDefault();
+  event.stopPropagation();
+  panelTab = tabs[next].dataset.tab;
+  renderNodePanel();
+  byId('node-panel')?.querySelector?.(`[data-tab="${panelTab}"]`)?.focus?.();
+}
+
+function updateZoomLabel() {
+  if (!zoomLevelOutput) return;
+  zoomLevelOutput.textContent = `${Math.round(viewport.scale * 100)}%`;
+}
+
+const ZOOM_ICONS = {
+  in: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 12h12M12 6v12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  out: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 12h12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  fit: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 4H4v4M16 4h4v4M8 20H4v-4M16 20h4v-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  layout: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="4" y="5" width="6" height="6" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="14" y="13" width="6" height="6" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M10 8h3v8h3" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>'
+};
+
+function zoomButton(label, icon, action) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'zoom-button';
+  button.title = label;
+  button.setAttribute('aria-label', label);
+  button.innerHTML = icon;
+  button.onclick = (event) => {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    action();
+  };
+  return button;
+}
+
+function mountCanvasChrome() {
+  const canvas = byId('canvas');
+  if (!canvas || zoomInButton) return;
+  const bar = document.createElement('div');
+  bar.className = 'zoom-controls';
+  zoomInButton = zoomButton('Zoom in', ZOOM_ICONS.in, () => zoomAt(viewport.scale * 1.08));
+  const zoomOutButton = zoomButton('Zoom out', ZOOM_ICONS.out, () => zoomAt(viewport.scale * 0.92));
+  const zoomFitButton = zoomButton('Fit to view', ZOOM_ICONS.fit, () => fitView());
+  const zoomLayoutButton = zoomButton('Auto-layout', ZOOM_ICONS.layout, () => autoLayout());
+  zoomLevelOutput = document.createElement('output');
+  zoomLevelOutput.className = 'zoom-level';
+  zoomLevelOutput.setAttribute('aria-label', 'Zoom level');
+  const sep = () => {
+    const element = document.createElement('span');
+    element.className = 'zoom-sep';
+    element.setAttribute('aria-hidden', 'true');
+    return element;
+  };
+  bar.append(zoomInButton, sep(), zoomOutButton, sep(), zoomFitButton, sep(), zoomLayoutButton, zoomLevelOutput);
+  canvas.append(bar);
+
+  nodeTooltip = document.createElement('div');
+  nodeTooltip.id = 'node-tooltip';
+  nodeTooltip.className = 'node-tooltip';
+  nodeTooltip.setAttribute('role', 'tooltip');
+  nodeTooltip.hidden = true;
+  canvas.append(nodeTooltip);
+
+  minimap = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  minimap.setAttribute('class', 'minimap');
+  minimap.setAttribute('aria-label', 'Workflow minimap');
+  minimap.setAttribute('viewBox', `0 0 ${MINIMAP_WIDTH} ${MINIMAP_HEIGHT}`);
+  minimap.setAttribute('width', String(MINIMAP_WIDTH));
+  minimap.setAttribute('height', String(MINIMAP_HEIGHT));
+  minimap.addEventListener('pointerdown', onMinimapPointerDown);
+  canvas.append(minimap);
+
+  const panel = byId('node-panel');
+  if (panel) {
+    panel.hidden = true;
+    panel.addEventListener('click', onPanelClick);
+    panel.addEventListener('keydown', onPanelKeydown);
+  }
+  updateZoomLabel();
+}
+
+function minimapMetrics() {
+  const bounds = graphBounds();
+  if (!bounds) return null;
+  const pad = 10;
+  const innerW = MINIMAP_WIDTH - pad * 2;
+  const innerH = MINIMAP_HEIGHT - pad * 2;
+  const scale = Math.min(innerW / Math.max(bounds.width, 1), innerH / Math.max(bounds.height, 1));
+  return {
+    bounds,
+    scale,
+    offsetX: pad + (innerW - bounds.width * scale) / 2,
+    offsetY: pad + (innerH - bounds.height * scale) / 2,
+    width: MINIMAP_WIDTH,
+    height: MINIMAP_HEIGHT
+  };
+}
+
+function renderMinimap() {
+  if (!minimap) return;
+  minimap.innerHTML = '';
+  const metrics = minimapMetrics();
+  if (!metrics || !draft?.nodes?.length) return;
+  for (const node of draft.nodes) {
+    const position = positions.get(node.id);
+    if (!position) continue;
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    const status = graphStateClass(runtimeFor(node)?.status);
+    rect.setAttribute('class', `minimap-node minimap-${status}`);
+    rect.setAttribute('x', String(metrics.offsetX + (position.x - metrics.bounds.minX) * metrics.scale));
+    rect.setAttribute('y', String(metrics.offsetY + (position.y - metrics.bounds.minY) * metrics.scale));
+    rect.setAttribute('width', String(Math.max(3, NODE_WIDTH * metrics.scale)));
+    rect.setAttribute('height', String(Math.max(3, NODE_BLOCK_HEIGHT * metrics.scale)));
+    rect.setAttribute('rx', '2');
+    minimap.append(rect);
+  }
+  const canvasRect = byId('canvas')?.getBoundingClientRect?.() || { left: 0, top: 0, width: 1, height: 1 };
+  const viewW = Math.max(1, canvasRect.width - panelInset());
+  const viewH = Math.max(1, canvasRect.height);
+  const origin = screenToWorld(canvasRect.left, canvasRect.top);
+  const viewportRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  viewportRect.setAttribute('class', 'minimap-viewport');
+  viewportRect.setAttribute('x', String(metrics.offsetX + (origin.x - metrics.bounds.minX) * metrics.scale));
+  viewportRect.setAttribute('y', String(metrics.offsetY + (origin.y - metrics.bounds.minY) * metrics.scale));
+  viewportRect.setAttribute('width', String(Math.max(4, (viewW / viewport.scale) * metrics.scale)));
+  viewportRect.setAttribute('height', String(Math.max(4, (viewH / viewport.scale) * metrics.scale)));
+  viewportRect.setAttribute('rx', '3');
+  minimap.append(viewportRect);
+}
+
+function centerOnWorld(worldX, worldY) {
+  const rect = byId('canvas')?.getBoundingClientRect?.() || { left: 0, top: 0, width: 0, height: 0 };
+  const inset = panelInset();
+  viewport.x = (rect.width - inset) / 2 - worldX * viewport.scale;
+  viewport.y = rect.height / 2 - worldY * viewport.scale;
+  applyViewport();
+  saveLayoutSoon();
+}
+
+function panFromMinimapEvent(event) {
+  const metrics = minimapMetrics();
+  if (!metrics || !minimap?.getBoundingClientRect) return;
+  const rect = minimap.getBoundingClientRect();
+  const localX = ((event.clientX - rect.left) / Math.max(rect.width, 1)) * metrics.width;
+  const localY = ((event.clientY - rect.top) / Math.max(rect.height, 1)) * metrics.height;
+  const worldX = metrics.bounds.minX + (localX - metrics.offsetX) / metrics.scale;
+  const worldY = metrics.bounds.minY + (localY - metrics.offsetY) / metrics.scale;
+  centerOnWorld(worldX, worldY);
+}
+
+function onMinimapPointerDown(event) {
+  if (event.button !== 0) return;
+  event.preventDefault();
+  event.stopPropagation();
+  interaction = { type: 'minimap', pointerId: event.pointerId };
+  panFromMinimapEvent(event);
+  minimap?.setPointerCapture?.(event.pointerId);
+}
+
+function canvasShortcutTarget(target) {
+  if (!target || editableTarget(target)) return false;
+  if (workspace !== 'wiring' || byId('canvas')?.hidden) return false;
+  if (target.id === 'canvas' || target === byId('canvas')) return true;
+  if (target.dataset?.nodeId) return true;
+  return String(target.className || '').split(/\s+/).includes('node');
+}
+
+function toggleShortcutSheet() {
+  const dialog = byId('shortcut-sheet');
+  if (!dialog) return;
+  if (dialog.open) dialog.close();
+  else dialog.showModal();
+}
+
 function bindCanvas() {
   const canvas = byId('canvas');
+  mountCanvasChrome();
   canvas.addEventListener('pointerdown', (event) => {
+    if (closestReal(event.target, '#node-panel, .zoom-controls, .minimap')) return;
     if (event.target === canvas || event.target === byId('scene') || event.target === byId('nodes') || event.target === byId('edges')) {
       selectedId = null;
       selectedEdgeId = null;
@@ -1587,10 +2222,6 @@ function bindCanvas() {
   canvas.addEventListener('pointerup', finishPointer);
   canvas.addEventListener('pointercancel', finishPointer);
   canvas.addEventListener('wheel', handleWheel, { passive: false });
-  byId('auto-layout').onclick = () => autoLayout();
-  byId('fit-view').onclick = fitView;
-  byId('undo').onclick = () => restoreHistory(historyIndex - 1);
-  byId('redo').onclick = () => restoreHistory(historyIndex + 1);
 }
 
 function editableTarget(target) {
@@ -1607,12 +2238,79 @@ document.addEventListener('keydown', (event) => {
   if (modifier && event.key.toLowerCase() === 'z') {
     event.preventDefault();
     restoreHistory(historyIndex + (event.shiftKey ? 1 : -1));
-  } else if (modifier && event.key.toLowerCase() === 'y') {
+    return;
+  }
+  if (modifier && event.key.toLowerCase() === 'y') {
     event.preventDefault();
     restoreHistory(historyIndex + 1);
-  } else if ((event.key === 'Delete' || event.key === 'Backspace') && selectedEdgeId) {
+    return;
+  }
+  if ((event.key === 'Delete' || event.key === 'Backspace') && selectedEdgeId && !panelIsOpen()) {
     event.preventDefault();
     deleteEdge(selectedEdgeId);
+    return;
+  }
+  if (event.key === 'Escape') {
+    if (byId('shortcut-sheet')?.open) {
+      event.preventDefault();
+      byId('shortcut-sheet').close();
+      return;
+    }
+    if (panelIsOpen()) {
+      event.preventDefault();
+      closeNodePanel();
+      return;
+    }
+    if (canvasShortcutTarget(event.target)) {
+      event.preventDefault();
+      clearSelection();
+    }
+    return;
+  }
+  const shortcutQuestion = event.key === '?' || (event.key === '/' && event.shiftKey);
+  if (shortcutQuestion && (byId('shortcut-sheet')?.open || canvasShortcutTarget(event.target))) {
+    event.preventDefault();
+    toggleShortcutSheet();
+    return;
+  }
+  if (!canvasShortcutTarget(event.target)) return;
+  if (modifier || event.altKey) return;
+  const key = event.key;
+  if (key === '+' || key === '=') {
+    event.preventDefault();
+    zoomAt(viewport.scale * 1.08);
+    return;
+  }
+  if (key === '-' || key === '_') {
+    event.preventDefault();
+    zoomAt(viewport.scale * 0.92);
+    return;
+  }
+  if (event.shiftKey) return;
+  if (key === 'f' || key === 'F') {
+    event.preventDefault();
+    fitView();
+  } else if (key === 'l' || key === 'L') {
+    event.preventDefault();
+    autoLayout();
+  } else if (key === '0') {
+    event.preventDefault();
+    zoomAt(1);
+  } else if (key === 'ArrowLeft') {
+    event.preventDefault();
+    moveSelection('left');
+  } else if (key === 'ArrowRight') {
+    event.preventDefault();
+    moveSelection('right');
+  } else if (key === 'ArrowUp') {
+    event.preventDefault();
+    moveSelection('up');
+  } else if (key === 'ArrowDown') {
+    event.preventDefault();
+    moveSelection('down');
+  } else if (key === 'Enter' && selectedId) {
+    event.preventDefault();
+    openNodePanel(selectedId);
   }
 });
 document.addEventListener('keyup', (event) => {

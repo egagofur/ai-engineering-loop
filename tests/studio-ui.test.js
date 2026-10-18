@@ -703,3 +703,138 @@ test('Wiring canvas uses one n8n tile per node and fits the default recipe', asy
     await new Promise((resolve) => instance.server.close(resolve));
   }
 });
+
+function walkElements(root, visit, seen = new Set()) {
+  if (!root || seen.has(root)) return;
+  seen.add(root);
+  visit(root);
+  for (const child of root.children || []) walkElements(child, visit, seen);
+}
+
+function findBy(root, predicate) {
+  let found = null;
+  walkElements(root, (element) => {
+    if (!found && predicate(element)) found = element;
+  });
+  return found;
+}
+
+function keyEvent(key, target) {
+  return {
+    key,
+    code: '',
+    target,
+    ctrlKey: false,
+    metaKey: false,
+    altKey: false,
+    shiftKey: key === '?',
+    preventDefault() {},
+    stopPropagation() {}
+  };
+}
+
+test('Wiring inspection opens a node panel, tooltip, zoom, minimap, and shortcuts', async () => {
+  const appSource = fs.readFileSync(path.join(__dirname, '..', 'studio', 'app.js'), 'utf8');
+  assert.equal(appSource.includes('style="'), false);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-studio-ui-'));
+  const instance = createStudioServer(root, { token: 'ui-test-token', watch: false, pollMs: 60_000 });
+  await new Promise((resolve, reject) => {
+    instance.server.once('error', reject);
+    instance.server.listen(0, '127.0.0.1', resolve);
+  });
+  try {
+    const base = `http://127.0.0.1:${instance.server.address().port}`;
+    const { context, elements, listeners } = studioContext(base, instance.token);
+    vm.runInContext(
+      fs.readFileSync(path.join(__dirname, '..', 'studio', 'app.js'), 'utf8'),
+      context,
+      { filename: 'studio/app.js' }
+    );
+    await waitFor(() => elements.get('integrity').textContent.startsWith('VALID'));
+    vm.runInContext("showWorkspace('wiring')", context);
+    const canvas = elements.get('canvas');
+    const panel = elements.get('node-panel');
+    const nodes = elements.get('nodes').children;
+    assert.ok(nodes.length > 1);
+    const node = nodes[0];
+    assert.equal(node.tabIndex, 0);
+    assert.equal(node.attributes.role, 'button');
+    assert.match(node.attributes['aria-label'], /, /);
+    node.listeners.click[0]({
+      target: node,
+      currentTarget: node,
+      shiftKey: false,
+      button: 0
+    });
+    assert.equal(panel.hidden, false);
+    assert.match(panel.innerHTML, /role="tablist"/);
+    assert.equal((panel.innerHTML.match(/role="tab"/g) || []).length, 4);
+    assert.match(panel.innerHTML, /Input/);
+    assert.match(panel.innerHTML, /Output/);
+    assert.match(panel.innerHTML, /Evidence/);
+    assert.match(panel.innerHTML, /Timeline/);
+    assert.match(panel.innerHTML, /No run to inspect/);
+    listeners.keydown(keyEvent('Escape', canvas));
+    assert.equal(panel.hidden, true);
+
+    const tooltip = findBy(canvas, (element) => element.attributes.role === 'tooltip');
+    assert.equal(tooltip.hidden, true);
+    node.listeners.focus[0]({ currentTarget: node, target: node });
+    assert.equal(tooltip.hidden, true);
+    await new Promise((resolve) => setTimeout(resolve, 280));
+    assert.equal(tooltip.hidden, false);
+    assert.match(tooltip.innerHTML, /·/);
+    assert.match(tooltip.innerHTML, new RegExp(node.dataset.nodeType));
+    node.listeners.blur[0]({ currentTarget: node, target: node });
+    assert.equal(tooltip.hidden, true);
+
+    vm.runInContext('zoomAt(1)', context);
+    const zoomIn = findBy(canvas, (element) => element.attributes['aria-label'] === 'Zoom in');
+    const zoomOut = findBy(canvas, (element) => element.attributes['aria-label'] === 'Zoom out');
+    const level = findBy(canvas, (element) => element.attributes['aria-label'] === 'Zoom level');
+    assert.equal(level.textContent, '100%');
+    zoomIn.onclick({});
+    const zoomed = vm.runInContext('viewport.scale', context);
+    assert.ok(zoomed > 1);
+    assert.match(level.textContent, /%/);
+    zoomOut.onclick({});
+    assert.ok(vm.runInContext('viewport.scale', context) < zoomed);
+
+    vm.runInContext('viewport = { x: 20, y: 30, scale: 1 }', context);
+    const expected = vm.runInContext(`(() => {
+      const bounds = graphBounds();
+      return computeFit(bounds, 1200, 800);
+    })()`, context);
+    listeners.keydown(keyEvent('f', canvas));
+    const fitted = vm.runInContext('({ x: viewport.x, y: viewport.y, scale: viewport.scale })', context);
+    assert.equal(fitted.scale, expected.scale);
+    assert.ok(Math.abs(fitted.x - expected.x) < 0.001);
+    assert.ok(Math.abs(fitted.y - expected.y) < 0.001);
+
+    vm.runInContext('selectedId = null; selectedIds = new Set();', context);
+    listeners.keydown(keyEvent('ArrowRight', canvas));
+    const first = vm.runInContext('selectedId', context);
+    listeners.keydown(keyEvent('ArrowRight', canvas));
+    const second = vm.runInContext('selectedId', context);
+    assert.ok(first);
+    assert.notEqual(first, second);
+    listeners.keydown(keyEvent('ArrowLeft', canvas));
+    assert.equal(vm.runInContext('selectedId', context), first);
+
+    const sheet = elements.get('shortcut-sheet');
+    assert.equal(sheet.open, false);
+    listeners.keydown(keyEvent('?', canvas));
+    assert.equal(sheet.open, true);
+    listeners.keydown(keyEvent('?', canvas));
+    assert.equal(sheet.open, false);
+
+    vm.runInContext('renderMinimap()', context);
+    const minimap = findBy(canvas, (element) => element.attributes['aria-label'] === 'Workflow minimap');
+    const rects = (minimap.children || []).filter((element) =>
+      String(element.attributes.class || '').split(/\s+/).includes('minimap-node')
+    );
+    assert.equal(rects.length, nodes.length);
+  } finally {
+    await new Promise((resolve) => instance.server.close(resolve));
+  }
+});
