@@ -4,13 +4,17 @@ const NODE_WIDTH = 104;
 const NODE_PORT_Y = 52;
 const NODE_BLOCK_HEIGHT = 152;
 const FIT_PADDING = 48;
-const PANEL_WIDTH = 400;
+const PANEL_WIDTH = 480;
 const TOOLTIP_DELAY_MS = 250;
 const MINIMAP_WIDTH = 180;
 const MINIMAP_HEIGHT = 110;
 const LABEL_BLEED = 36;
 const MIN_ZOOM = 0.2;
 const MAX_ZOOM = 2.5;
+const WHEEL_LINE_PX = 16;
+const WHEEL_PAGE_PX = 800;
+const WHEEL_SPIKE_PX = 240;
+const PAN_THRESHOLD_PX = 4;
 const COLUMN_PITCH = 188;
 const ROW_PITCH = 200;
 const DISPLAY_NAME_MAX = 80;
@@ -85,11 +89,15 @@ let reconnectTimer = null;
 let reconnectAttempt = 0;
 let resumeFallbackUsed = false;
 let panelNodeId = null;
-let panelTab = 'input';
+let panelTab = 'overview';
 let panelRequest = 0;
 let panelView = { status: 'empty' };
 let tooltipTimer = null;
 let suppressNodeClick = false;
+let wheelFrame = null;
+let wheelPending = null;
+let marquee = null;
+let gestureZoom = null;
 let zoomInButton = null;
 let zoomLevelOutput = null;
 let nodeTooltip = null;
@@ -539,15 +547,107 @@ function nodeIcon(type) {
   return `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">${body}</svg>`;
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
 function formatDuration(ms) {
-  if (!Number.isFinite(ms) || ms < 0) return '';
+  if (!Number.isFinite(ms) || ms <= 0) return '';
   const totalSeconds = Math.round(ms / 1000);
+  if (totalSeconds <= 0) return '';
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
-  if (hours > 0) return minutes ? `${hours}h ${minutes}m` : `${hours}h`;
+  if (hours > 0) return `${hours}h ${String(minutes).padStart(2, '0')}m`;
   if (minutes > 0) return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
   return `${seconds}s`;
+}
+
+function parsedTime(value) {
+  const ms = Date.parse(value || '');
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function padTime(value) {
+  return String(value).padStart(2, '0');
+}
+
+function clockTime(date, withSeconds = false) {
+  const clock = `${padTime(date.getHours())}:${padTime(date.getMinutes())}`;
+  return withSeconds ? `${clock}:${padTime(date.getSeconds())}` : clock;
+}
+
+function monthDay(date, withYear) {
+  const base = `${MONTHS[date.getMonth()]} ${date.getDate()}`;
+  return withYear ? `${base}, ${date.getFullYear()}` : base;
+}
+
+function calendarDayStart(ms) {
+  const date = new Date(ms);
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+}
+
+function timeZoneName(date) {
+  try {
+    if (typeof Intl === 'undefined' || typeof Intl.DateTimeFormat !== 'function') return '';
+    const parts = new Intl.DateTimeFormat('en-US', { timeZoneName: 'short' }).formatToParts(date);
+    return parts.find((part) => part.type === 'timeZoneName')?.value || '';
+  } catch {
+    return '';
+  }
+}
+
+function humanizeTime(value, now = Date.now()) {
+  const ms = parsedTime(value);
+  if (ms == null) return '';
+  const age = Math.max(0, now - ms);
+  const date = new Date(ms);
+  if (age < 5000) return 'just now';
+  if (age < 60000) return `${Math.round(age / 1000)}s ago`;
+  if (age < 3600000) return `${Math.round(age / 60000)} min ago`;
+  const dayDiff = Math.round((calendarDayStart(now) - calendarDayStart(ms)) / 86400000);
+  const hours = Math.floor(age / 3600000);
+  if (dayDiff <= 0 && hours < 24) return `${Math.max(hours, 1)} h ago`;
+  const absolute = `${monthDay(date, date.getFullYear() !== new Date(now).getFullYear())}, ${clockTime(date)}`;
+  if (dayDiff === 1) return `yesterday · ${monthDay(date, false)}, ${clockTime(date)}`;
+  if (dayDiff > 1 && dayDiff < 7) return `${dayDiff} days ago · ${monthDay(date, false)}, ${clockTime(date)}`;
+  return absolute;
+}
+
+function exactTimeLabel(value) {
+  const ms = parsedTime(value);
+  if (ms == null) return '';
+  const date = new Date(ms);
+  const zone = timeZoneName(date);
+  return `${monthDay(date, true)} ${clockTime(date, true)}${zone ? ` ${zone}` : ''}`;
+}
+
+function datetimeAttr(value) {
+  const ms = parsedTime(value);
+  if (ms == null) return '';
+  const date = new Date(ms);
+  const offset = -date.getTimezoneOffset();
+  const sign = offset >= 0 ? '+' : '-';
+  const abs = Math.abs(offset);
+  return `${date.getFullYear()}-${padTime(date.getMonth() + 1)}-${padTime(date.getDate())}T${clockTime(date, true)}${sign}${padTime(Math.floor(abs / 60))}:${padTime(abs % 60)}`;
+}
+
+function clockTimeLabel(value, now = Date.now()) {
+  const ms = parsedTime(value);
+  if (ms == null) return '';
+  const date = new Date(ms);
+  const dayDiff = Math.round((calendarDayStart(now) - calendarDayStart(ms)) / 86400000);
+  if (dayDiff <= 0) return clockTime(date);
+  if (dayDiff === 1) return `yesterday ${clockTime(date)}`;
+  return humanizeTime(value, now);
+}
+
+function timeTag(value, now = Date.now(), mode = 'relative') {
+  const label = mode === 'clock' ? clockTimeLabel(value, now) : humanizeTime(value, now);
+  if (!label) return '';
+  return `<time datetime="${escapeHtml(datetimeAttr(value))}" title="${escapeHtml(exactTimeLabel(value))}">${escapeHtml(label)}</time>`;
+}
+
+function looksLikeIso(value) {
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(String(value || ''));
 }
 
 function legacyDurationMs(runtime) {
@@ -810,9 +910,67 @@ function beginPan(event) {
     startX: event.clientX,
     startY: event.clientY,
     viewportX: viewport.x,
-    viewportY: viewport.y
+    viewportY: viewport.y,
+    panning: false
   };
   byId('canvas').setPointerCapture?.(event.pointerId);
+}
+
+function ensureMarquee() {
+  if (marquee) return marquee;
+  marquee = document.createElement('div');
+  marquee.id = 'selection-marquee';
+  byId('canvas')?.append(marquee);
+  return marquee;
+}
+
+function beginMarquee(event) {
+  event.preventDefault?.();
+  ensureMarquee();
+  interaction = {
+    type: 'marquee',
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    clientX: event.clientX,
+    clientY: event.clientY,
+    armed: false
+  };
+  byId('canvas').setPointerCapture?.(event.pointerId);
+}
+
+function paintMarquee() {
+  const box = ensureMarquee();
+  const rect = byId('canvas').getBoundingClientRect();
+  const left = Math.min(interaction.startX, interaction.clientX) - rect.left;
+  const top = Math.min(interaction.startY, interaction.clientY) - rect.top;
+  box.style.display = 'block';
+  box.style.left = `${left}px`;
+  box.style.top = `${top}px`;
+  box.style.width = `${Math.abs(interaction.clientX - interaction.startX)}px`;
+  box.style.height = `${Math.abs(interaction.clientY - interaction.startY)}px`;
+}
+
+function finishMarquee() {
+  const box = marquee;
+  if (box?.style) box.style.display = 'none';
+  if (!interaction?.armed || !draft) return;
+  const start = screenToWorld(interaction.startX, interaction.startY);
+  const end = screenToWorld(interaction.clientX, interaction.clientY);
+  const minX = Math.min(start.x, end.x);
+  const maxX = Math.max(start.x, end.x);
+  const minY = Math.min(start.y, end.y);
+  const maxY = Math.max(start.y, end.y);
+  const hits = draft.nodes.filter((node) => {
+    const pos = positions.get(node.id);
+    if (!pos) return false;
+    return pos.x < maxX && pos.x + NODE_WIDTH > minX && pos.y < maxY && pos.y + NODE_BLOCK_HEIGHT > minY;
+  }).map((node) => node.id);
+  selectedIds = new Set(hits);
+  selectedId = hits[0] || null;
+  selectedEdgeId = null;
+  updateSelection();
+  renderEdges();
 }
 
 function handlePointerMove(event) {
@@ -863,9 +1021,24 @@ function handlePointerMove(event) {
       }
     });
     renderEdges();
-  } else {
-    viewport.x = interaction.viewportX + event.clientX - interaction.startX;
-    viewport.y = interaction.viewportY + event.clientY - interaction.startY;
+    return;
+  }
+  if (interaction.type === 'marquee') {
+    interaction.clientX = event.clientX;
+    interaction.clientY = event.clientY;
+    const distance = Math.hypot(event.clientX - interaction.startX, event.clientY - interaction.startY);
+    if (distance < PAN_THRESHOLD_PX) return;
+    interaction.armed = true;
+    paintMarquee();
+    return;
+  }
+  if (interaction.type === 'pan') {
+    const dx = event.clientX - interaction.startX;
+    const dy = event.clientY - interaction.startY;
+    if (!interaction.panning && Math.hypot(dx, dy) < PAN_THRESHOLD_PX) return;
+    interaction.panning = true;
+    viewport.x = interaction.viewportX + dx;
+    viewport.y = interaction.viewportY + dy;
     applyViewport();
   }
 }
@@ -875,11 +1048,15 @@ function finishPointer(event) {
   if (!interaction || interaction.pointerId !== event.pointerId) return;
   if (interaction.type === 'node') interaction.element.classList.remove('dragging');
   const moved = interaction.type === 'node' && interaction.moved;
+  const kind = interaction.type;
+  const panned = kind === 'pan' && interaction.panning;
+  if (kind === 'marquee') finishMarquee();
   interaction = null;
   if (moved) {
     suppressNodeClick = true;
     setTimeout(() => { suppressNodeClick = false; }, 0);
   }
+  if (kind === 'marquee' || (kind === 'pan' && !panned)) return;
   saveLayoutSoon();
 }
 
@@ -961,14 +1138,56 @@ function worldAtCanvasCenter() {
   return screenToWorld(rect.left + rect.width / 2, rect.top + rect.height / 2);
 }
 
-function handleWheel(event) {
-  if (closestReal(event.target, '#node-panel')) return;
-  event.preventDefault();
-  if (event.ctrlKey) {
-    zoomAt(viewport.scale * Math.exp(-event.deltaY * 0.01), event.clientX, event.clientY);
+function wheelPixels(delta, mode) {
+  const unit = mode === 1 ? WHEEL_LINE_PX : mode === 2 ? WHEEL_PAGE_PX : 1;
+  const pixels = Number(delta) * unit;
+  if (!Number.isFinite(pixels)) return 0;
+  return Math.max(-WHEEL_SPIKE_PX, Math.min(WHEEL_SPIKE_PX, pixels));
+}
+
+function canvasGestureIgnored(event) {
+  return Boolean(closestReal(event?.target, '#node-panel, .zoom-controls, .minimap, .canvas-toolbar'));
+}
+
+function flushWheel() {
+  const pending = wheelPending;
+  wheelPending = null;
+  if (!pending) return;
+  if (pending.ctrlKey) {
+    zoomAt(viewport.scale * Math.exp(-pending.deltaY * 0.01), pending.clientX, pending.clientY);
     return;
   }
-  zoomAt(viewport.scale * (event.deltaY < 0 ? 1.08 : 0.92), event.clientX, event.clientY);
+  viewport.x -= pending.deltaX;
+  viewport.y -= pending.deltaY;
+  applyViewport();
+}
+
+function handleWheel(event) {
+  if (canvasGestureIgnored(event)) return;
+  event.preventDefault();
+  const sample = {
+    ctrlKey: Boolean(event.ctrlKey),
+    deltaX: wheelPixels(event.deltaX, event.deltaMode),
+    deltaY: wheelPixels(event.deltaY, event.deltaMode),
+    clientX: event.clientX,
+    clientY: event.clientY
+  };
+  if (wheelPending && wheelPending.ctrlKey !== sample.ctrlKey) flushWheel();
+  if (!wheelPending) {
+    wheelPending = { ctrlKey: sample.ctrlKey, deltaX: 0, deltaY: 0, clientX: sample.clientX, clientY: sample.clientY };
+  }
+  wheelPending.deltaX += sample.deltaX;
+  wheelPending.deltaY += sample.deltaY;
+  wheelPending.clientX = sample.clientX;
+  wheelPending.clientY = sample.clientY;
+  if (wheelFrame != null) return;
+  const schedule = typeof requestAnimationFrame === 'function'
+    ? requestAnimationFrame
+    : (callback) => setTimeout(callback, 16);
+  wheelFrame = schedule(() => {
+    wheelFrame = null;
+    flushWheel();
+  });
 }
 
 function autoLayout({ record = true } = {}) {
@@ -1583,7 +1802,7 @@ async function loadRuns() {
       const row = (run, isActive = false) => `
         <button class="run-row${isActive ? ' active-run-row' : ''}" data-run-id="${escapeHtml(run.runId)}">
           <strong>${escapeHtml(run.displayName)}</strong>
-          <span>${escapeHtml(run.status)} · ${escapeHtml(new Date(run.updatedAt).toLocaleString())}</span>
+          <span>${escapeHtml(run.status)} · ${timeTag(run.updatedAt) || '—'}</span>
           <small>${escapeHtml(run.task)}</small>
         </button>`;
       list.innerHTML = [
@@ -1610,13 +1829,9 @@ async function loadRuns() {
   }
 }
 
-function heartbeatAge(iso) {
+function heartbeatAge(iso, now = Date.now()) {
   if (!iso) return 'no heartbeat';
-  const age = Math.max(0, Date.now() - Date.parse(iso));
-  if (!Number.isFinite(age)) return 'no heartbeat';
-  if (age < 2000) return 'just now';
-  if (age < 60000) return `${Math.round(age / 1000)}s ago`;
-  return `${Math.round(age / 60000)}m ago`;
+  return humanizeTime(iso, now) || 'no heartbeat';
 }
 
 function currentStageId(live) {
@@ -1743,6 +1958,252 @@ function tokenLabel(live) {
   return String(value);
 }
 
+function tokenBudgetLabel(live) {
+  const tokens = tokenLabel(live);
+  const limit = Number(live?.budget?.perRunTokenLimit);
+  if (Number.isFinite(limit) && limit > 0) return `${tokens} / ${limit}`;
+  return tokens;
+}
+
+function guardChipValue(summary) {
+  if (!summary || typeof summary !== 'object') return 'unknown';
+  if (summary.warn == null && summary.block == null) return 'unknown';
+  return `${summary.warn || 0} warn · ${summary.block || 0} block`;
+}
+
+function receiptChipValue(live) {
+  const receipt = live?.artifacts?.['artifact.receipt'];
+  const terminal = live?.run?.state === 'DELIVERED' || live?.run?.state === 'REPORTED';
+  if (receipt?.verified === true && !(receipt.problems || []).length) {
+    return { value: 'verified', title: 'receipt recorded' };
+  }
+  if (receipt && Array.isArray(receipt.problems) && receipt.problems.length) {
+    return { value: 'problems', title: receipt.problems.join(', ') };
+  }
+  if (terminal && (!receipt || receipt.present === false)) {
+    return { value: 'missing', title: 'no receipt: run predates receipts' };
+  }
+  return { value: 'pending', title: 'receipt pending' };
+}
+
+function labeledChip(label, value, title) {
+  const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
+  return `<span class="chip"${titleAttr}><span>${escapeHtml(label)}</span><strong>${escapeHtml(String(value))}</strong></span>`;
+}
+
+function liveMetaHtml(live) {
+  const run = live?.run || {};
+  const artifacts = live?.artifacts || {};
+  const tokens = tokenLabel(live);
+  const receipt = receiptChipValue(live);
+  const chips = [
+    labeledChip('Mode', run.mode || '—'),
+    labeledChip('Tier', run.tier?.current || run.mode || '—'),
+    labeledChip('Iteration', run.iteration ?? '—'),
+    labeledChip('Tokens', tokenBudgetLabel(live), tokens === 'unknown' ? 'host reports no usage' : ''),
+    labeledChip('Guard', guardChipValue(artifacts['artifact.guard'])),
+    labeledChip('Drift', driftLabel(artifacts['artifact.drift']) || 'unknown'),
+    labeledChip('Receipt', receipt.value, receipt.title)
+  ].join('');
+  return `<section class="compliance-card"><h2 class="live-card-title">Compliance &amp; budget</h2><div class="chip-row">${chips}</div>${budgetRow(live)}</section><section class="events-card"><h2 class="live-card-title">Latest events</h2>${latestEventsHtml(live)}</section>`;
+}
+
+function budgetRow(live) {
+  const tokens = tokenLabel(live);
+  const note = tokens === 'unknown' ? 'host reports no usage' : tokenBudgetLabel(live);
+  return `<div class="budget-row"><span>Budget</span><span class="meter" aria-hidden="true"><i></i></span><span>${escapeHtml(note)}</span></div>`;
+}
+
+function paintBudget(live) {
+  const bar = byId('live-meta')?.querySelector?.('.meter i');
+  if (!bar?.style) return;
+  const spent = Number(live?.budget?.totalTokens ?? live?.budget?.spentThisRun);
+  const limit = Number(live?.budget?.perRunTokenLimit);
+  const ratio = Number.isFinite(spent) && spent > 0 && Number.isFinite(limit) && limit > 0
+    ? Math.max(0, Math.min(1, spent / limit))
+    : 0;
+  bar.style.width = `${Math.round(ratio * 100)}%`;
+}
+
+function liveEventLabel(event) {
+  if (event?.message) return event.message;
+  const gate = event?.gate;
+  if (event?.type === 'GATE_PASSED') {
+    if (gate === 'goal') return 'Goal frozen';
+    if (gate === 'maker') return 'Maker gate passed';
+    if (gate === 'verification') return 'Verification gate passed';
+    if (gate === 'review') return 'Review gate passed';
+    if (gate === 'judge') return 'Judge gate passed';
+    if (gate === 'delivery') return 'Delivery gate passed';
+    return 'Gate passed';
+  }
+  if (event?.type === 'NODE_APPROVED') return `Approved by ${event.approvedBy || 'human'}`;
+  return String(event?.type || 'event').replaceAll('_', ' ').toLowerCase();
+}
+
+function eventActor(event, live) {
+  const plan = live?.plan?.nodes || [];
+  const node = plan.find((item) => item.id === event?.nodeId)
+    || plan.find((item) => item.legacyGate === event?.gate || item.id === event?.gate);
+  return node?.id || event?.gate || event?.phase || 'run';
+}
+
+function recentEvents(live) {
+  const workflow = Array.isArray(live?.events) ? live.events : [];
+  const source = workflow.length ? workflow : lifecycleEvents;
+  return source.slice(-4).reverse();
+}
+
+function latestEventsHtml(live) {
+  const events = recentEvents(live);
+  if (!events.length) return '<p class="muted">No events yet.</p>';
+  return events.map((event) => `
+    <p class="event-row">${timeTag(event.at, Date.now(), 'clock') || '—'} <span class="who">${escapeHtml(eventActor(event, live))}</span> <span>${escapeHtml(liveEventLabel(event))}</span></p>
+  `).join('');
+}
+
+function stageNodes(stage, live) {
+  return (live?.plan?.nodes || []).filter((node) => stage.types.includes(node.type));
+}
+
+function stageState(stage, live) {
+  const statuses = stageNodes(stage, live).map((node) => String(live?.nodes?.[node.id]?.status || '').toUpperCase());
+  if (statuses.includes('RUNNING')) return 'active';
+  if (statuses.includes('FAILED') || statuses.includes('BLOCKED')) return 'failed';
+  if (statuses.length && statuses.every((status) => status === 'PASSED' || status === 'SKIPPED')) return 'passed';
+  return 'pending';
+}
+
+function stageDurationLabel(stage, live) {
+  const recipe = draft || live?.plan;
+  let total = 0;
+  for (const node of stageNodes(stage, live)) {
+    const ms = nodeDurationMs(node.id, live, recipe);
+    if (ms > 0) total += ms;
+  }
+  return formatDuration(total) || '—';
+}
+
+function progressRailHtml(live) {
+  return STAGES.map((stage) => {
+    const state = live ? stageState(stage, live) : 'pending';
+    const duration = live ? stageDurationLabel(stage, live) : '—';
+    return `<li class="${state}"><strong>${escapeHtml(stage.label)}</strong><span>${escapeHtml(duration)}</span></li>`;
+  }).join('');
+}
+
+function focusNodeRecord(live) {
+  const plan = live?.plan?.nodes || [];
+  const nodes = live?.nodes || {};
+  const statusOf = (node) => String(nodes[node.id]?.status || '').toUpperCase();
+  return plan.find((node) => statusOf(node) === 'RUNNING')
+    || plan.find((node) => {
+      const stage = STAGES.find((item) => item.id === currentStageId(live));
+      return stage?.types.includes(node.type) && !['PASSED', 'SKIPPED', ''].includes(statusOf(node));
+    })
+    || [...plan].reverse().find((node) => statusOf(node) === 'PASSED')
+    || null;
+}
+
+function iterationText(node, live) {
+  const group = (draft?.loopGroups || []).find((item) => (item.nodeIds || []).includes(node?.id));
+  if (!group) return '';
+  const iteration = live?.loopGroups?.[group.id]?.iteration ?? live?.run?.iteration ?? '—';
+  return `iteration ${iteration} / ${group.maxIterations ?? '—'}`;
+}
+
+function stepEvidenceHtml(live) {
+  const artifacts = live?.artifacts || {};
+  const chips = [];
+  const findings = findingsLabel(artifacts['artifact.findings']);
+  if (findings) chips.push(labeledChip('Findings', findings));
+  const tests = verificationLabel(artifacts['artifact.verification']);
+  if (tests) chips.push(labeledChip('Tests', tests));
+  const drift = driftLabel(artifacts['artifact.drift']);
+  if (drift) chips.push(labeledChip('Scope', drift === 'none' ? 'in map' : drift));
+  return chips.join('');
+}
+
+function currentStepHtml(live) {
+  const node = focusNodeRecord(live);
+  if (!node) return '<p class="muted">No step is running.</p>';
+  const plan = live.plan?.nodes || [];
+  const index = Math.max(0, plan.indexOf(node));
+  const runtime = live.nodes?.[node.id] || {};
+  const running = String(runtime.status || '').toUpperCase() === 'RUNNING';
+  const duration = formatDuration(nodeDurationMs(node.id, live, draft || live.plan));
+  const timing = running
+    ? (duration ? `running ${duration}` : 'running')
+    : (duration || statusWord(runtime.status));
+  const loop = iterationText(node, live);
+  const activity = runtime.activity || runtime.reason || runtime.summary || 'Waiting for the next persisted event.';
+  const next = plan.slice(index + 1, index + 4).map((item) => displayName(item));
+  return `
+    <h2 class="live-card-title">Current step</h2>
+    <div class="current-head">
+      <span class="node-icon">${nodeIcon(node.type)}</span>
+      <div>
+        <h2>${escapeHtml(displayName(node))} · ${escapeHtml(node.type)}</h2>
+        <p>${escapeHtml([panelSubtitle(node, index).split(' · ').slice(0, 1).join(''), loop, timing].filter(Boolean).join(' · '))}</p>
+      </div>
+    </div>
+    <p class="current-activity"><span class="chip-label">Latest activity</span> ${escapeHtml(activity)}</p>
+    <div class="chip-row">${stepEvidenceHtml(live)}</div>
+    <div class="current-actions">
+      <button type="button" data-open-node="${escapeHtml(node.id)}">Open node details</button>
+      <button type="button" class="primary" data-start-agent>Start with AI Agent</button>
+    </div>
+    ${next.length ? `<p class="current-next">Next: ${escapeHtml(next.join(' → '))}</p>` : ''}
+  `;
+}
+
+function questionBannerHtml(questions) {
+  return (questions || []).map((question) => `
+    <form class="answer-form" data-question-id="${escapeHtml(question.questionId || '')}">
+      <p><span class="chip-label">Question</span> ${escapeHtml(question.message || '')}</p>
+      <textarea name="answer" maxlength="4000" aria-label="Answer" placeholder="Write the answer"></textarea>
+      <button type="submit" class="primary">Answer in Studio</button>
+    </form>
+  `).join('');
+}
+
+function journeyStepsHtml(live) {
+  const journeyStatuses = new Set(['pending', 'active', 'complete']);
+  return (live?.journey?.steps || []).map((step) => {
+    const status = String(step?.status || '').toLowerCase();
+    const safeStatus = journeyStatuses.has(status) ? status : 'unknown';
+    const label = String(step?.id || '').replaceAll('_', ' ');
+    const suffix = safeStatus === 'unknown' ? ' (status unavailable)' : '';
+    const blocked = step?.blocked
+      ? (live.journey?.pendingQuestions == null
+          ? ' · unanswered count unavailable'
+          : ` · ${Number(live.journey.pendingQuestions)} unanswered`)
+      : '';
+    return `<li class="${safeStatus}">${escapeHtml(label + suffix + blocked)}</li>`;
+  }).join('');
+}
+
+function groupedTimelineHtml(live) {
+  const workflow = Array.isArray(live?.events) ? live.events : [];
+  const source = workflow.length ? workflow : lifecycleEvents;
+  const groups = [];
+  const seen = new Map();
+  for (const event of source) {
+    const key = eventActor(event, live);
+    if (!seen.has(key)) {
+      seen.set(key, groups.length);
+      groups.push({ key, events: [] });
+    }
+    groups[seen.get(key)].events.push(event);
+  }
+  if (!groups.length) return '';
+  return `<li class="timeline-groups"><div class="timeline-columns">${groups.map((group) => `
+    <section class="step-group">
+      <h3>${escapeHtml(group.key)}</h3>
+      <ul>${group.events.map((event) => `<li>${timeTag(event.at, Date.now(), 'clock') || '—'} ${escapeHtml(liveEventLabel(event))}</li>`).join('')}</ul>
+    </section>`).join('')}</div></li>`;
+}
+
 function renderRunSummary() {
   const card = byId('run-summary-card');
   if (!card) return;
@@ -1781,14 +2242,14 @@ function renderLive() {
   const summary = byId('run-summary');
   const rail = byId('stage-rail');
   const journey = byId('run-journey');
-  const meta = byId('live-view')?.querySelector?.('.live-meta');
-  const banner = byId('live-view')?.querySelector?.('.pending-banner');
+  const meta = byId('live-meta');
+  const current = byId('live-current');
+  const banner = byId('question-banner');
   if (!live) {
     if (summary) summary.textContent = 'No active run';
-    if (rail) {
-      rail.innerHTML = STAGES.map((stage) => `<li class="pending">${escapeHtml(stage.label)}</li>`).join('');
-    }
+    if (rail) rail.innerHTML = progressRailHtml(null);
     if (meta) meta.innerHTML = '';
+    if (current) current.innerHTML = '';
     if (banner) {
       banner.hidden = true;
       banner.innerHTML = '';
@@ -1796,61 +2257,64 @@ function renderLive() {
     if (journey) journey.innerHTML = '';
     return;
   }
-  const stageId = currentStageId(live);
   const run = live.run || {};
   const presence = live.presence || agentPresence;
   if (summary) {
-    summary.textContent = `${run.displayName || run.runId || 'run'} · ${run.state || ''} · ${heartbeatAge(presence.lastHeartbeatAt)}`;
+    const started = run.createdAt ? `started ${timeTag(run.createdAt)}` : '';
+    const beatAge = heartbeatAge(presence.lastHeartbeatAt);
+    const beat = presence?.lastHeartbeatAt ? `heartbeat ${timeTag(presence.lastHeartbeatAt)}` : escapeHtml(beatAge);
+    summary.innerHTML = `${escapeHtml(run.displayName || run.runId || 'run')} · ${escapeHtml(run.state || '')}${started ? ` · ${started}` : ''} · ${beat}`;
   }
-  if (rail) {
-    rail.innerHTML = STAGES.map((stage) => {
-      const current = stage.id === stageId;
-      return `<li class="${current ? 'active' : 'pending'}">${escapeHtml(stage.label)}</li>`;
-    }).join('');
-  }
-  const artifacts = live.artifacts || liveArtifacts;
-  const guard = artifacts['artifact.guard'] || {};
-  const drift = artifacts['artifact.drift'] || {};
-  const receipt = artifacts['artifact.receipt'] || {};
+  if (rail) rail.innerHTML = progressRailHtml(live);
   if (meta) {
-    meta.innerHTML = `
-      <span>${escapeHtml(run.tier?.current || run.mode || '')}</span>
-      <span>iter ${escapeHtml(String(run.iteration ?? '—'))}</span>
-      <span>${escapeHtml(String(live.budget?.spentThisRun ?? 0))} / ${escapeHtml(String(live.budget?.perRunTokenLimit ?? 0))} tokens</span>
-      <span class="chip">${escapeHtml(String(guard.warn || 0))} warn · ${escapeHtml(String(guard.block || 0))} block</span>
-      <span class="chip">drift ${escapeHtml(String(drift.outOfMapCount || 0))}</span>
-      <span class="chip">${receipt.verified ? 'receipt ok' : 'receipt pending'}</span>
-    `;
+    meta.innerHTML = liveMetaHtml(live);
+    paintBudget(live);
   }
+  if (current) current.innerHTML = currentStepHtml(live);
   const pending = live.interactions?.pending || [];
   if (banner) {
     banner.hidden = pending.length === 0;
-    banner.innerHTML = pending.map((question) =>
-      `<p><strong>Q${escapeHtml(String(question.number))}</strong> ${escapeHtml(question.message)}</p>`
-    ).join('');
+    banner.innerHTML = questionBannerHtml(pending);
   }
-  const journeyStatuses = new Set(['pending', 'active', 'complete']);
   const degradedSources = live.journey?.degradedSources || [];
-  const timeline = (live.journey?.steps || []).map((step) => {
-    const status = String(step?.status || '').toLowerCase();
-    const safeStatus = journeyStatuses.has(status) ? status : 'unknown';
-    const label = String(step?.id || '').replaceAll('_', ' ');
-    const suffix = safeStatus === 'unknown' ? ' (status unavailable)' : '';
-    const blocked = step?.blocked
-      ? (live.journey?.pendingQuestions == null
-          ? ' · unanswered count unavailable'
-          : ` · ${Number(live.journey.pendingQuestions)} unanswered`)
-      : '';
-    return `<li class="${safeStatus}">${escapeHtml(label + suffix + blocked)}</li>`;
-  }).join('');
-  const eventsHtml = (lifecycleEvents.slice(-8).reverse().map((event) =>
-    `<li class="event">${escapeHtml(String(event.at || '').slice(11, 19))} · ${escapeHtml(event.type)} · ${escapeHtml(event.message || '')}</li>`
-  ).join(''));
   if (journey) {
-    journey.innerHTML = timeline + eventsHtml + (degradedSources.length
+    journey.innerHTML = journeyStepsHtml(live) + groupedTimelineHtml(live) + (degradedSources.length
       ? `<li class="unknown">${escapeHtml(`${degradedSources.join(' and ')} unavailable — journey may be incomplete`)}</li>`
       : '');
   }
+}
+
+async function submitAnswer(questionId, message) {
+  const runId = followedRunId();
+  const text = String(message || '').trim();
+  if (!runId || !questionId || !text) {
+    notify('Write an answer first.');
+    return;
+  }
+  await api(`/api/runs/${encodeURIComponent(runId)}/questions/${encodeURIComponent(questionId)}/answer`, {
+    method: 'POST',
+    body: JSON.stringify({ message: text, actor: 'human' })
+  });
+  notify('Answer recorded.');
+  await loadLive(runId);
+}
+
+function onLiveClick(event) {
+  const open = closestReal(event.target, '[data-open-node]');
+  if (open?.dataset?.openNode) {
+    showWorkspace('wiring');
+    openNodePanel(open.dataset.openNode);
+    return;
+  }
+  if (closestReal(event.target, '[data-start-agent]')) copyAgentHandoff(followedRunId() || undefined);
+}
+
+function onLiveSubmit(event) {
+  const form = event.target;
+  if (!form?.dataset?.questionId) return;
+  event.preventDefault?.();
+  const field = form.querySelector?.('[name="answer"]');
+  submitAnswer(form.dataset.questionId, field?.value || '');
 }
 
 function maybeOpenOnboarding() {
@@ -2255,19 +2719,85 @@ function onNodeClick(event) {
 }
 
 function headerDuration(node, io) {
+  if (io?.durationMs != null && io.durationMs !== '') {
+    const formatted = formatDuration(Number(io.durationMs));
+    if (formatted) return formatted;
+  }
   const derived = formatDuration(nodeDurationMs(node?.id, catalog.live, draft));
   if (derived) return derived;
-  // Pending/ready nodes have no meaningful duration; never show "0s" for them.
   const state = graphStateClass(runtimeFor(node)?.status);
   if (state !== 'passed' && state !== 'failed' && state !== 'active') return '';
-  const explicit = Number(io?.durationMs);
-  if (Number.isFinite(explicit) && explicit >= 0) return formatDuration(explicit);
   return formatDuration(legacyDurationMs(runtimeFor(node)));
 }
 
-function tabButton(id, label) {
+function tabButton(id, label, badge = 0) {
   const selected = panelTab === id;
-  return `<button type="button" role="tab" id="node-tab-${id}" class="io-tab" data-tab="${id}" aria-selected="${selected ? 'true' : 'false'}" aria-controls="node-pane-${id}" tabindex="${selected ? '0' : '-1'}">${label}</button>`;
+  const count = Number(badge) > 0 ? `<span class="tab-count">${escapeHtml(String(badge))}</span>` : '';
+  return `<button type="button" role="tab" id="node-tab-${id}" class="io-tab" data-tab="${id}" aria-selected="${selected ? 'true' : 'false'}" aria-controls="node-pane-${id}" tabindex="${selected ? '0' : '-1'}">${label}${count}</button>`;
+}
+
+function evidenceCount(view) {
+  const recorded = Number(view?.io?.nodeEvidence?.count);
+  if (Number.isFinite(recorded) && recorded > 0) return recorded;
+  const cards = view?.io?.nodeEvidence?.cards;
+  return Array.isArray(cards) ? cards.length : 0;
+}
+
+function nodeLoopGroup(node) {
+  if (!node) return null;
+  return (draft?.loopGroups || []).find((group) =>
+    (group?.nodeIds || []).includes(node.id)
+    || group?.entryNodeId === node.id
+    || group?.decisionNodeId === node.id
+  ) || null;
+}
+
+function loopChipValue(node, io) {
+  const group = nodeLoopGroup(node);
+  const groupId = io?.output?.loopGroupId || group?.id;
+  if (!groupId) return '';
+  const iteration = io?.output?.loopIteration ?? io?.loopIteration;
+  const max = group?.maxIterations;
+  if (iteration == null && max == null) return groupId;
+  const step = iteration == null ? '—' : String(iteration);
+  return max ? `${groupId} · ${step}/${max}` : `${groupId} · ${step}`;
+}
+
+function attemptCount(io) {
+  const groups = io?.timelineGroups;
+  if (!Array.isArray(groups) || !groups.length) return null;
+  return Math.max(...groups.map((group) => Number(group.attempt) || 1));
+}
+
+function nodeChip(label, valueHtml) {
+  return `<span class="node-chip"><span class="chip-label">${escapeHtml(label)}</span><strong>${valueHtml}</strong></span>`;
+}
+
+function panelSubtitle(node, index) {
+  const stage = stageLabel(node, index).toLowerCase().replace(/(^|\s)\w/g, (letter) => letter.toUpperCase());
+  const recipe = draft?.id ? `${draft.id}${draft.version != null ? ` v${draft.version}` : ''}` : '';
+  return [stage, node.type, recipe].filter(Boolean).join(' · ');
+}
+
+function nodeChipRow(node, io, runtime) {
+  const status = runtime?.status || io?.output?.status;
+  const state = graphStateClass(status);
+  const chips = [nodeChip('Status', `<span class="status-text status-${state}">${escapeHtml(statusWord(status))}</span>`)];
+  const duration = headerDuration(node, io);
+  if (duration) chips.push(nodeChip('Duration', escapeHtml(duration)));
+  if (io?.finishedAt) {
+    const finished = timeTag(io.finishedAt);
+    if (finished) chips.push(nodeChip('Finished', finished));
+  }
+  const loop = loopChipValue(node, io);
+  if (loop) chips.push(nodeChip('Loop', escapeHtml(loop)));
+  const attempts = attemptCount(io);
+  if (attempts) chips.push(nodeChip('Attempts', escapeHtml(String(attempts))));
+  const reason = io?.output?.reason || runtime?.reason;
+  if (reason && (state === 'failed' || String(status || '').toLowerCase() === 'blocked')) {
+    chips.push(nodeChip('Reason', escapeHtml(reason)));
+  }
+  return `<div class="node-chip-row">${chips.join('')}</div>`;
 }
 
 function jsonBlock(value) {
@@ -2276,17 +2806,55 @@ function jsonBlock(value) {
   return `<pre>${escapeHtml(text)}</pre>`;
 }
 
-function artifactBlock(artifact) {
-  if (!artifact) return '<p class="muted">No artifact.</p>';
-  if (artifact.unavailable) {
-    return `<p class="muted">Artifact unavailable (${escapeHtml(artifact.code || 'unknown')}).</p>`;
-  }
+function artifactPreview(artifact) {
+  if (!artifact || artifact.unavailable) return '';
   const preview = artifact.preview || artifact;
+  if (!preview.content) return '';
   const path = preview.path || artifact.descriptor?.path || '';
-  return `
-    ${path ? `<p class="artifact-path">${escapeHtml(path)}</p>` : ''}
-    ${preview.content ? `<pre>${escapeHtml(preview.content)}</pre>` : '<p class="muted">No preview.</p>'}
-  `;
+  return `${path ? `<p class="artifact-path">${escapeHtml(path)}</p>` : ''}<pre>${escapeHtml(preview.content)}</pre>`;
+}
+
+function fileChipRow(files) {
+  const list = (files || []).filter((file) => file && (file.name || file.path));
+  if (!list.length) return '';
+  return `<div class="artifact-chips">${list.map((file) => {
+    const name = escapeHtml(file.name || file.path);
+    if (!file.path || file.state === 'rejected') return `<span class="artifact-chip">${name}</span>`;
+    return `<button type="button" class="artifact-chip" data-artifact-path="${escapeHtml(file.path)}">${name}</button>`;
+  }).join('')}</div>`;
+}
+
+function previewBlock(preview) {
+  if (!preview) return '';
+  if (preview.error) {
+    return `<p class="validation-message">${escapeHtml(preview.path || 'Artifact')}: ${escapeHtml(preview.error)}</p>`;
+  }
+  const content = preview.content || '';
+  if (!content && !preview.path) return '';
+  return `<article class="evidence-card"><p class="artifact-path">${escapeHtml(preview.path || '')}</p>${content ? `<pre>${escapeHtml(content)}</pre>` : '<p class="muted">No preview.</p>'}</article>`;
+}
+
+function renderEvidenceCard(card) {
+  const lines = (card.lines || []).map((line) => {
+    const raw = line.value == null ? '' : String(line.value);
+    const value = looksLikeIso(raw) ? (timeTag(raw) || escapeHtml(raw)) : escapeHtml(raw);
+    const duration = formatDuration(Number(line.durationMs));
+    const extra = [line.detail, duration].filter(Boolean).join(' · ');
+    return `<li class="evidence-line"><span class="evidence-label">${escapeHtml(line.label || '')}</span><span class="evidence-value">${value}</span>${extra ? `<span class="evidence-detail">${escapeHtml(extra)}</span>` : ''}</li>`;
+  }).join('');
+  return `<article class="evidence-card"><h3>${escapeHtml(card.title || 'Evidence')}</h3>${lines ? `<ul class="evidence-lines">${lines}</ul>` : ''}${card.note ? `<p class="evidence-note">${escapeHtml(card.note)}</p>` : ''}</article>`;
+}
+
+function evidenceBody(evidence) {
+  const changed = evidence?.status === 'changed' || evidence?.status === 'rejected';
+  const cards = evidence?.cards || [];
+  if (!evidence || (!changed && !cards.length)) {
+    return `<p class="muted">${escapeHtml(evidence?.summary || 'No evidence recorded for this node yet.')}</p>${fileChipRow(evidence?.files)}`;
+  }
+  const banner = changed
+    ? `<p class="validation-message">${escapeHtml(evidence.message || 'artifact changed')}</p>`
+    : '';
+  return banner + cards.map(renderEvidenceCard).join('') + fileChipRow(evidence.files);
 }
 
 function inputPane(io) {
@@ -2303,52 +2871,49 @@ function inputPane(io) {
   `;
 }
 
-function outputPane(io) {
-  const output = io?.output || {};
-  return `
-    <h3>Status</h3>
-    <p>${escapeHtml(output.status || 'Unknown')}</p>
-    ${output.reason ? `<h3>Reason</h3><p>${escapeHtml(output.reason)}</p>` : ''}
-    ${output.loopGroupId ? `<p class="muted">Loop ${escapeHtml(output.loopGroupId)} · iteration ${escapeHtml(String(output.loopIteration ?? '—'))}</p>` : ''}
-    <h3>Artifact</h3>
-    ${artifactBlock(output.artifact)}
-  `;
+function outputPane(view) {
+  const io = view?.io || {};
+  const summary = io.nodeEvidence?.summary || io.output?.summary || 'No evidence recorded for this node yet.';
+  return `<p class="node-summary">${escapeHtml(summary)}</p>${fileChipRow(io.nodeEvidence?.files)}${artifactPreview(io.output?.artifact)}${previewBlock(view?.preview)}`;
 }
 
 function evidencePane(view) {
+  if (view.io?.nodeEvidence) return evidenceBody(view.io.nodeEvidence) + previewBlock(view.preview);
   const fetched = view.artifacts || [];
   if (fetched.length) {
     return fetched.map((artifact) => artifact.error
       ? `<p class="validation-message">${escapeHtml(artifact.path || 'Artifact')}: ${escapeHtml(artifact.error)}</p>`
       : `<article class="evidence-card"><p class="artifact-path">${escapeHtml(artifact.path || '')}</p><pre>${escapeHtml(artifact.content || '')}</pre></article>`
-    ).join('');
+    ).join('') + previewBlock(view.preview);
   }
-  if (view.io?.evidence) return artifactBlock(view.io.evidence);
-  return '<p class="muted">No evidence recorded for this node.</p>';
+  return `<p class="muted">No evidence recorded for this node yet.</p>${previewBlock(view.preview)}`;
 }
 
-function formatEventTime(value) {
-  const text = String(value || '');
-  return text ? text.replace('T', ' ').slice(0, 19) : '—';
-}
-
-function eventForNode(event, nodeId) {
-  if (!event || !nodeId) return false;
-  if (event.nodeId === nodeId) return true;
-  if (Array.isArray(event.changedNodes) && event.changedNodes.includes(nodeId)) return true;
-  if (Array.isArray(event.changes) && event.changes.some((change) => change.nodeId === nodeId)) return true;
-  return false;
+function renderTimelineGroups(groups) {
+  if (!groups.length) return '<p class="muted">No lifecycle events for this node yet.</p>';
+  return groups.map((group) => `
+    <section class="timeline-group">
+      <h3>${escapeHtml(group.label || 'Step')}</h3>
+      <ul class="panel-timeline">${(group.events || []).map((event) => `
+        <li>
+          ${timeTag(event.at) || '<span class="muted">—</span>'}
+          <strong>${escapeHtml(event.label || event.type || 'event')}</strong>
+        </li>`).join('')}</ul>
+    </section>`).join('');
 }
 
 function timelinePane(view) {
-  const events = (view.events || []).filter((event) => eventForNode(event, panelNodeId));
-  if (!events.length) return '<p class="muted">No lifecycle events for this node yet.</p>';
-  return `<ol class="panel-timeline">${events.map((event) => `
-    <li>
-      <time>${escapeHtml(formatEventTime(event.at))}</time>
-      <strong>${escapeHtml(event.type || 'event')}</strong>
-      <span>${escapeHtml(event.message || '')}</span>
-    </li>`).join('')}</ol>`;
+  if (Array.isArray(view.io?.timelineGroups)) return renderTimelineGroups(view.io.timelineGroups);
+  const node = draft?.nodes?.find((item) => item.id === panelNodeId);
+  const gate = node?.legacyGate;
+  const events = (view.events || []).filter((event) => event?.nodeId === panelNodeId || (gate && event?.gate === gate));
+  return renderTimelineGroups(events.length ? [{
+    label: 'This node',
+    events: events.map((event) => ({
+      at: event.at,
+      label: event.message || String(event.type || 'event').replaceAll('_', ' ').toLowerCase()
+    }))
+  }] : []);
 }
 
 function paneBody(view) {
@@ -2357,7 +2922,7 @@ function paneBody(view) {
   }
   if (view.status === 'loading') return '<p class="muted">Loading node details…</p>';
   if (view.status === 'error') return `<p class="validation-message">${escapeHtml(view.message || 'Could not load this node.')}</p>`;
-  if (panelTab === 'output') return outputPane(view.io);
+  if (panelTab === 'output') return outputPane(view);
   if (panelTab === 'evidence') return evidencePane(view);
   if (panelTab === 'timeline') return timelinePane(view);
   return inputPane(view.io);
@@ -2370,27 +2935,21 @@ function renderNodePanel(next) {
   if (!panel || !node) return;
   const index = draft.nodes.indexOf(node);
   const runtime = runtimeFor(node);
-  const duration = headerDuration(node, panelView.io);
-  const state = graphStateClass(runtime?.status || panelView.io?.output?.status);
-  const word = statusWord(runtime?.status || panelView.io?.output?.status);
   panel.innerHTML = `
     <div class="node-panel-frame">
       <header class="node-panel-head">
         <span class="node-icon panel-type-icon">${nodeIcon(node.type)}</span>
         <div class="node-panel-titles">
           <h2>${escapeHtml(displayName(node))}</h2>
-          <p>${escapeHtml(node.type)} · ${escapeHtml(stageLabel(node, index))}</p>
-        </div>
-        <div class="node-panel-meta">
-          <span class="status-pill status-${state}">${escapeHtml(word)}</span>
-          ${duration ? `<span class="status-duration">${escapeHtml(duration)}</span>` : ''}
+          <p>${escapeHtml(panelSubtitle(node, index))}</p>
         </div>
         <button type="button" class="node-panel-close" aria-label="Close node panel">×</button>
       </header>
+      ${nodeChipRow(node, panelView.io, runtime)}
       <div class="io-tabs" role="tablist" aria-label="Node details">
-        ${tabButton('input', 'Input')}
+        ${tabButton('overview', 'Overview')}
         ${tabButton('output', 'Output')}
-        ${tabButton('evidence', 'Evidence')}
+        ${tabButton('evidence', 'Evidence', evidenceCount(panelView))}
         ${tabButton('timeline', 'Timeline')}
       </div>
       <div class="node-panel-body" role="tabpanel" id="node-pane-${panelTab}" aria-labelledby="node-tab-${panelTab}">
@@ -2451,7 +3010,7 @@ async function loadPanel(nodeId) {
 function openNodePanel(nodeId) {
   if (!nodeId || !draft?.nodes?.some((node) => node.id === nodeId)) return;
   const alreadyOpen = panelIsOpen();
-  if (panelNodeId !== nodeId) panelTab = 'input';
+  if (panelNodeId !== nodeId) panelTab = 'overview';
   panelNodeId = nodeId;
   selectNode(nodeId);
   focusNode(nodeId);
@@ -2484,9 +3043,29 @@ function panelIsOpen() {
   return Boolean(panelNodeId && panel && !panel.hidden);
 }
 
+async function loadArtifactPreview(artifactPath) {
+  const runId = followedRunId();
+  if (!runId || !artifactPath) return;
+  const request = panelRequest;
+  try {
+    const result = await api(`/api/runs/${encodeURIComponent(runId)}/artifacts?path=${encodeURIComponent(artifactPath)}`);
+    if (request !== panelRequest) return;
+    panelView = { ...panelView, preview: result.artifact };
+  } catch (error) {
+    if (request !== panelRequest) return;
+    panelView = { ...panelView, preview: { path: artifactPath, error: error.message } };
+  }
+  renderNodePanel();
+}
+
 function onPanelClick(event) {
   if (closestReal(event.target, '.node-panel-close')) {
     closeNodePanel();
+    return;
+  }
+  const artifact = closestReal(event.target, '[data-artifact-path]');
+  if (artifact?.dataset?.artifactPath) {
+    loadArtifactPreview(artifact.dataset.artifactPath);
     return;
   }
   const tab = closestReal(event.target, '[role="tab"]');
@@ -2686,19 +3265,40 @@ function bindCanvas() {
   mountCanvasChrome();
   canvas.addEventListener('pointerdown', (event) => {
     if (closestReal(event.target, '#node-panel, .zoom-controls, .minimap')) return;
-    if (event.target === canvas || event.target === byId('scene') || event.target === byId('nodes') || event.target === byId('edges')) {
-      selectedId = null;
-      selectedEdgeId = null;
-      if (!event.shiftKey) selectedIds.clear();
-      updateSelection();
-      renderEdges();
-      if (event.button === 1 || spacePressed) beginPan(event);
+    const empty = event.target === canvas || event.target === byId('scene')
+      || event.target === byId('nodes') || event.target === byId('edges');
+    if (!empty) return;
+    if (event.button === 0 && event.shiftKey) {
+      beginMarquee(event);
+      return;
     }
+    selectedId = null;
+    selectedEdgeId = null;
+    if (!event.shiftKey) selectedIds.clear();
+    updateSelection();
+    renderEdges();
+    if (event.button === 0 || event.button === 1 || spacePressed) beginPan(event);
   });
   canvas.addEventListener('pointermove', handlePointerMove);
   canvas.addEventListener('pointerup', finishPointer);
   canvas.addEventListener('pointercancel', finishPointer);
   canvas.addEventListener('wheel', handleWheel, { passive: false });
+  canvas.addEventListener('gesturestart', (event) => {
+    if (canvasGestureIgnored(event)) return;
+    event.preventDefault();
+    gestureZoom = viewport.scale;
+  }, { passive: false });
+  canvas.addEventListener('gesturechange', (event) => {
+    if (canvasGestureIgnored(event)) return;
+    event.preventDefault();
+    const scale = Number(event.scale);
+    if (!Number.isFinite(scale) || scale <= 0) return;
+    zoomAt((gestureZoom || viewport.scale) * scale, event.clientX, event.clientY);
+  }, { passive: false });
+  canvas.addEventListener('gestureend', (event) => {
+    event.preventDefault?.();
+    gestureZoom = null;
+  }, { passive: false });
 }
 
 function editableTarget(target) {
@@ -2859,6 +3459,8 @@ async function initialize() {
   byId('confirm-freeze').onclick = freezeGoalFromForm;
   byId('unfreeze-goal').onclick = unfreezeGoalFromForm;
   byId('retry-live-connection').onclick = resync;
+  byId('live-view').addEventListener('click', onLiveClick);
+  byId('live-view').addEventListener('submit', onLiveSubmit);
   document.querySelectorAll?.('[data-close]')?.forEach?.((button) => {
     button.onclick = () => byId(button.dataset.close).close();
   });

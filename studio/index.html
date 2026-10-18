@@ -25,10 +25,16 @@
         <span id="live-connection-message"></span>
         <button id="retry-live-connection" type="button">Retry now</button>
       </div>
-      <div class="pending-banner" hidden></div>
       <ol id="stage-rail" class="stage-rail" aria-label="Run stages"></ol>
-      <div class="live-meta"></div>
-      <ol id="run-journey" class="run-journey" aria-label="Run progress"></ol>
+      <div id="question-banner" class="pending-banner question-banner" hidden></div>
+      <div class="live-columns">
+        <section id="live-current" class="current-step" aria-label="Current step"></section>
+        <div id="live-meta" class="live-meta" aria-label="Compliance and budget"></div>
+      </div>
+      <section class="live-timeline">
+        <h2 class="live-card-title">Timeline</h2>
+        <ol id="run-journey" class="run-journey" aria-label="Run progress"></ol>
+      </section>
     </section>
     <section id="runs-view" class="runs-view" hidden>
       <label class="run-search"><span>Search runs</span><input id="run-search" type="search" placeholder="Name, task…" autocomplete="off"></label>
@@ -126,8 +132,11 @@
       <div><dt>Arrow keys</dt><dd>Move between nodes</dd></div>
       <div><dt>Enter</dt><dd>Open the selected node</dd></div>
       <div><dt>Esc</dt><dd>Close the panel or clear the selection</dd></div>
+      <div><dt>Two-finger scroll</dt><dd>Pan the canvas</dd></div>
+      <div><dt>Pinch</dt><dd>Zoom around the cursor</dd></div>
+      <div><dt>Drag empty canvas</dt><dd>Pan</dd></div>
+      <div><dt>Shift + drag</dt><dd>Marquee select</dd></div>
       <div><dt>Space + drag</dt><dd>Pan</dd></div>
-      <div><dt>Wheel / pinch</dt><dd>Zoom</dd></div>
       <div><dt>⌘Z / ⇧⌘Z</dt><dd>Undo and redo wiring</dd></div>
       <div><dt>Delete</dt><dd>Remove the selected connection</dd></div>
       <div><dt>?</dt><dd>Show or hide these shortcuts</dd></div>
