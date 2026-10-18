@@ -4,6 +4,10 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+_No changes yet._
+
+## 2.1.0 - 2026-10-18
+
 ### Studio: n8n-style Wiring canvas (#88)
 
 - **Added:** node tiles on the Wiring canvas (type icon, name, one status line that is also the duration slot, no stage or type badge). Edges are cubic Bézier curves; the edge into the RUNNING node animates, and `prefers-reduced-motion` disables that animation. A loop group draws a container labeled `iteration n / max` from live loop state.
