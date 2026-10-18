@@ -833,7 +833,7 @@ test('Wiring save bar, rewiring validation, durations, and completed-run summary
     assert.match(card.innerHTML, /Duration<\/span><strong>12m 00s<\/strong>/);
     assert.match(card.innerHTML, /Tests<\/span><strong>4 passed \/ 0 failed<\/strong>/);
     assert.match(card.innerHTML, /Findings<\/span><strong>3 \/ 1<\/strong>/);
-    assert.match(card.innerHTML, /Drift<\/span><strong>2<\/strong>/);
+    assert.match(card.innerHTML, /Drift<\/span><strong>2 out of map<\/strong>/);
     assert.match(card.innerHTML, /Receipt<\/span><strong>verified<\/strong>/);
     assert.match(card.innerHTML, /Tokens<\/span><strong>unknown<\/strong>/);
     vm.runInContext(`delete catalog.live.artifacts['artifact.verdict']; catalog.live.run.verdict = ''; renderRunSummary()`, context);

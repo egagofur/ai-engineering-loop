@@ -610,7 +610,8 @@ function statusWord(status) {
   if (state === 'failed') return 'Failed';
   if (state === 'skipped') return 'Skipped';
   if (state === 'waiting') return 'Waiting';
-  if (normalized === 'ready' || normalized === 'idle' || normalized === 'pending') return 'Pending';
+  if (normalized === 'ready') return 'Ready';
+  if (normalized === 'idle' || normalized === 'pending') return 'Pending';
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
 
@@ -1199,7 +1200,12 @@ function renderWiringBar() {
     else pill.textContent = 'Checking';
   }
   const error = byId('wiring-error');
-  if (error) error.textContent = validationState.status === 'invalid' ? validationSummary() : '';
+  if (error) {
+    // CSS clamps this to two lines; the full compiler output stays in the tooltip.
+    const full = validationState.status === 'invalid' ? validationSummary() : '';
+    error.textContent = full;
+    if (error.setAttribute) error.setAttribute('title', full);
+  }
   const save = byId('save-wiring');
   if (save) save.disabled = changes === 0 || validationState.status !== 'valid';
   const undo = byId('undo');
@@ -1675,6 +1681,7 @@ function approverName(live) {
   return textOrNull(runtime?.approvedBy)
     || textOrNull(live?.run?.approvedBy)
     || textOrNull(live?.run?.approver)
+    || textOrNull(artifacts['artifact.delivery']?.approvedBy)
     || textOrNull(artifacts['artifact.verdict']?.approvedBy);
 }
 
@@ -1716,7 +1723,9 @@ function findingsLabel(summary) {
 
 function driftLabel(summary) {
   if (!summary || typeof summary !== 'object' || summary.outOfMapCount == null) return null;
-  return String(summary.outOfMapCount);
+  const count = Number(summary.outOfMapCount);
+  if (!Number.isFinite(count)) return null;
+  return count === 0 ? 'none' : `${count} out of map`;
 }
 
 function receiptLabel(summary) {
@@ -2248,6 +2257,9 @@ function onNodeClick(event) {
 function headerDuration(node, io) {
   const derived = formatDuration(nodeDurationMs(node?.id, catalog.live, draft));
   if (derived) return derived;
+  // Pending/ready nodes have no meaningful duration; never show "0s" for them.
+  const state = graphStateClass(runtimeFor(node)?.status);
+  if (state !== 'passed' && state !== 'failed' && state !== 'active') return '';
   const explicit = Number(io?.durationMs);
   if (Number.isFinite(explicit) && explicit >= 0) return formatDuration(explicit);
   return formatDuration(legacyDurationMs(runtimeFor(node)));

@@ -145,7 +145,7 @@ dialog{border:1px solid #505057;border-radius:4px;background:var(--panel);color:
 .zoom-sep{width:1px;height:18px;margin:0 2px;background:#2c312d}
 .zoom-level{min-width:44px;margin-left:8px;color:#6c746e;font-size:12px;text-align:right}
 .minimap{position:absolute;z-index:12;right:14px;bottom:14px;width:180px;height:110px;background:#1a1d1b;border:1px solid #2c312d;border-radius:10px;box-shadow:0 8px 24px #0006;pointer-events:all}
-.canvas.panel-open .minimap{right:414px}
+.canvas.panel-open .minimap{right:424px}
 .minimap-passed{fill:#28ad00}
 .minimap-active{fill:#83db69}
 .minimap-failed{fill:#ef6262}
@@ -176,9 +176,9 @@ button:focus-visible,select:focus-visible,a:focus-visible,[role="tab"]:focus-vis
 .wiring-pill.valid{background:#17321a;color:#28ad00}
 .wiring-pill.invalid{background:#3a2222;color:#ef6262}
 .wiring-pill.pending{background:#2a2e2c;color:#9aa39c}
-#wiring-error{margin:0;max-width:320px;color:#ffb4b4;font-size:12px;line-height:1.35}
+#wiring-error{margin:0;max-width:320px;color:#ffb4b4;font-size:12px;line-height:1.35;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 #wiring-error:empty{display:none}
-.wiring-bar button{padding:7px 10px}
+.wiring-bar button{padding:7px 10px;white-space:nowrap}
 .edge.edge-invalid{stroke:var(--danger);stroke-width:2.5}
 .edge-error{position:absolute;z-index:6;max-width:240px;margin:0;padding:4px 8px;transform:translate(-50%,8px);border:1px solid #8b4a47;border-radius:6px;background:#2a1616;color:#ffb4b4;font-size:11px;line-height:1.35;pointer-events:none}
 .edge-end{position:absolute;z-index:6;width:12px;height:12px;padding:0;border:2px solid #8d958f;border-radius:50%;background:#202422;transform:translate(-50%,-50%);opacity:0;pointer-events:none}

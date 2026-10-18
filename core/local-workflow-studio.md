@@ -18,7 +18,7 @@ Studio watches one project root — the working directory where it was launched.
 
 Studio does not poll `/api/live` on a timer. One `RunWatcher` per process recursively watches `.ai-engineering-loop/runs/` and `current.json`. On a change it re-reads only the changed artifact and pushes a typed event on `GET /api/events` (SSE).
 
-Event types: `run.created`, `run.state`, `lifecycle`, `artifact.impact`, `artifact.drift`, `artifact.guard`, `artifact.verification`, `artifact.findings`, `artifact.verdict`, `artifact.receipt`, `current.changed`, `presence`. Each event carries `runId`, a monotonic `seq`, and a minimal payload.
+Event types: `run.created`, `run.state`, `lifecycle`, `artifact.impact`, `artifact.drift`, `artifact.guard`, `artifact.verification`, `artifact.findings`, `artifact.verdict`, `artifact.receipt`, `artifact.delivery`, `current.changed`, `presence`. Each event carries `runId`, a monotonic `seq`, and a minimal payload.
 
 The first SSE frame is `hello` with `mode` (`watch` or `poll`), `root`, `currentRunId`, and `seq`. The status pill shows `live: watch` or `live: poll`. Where `fs.watch` is unavailable (or `AEL_STUDIO_FS_WATCH=0`), Studio falls back to a 1 s stat-poll of the same files.
 

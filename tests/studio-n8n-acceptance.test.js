@@ -406,7 +406,7 @@ test('AC9 the DELIVERED summary card shows duration, tests, findings, drift, rec
     assert.match(card.innerHTML, /Duration<\/span><strong>18m 09s<\/strong>/);
     assert.match(card.innerHTML, /Tests<\/span><strong>511 passed \/ 0 failed<\/strong>/);
     assert.match(card.innerHTML, /Findings<\/span><strong>2 \/ 0<\/strong>/);
-    assert.match(card.innerHTML, /Drift<\/span><strong>0<\/strong>/);
+    assert.match(card.innerHTML, /Drift<\/span><strong>none<\/strong>/);
     assert.match(card.innerHTML, /Receipt<\/span><strong>verified<\/strong>/);
     assert.match(card.innerHTML, /Tokens<\/span><strong>unknown<\/strong>/);
 
