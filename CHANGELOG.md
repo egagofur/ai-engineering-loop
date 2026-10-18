@@ -4,6 +4,10 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+_No changes yet._
+
+## 2.2.0 - 2026-10-18
+
 ### Studio: richer node detail, Live tab, times, and trackpad gestures (#91)
 
 - **Added:** built-in nodes show Evidence from the run directory (goal contract, diff stats and files touched, verification output and test counts, review findings, judge verdict, approver, delivery destination and receipt). The read stays inside the run directory and checks sha256 against `state.json`. A mismatch shows “artifact changed”. A node that already has `nodes[id].artifact` keeps that descriptor. Gate durations come from `GATE_PASSED`, or from `NODE_COMPLETED` in the lifecycle log when the workflow log has none.

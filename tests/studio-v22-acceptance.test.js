@@ -59,13 +59,16 @@ test('issue 91 acceptance criteria are covered by tests, docs, and the changelog
   assert.match(doc, /unknown/);
   assert.match(doc, /GET \/api\/events/);
 
+  // The #91 entry starts in Unreleased and moves under a version heading at release time.
+  const section91 = changelog.split(/^## /m).find((part) => part.includes('### Studio: richer node detail, Live tab, times, and trackpad gestures (#91)'));
+  assert.ok(section91, 'CHANGELOG records #91');
+  assert.match(section91, /^(Unreleased|\d+\.\d+\.\d+ - \d{4}-\d{2}-\d{2})/);
+  assert.match(section91, /artifact changed/);
+  assert.match(section91, /no receipt: run predates receipts/);
+  assert.match(section91, /\*\*Added:\*\*/);
+  assert.match(section91, /\*\*Changed:\*\*/);
   const unreleased = changelog.split(/^## /m).find((part) => part.startsWith('Unreleased'));
   assert.ok(unreleased, 'CHANGELOG has an Unreleased section');
-  assert.match(unreleased, /### Studio: richer node detail, Live tab, times, and trackpad gestures \(#91\)/);
-  assert.match(unreleased, /artifact changed/);
-  assert.match(unreleased, /no receipt: run predates receipts/);
-  assert.match(unreleased, /\*\*Added:\*\*/);
-  assert.match(unreleased, /\*\*Changed:\*\*/);
   const released = changelog.split(/^## /m).find((part) => part.includes('### Studio: n8n-style Wiring canvas (#88)'));
   assert.match(released, /^2\.1\.0 - 2026-10-18/);
 });
