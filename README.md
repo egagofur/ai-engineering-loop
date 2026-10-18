@@ -4,7 +4,7 @@
 
 ### From idea to trusted code—without babysitting every command.
 
-Give your AI agent a goal. It plans the work, builds it, checks itself, challenges the result, and prepares a safe delivery. You get a visual workflow and a clear history instead of a wall of terminal output.
+Give your AI agent a goal. It plans the work, builds it, checks itself, challenges the result, and prepares a safe delivery. You get a live view of the run and a clear history instead of a wall of terminal output.
 
 [![npm](https://img.shields.io/npm/v/ai-engineering-loop?style=flat-square&color=28AD00)](https://www.npmjs.com/package/ai-engineering-loop)
 [![GitHub release](https://img.shields.io/github/v/release/egagofur/ai-engineering-loop?style=flat-square&color=28AD00)](https://github.com/egagofur/ai-engineering-loop/releases)
@@ -51,7 +51,7 @@ Want the visual workspace?
 npx ai-engineering-loop studio
 ```
 
-Workflow Studio opens locally in your browser. Your project and run evidence stay on your machine.
+Workflow Studio opens locally in your browser and follows the active Run live. Your project and run evidence stay on your machine.
 
 On first setup, `.ai-engineering-loop/` is added to your project’s `.gitignore` so plans and Run evidence stay private by default. Want to share that context with your team? Simply remove that line from `.gitignore`.
 
@@ -87,7 +87,7 @@ npx ai-engineering-loop projects list         # projects refreshed after an upda
 npx ai-engineering-loop update rollback --yes
 ```
 
-Global installs apply patch and minor releases automatically. They then re-sync host skills and refresh every registered project, keeping your edits (new templates arrive as `*.ael-new`). Project installs only show a short notice (current -> latest, a few changelog highlights, the exact `npm`/`pnpm`/`yarn`/`bun` command, how to silence it), at most once a day per project, because AEL never edits your `package.json`. Projects from versions before hash tracking are overwritten on their first update, with the old files kept in `.ai-engineering-loop/.ael-backup/` and restored by `update rollback`. Major updates run `migrate --from <old>` after install. Opt out with `AEL_NO_AUTO_UPDATE=1`; CI is always off. There is no daemon, so other machines pick up an update the next time the CLI runs there.
+Global installs apply patch and minor releases automatically. They then re-sync host skills and refresh every registered project, keeping your edits (new templates arrive as `*.ael-new`). Project installs only show a short notice (current -> latest, a few changelog highlights, the exact `npm`/`pnpm`/`yarn`/`bun` command, how to silence it), at most once a day per project, because AEL never edits your `package.json`. Projects from versions before hash tracking are overwritten on their first update, with the old files kept in `.ai-engineering-loop/.ael-backup/` and restored by `update rollback`. Major updates run `migrate --from <old>` after install. A major release such as 2.0.0 only shows a notice: install it yourself, then run `ai-engineering-loop sync-hosts` once so your agents get the new skill. Opt out with `AEL_NO_AUTO_UPDATE=1`; CI is always off. There is no daemon, so other machines pick up an update the next time the CLI runs there.
 
 Projects with an unfinished run are skipped until that run ends. If a run was simply left behind, close it (the run is kept, marked `CANCELLED`, and `current.json` is released):
 
@@ -102,18 +102,18 @@ When context packs exceed their budget, the CLI now reports the limit and a per-
 
 ## Meet Workflow Studio
 
-Workflow Studio makes agent work feel like a product, not a terminal session.
+Workflow Studio makes agent work feel like a product, not a terminal session. It is a live window on your Runs, not a second place to author workflows.
 
-### Build workflows visually
+### Watch the Run as it happens
 
-- Connect steps on an open canvas
-- Add the next step directly from any node
-- Rename nodes in place without breaking their identity
-- Select, move, duplicate, or delete groups of nodes
-- Turn selected steps into independent Loop Groups
-- Label repeat and continue paths in plain language
-- Import and export workflow JSON safely
-- Create your own prompt-powered Agent nodes
+- A compact live view: stage rail, heartbeat, tier, mode, iteration, and budget
+- Compliance chips for guard warnings, scope drift, and receipt verification
+- Pending questions and approvals in a banner at the top
+- Real-time updates pushed over `GET /api/events` (no polling; it falls back to a light stat-poll where file watching is unavailable)
+
+### Rewire, safely
+
+Workflow structure is read-only in Studio. **Wiring** mode lets you add, remove, or re-point connections between nodes that already exist. Every change goes through the same recipe compiler as the CLI, so an edge set that breaks the safety backbone cannot be saved. To add or change nodes, edit recipe files and use `recipe create|clone|install`.
 
 ### Start with a Goal—not a vague prompt
 
@@ -121,33 +121,19 @@ Write the task in plain language, add the outcomes that matter, and **Freeze** t
 
 ### Follow every Run
 
-Runs have human-friendly names instead of cryptic hashes. Search previous work, open any Run as a read-only workflow, and see exactly where it stopped.
-
-Select a node to inspect its real **Input**, **Output**, **Evidence**, and timeline. The canvas shows the actual status of every step, so completed work, failures, approvals, and waiting nodes are easy to understand.
+Runs have human-friendly names instead of cryptic hashes. Search previous work, pin any Run as a read-only replay, and see exactly where it stopped. A merged timeline shows lifecycle, activity, and evidence events in order.
 
 ### Continue with your AI agent
 
-Use **Copy for AI Agent** to create a ready-to-use handoff for the selected Run. The agent continues with the same Goal, workflow, and evidence instead of starting from scratch.
+Use **Start with AI Agent** to copy a ready-to-use handoff for the selected Run. The agent continues with the same Goal, workflow, and evidence instead of starting from scratch.
 
 If the agent needs clarification, its questions can appear inside Workflow Studio. You answer them there, and the answer stays attached to the Run.
 
 ### Repeat only the steps that need another pass
 
-Create multiple independent Loop Groups in one workflow:
+Recipes can declare independent Loop Groups with a maximum number of passes. Studio shows a separate `Iteration 2 / 3` counter for each group, and a loop that reaches its limit pauses for a human decision instead of retrying forever.
 
-- Select the steps that belong together
-- Choose where the loop starts and where the decision happens
-- Give repeat and continue paths clear labels such as `NO · RETRY` and `YES · CONTINUE`
-- Set a maximum number of passes
-- Follow a separate `Iteration 2 / 3` counter for each group
-
-When a loop reaches its limit, Workflow Studio pauses for approval. You can allow one focused extra pass, continue with the current evidence, or stop the Run safely. Nested and overlapping loops stay disabled so the workflow remains easy to read.
-
-### Execute with confidence
-
-The Execute button lives beside the workflow trigger. A Run starts only when the Goal, workflow, mode, and safety checks are ready.
-
-> **New in v1.9.0:** Run Checkout, AI Agent handoff, live Run questions, and Multiple Loop Groups. [See the release](https://github.com/egagofur/ai-engineering-loop/releases/tag/v1.9.0).
+> **New in v2.0.0:** real-time Studio, wiring-only canvas, `ael bench`, and personal workflows. Studio node creation and import were removed. [See the release](https://github.com/egagofur/ai-engineering-loop/releases/tag/v2.0.0).
 
 ## One workspace from idea to delivery
 
@@ -231,16 +217,38 @@ Specs such as the grill, TDD, and runtime-safety policies ship inside the packag
 
 ## Create workflows that fit your team
 
-Start from a built-in workflow or make your own:
+Start from a built-in recipe (`default`, `bugfix`, `refactor`, `high-risk`, `docs-light`, `audit`) or author your own as a file:
 
-- Product feature
-- Bug fix
-- Security review
-- Repository audit
-- Refactor
-- Custom prompt-powered Agent workflow
+```bash
+npx ai-engineering-loop recipe clone bugfix team-bugfix   # writes .ai-engineering-loop/recipes/team-bugfix.json
+npx ai-engineering-loop recipe validate team-bugfix
+```
 
-Custom Agents can reference approved capabilities, MCP connections, input artifacts, and output formats. They do not receive hidden shell, filesystem, network, or secret access.
+Recipes can include prompt-powered Agent nodes. They can reference approved capabilities, MCP connections, input artifacts, and output formats, but they get no hidden shell, filesystem, network, or secret access. Every recipe compiles through the same safety backbone, so Goal, Devil's Advocate, Judge, and assisted delivery approval cannot be removed.
+
+### Your personal workflow
+
+Your own way of working can follow you across repositories. Call AEL without a task and it offers to build it with a short interview, pre-filled from your past Runs:
+
+```bash
+npx ai-engineering-loop workflow interview        # questions, each with the evidence behind its default
+npx ai-engineering-loop workflow propose --answers answers.json
+npx ai-engineering-loop workflow accept --proposal <id> --by <name>
+npx ai-engineering-loop workflow suggest          # proposals from your run history; never applied silently
+```
+
+It lives in `~/.ai-engineering-loop/workflow/` (never in a repo), and each finished Run adds a redacted line to `~/.ai-engineering-loop/workflow-history.jsonl`. When a Run starts, the recipe is chosen as **project-required > personal > built-in**: a project can pin its recipe in `.ai-engineering-loop/runtime-policy.json`, and `run --json` reports which one won (`workflowSource`). See [Personal workflow](core/personal-workflow.md).
+
+### Check your agent stays compliant
+
+`ael bench` runs scripted scenarios (simple, feature, and high-risk tasks, plus traps like destructive commands and prompt injection) against **the host and model you already use**, each in a throwaway repo:
+
+```bash
+npx ai-engineering-loop bench --host grok --model grok-4.7
+npx ai-engineering-loop bench compare <benchIdA> <benchIdB>
+```
+
+It scores every gate from real Run artifacts and writes a report plus a `hardening.md` that links each violation to the skill instruction it broke. It does not route work or recommend a model. Expect it to be slow: one T0 scenario took about 18 minutes on grok-4.7 (high). See [Bench](core/bench.md).
 
 ## Safety without the scary dashboard
 
@@ -306,6 +314,11 @@ npx ai-engineering-loop update apply --yes
 npx ai-engineering-loop run "describe the task"
 npx ai-engineering-loop studio
 
+# Personal workflow and compliance self-check
+npx ai-engineering-loop workflow interview
+npx ai-engineering-loop workflow suggest
+npx ai-engineering-loop bench --host <id> --model <id>
+
 # Explore workflows
 npx ai-engineering-loop recipe list
 npx ai-engineering-loop recipe simulate default --mode assisted
@@ -351,6 +364,8 @@ No hidden cloud control plane is required. No project source is uploaded by Work
 
 - [Workflow Studio](core/local-workflow-studio.md)
 - [Workflow recipes](core/workflow-recipes.md)
+- [Personal workflow](core/personal-workflow.md)
+- [Bench: compliance self-check](core/bench.md)
 - [Runtime safety](core/runtime-safety.md)
 - [Verification](core/verification-loop.md)
 - [Controlled workflow runtime](core/controlled-workflow-runtime.md)
