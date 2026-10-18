@@ -1,0 +1,142 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000"><style>
+.ui{font-family:Inter,"DejaVu Sans",system-ui,sans-serif}
+.mono{font-family:"DejaVu Sans Mono",Consolas,monospace}
+@keyframes flow{to{stroke-dashoffset:-24}}
+.active{stroke-dasharray:8 8;animation:flow .8s linear infinite}
+</style><rect width="1600" height="1000" fill="#141615"/><defs><pattern id="dots" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#fff" fill-opacity=".07"/></pattern></defs>
+<rect x="0" y="56" width="1600" height="944" fill="#141615"/><rect x="0" y="56" width="1600" height="944" fill="url(#dots)"/>
+<rect width="1600" height="56" fill="#111312"/><line x1="0" y1="56" x2="1600" y2="56" stroke="#2c312d"/>
+<rect x="18" y="13" width="30" height="30" rx="8" fill="#28ad00"/><text class="ui" x="33" y="34" text-anchor="middle" font-size="16" font-weight="800" fill="#fff">A</text>
+<text class="ui" x="72" y="34" font-size="14" fill="#9aa39c">Live</text><text class="ui" x="118" y="34" font-size="14" fill="#9aa39c">Runs</text>
+<rect x="164" y="14" width="76" height="28" rx="8" fill="#232825"/><text class="ui" x="202" y="33" text-anchor="middle" font-size="14" font-weight="700" fill="#eef1ee">Wiring</text>
+<text class="ui" x="268" y="34" font-size="14" font-weight="600" fill="#eef1ee">Paginate the orders list</text>
+<rect x="462.4" y="17" width="88.60000000000001" height="22" rx="11" fill="#1a1d1b" stroke="#28ad00" stroke-opacity=".6"/><text class="ui" x="473.4" y="32" font-size="11" font-weight="800" letter-spacing=".8" fill="#28ad00">DELIVERED</text>
+<circle cx="1350" cy="28" r="5" fill="#28ad00"/><text class="ui" x="1362" y="33" font-size="12" fill="#9aa39c">live: watch</text>
+<text class="ui" x="1450" y="33" font-size="12" fill="#6c746e">recipe</text><rect x="1496" y="15" width="88" height="26" rx="7" fill="#1a1d1b" stroke="#2c312d"/><text class="ui" x="1506" y="33" font-size="12" fill="#eef1ee">default · v2</text>
+<rect x="24" y="76" width="1552" height="88" rx="16" fill="#1a1d1b" stroke="#2c312d"/>
+<circle cx="68" cy="120" r="20" fill="#28ad00"/><path d="M58 120l7 7 13-14" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text class="ui" x="102" y="114" font-size="18" font-weight="700" fill="#eef1ee">Delivered · PR #142</text><text class="ui" x="102" y="138" font-size="13" fill="#9aa39c">Judge PASS · approved by ega · 2 days ago</text>
+<line x1="448" y1="96" x2="448" y2="144" stroke="#2c312d"/><text class="ui" x="470" y="112" font-size="11" font-weight="800" letter-spacing="1.2" fill="#6c746e">DURATION</text><text class="ui" x="470" y="138" font-size="15" font-weight="600" fill="#eef1ee">18m 09s</text>
+<line x1="598" y1="96" x2="598" y2="144" stroke="#2c312d"/><text class="ui" x="620" y="112" font-size="11" font-weight="800" letter-spacing="1.2" fill="#6c746e">TESTS</text><text class="ui" x="620" y="138" font-size="15" font-weight="600" fill="#83db69">511 passed</text>
+<line x1="748" y1="96" x2="748" y2="144" stroke="#2c312d"/><text class="ui" x="770" y="112" font-size="11" font-weight="800" letter-spacing="1.2" fill="#6c746e">REVIEW</text><text class="ui" x="770" y="138" font-size="15" font-weight="600" fill="#eef1ee">2 findings · 0 blocking</text>
+<line x1="985.2" y1="96" x2="985.2" y2="144" stroke="#2c312d"/><text class="ui" x="1007.2" y="112" font-size="11" font-weight="800" letter-spacing="1.2" fill="#6c746e">SCOPE</text><text class="ui" x="1007.2" y="138" font-size="15" font-weight="600" fill="#83db69">no drift</text>
+<line x1="1135.2" y1="96" x2="1135.2" y2="144" stroke="#2c312d"/><text class="ui" x="1157.2" y="112" font-size="11" font-weight="800" letter-spacing="1.2" fill="#6c746e">RECEIPT</text><text class="ui" x="1157.2" y="138" font-size="15" font-weight="600" fill="#83db69">verified ✓</text>
+<line x1="1285.2" y1="96" x2="1285.2" y2="144" stroke="#2c312d"/><text class="ui" x="1307.2" y="112" font-size="11" font-weight="800" letter-spacing="1.2" fill="#6c746e">TOKENS</text><text class="ui" x="1307.2" y="138" font-size="15" font-weight="600" fill="#6c746e">unknown</text>
+<rect x="275" y="350" width="807" height="280" rx="28" fill="#28ad00" fill-opacity=".045" stroke="#28ad00" stroke-opacity=".35" stroke-dasharray="2 0"/>
+<rect x="687.6" y="337" width="374.4" height="26" rx="13" fill="#17251a" stroke="#28ad00" stroke-opacity=".5"/>
+<text class="ui" x="699.6" y="355" font-size="12" font-weight="700" fill="#83db69">Build, verify &amp; review  ·  finished in 1 / 3</text>
+<path d="M228 486.0C268.5 486.0 268.5 486.0 309 486.0" fill="none" stroke="#4f8a3c" stroke-width="2.5"/>
+<path d="M433 486.0C473.5 486.0 473.5 486.0 514 486.0" fill="none" stroke="#4f8a3c" stroke-width="2.5"/>
+<path d="M638 486.0C678.5 486.0 678.5 486.0 719 486.0" fill="none" stroke="#4f8a3c" stroke-width="2.5"/>
+<path d="M843 486.0C883.5 486.0 883.5 486.0 924 486.0" fill="none" stroke="#4f8a3c" stroke-width="2.5"/>
+<path d="M1253 486.0C1293.5 486.0 1293.5 486.0 1334 486.0" fill="none" stroke="#4f8a3c" stroke-width="2.5"/>
+<path d="M1048 486.0C1088 486.0 1089 486.0 1129 486.0" fill="none" stroke="#e0a537" stroke-width="3" stroke-dasharray="7 6"/>
+<rect x="1054.5" y="452.0" width="68" height="20" rx="10" fill="#3a2e14"/><text class="ui" x="1088.5" y="466.0" text-anchor="middle" font-size="11" font-weight="800" fill="#e0a537">EDITED</text>
+<g>
+<rect x="110" y="430" width="112" height="112" rx="20" fill="#202422" stroke="#3c443e" stroke-width="1.5"/>
+<rect x="136.0" y="456.0" width="60" height="60" rx="16" fill="#22352a"/>
+<circle cx="166.0" cy="486.0" r="14" fill="none" stroke="#dff5d6" stroke-width="3"/>
+<circle cx="166.0" cy="486.0" r="7" fill="none" stroke="#dff5d6" stroke-width="3"/>
+<circle cx="166.0" cy="486.0" r="2.5" fill="#dff5d6"/>
+<circle cx="110" cy="486.0" r="6" fill="#202422" stroke="#5b645d" stroke-width="2"/>
+<circle cx="222" cy="486.0" r="6" fill="#202422" stroke="#5b645d" stroke-width="2"/>
+<circle cx="214" cy="438" r="11" fill="#28ad00"/><path d="M209 438l3.5 3.5 6.5-7" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+<text class="ui" x="166.0" y="570" text-anchor="middle" font-size="16" font-weight="700" fill="#eef1ee">goal</text>
+<text class="ui" x="166.0" y="591" text-anchor="middle" font-size="13" fill="#28ad00">Passed · 38s</text>
+</g>
+<g>
+<rect x="315" y="430" width="112" height="112" rx="20" fill="#202422" stroke="#3c443e" stroke-width="1.5"/>
+<rect x="341.0" y="456.0" width="60" height="60" rx="16" fill="#22352a"/>
+<path d="M365.0 475.0l-10 11 10 11M377.0 475.0l10 11-10 11" fill="none" stroke="#dff5d6" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="315" cy="486.0" r="6" fill="#202422" stroke="#5b645d" stroke-width="2"/>
+<circle cx="427" cy="486.0" r="6" fill="#202422" stroke="#5b645d" stroke-width="2"/>
+<circle cx="419" cy="438" r="11" fill="#28ad00"/><path d="M414 438l3.5 3.5 6.5-7" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+<text class="ui" x="371.0" y="570" text-anchor="middle" font-size="16" font-weight="700" fill="#eef1ee">maker</text>
+<text class="ui" x="371.0" y="591" text-anchor="middle" font-size="13" fill="#28ad00">Passed · 9m 41s</text>
+</g>
+<g>
+<rect x="520" y="430" width="112" height="112" rx="20" fill="#202422" stroke="#3c443e" stroke-width="1.5"/>
+<rect x="546.0" y="456.0" width="60" height="60" rx="16" fill="#22352a"/>
+<rect x="563.0" y="471.0" width="26" height="30" rx="4" fill="none" stroke="#dff5d6" stroke-width="3"/>
+<path d="M569.0 486.0l5 5 9-10" fill="none" stroke="#dff5d6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="520" cy="486.0" r="6" fill="#202422" stroke="#5b645d" stroke-width="2"/>
+<circle cx="632" cy="486.0" r="6" fill="#202422" stroke="#5b645d" stroke-width="2"/>
+<circle cx="624" cy="438" r="11" fill="#28ad00"/><path d="M619 438l3.5 3.5 6.5-7" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+<text class="ui" x="576.0" y="570" text-anchor="middle" font-size="16" font-weight="700" fill="#eef1ee">verification</text>
+<text class="ui" x="576.0" y="591" text-anchor="middle" font-size="13" fill="#28ad00">Passed · 2m 12s</text>
+</g>
+<g>
+<rect x="725" y="430" width="112" height="112" rx="20" fill="#202422" stroke="#3c443e" stroke-width="1.5"/>
+<rect x="751.0" y="456.0" width="60" height="60" rx="16" fill="#22352a"/>
+<path d="M781.0 470.0l13 5v9c0 8-6 14-13 18-7-4-13-10-13-18v-9z" fill="none" stroke="#dff5d6" stroke-width="3" stroke-linejoin="round"/>
+<path d="M781.0 480.0v8M781.0 493.0v1" stroke="#dff5d6" stroke-width="3" stroke-linecap="round"/>
+<circle cx="725" cy="486.0" r="6" fill="#202422" stroke="#5b645d" stroke-width="2"/>
+<circle cx="837" cy="486.0" r="6" fill="#202422" stroke="#5b645d" stroke-width="2"/>
+<circle cx="829" cy="438" r="11" fill="#28ad00"/><path d="M824 438l3.5 3.5 6.5-7" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+<text class="ui" x="781.0" y="570" text-anchor="middle" font-size="16" font-weight="700" fill="#eef1ee">review</text>
+<text class="ui" x="781.0" y="591" text-anchor="middle" font-size="13" fill="#28ad00">Passed · 3m 05s</text>
+</g>
+<g>
+<rect x="930" y="430" width="112" height="112" rx="20" fill="#202422" stroke="#3c443e" stroke-width="1.5"/>
+<rect x="956.0" y="456.0" width="60" height="60" rx="16" fill="#22352a"/>
+<path d="M986.0 471.0v28M977.0 499.0h18M971.0 477.0h30" stroke="#dff5d6" stroke-width="3" stroke-linecap="round"/>
+<path d="M971.0 477.0l-6 12h12zM1001.0 477.0l-6 12h12z" fill="none" stroke="#dff5d6" stroke-width="2.5" stroke-linejoin="round"/>
+<circle cx="930" cy="486.0" r="6" fill="#202422" stroke="#5b645d" stroke-width="2"/>
+<circle cx="1042" cy="486.0" r="6" fill="#202422" stroke="#5b645d" stroke-width="2"/>
+<circle cx="1034" cy="438" r="11" fill="#28ad00"/><path d="M1029 438l3.5 3.5 6.5-7" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+<text class="ui" x="986.0" y="570" text-anchor="middle" font-size="16" font-weight="700" fill="#eef1ee">judge</text>
+<text class="ui" x="986.0" y="591" text-anchor="middle" font-size="13" fill="#28ad00">Passed · 1m 20s</text>
+</g>
+<g>
+<rect x="1135" y="430" width="112" height="112" rx="20" fill="#202422" stroke="#3c443e" stroke-width="1.5"/>
+<rect x="1161.0" y="456.0" width="60" height="60" rx="16" fill="#22352a"/>
+<circle cx="1191.0" cy="479.0" r="7" fill="none" stroke="#dff5d6" stroke-width="3"/>
+<path d="M1178.0 501.0c2-9 7-12 13-12s11 3 13 12" fill="none" stroke="#dff5d6" stroke-width="3" stroke-linecap="round"/>
+<circle cx="1135" cy="486.0" r="6" fill="#202422" stroke="#5b645d" stroke-width="2"/>
+<circle cx="1247" cy="486.0" r="6" fill="#202422" stroke="#5b645d" stroke-width="2"/>
+<circle cx="1239" cy="438" r="11" fill="#28ad00"/><path d="M1234 438l3.5 3.5 6.5-7" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+<text class="ui" x="1191.0" y="570" text-anchor="middle" font-size="16" font-weight="700" fill="#eef1ee">delivery-approval</text>
+<text class="ui" x="1191.0" y="591" text-anchor="middle" font-size="13" fill="#28ad00">Passed · approved</text>
+</g>
+<g>
+<rect x="1340" y="430" width="112" height="112" rx="20" fill="#202422" stroke="#3c443e" stroke-width="1.5"/>
+<rect x="1366.0" y="456.0" width="60" height="60" rx="16" fill="#22352a"/>
+<path d="M1396.0 471.0v22M1387.0 480.0l9-9 9 9M1382.0 500.0h28" fill="none" stroke="#dff5d6" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="1340" cy="486.0" r="6" fill="#202422" stroke="#5b645d" stroke-width="2"/>
+<circle cx="1452" cy="486.0" r="6" fill="#202422" stroke="#5b645d" stroke-width="2"/>
+<circle cx="1444" cy="438" r="11" fill="#28ad00"/><path d="M1439 438l3.5 3.5 6.5-7" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+<text class="ui" x="1396.0" y="570" text-anchor="middle" font-size="16" font-weight="700" fill="#eef1ee">delivery</text>
+<text class="ui" x="1396.0" y="591" text-anchor="middle" font-size="13" fill="#28ad00">Passed · 12s</text>
+</g>
+<rect x="1270" y="200" width="306" height="176" rx="14" fill="#1a1d1b" stroke="#2c312d"/>
+<text class="ui" x="1290" y="230" font-size="12" font-weight="800" letter-spacing="1.3" fill="#6c746e">KEYBOARD</text>
+<text class="mono" x="1290" y="256" font-size="12" fill="#83db69">F</text><text class="ui" x="1410" y="256" font-size="12" fill="#9aa39c">Fit to view</text>
+<text class="mono" x="1290" y="276" font-size="12" fill="#83db69">L</text><text class="ui" x="1410" y="276" font-size="12" fill="#9aa39c">Auto-layout</text>
+<text class="mono" x="1290" y="296" font-size="12" fill="#83db69">+ / −</text><text class="ui" x="1410" y="296" font-size="12" fill="#9aa39c">Zoom</text>
+<text class="mono" x="1290" y="316" font-size="12" fill="#83db69">Space + drag</text><text class="ui" x="1410" y="316" font-size="12" fill="#9aa39c">Pan</text>
+<text class="mono" x="1290" y="336" font-size="12" fill="#83db69">Enter / Esc</text><text class="ui" x="1410" y="336" font-size="12" fill="#9aa39c">Open / close panel</text>
+<text class="mono" x="1290" y="356" font-size="12" fill="#83db69">⌘Z / ⇧⌘Z</text><text class="ui" x="1410" y="356" font-size="12" fill="#9aa39c">Undo / redo wiring</text>
+<rect x="20" y="940" width="168" height="40" rx="10" fill="#1a1d1b" stroke="#2c312d"/>
+<path d="M34 960h14M41 953v14" stroke="#eef1ee" stroke-width="2.2" stroke-linecap="round"/>
+<line x1="62" y1="948" x2="62" y2="972" stroke="#2c312d"/>
+<path d="M76 960h14" stroke="#eef1ee" stroke-width="2.2" stroke-linecap="round"/>
+<line x1="104" y1="948" x2="104" y2="972" stroke="#2c312d"/>
+<path d="M117 956v-4h4M133 956v-4h-4M117 964v4h4M133 964v4h-4" fill="none" stroke="#eef1ee" stroke-width="2" stroke-linecap="round"/>
+<line x1="146" y1="948" x2="146" y2="972" stroke="#2c312d"/>
+<rect x="158" y="953" width="6" height="6" rx="1.5" fill="none" stroke="#eef1ee" stroke-width="1.8"/><rect x="170" y="961" width="6" height="6" rx="1.5" fill="none" stroke="#eef1ee" stroke-width="1.8"/><path d="M164 956h3v8h3" fill="none" stroke="#eef1ee" stroke-width="1.6"/>
+<text class="ui" x="200" y="965" font-size="12" fill="#6c746e">100%</text>
+<rect x="1390" y="810" width="186" height="110" rx="10" fill="#1a1d1b" stroke="#2c312d"/>
+<rect x="1404" y="854" width="12" height="12" rx="3" fill="#28ad00"/>
+<rect x="1426" y="854" width="12" height="12" rx="3" fill="#28ad00"/>
+<rect x="1448" y="854" width="12" height="12" rx="3" fill="#28ad00"/>
+<rect x="1470" y="854" width="12" height="12" rx="3" fill="#28ad00"/>
+<rect x="1492" y="854" width="12" height="12" rx="3" fill="#28ad00"/>
+<rect x="1514" y="854" width="12" height="12" rx="3" fill="#28ad00"/>
+<rect x="1536" y="854" width="12" height="12" rx="3" fill="#28ad00"/>
+<rect x="1396" y="830" width="174" height="66" rx="4" fill="#fff" fill-opacity=".04" stroke="#9aa39c" stroke-opacity=".6"/>
+<rect x="520.0" y="916" width="560" height="52" rx="14" fill="#1f231f" stroke="#4b3d1c"/>
+<circle cx="544.0" cy="942" r="6" fill="#e0a537"/>
+<text class="ui" x="560.0" y="947" font-size="14" font-weight="600" fill="#eef1ee">1 wiring change</text>
+<rect x="688.0" y="930" width="150" height="24" rx="12" fill="#1d3317"/><text class="ui" x="702.0" y="947" font-size="12" font-weight="700" fill="#83db69">✓ Valid</text><text class="mono" x="756.0" y="947" font-size="11" fill="#9aa39c">8b54f2af</text>
+<text class="ui" x="880.0" y="947" font-size="13" fill="#9aa39c">Discard</text>
+<rect x="950.0" y="927" width="112" height="30" rx="9" fill="#28ad00"/><text class="ui" x="1006.0" y="947" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">Save wiring</text></svg>
