@@ -11,6 +11,10 @@ const MINIMAP_HEIGHT = 110;
 const LABEL_BLEED = 36;
 const MIN_ZOOM = 0.2;
 const MAX_ZOOM = 2.5;
+const WHEEL_LINE_PX = 16;
+const WHEEL_PAGE_PX = 800;
+const WHEEL_SPIKE_PX = 240;
+const PAN_THRESHOLD_PX = 4;
 const COLUMN_PITCH = 188;
 const ROW_PITCH = 200;
 const DISPLAY_NAME_MAX = 80;
@@ -90,6 +94,10 @@ let panelRequest = 0;
 let panelView = { status: 'empty' };
 let tooltipTimer = null;
 let suppressNodeClick = false;
+let wheelFrame = null;
+let wheelPending = null;
+let marquee = null;
+let gestureZoom = null;
 let zoomInButton = null;
 let zoomLevelOutput = null;
 let nodeTooltip = null;
@@ -902,9 +910,67 @@ function beginPan(event) {
     startX: event.clientX,
     startY: event.clientY,
     viewportX: viewport.x,
-    viewportY: viewport.y
+    viewportY: viewport.y,
+    panning: false
   };
   byId('canvas').setPointerCapture?.(event.pointerId);
+}
+
+function ensureMarquee() {
+  if (marquee) return marquee;
+  marquee = document.createElement('div');
+  marquee.id = 'selection-marquee';
+  byId('canvas')?.append(marquee);
+  return marquee;
+}
+
+function beginMarquee(event) {
+  event.preventDefault?.();
+  ensureMarquee();
+  interaction = {
+    type: 'marquee',
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    clientX: event.clientX,
+    clientY: event.clientY,
+    armed: false
+  };
+  byId('canvas').setPointerCapture?.(event.pointerId);
+}
+
+function paintMarquee() {
+  const box = ensureMarquee();
+  const rect = byId('canvas').getBoundingClientRect();
+  const left = Math.min(interaction.startX, interaction.clientX) - rect.left;
+  const top = Math.min(interaction.startY, interaction.clientY) - rect.top;
+  box.style.display = 'block';
+  box.style.left = `${left}px`;
+  box.style.top = `${top}px`;
+  box.style.width = `${Math.abs(interaction.clientX - interaction.startX)}px`;
+  box.style.height = `${Math.abs(interaction.clientY - interaction.startY)}px`;
+}
+
+function finishMarquee() {
+  const box = marquee;
+  if (box?.style) box.style.display = 'none';
+  if (!interaction?.armed || !draft) return;
+  const start = screenToWorld(interaction.startX, interaction.startY);
+  const end = screenToWorld(interaction.clientX, interaction.clientY);
+  const minX = Math.min(start.x, end.x);
+  const maxX = Math.max(start.x, end.x);
+  const minY = Math.min(start.y, end.y);
+  const maxY = Math.max(start.y, end.y);
+  const hits = draft.nodes.filter((node) => {
+    const pos = positions.get(node.id);
+    if (!pos) return false;
+    return pos.x < maxX && pos.x + NODE_WIDTH > minX && pos.y < maxY && pos.y + NODE_BLOCK_HEIGHT > minY;
+  }).map((node) => node.id);
+  selectedIds = new Set(hits);
+  selectedId = hits[0] || null;
+  selectedEdgeId = null;
+  updateSelection();
+  renderEdges();
 }
 
 function handlePointerMove(event) {
@@ -955,9 +1021,24 @@ function handlePointerMove(event) {
       }
     });
     renderEdges();
-  } else {
-    viewport.x = interaction.viewportX + event.clientX - interaction.startX;
-    viewport.y = interaction.viewportY + event.clientY - interaction.startY;
+    return;
+  }
+  if (interaction.type === 'marquee') {
+    interaction.clientX = event.clientX;
+    interaction.clientY = event.clientY;
+    const distance = Math.hypot(event.clientX - interaction.startX, event.clientY - interaction.startY);
+    if (distance < PAN_THRESHOLD_PX) return;
+    interaction.armed = true;
+    paintMarquee();
+    return;
+  }
+  if (interaction.type === 'pan') {
+    const dx = event.clientX - interaction.startX;
+    const dy = event.clientY - interaction.startY;
+    if (!interaction.panning && Math.hypot(dx, dy) < PAN_THRESHOLD_PX) return;
+    interaction.panning = true;
+    viewport.x = interaction.viewportX + dx;
+    viewport.y = interaction.viewportY + dy;
     applyViewport();
   }
 }
@@ -967,11 +1048,15 @@ function finishPointer(event) {
   if (!interaction || interaction.pointerId !== event.pointerId) return;
   if (interaction.type === 'node') interaction.element.classList.remove('dragging');
   const moved = interaction.type === 'node' && interaction.moved;
+  const kind = interaction.type;
+  const panned = kind === 'pan' && interaction.panning;
+  if (kind === 'marquee') finishMarquee();
   interaction = null;
   if (moved) {
     suppressNodeClick = true;
     setTimeout(() => { suppressNodeClick = false; }, 0);
   }
+  if (kind === 'marquee' || (kind === 'pan' && !panned)) return;
   saveLayoutSoon();
 }
 
@@ -1053,14 +1138,56 @@ function worldAtCanvasCenter() {
   return screenToWorld(rect.left + rect.width / 2, rect.top + rect.height / 2);
 }
 
-function handleWheel(event) {
-  if (closestReal(event.target, '#node-panel')) return;
-  event.preventDefault();
-  if (event.ctrlKey) {
-    zoomAt(viewport.scale * Math.exp(-event.deltaY * 0.01), event.clientX, event.clientY);
+function wheelPixels(delta, mode) {
+  const unit = mode === 1 ? WHEEL_LINE_PX : mode === 2 ? WHEEL_PAGE_PX : 1;
+  const pixels = Number(delta) * unit;
+  if (!Number.isFinite(pixels)) return 0;
+  return Math.max(-WHEEL_SPIKE_PX, Math.min(WHEEL_SPIKE_PX, pixels));
+}
+
+function canvasGestureIgnored(event) {
+  return Boolean(closestReal(event?.target, '#node-panel, .zoom-controls, .minimap, .canvas-toolbar'));
+}
+
+function flushWheel() {
+  const pending = wheelPending;
+  wheelPending = null;
+  if (!pending) return;
+  if (pending.ctrlKey) {
+    zoomAt(viewport.scale * Math.exp(-pending.deltaY * 0.01), pending.clientX, pending.clientY);
     return;
   }
-  zoomAt(viewport.scale * (event.deltaY < 0 ? 1.08 : 0.92), event.clientX, event.clientY);
+  viewport.x -= pending.deltaX;
+  viewport.y -= pending.deltaY;
+  applyViewport();
+}
+
+function handleWheel(event) {
+  if (canvasGestureIgnored(event)) return;
+  event.preventDefault();
+  const sample = {
+    ctrlKey: Boolean(event.ctrlKey),
+    deltaX: wheelPixels(event.deltaX, event.deltaMode),
+    deltaY: wheelPixels(event.deltaY, event.deltaMode),
+    clientX: event.clientX,
+    clientY: event.clientY
+  };
+  if (wheelPending && wheelPending.ctrlKey !== sample.ctrlKey) flushWheel();
+  if (!wheelPending) {
+    wheelPending = { ctrlKey: sample.ctrlKey, deltaX: 0, deltaY: 0, clientX: sample.clientX, clientY: sample.clientY };
+  }
+  wheelPending.deltaX += sample.deltaX;
+  wheelPending.deltaY += sample.deltaY;
+  wheelPending.clientX = sample.clientX;
+  wheelPending.clientY = sample.clientY;
+  if (wheelFrame != null) return;
+  const schedule = typeof requestAnimationFrame === 'function'
+    ? requestAnimationFrame
+    : (callback) => setTimeout(callback, 16);
+  wheelFrame = schedule(() => {
+    wheelFrame = null;
+    flushWheel();
+  });
 }
 
 function autoLayout({ record = true } = {}) {
@@ -3138,19 +3265,40 @@ function bindCanvas() {
   mountCanvasChrome();
   canvas.addEventListener('pointerdown', (event) => {
     if (closestReal(event.target, '#node-panel, .zoom-controls, .minimap')) return;
-    if (event.target === canvas || event.target === byId('scene') || event.target === byId('nodes') || event.target === byId('edges')) {
-      selectedId = null;
-      selectedEdgeId = null;
-      if (!event.shiftKey) selectedIds.clear();
-      updateSelection();
-      renderEdges();
-      if (event.button === 1 || spacePressed) beginPan(event);
+    const empty = event.target === canvas || event.target === byId('scene')
+      || event.target === byId('nodes') || event.target === byId('edges');
+    if (!empty) return;
+    if (event.button === 0 && event.shiftKey) {
+      beginMarquee(event);
+      return;
     }
+    selectedId = null;
+    selectedEdgeId = null;
+    if (!event.shiftKey) selectedIds.clear();
+    updateSelection();
+    renderEdges();
+    if (event.button === 0 || event.button === 1 || spacePressed) beginPan(event);
   });
   canvas.addEventListener('pointermove', handlePointerMove);
   canvas.addEventListener('pointerup', finishPointer);
   canvas.addEventListener('pointercancel', finishPointer);
   canvas.addEventListener('wheel', handleWheel, { passive: false });
+  canvas.addEventListener('gesturestart', (event) => {
+    if (canvasGestureIgnored(event)) return;
+    event.preventDefault();
+    gestureZoom = viewport.scale;
+  }, { passive: false });
+  canvas.addEventListener('gesturechange', (event) => {
+    if (canvasGestureIgnored(event)) return;
+    event.preventDefault();
+    const scale = Number(event.scale);
+    if (!Number.isFinite(scale) || scale <= 0) return;
+    zoomAt((gestureZoom || viewport.scale) * scale, event.clientX, event.clientY);
+  }, { passive: false });
+  canvas.addEventListener('gestureend', (event) => {
+    event.preventDefault?.();
+    gestureZoom = null;
+  }, { passive: false });
 }
 
 function editableTarget(target) {
