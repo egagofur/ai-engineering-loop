@@ -177,3 +177,118 @@ test('live meta is labeled chips and unknown tokens are not zero', async () => {
     assert.match(elements.get('live-meta').innerHTML, /receipt pending/);
   });
 });
+
+test('live tab shows the rail, current step, questions, and grouped timeline', async () => {
+  const app = fs.readFileSync(path.join(__dirname, '..', 'studio', 'app.js'), 'utf8');
+  assert.match(app, /fetch\(`\/api\/events/);
+  assert.match(app, /scheduleLiveRender\(/);
+  assert.equal(app.includes('setInterval'), false);
+  await withApp(async ({ elements, run }) => {
+    const view = run(`(() => {
+      const now = Date.now();
+      const iso = (delta) => new Date(now + delta).toISOString();
+      catalog.live = {
+        run: {
+          runId: 'run-91',
+          displayName: 'Pagination',
+          state: 'RUNNING',
+          iteration: 2,
+          mode: 'ASSISTED',
+          tier: { current: 'CHEAP_MODEL' },
+          createdAt: iso(-10 * 60000)
+        },
+        presence: { lastHeartbeatAt: iso(-4000) },
+        budget: { spentThisRun: 0, perRunTokenLimit: 1000 },
+        artifacts: {
+          'artifact.guard': { warn: 1, block: 0 },
+          'artifact.drift': { outOfMapCount: 0 },
+          'artifact.findings': { count: 2, blocking: 1 },
+          'artifact.verification': { failed: 0, commandCount: 3 }
+        },
+        journey: {
+          steps: [{ id: 'review', status: 'active' }],
+          degradedSources: ['lifecycle'],
+          pendingQuestions: 1
+        },
+        interactions: { pending: [{ questionId: 'q1', number: 1, actor: 'agent', message: 'Which page size?' }] },
+        plan: { nodes: draft.nodes, edges: draft.edges },
+        loopGroups: { 'engineering-loop': { iteration: 2 } },
+        nodes: {
+          goal: { status: 'PASSED', updatedAt: iso(-9 * 60000) },
+          maker: { status: 'PASSED', updatedAt: iso(-5 * 60000) },
+          verification: { status: 'PASSED', updatedAt: iso(-2 * 60000) },
+          review: { status: 'RUNNING', updatedAt: iso(-60000), activity: 'Reading the diff' }
+        },
+        events: [
+          { at: iso(-9 * 60000), type: 'GATE_PASSED', gate: 'goal', nodeId: 'goal' },
+          { at: iso(-2 * 60000), type: 'GATE_PASSED', gate: 'verification', nodeId: 'verification' }
+        ]
+      };
+      renderLive();
+      return {
+        rail: document.getElementById('stage-rail').innerHTML,
+        banner: document.getElementById('question-banner').innerHTML,
+        bannerHidden: document.getElementById('question-banner').hidden,
+        current: document.getElementById('live-current').innerHTML,
+        meta: document.getElementById('live-meta').innerHTML,
+        journey: document.getElementById('run-journey').innerHTML
+      };
+    })()`);
+    assert.match(view.rail, /<li class="passed"><strong>goal<\/strong><span>1m 00s<\/span><\/li>/);
+    assert.match(view.rail, /<li class="passed"><strong>maker<\/strong><span>4m 00s<\/span><\/li>/);
+    assert.match(view.rail, /<li class="passed"><strong>verify<\/strong><span>3m 00s<\/span><\/li>/);
+    assert.match(view.rail, /<li class="active"><strong>review<\/strong><span>2m 0\ds<\/span><\/li>/);
+    assert.match(view.rail, /<li class="pending"><strong>judge<\/strong><span>—<\/span><\/li>/);
+    assert.match(view.rail, /<li class="pending"><strong>deliver<\/strong><span>—<\/span><\/li>/);
+    assert.equal(view.bannerHidden, false);
+    assert.match(view.banner, /Which page size\?/);
+    assert.match(view.banner, /Answer in Studio/);
+    assert.match(view.current, /review · devil-advocate/);
+    assert.match(view.current, /Stage 06/);
+    assert.match(view.current, /iteration 2 \/ 3/);
+    assert.match(view.current, /running 2m 0\ds/);
+    assert.match(view.current, /Reading the diff/);
+    assert.match(view.current, /data-open-node="review"/);
+    assert.match(view.current, /Open node details/);
+    assert.match(view.current, /Start with AI Agent/);
+    assert.match(view.current, /Next: judge → delivery-approval → delivery/);
+    assert.match(view.current, />Findings</);
+    assert.match(view.current, /2 \/ 1/);
+    assert.match(view.current, />Tests</);
+    assert.match(view.current, /3 passed \/ 0 failed/);
+    assert.match(view.current, />Scope</);
+    assert.match(view.current, /in map/);
+    assert.match(view.meta, /Compliance &amp; budget/);
+    assert.match(view.meta, />Mode</);
+    assert.match(view.meta, /ASSISTED/);
+    assert.match(view.meta, /host reports no usage/);
+    assert.match(view.meta, /Latest events/);
+    assert.match(view.meta, /Goal frozen/);
+    assert.match(view.meta, /Verification gate passed/);
+    assert.match(view.meta, /<time datetime="[^"]+" title="[^"]+">\d{2}:\d{2}<\/time>/);
+    assert.doesNotMatch(view.meta, /\d+m ago/);
+    assert.equal(view.meta.includes('style='), false);
+    assert.match(view.journey, /class="step-group"/);
+    assert.match(view.journey, />goal</);
+    assert.match(view.journey, />verification</);
+    assert.match(view.journey, /Goal frozen/);
+    assert.match(view.journey, /class="unknown"/);
+    assert.match(view.journey, /lifecycle unavailable — journey may be incomplete/);
+    const posted = await run(`(async () => {
+      const calls = [];
+      fetch = async (url, options = {}) => {
+        calls.push({ url: String(url), method: options.method || 'GET', body: options.body || '' });
+        return { ok: true, json: async () => ({ ok: true, live: catalog.live }) };
+      };
+      await submitAnswer('q1', '   ');
+      const skipped = calls.length;
+      await submitAnswer('q1', 'forty');
+      return { skipped, calls, notice: document.getElementById('message').textContent };
+    })()`);
+    assert.equal(posted.skipped, 0);
+    assert.equal(posted.calls[0].method, 'POST');
+    assert.match(posted.calls[0].url, /\/api\/runs\/run-91\/questions\/q1\/answer$/);
+    assert.deepEqual(JSON.parse(posted.calls[0].body), { message: 'forty', actor: 'human' });
+    assert.equal(posted.notice, 'Answer recorded.');
+  });
+});

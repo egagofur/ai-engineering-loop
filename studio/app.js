@@ -622,8 +622,18 @@ function datetimeAttr(value) {
   return `${date.getFullYear()}-${padTime(date.getMonth() + 1)}-${padTime(date.getDate())}T${clockTime(date, true)}${sign}${padTime(Math.floor(abs / 60))}:${padTime(abs % 60)}`;
 }
 
-function timeTag(value, now = Date.now()) {
-  const label = humanizeTime(value, now);
+function clockTimeLabel(value, now = Date.now()) {
+  const ms = parsedTime(value);
+  if (ms == null) return '';
+  const date = new Date(ms);
+  const dayDiff = Math.round((calendarDayStart(now) - calendarDayStart(ms)) / 86400000);
+  if (dayDiff <= 0) return clockTime(date);
+  if (dayDiff === 1) return `yesterday ${clockTime(date)}`;
+  return humanizeTime(value, now);
+}
+
+function timeTag(value, now = Date.now(), mode = 'relative') {
+  const label = mode === 'clock' ? clockTimeLabel(value, now) : humanizeTime(value, now);
   if (!label) return '';
   return `<time datetime="${escapeHtml(datetimeAttr(value))}" title="${escapeHtml(exactTimeLabel(value))}">${escapeHtml(label)}</time>`;
 }
@@ -1859,7 +1869,8 @@ function liveMetaHtml(live) {
   const artifacts = live?.artifacts || {};
   const tokens = tokenLabel(live);
   const receipt = receiptChipValue(live);
-  return [
+  const chips = [
+    labeledChip('Mode', run.mode || '—'),
     labeledChip('Tier', run.tier?.current || run.mode || '—'),
     labeledChip('Iteration', run.iteration ?? '—'),
     labeledChip('Tokens', tokenBudgetLabel(live), tokens === 'unknown' ? 'host reports no usage' : ''),
@@ -1867,6 +1878,203 @@ function liveMetaHtml(live) {
     labeledChip('Drift', driftLabel(artifacts['artifact.drift']) || 'unknown'),
     labeledChip('Receipt', receipt.value, receipt.title)
   ].join('');
+  return `<section class="compliance-card"><h2 class="live-card-title">Compliance &amp; budget</h2><div class="chip-row">${chips}</div>${budgetRow(live)}</section><section class="events-card"><h2 class="live-card-title">Latest events</h2>${latestEventsHtml(live)}</section>`;
+}
+
+function budgetRow(live) {
+  const tokens = tokenLabel(live);
+  const note = tokens === 'unknown' ? 'host reports no usage' : tokenBudgetLabel(live);
+  return `<div class="budget-row"><span>Budget</span><span class="meter" aria-hidden="true"><i></i></span><span>${escapeHtml(note)}</span></div>`;
+}
+
+function paintBudget(live) {
+  const bar = byId('live-meta')?.querySelector?.('.meter i');
+  if (!bar?.style) return;
+  const spent = Number(live?.budget?.totalTokens ?? live?.budget?.spentThisRun);
+  const limit = Number(live?.budget?.perRunTokenLimit);
+  const ratio = Number.isFinite(spent) && spent > 0 && Number.isFinite(limit) && limit > 0
+    ? Math.max(0, Math.min(1, spent / limit))
+    : 0;
+  bar.style.width = `${Math.round(ratio * 100)}%`;
+}
+
+function liveEventLabel(event) {
+  if (event?.message) return event.message;
+  const gate = event?.gate;
+  if (event?.type === 'GATE_PASSED') {
+    if (gate === 'goal') return 'Goal frozen';
+    if (gate === 'maker') return 'Maker gate passed';
+    if (gate === 'verification') return 'Verification gate passed';
+    if (gate === 'review') return 'Review gate passed';
+    if (gate === 'judge') return 'Judge gate passed';
+    if (gate === 'delivery') return 'Delivery gate passed';
+    return 'Gate passed';
+  }
+  if (event?.type === 'NODE_APPROVED') return `Approved by ${event.approvedBy || 'human'}`;
+  return String(event?.type || 'event').replaceAll('_', ' ').toLowerCase();
+}
+
+function eventActor(event, live) {
+  const plan = live?.plan?.nodes || [];
+  const node = plan.find((item) => item.id === event?.nodeId)
+    || plan.find((item) => item.legacyGate === event?.gate || item.id === event?.gate);
+  return node?.id || event?.gate || event?.phase || 'run';
+}
+
+function recentEvents(live) {
+  const workflow = Array.isArray(live?.events) ? live.events : [];
+  const source = workflow.length ? workflow : lifecycleEvents;
+  return source.slice(-4).reverse();
+}
+
+function latestEventsHtml(live) {
+  const events = recentEvents(live);
+  if (!events.length) return '<p class="muted">No events yet.</p>';
+  return events.map((event) => `
+    <p class="event-row">${timeTag(event.at, Date.now(), 'clock') || '—'} <span class="who">${escapeHtml(eventActor(event, live))}</span> <span>${escapeHtml(liveEventLabel(event))}</span></p>
+  `).join('');
+}
+
+function stageNodes(stage, live) {
+  return (live?.plan?.nodes || []).filter((node) => stage.types.includes(node.type));
+}
+
+function stageState(stage, live) {
+  const statuses = stageNodes(stage, live).map((node) => String(live?.nodes?.[node.id]?.status || '').toUpperCase());
+  if (statuses.includes('RUNNING')) return 'active';
+  if (statuses.includes('FAILED') || statuses.includes('BLOCKED')) return 'failed';
+  if (statuses.length && statuses.every((status) => status === 'PASSED' || status === 'SKIPPED')) return 'passed';
+  return 'pending';
+}
+
+function stageDurationLabel(stage, live) {
+  const recipe = draft || live?.plan;
+  let total = 0;
+  for (const node of stageNodes(stage, live)) {
+    const ms = nodeDurationMs(node.id, live, recipe);
+    if (ms > 0) total += ms;
+  }
+  return formatDuration(total) || '—';
+}
+
+function progressRailHtml(live) {
+  return STAGES.map((stage) => {
+    const state = live ? stageState(stage, live) : 'pending';
+    const duration = live ? stageDurationLabel(stage, live) : '—';
+    return `<li class="${state}"><strong>${escapeHtml(stage.label)}</strong><span>${escapeHtml(duration)}</span></li>`;
+  }).join('');
+}
+
+function focusNodeRecord(live) {
+  const plan = live?.plan?.nodes || [];
+  const nodes = live?.nodes || {};
+  const statusOf = (node) => String(nodes[node.id]?.status || '').toUpperCase();
+  return plan.find((node) => statusOf(node) === 'RUNNING')
+    || plan.find((node) => {
+      const stage = STAGES.find((item) => item.id === currentStageId(live));
+      return stage?.types.includes(node.type) && !['PASSED', 'SKIPPED', ''].includes(statusOf(node));
+    })
+    || [...plan].reverse().find((node) => statusOf(node) === 'PASSED')
+    || null;
+}
+
+function iterationText(node, live) {
+  const group = (draft?.loopGroups || []).find((item) => (item.nodeIds || []).includes(node?.id));
+  if (!group) return '';
+  const iteration = live?.loopGroups?.[group.id]?.iteration ?? live?.run?.iteration ?? '—';
+  return `iteration ${iteration} / ${group.maxIterations ?? '—'}`;
+}
+
+function stepEvidenceHtml(live) {
+  const artifacts = live?.artifacts || {};
+  const chips = [];
+  const findings = findingsLabel(artifacts['artifact.findings']);
+  if (findings) chips.push(labeledChip('Findings', findings));
+  const tests = verificationLabel(artifacts['artifact.verification']);
+  if (tests) chips.push(labeledChip('Tests', tests));
+  const drift = driftLabel(artifacts['artifact.drift']);
+  if (drift) chips.push(labeledChip('Scope', drift === 'none' ? 'in map' : drift));
+  return chips.join('');
+}
+
+function currentStepHtml(live) {
+  const node = focusNodeRecord(live);
+  if (!node) return '<p class="muted">No step is running.</p>';
+  const plan = live.plan?.nodes || [];
+  const index = Math.max(0, plan.indexOf(node));
+  const runtime = live.nodes?.[node.id] || {};
+  const running = String(runtime.status || '').toUpperCase() === 'RUNNING';
+  const duration = formatDuration(nodeDurationMs(node.id, live, draft || live.plan));
+  const timing = running
+    ? (duration ? `running ${duration}` : 'running')
+    : (duration || statusWord(runtime.status));
+  const loop = iterationText(node, live);
+  const activity = runtime.activity || runtime.reason || runtime.summary || 'Waiting for the next persisted event.';
+  const next = plan.slice(index + 1, index + 4).map((item) => displayName(item));
+  return `
+    <h2 class="live-card-title">Current step</h2>
+    <div class="current-head">
+      <span class="node-icon">${nodeIcon(node.type)}</span>
+      <div>
+        <h2>${escapeHtml(displayName(node))} · ${escapeHtml(node.type)}</h2>
+        <p>${escapeHtml([panelSubtitle(node, index).split(' · ').slice(0, 1).join(''), loop, timing].filter(Boolean).join(' · '))}</p>
+      </div>
+    </div>
+    <p class="current-activity"><span class="chip-label">Latest activity</span> ${escapeHtml(activity)}</p>
+    <div class="chip-row">${stepEvidenceHtml(live)}</div>
+    <div class="current-actions">
+      <button type="button" data-open-node="${escapeHtml(node.id)}">Open node details</button>
+      <button type="button" class="primary" data-start-agent>Start with AI Agent</button>
+    </div>
+    ${next.length ? `<p class="current-next">Next: ${escapeHtml(next.join(' → '))}</p>` : ''}
+  `;
+}
+
+function questionBannerHtml(questions) {
+  return (questions || []).map((question) => `
+    <form class="answer-form" data-question-id="${escapeHtml(question.questionId || '')}">
+      <p><span class="chip-label">Question</span> ${escapeHtml(question.message || '')}</p>
+      <textarea name="answer" maxlength="4000" aria-label="Answer" placeholder="Write the answer"></textarea>
+      <button type="submit" class="primary">Answer in Studio</button>
+    </form>
+  `).join('');
+}
+
+function journeyStepsHtml(live) {
+  const journeyStatuses = new Set(['pending', 'active', 'complete']);
+  return (live?.journey?.steps || []).map((step) => {
+    const status = String(step?.status || '').toLowerCase();
+    const safeStatus = journeyStatuses.has(status) ? status : 'unknown';
+    const label = String(step?.id || '').replaceAll('_', ' ');
+    const suffix = safeStatus === 'unknown' ? ' (status unavailable)' : '';
+    const blocked = step?.blocked
+      ? (live.journey?.pendingQuestions == null
+          ? ' · unanswered count unavailable'
+          : ` · ${Number(live.journey.pendingQuestions)} unanswered`)
+      : '';
+    return `<li class="${safeStatus}">${escapeHtml(label + suffix + blocked)}</li>`;
+  }).join('');
+}
+
+function groupedTimelineHtml(live) {
+  const workflow = Array.isArray(live?.events) ? live.events : [];
+  const source = workflow.length ? workflow : lifecycleEvents;
+  const groups = [];
+  const seen = new Map();
+  for (const event of source) {
+    const key = eventActor(event, live);
+    if (!seen.has(key)) {
+      seen.set(key, groups.length);
+      groups.push({ key, events: [] });
+    }
+    groups[seen.get(key)].events.push(event);
+  }
+  if (!groups.length) return '';
+  return `<li class="timeline-groups"><div class="timeline-columns">${groups.map((group) => `
+    <section class="step-group">
+      <h3>${escapeHtml(group.key)}</h3>
+      <ul>${group.events.map((event) => `<li>${timeTag(event.at, Date.now(), 'clock') || '—'} ${escapeHtml(liveEventLabel(event))}</li>`).join('')}</ul>
+    </section>`).join('')}</div></li>`;
 }
 
 function renderRunSummary() {
@@ -1908,13 +2116,13 @@ function renderLive() {
   const rail = byId('stage-rail');
   const journey = byId('run-journey');
   const meta = byId('live-meta');
-  const banner = byId('live-view')?.querySelector?.('.pending-banner');
+  const current = byId('live-current');
+  const banner = byId('question-banner');
   if (!live) {
     if (summary) summary.textContent = 'No active run';
-    if (rail) {
-      rail.innerHTML = STAGES.map((stage) => `<li class="pending">${escapeHtml(stage.label)}</li>`).join('');
-    }
+    if (rail) rail.innerHTML = progressRailHtml(null);
     if (meta) meta.innerHTML = '';
+    if (current) current.innerHTML = '';
     if (banner) {
       banner.hidden = true;
       banner.innerHTML = '';
@@ -1922,51 +2130,64 @@ function renderLive() {
     if (journey) journey.innerHTML = '';
     return;
   }
-  const stageId = currentStageId(live);
   const run = live.run || {};
   const presence = live.presence || agentPresence;
   if (summary) {
-    const beat = presence?.lastHeartbeatAt
-      ? timeTag(presence.lastHeartbeatAt)
-      : escapeHtml(heartbeatAge(presence.lastHeartbeatAt));
-    summary.innerHTML = `${escapeHtml(run.displayName || run.runId || 'run')} · ${escapeHtml(run.state || '')} · ${beat || escapeHtml(heartbeatAge(presence.lastHeartbeatAt))}`;
+    const started = run.createdAt ? `started ${timeTag(run.createdAt)}` : '';
+    const beatAge = heartbeatAge(presence.lastHeartbeatAt);
+    const beat = presence?.lastHeartbeatAt ? `heartbeat ${timeTag(presence.lastHeartbeatAt)}` : escapeHtml(beatAge);
+    summary.innerHTML = `${escapeHtml(run.displayName || run.runId || 'run')} · ${escapeHtml(run.state || '')}${started ? ` · ${started}` : ''} · ${beat}`;
   }
-  if (rail) {
-    rail.innerHTML = STAGES.map((stage) => {
-      const current = stage.id === stageId;
-      return `<li class="${current ? 'active' : 'pending'}">${escapeHtml(stage.label)}</li>`;
-    }).join('');
+  if (rail) rail.innerHTML = progressRailHtml(live);
+  if (meta) {
+    meta.innerHTML = liveMetaHtml(live);
+    paintBudget(live);
   }
-  if (meta) meta.innerHTML = liveMetaHtml(live);
+  if (current) current.innerHTML = currentStepHtml(live);
   const pending = live.interactions?.pending || [];
   if (banner) {
     banner.hidden = pending.length === 0;
-    banner.innerHTML = pending.map((question) =>
-      `<p><strong>Q${escapeHtml(String(question.number))}</strong> ${escapeHtml(question.message)}</p>`
-    ).join('');
+    banner.innerHTML = questionBannerHtml(pending);
   }
-  const journeyStatuses = new Set(['pending', 'active', 'complete']);
   const degradedSources = live.journey?.degradedSources || [];
-  const timeline = (live.journey?.steps || []).map((step) => {
-    const status = String(step?.status || '').toLowerCase();
-    const safeStatus = journeyStatuses.has(status) ? status : 'unknown';
-    const label = String(step?.id || '').replaceAll('_', ' ');
-    const suffix = safeStatus === 'unknown' ? ' (status unavailable)' : '';
-    const blocked = step?.blocked
-      ? (live.journey?.pendingQuestions == null
-          ? ' · unanswered count unavailable'
-          : ` · ${Number(live.journey.pendingQuestions)} unanswered`)
-      : '';
-    return `<li class="${safeStatus}">${escapeHtml(label + suffix + blocked)}</li>`;
-  }).join('');
-  const eventsHtml = (lifecycleEvents.slice(-8).reverse().map((event) =>
-    `<li class="event">${timeTag(event.at) || '—'} · ${escapeHtml(event.type)} · ${escapeHtml(event.message || '')}</li>`
-  ).join(''));
   if (journey) {
-    journey.innerHTML = timeline + eventsHtml + (degradedSources.length
+    journey.innerHTML = journeyStepsHtml(live) + groupedTimelineHtml(live) + (degradedSources.length
       ? `<li class="unknown">${escapeHtml(`${degradedSources.join(' and ')} unavailable — journey may be incomplete`)}</li>`
       : '');
   }
+}
+
+async function submitAnswer(questionId, message) {
+  const runId = followedRunId();
+  const text = String(message || '').trim();
+  if (!runId || !questionId || !text) {
+    notify('Write an answer first.');
+    return;
+  }
+  await api(`/api/runs/${encodeURIComponent(runId)}/questions/${encodeURIComponent(questionId)}/answer`, {
+    method: 'POST',
+    body: JSON.stringify({ message: text, actor: 'human' })
+  });
+  notify('Answer recorded.');
+  await loadLive(runId);
+}
+
+function onLiveClick(event) {
+  const open = closestReal(event.target, '[data-open-node]');
+  if (open?.dataset?.openNode) {
+    showWorkspace('wiring');
+    openNodePanel(open.dataset.openNode);
+    return;
+  }
+  if (closestReal(event.target, '[data-start-agent]')) copyAgentHandoff(followedRunId() || undefined);
+}
+
+function onLiveSubmit(event) {
+  const form = event.target;
+  if (!form?.dataset?.questionId) return;
+  event.preventDefault?.();
+  const field = form.querySelector?.('[name="answer"]');
+  submitAnswer(form.dataset.questionId, field?.value || '');
 }
 
 function maybeOpenOnboarding() {
@@ -3090,6 +3311,8 @@ async function initialize() {
   byId('confirm-freeze').onclick = freezeGoalFromForm;
   byId('unfreeze-goal').onclick = unfreezeGoalFromForm;
   byId('retry-live-connection').onclick = resync;
+  byId('live-view').addEventListener('click', onLiveClick);
+  byId('live-view').addEventListener('submit', onLiveSubmit);
   document.querySelectorAll?.('[data-close]')?.forEach?.((button) => {
     button.onclick = () => byId(button.dataset.close).close();
   });
