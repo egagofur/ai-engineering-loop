@@ -28,13 +28,14 @@ The first SSE frame is `hello` with `mode` (`watch` or `poll`), `root`, `current
 
 ## Live run view
 
-The default route is the live run view:
+The default route is the live run view. It follows the open run over `GET /api/events`.
 
-- stage rail goal → maker → verify → review → judge → deliver, with the current stage and heartbeat age;
-- tier, mode, iteration, and budget;
-- compliance chips for guard warns/blocks, impact drift, and receipt verification;
-- pending questions, decisions, and approvals as the top banner;
-- a merged timeline of lifecycle, activity, and execution events.
+- A progress rail for goal, maker, verify, review, judge, and deliver. Each stage shows its status and duration, and the running stage is highlighted.
+- A question banner when the run is waiting on a person, with Answer in Studio.
+- A current-step card with the node, iteration, running time, latest activity, evidence chips recorded so far, Open node details, and Start with AI Agent.
+- Compliance and budget chips for mode, tier, iteration, guard warns and blocks, drift, receipt, and tokens. Tokens read `unknown` when the host reports no usage. A delivered run with no receipt reads “no receipt: run predates receipts”.
+- Latest events with clock times, and a timeline grouped by step.
+- The header shows when the run started and the heartbeat age. Every time is a `<time datetime>` with the exact local timestamp in a tooltip.
 
 The Goal Contract stays a side sheet of this view (draft, review, freeze, unfreeze). Start with AI Agent still copies a run-bound handoff into the clipboard.
 
@@ -58,7 +59,9 @@ Each existing node is one tile: a type icon, the node name, and exactly one stat
 
 ### Side panel
 
-Click a tile to open the side panel. The tabs are Input, Output, Evidence, and Timeline. Evidence uses the same artifact inspection as the rest of Studio: path traversal and symlinks are rejected, size is bounded, and recognized secrets are redacted.
+Click a tile to open the side panel. The tabs are Overview, Output, Evidence, and Timeline. The Overview tab shows the node's upstream input, status, and timing as labeled chips: status, duration, finished, loop iteration, attempts, and the reason when the node failed or blocked. Output is a one-paragraph summary plus the run files. Evidence for a built-in gate is read from the run directory: the goal contract, diff stats and files touched, verification output and test counts, review findings, the judge verdict, the approver, and the delivery receipt. `nodes[id].artifact` stays authoritative when a custom node has one. Each read is confined to that run directory and checked against the sha256 in `state.json`. A mismatch shows “artifact changed”. Path traversal and symlinks are rejected, size is bounded, and recognized secrets are redacted. The Timeline tab lists only this node's events, grouped by iteration or attempt, with human labels and no numbering.
+
+Times read as “5 min ago”, “2 days ago · Oct 16, 15:41”, or an absolute date after 7 days. The exact timestamp is in the tooltip and in `<time datetime>`. Durations read as `2m 20s` and `1h 04m`. A gate duration comes from `GATE_PASSED` or from `NODE_COMPLETED` in the lifecycle log.
 
 ### Tooltip
 
@@ -71,6 +74,8 @@ The minimap draws one rectangle per node. Zoom controls are zoom in (+), zoom ou
 ### Shortcuts
 
 The `?` sheet lists the shortcuts: `F` fit, `L` auto-layout, `+` and `-` zoom, `0` reset zoom, arrow keys between nodes, Enter to open the side panel, Esc to close it, and undo/redo for wiring edits. `:focus-visible` outlines the canvas controls.
+
+On a trackpad, two-finger scroll pans the canvas on both axes, and pinch zooms around the cursor. Ctrl+wheel zooms the same way. Dragging empty canvas with the left button pans, which is also how macOS three-finger drag pans. A click on empty canvas clears the selection. Shift+drag draws a marquee selection. Middle-button drag and Space+drag still pan. The page and the canvas set `overscroll-behavior: none`, and the canvas wheel listener is non-passive, so a horizontal swipe does not navigate browser history. Scrolling inside the side panel scrolls the panel.
 
 ### Save bar
 

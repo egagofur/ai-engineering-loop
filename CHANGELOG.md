@@ -4,7 +4,14 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
-_No changes yet._
+### Studio: richer node detail, Live tab, times, and trackpad gestures (#91)
+
+- **Added:** built-in nodes show Evidence from the run directory (goal contract, diff stats and files touched, verification output and test counts, review findings, judge verdict, approver, delivery destination and receipt). The read stays inside the run directory and checks sha256 against `state.json`. A mismatch shows “artifact changed”. A node that already has `nodes[id].artifact` keeps that descriptor. Gate durations come from `GATE_PASSED`, or from `NODE_COMPLETED` in the lifecycle log when the workflow log has none.
+- **Added:** the node panel tabs are Overview, Output, Evidence, and Timeline. Status, duration, finish time, loop, and attempts are labeled chips. Output is a one-paragraph summary. The timeline lists that node's events, grouped by iteration, with human labels.
+- **Added:** times read as “just now”, “14s ago”, “5 min ago”, “3 h ago”, “yesterday · Oct 17, 15:41”, or “2 days ago · Oct 16, 15:41”, and as an absolute date after 7 days. Each time is a `<time datetime>` whose tooltip has the exact local timestamp. Durations use `2m 20s` and `1h 04m`.
+- **Added:** the Live tab shows a stage rail, a question banner with Answer in Studio, the current step, compliance and budget chips, latest events, and a timeline grouped by step. Updates still arrive on `GET /api/events`. Tokens read `unknown` when the host reports no usage. A delivered run with no receipt says “no receipt: run predates receipts”.
+- **Changed:** two-finger scroll pans the canvas on both axes. Pinch and Ctrl+wheel zoom around the cursor. A left-button drag on empty canvas pans, including macOS three-finger drag. Shift+drag selects with a marquee. `overscroll-behavior: none` on the page and canvas, plus a non-passive wheel listener, keeps a horizontal swipe from triggering browser back/forward. Scrolling inside the side panel still scrolls the panel.
+- **Changed:** workflow structure stays read-only. Rewiring existing nodes is unchanged.
 
 ## 2.1.0 - 2026-10-18
 
