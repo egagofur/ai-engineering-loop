@@ -4,7 +4,7 @@ const NODE_WIDTH = 104;
 const NODE_PORT_Y = 52;
 const NODE_BLOCK_HEIGHT = 152;
 const FIT_PADDING = 48;
-const PANEL_WIDTH = 400;
+const PANEL_WIDTH = 480;
 const TOOLTIP_DELAY_MS = 250;
 const MINIMAP_WIDTH = 180;
 const MINIMAP_HEIGHT = 110;
@@ -85,7 +85,7 @@ let reconnectTimer = null;
 let reconnectAttempt = 0;
 let resumeFallbackUsed = false;
 let panelNodeId = null;
-let panelTab = 'input';
+let panelTab = 'overview';
 let panelRequest = 0;
 let panelView = { status: 'empty' };
 let tooltipTimer = null;
@@ -539,15 +539,97 @@ function nodeIcon(type) {
   return `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">${body}</svg>`;
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
 function formatDuration(ms) {
-  if (!Number.isFinite(ms) || ms < 0) return '';
+  if (!Number.isFinite(ms) || ms <= 0) return '';
   const totalSeconds = Math.round(ms / 1000);
+  if (totalSeconds <= 0) return '';
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
-  if (hours > 0) return minutes ? `${hours}h ${minutes}m` : `${hours}h`;
+  if (hours > 0) return `${hours}h ${String(minutes).padStart(2, '0')}m`;
   if (minutes > 0) return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
   return `${seconds}s`;
+}
+
+function parsedTime(value) {
+  const ms = Date.parse(value || '');
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function padTime(value) {
+  return String(value).padStart(2, '0');
+}
+
+function clockTime(date, withSeconds = false) {
+  const clock = `${padTime(date.getHours())}:${padTime(date.getMinutes())}`;
+  return withSeconds ? `${clock}:${padTime(date.getSeconds())}` : clock;
+}
+
+function monthDay(date, withYear) {
+  const base = `${MONTHS[date.getMonth()]} ${date.getDate()}`;
+  return withYear ? `${base}, ${date.getFullYear()}` : base;
+}
+
+function calendarDayStart(ms) {
+  const date = new Date(ms);
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+}
+
+function timeZoneName(date) {
+  try {
+    if (typeof Intl === 'undefined' || typeof Intl.DateTimeFormat !== 'function') return '';
+    const parts = new Intl.DateTimeFormat('en-US', { timeZoneName: 'short' }).formatToParts(date);
+    return parts.find((part) => part.type === 'timeZoneName')?.value || '';
+  } catch {
+    return '';
+  }
+}
+
+function humanizeTime(value, now = Date.now()) {
+  const ms = parsedTime(value);
+  if (ms == null) return '';
+  const age = Math.max(0, now - ms);
+  const date = new Date(ms);
+  if (age < 5000) return 'just now';
+  if (age < 60000) return `${Math.round(age / 1000)}s ago`;
+  if (age < 3600000) return `${Math.round(age / 60000)} min ago`;
+  const dayDiff = Math.round((calendarDayStart(now) - calendarDayStart(ms)) / 86400000);
+  const hours = Math.floor(age / 3600000);
+  if (dayDiff <= 0 && hours < 24) return `${Math.max(hours, 1)} h ago`;
+  const absolute = `${monthDay(date, date.getFullYear() !== new Date(now).getFullYear())}, ${clockTime(date)}`;
+  if (dayDiff === 1) return `yesterday · ${monthDay(date, false)}, ${clockTime(date)}`;
+  if (dayDiff > 1 && dayDiff < 7) return `${dayDiff} days ago · ${monthDay(date, false)}, ${clockTime(date)}`;
+  return absolute;
+}
+
+function exactTimeLabel(value) {
+  const ms = parsedTime(value);
+  if (ms == null) return '';
+  const date = new Date(ms);
+  const zone = timeZoneName(date);
+  return `${monthDay(date, true)} ${clockTime(date, true)}${zone ? ` ${zone}` : ''}`;
+}
+
+function datetimeAttr(value) {
+  const ms = parsedTime(value);
+  if (ms == null) return '';
+  const date = new Date(ms);
+  const offset = -date.getTimezoneOffset();
+  const sign = offset >= 0 ? '+' : '-';
+  const abs = Math.abs(offset);
+  return `${date.getFullYear()}-${padTime(date.getMonth() + 1)}-${padTime(date.getDate())}T${clockTime(date, true)}${sign}${padTime(Math.floor(abs / 60))}:${padTime(abs % 60)}`;
+}
+
+function timeTag(value, now = Date.now()) {
+  const label = humanizeTime(value, now);
+  if (!label) return '';
+  return `<time datetime="${escapeHtml(datetimeAttr(value))}" title="${escapeHtml(exactTimeLabel(value))}">${escapeHtml(label)}</time>`;
+}
+
+function looksLikeIso(value) {
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(String(value || ''));
 }
 
 function legacyDurationMs(runtime) {
@@ -1583,7 +1665,7 @@ async function loadRuns() {
       const row = (run, isActive = false) => `
         <button class="run-row${isActive ? ' active-run-row' : ''}" data-run-id="${escapeHtml(run.runId)}">
           <strong>${escapeHtml(run.displayName)}</strong>
-          <span>${escapeHtml(run.status)} · ${escapeHtml(new Date(run.updatedAt).toLocaleString())}</span>
+          <span>${escapeHtml(run.status)} · ${timeTag(run.updatedAt) || '—'}</span>
           <small>${escapeHtml(run.task)}</small>
         </button>`;
       list.innerHTML = [
@@ -1610,13 +1692,9 @@ async function loadRuns() {
   }
 }
 
-function heartbeatAge(iso) {
+function heartbeatAge(iso, now = Date.now()) {
   if (!iso) return 'no heartbeat';
-  const age = Math.max(0, Date.now() - Date.parse(iso));
-  if (!Number.isFinite(age)) return 'no heartbeat';
-  if (age < 2000) return 'just now';
-  if (age < 60000) return `${Math.round(age / 1000)}s ago`;
-  return `${Math.round(age / 60000)}m ago`;
+  return humanizeTime(iso, now) || 'no heartbeat';
 }
 
 function currentStageId(live) {
@@ -1743,6 +1821,54 @@ function tokenLabel(live) {
   return String(value);
 }
 
+function tokenBudgetLabel(live) {
+  const tokens = tokenLabel(live);
+  const limit = Number(live?.budget?.perRunTokenLimit);
+  if (Number.isFinite(limit) && limit > 0) return `${tokens} / ${limit}`;
+  return tokens;
+}
+
+function guardChipValue(summary) {
+  if (!summary || typeof summary !== 'object') return 'unknown';
+  if (summary.warn == null && summary.block == null) return 'unknown';
+  return `${summary.warn || 0} warn · ${summary.block || 0} block`;
+}
+
+function receiptChipValue(live) {
+  const receipt = live?.artifacts?.['artifact.receipt'];
+  const terminal = live?.run?.state === 'DELIVERED' || live?.run?.state === 'REPORTED';
+  if (receipt?.verified === true && !(receipt.problems || []).length) {
+    return { value: 'verified', title: 'receipt recorded' };
+  }
+  if (receipt && Array.isArray(receipt.problems) && receipt.problems.length) {
+    return { value: 'problems', title: receipt.problems.join(', ') };
+  }
+  if (terminal && (!receipt || receipt.present === false)) {
+    return { value: 'missing', title: 'no receipt: run predates receipts' };
+  }
+  return { value: 'pending', title: 'receipt pending' };
+}
+
+function labeledChip(label, value, title) {
+  const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
+  return `<span class="chip"${titleAttr}><span>${escapeHtml(label)}</span><strong>${escapeHtml(String(value))}</strong></span>`;
+}
+
+function liveMetaHtml(live) {
+  const run = live?.run || {};
+  const artifacts = live?.artifacts || {};
+  const tokens = tokenLabel(live);
+  const receipt = receiptChipValue(live);
+  return [
+    labeledChip('Tier', run.tier?.current || run.mode || '—'),
+    labeledChip('Iteration', run.iteration ?? '—'),
+    labeledChip('Tokens', tokenBudgetLabel(live), tokens === 'unknown' ? 'host reports no usage' : ''),
+    labeledChip('Guard', guardChipValue(artifacts['artifact.guard'])),
+    labeledChip('Drift', driftLabel(artifacts['artifact.drift']) || 'unknown'),
+    labeledChip('Receipt', receipt.value, receipt.title)
+  ].join('');
+}
+
 function renderRunSummary() {
   const card = byId('run-summary-card');
   if (!card) return;
@@ -1781,7 +1907,7 @@ function renderLive() {
   const summary = byId('run-summary');
   const rail = byId('stage-rail');
   const journey = byId('run-journey');
-  const meta = byId('live-view')?.querySelector?.('.live-meta');
+  const meta = byId('live-meta');
   const banner = byId('live-view')?.querySelector?.('.pending-banner');
   if (!live) {
     if (summary) summary.textContent = 'No active run';
@@ -1800,7 +1926,10 @@ function renderLive() {
   const run = live.run || {};
   const presence = live.presence || agentPresence;
   if (summary) {
-    summary.textContent = `${run.displayName || run.runId || 'run'} · ${run.state || ''} · ${heartbeatAge(presence.lastHeartbeatAt)}`;
+    const beat = presence?.lastHeartbeatAt
+      ? timeTag(presence.lastHeartbeatAt)
+      : escapeHtml(heartbeatAge(presence.lastHeartbeatAt));
+    summary.innerHTML = `${escapeHtml(run.displayName || run.runId || 'run')} · ${escapeHtml(run.state || '')} · ${beat || escapeHtml(heartbeatAge(presence.lastHeartbeatAt))}`;
   }
   if (rail) {
     rail.innerHTML = STAGES.map((stage) => {
@@ -1808,20 +1937,7 @@ function renderLive() {
       return `<li class="${current ? 'active' : 'pending'}">${escapeHtml(stage.label)}</li>`;
     }).join('');
   }
-  const artifacts = live.artifacts || liveArtifacts;
-  const guard = artifacts['artifact.guard'] || {};
-  const drift = artifacts['artifact.drift'] || {};
-  const receipt = artifacts['artifact.receipt'] || {};
-  if (meta) {
-    meta.innerHTML = `
-      <span>${escapeHtml(run.tier?.current || run.mode || '')}</span>
-      <span>iter ${escapeHtml(String(run.iteration ?? '—'))}</span>
-      <span>${escapeHtml(String(live.budget?.spentThisRun ?? 0))} / ${escapeHtml(String(live.budget?.perRunTokenLimit ?? 0))} tokens</span>
-      <span class="chip">${escapeHtml(String(guard.warn || 0))} warn · ${escapeHtml(String(guard.block || 0))} block</span>
-      <span class="chip">drift ${escapeHtml(String(drift.outOfMapCount || 0))}</span>
-      <span class="chip">${receipt.verified ? 'receipt ok' : 'receipt pending'}</span>
-    `;
-  }
+  if (meta) meta.innerHTML = liveMetaHtml(live);
   const pending = live.interactions?.pending || [];
   if (banner) {
     banner.hidden = pending.length === 0;
@@ -1844,7 +1960,7 @@ function renderLive() {
     return `<li class="${safeStatus}">${escapeHtml(label + suffix + blocked)}</li>`;
   }).join('');
   const eventsHtml = (lifecycleEvents.slice(-8).reverse().map((event) =>
-    `<li class="event">${escapeHtml(String(event.at || '').slice(11, 19))} · ${escapeHtml(event.type)} · ${escapeHtml(event.message || '')}</li>`
+    `<li class="event">${timeTag(event.at) || '—'} · ${escapeHtml(event.type)} · ${escapeHtml(event.message || '')}</li>`
   ).join(''));
   if (journey) {
     journey.innerHTML = timeline + eventsHtml + (degradedSources.length
@@ -2255,19 +2371,85 @@ function onNodeClick(event) {
 }
 
 function headerDuration(node, io) {
+  if (io?.durationMs != null && io.durationMs !== '') {
+    const formatted = formatDuration(Number(io.durationMs));
+    if (formatted) return formatted;
+  }
   const derived = formatDuration(nodeDurationMs(node?.id, catalog.live, draft));
   if (derived) return derived;
-  // Pending/ready nodes have no meaningful duration; never show "0s" for them.
   const state = graphStateClass(runtimeFor(node)?.status);
   if (state !== 'passed' && state !== 'failed' && state !== 'active') return '';
-  const explicit = Number(io?.durationMs);
-  if (Number.isFinite(explicit) && explicit >= 0) return formatDuration(explicit);
   return formatDuration(legacyDurationMs(runtimeFor(node)));
 }
 
-function tabButton(id, label) {
+function tabButton(id, label, badge = 0) {
   const selected = panelTab === id;
-  return `<button type="button" role="tab" id="node-tab-${id}" class="io-tab" data-tab="${id}" aria-selected="${selected ? 'true' : 'false'}" aria-controls="node-pane-${id}" tabindex="${selected ? '0' : '-1'}">${label}</button>`;
+  const count = Number(badge) > 0 ? `<span class="tab-count">${escapeHtml(String(badge))}</span>` : '';
+  return `<button type="button" role="tab" id="node-tab-${id}" class="io-tab" data-tab="${id}" aria-selected="${selected ? 'true' : 'false'}" aria-controls="node-pane-${id}" tabindex="${selected ? '0' : '-1'}">${label}${count}</button>`;
+}
+
+function evidenceCount(view) {
+  const recorded = Number(view?.io?.nodeEvidence?.count);
+  if (Number.isFinite(recorded) && recorded > 0) return recorded;
+  const cards = view?.io?.nodeEvidence?.cards;
+  return Array.isArray(cards) ? cards.length : 0;
+}
+
+function nodeLoopGroup(node) {
+  if (!node) return null;
+  return (draft?.loopGroups || []).find((group) =>
+    (group?.nodeIds || []).includes(node.id)
+    || group?.entryNodeId === node.id
+    || group?.decisionNodeId === node.id
+  ) || null;
+}
+
+function loopChipValue(node, io) {
+  const group = nodeLoopGroup(node);
+  const groupId = io?.output?.loopGroupId || group?.id;
+  if (!groupId) return '';
+  const iteration = io?.output?.loopIteration ?? io?.loopIteration;
+  const max = group?.maxIterations;
+  if (iteration == null && max == null) return groupId;
+  const step = iteration == null ? '—' : String(iteration);
+  return max ? `${groupId} · ${step}/${max}` : `${groupId} · ${step}`;
+}
+
+function attemptCount(io) {
+  const groups = io?.timelineGroups;
+  if (!Array.isArray(groups) || !groups.length) return null;
+  return Math.max(...groups.map((group) => Number(group.attempt) || 1));
+}
+
+function nodeChip(label, valueHtml) {
+  return `<span class="node-chip"><span class="chip-label">${escapeHtml(label)}</span><strong>${valueHtml}</strong></span>`;
+}
+
+function panelSubtitle(node, index) {
+  const stage = stageLabel(node, index).toLowerCase().replace(/(^|\s)\w/g, (letter) => letter.toUpperCase());
+  const recipe = draft?.id ? `${draft.id}${draft.version != null ? ` v${draft.version}` : ''}` : '';
+  return [stage, node.type, recipe].filter(Boolean).join(' · ');
+}
+
+function nodeChipRow(node, io, runtime) {
+  const status = runtime?.status || io?.output?.status;
+  const state = graphStateClass(status);
+  const chips = [nodeChip('Status', `<span class="status-text status-${state}">${escapeHtml(statusWord(status))}</span>`)];
+  const duration = headerDuration(node, io);
+  if (duration) chips.push(nodeChip('Duration', escapeHtml(duration)));
+  if (io?.finishedAt) {
+    const finished = timeTag(io.finishedAt);
+    if (finished) chips.push(nodeChip('Finished', finished));
+  }
+  const loop = loopChipValue(node, io);
+  if (loop) chips.push(nodeChip('Loop', escapeHtml(loop)));
+  const attempts = attemptCount(io);
+  if (attempts) chips.push(nodeChip('Attempts', escapeHtml(String(attempts))));
+  const reason = io?.output?.reason || runtime?.reason;
+  if (reason && (state === 'failed' || String(status || '').toLowerCase() === 'blocked')) {
+    chips.push(nodeChip('Reason', escapeHtml(reason)));
+  }
+  return `<div class="node-chip-row">${chips.join('')}</div>`;
 }
 
 function jsonBlock(value) {
@@ -2276,17 +2458,55 @@ function jsonBlock(value) {
   return `<pre>${escapeHtml(text)}</pre>`;
 }
 
-function artifactBlock(artifact) {
-  if (!artifact) return '<p class="muted">No artifact.</p>';
-  if (artifact.unavailable) {
-    return `<p class="muted">Artifact unavailable (${escapeHtml(artifact.code || 'unknown')}).</p>`;
-  }
+function artifactPreview(artifact) {
+  if (!artifact || artifact.unavailable) return '';
   const preview = artifact.preview || artifact;
+  if (!preview.content) return '';
   const path = preview.path || artifact.descriptor?.path || '';
-  return `
-    ${path ? `<p class="artifact-path">${escapeHtml(path)}</p>` : ''}
-    ${preview.content ? `<pre>${escapeHtml(preview.content)}</pre>` : '<p class="muted">No preview.</p>'}
-  `;
+  return `${path ? `<p class="artifact-path">${escapeHtml(path)}</p>` : ''}<pre>${escapeHtml(preview.content)}</pre>`;
+}
+
+function fileChipRow(files) {
+  const list = (files || []).filter((file) => file && (file.name || file.path));
+  if (!list.length) return '';
+  return `<div class="artifact-chips">${list.map((file) => {
+    const name = escapeHtml(file.name || file.path);
+    if (!file.path || file.state === 'rejected') return `<span class="artifact-chip">${name}</span>`;
+    return `<button type="button" class="artifact-chip" data-artifact-path="${escapeHtml(file.path)}">${name}</button>`;
+  }).join('')}</div>`;
+}
+
+function previewBlock(preview) {
+  if (!preview) return '';
+  if (preview.error) {
+    return `<p class="validation-message">${escapeHtml(preview.path || 'Artifact')}: ${escapeHtml(preview.error)}</p>`;
+  }
+  const content = preview.content || '';
+  if (!content && !preview.path) return '';
+  return `<article class="evidence-card"><p class="artifact-path">${escapeHtml(preview.path || '')}</p>${content ? `<pre>${escapeHtml(content)}</pre>` : '<p class="muted">No preview.</p>'}</article>`;
+}
+
+function renderEvidenceCard(card) {
+  const lines = (card.lines || []).map((line) => {
+    const raw = line.value == null ? '' : String(line.value);
+    const value = looksLikeIso(raw) ? (timeTag(raw) || escapeHtml(raw)) : escapeHtml(raw);
+    const duration = formatDuration(Number(line.durationMs));
+    const extra = [line.detail, duration].filter(Boolean).join(' · ');
+    return `<li class="evidence-line"><span class="evidence-label">${escapeHtml(line.label || '')}</span><span class="evidence-value">${value}</span>${extra ? `<span class="evidence-detail">${escapeHtml(extra)}</span>` : ''}</li>`;
+  }).join('');
+  return `<article class="evidence-card"><h3>${escapeHtml(card.title || 'Evidence')}</h3>${lines ? `<ul class="evidence-lines">${lines}</ul>` : ''}${card.note ? `<p class="evidence-note">${escapeHtml(card.note)}</p>` : ''}</article>`;
+}
+
+function evidenceBody(evidence) {
+  const changed = evidence?.status === 'changed' || evidence?.status === 'rejected';
+  const cards = evidence?.cards || [];
+  if (!evidence || (!changed && !cards.length)) {
+    return `<p class="muted">${escapeHtml(evidence?.summary || 'No evidence recorded for this node yet.')}</p>${fileChipRow(evidence?.files)}`;
+  }
+  const banner = changed
+    ? `<p class="validation-message">${escapeHtml(evidence.message || 'artifact changed')}</p>`
+    : '';
+  return banner + cards.map(renderEvidenceCard).join('') + fileChipRow(evidence.files);
 }
 
 function inputPane(io) {
@@ -2303,52 +2523,49 @@ function inputPane(io) {
   `;
 }
 
-function outputPane(io) {
-  const output = io?.output || {};
-  return `
-    <h3>Status</h3>
-    <p>${escapeHtml(output.status || 'Unknown')}</p>
-    ${output.reason ? `<h3>Reason</h3><p>${escapeHtml(output.reason)}</p>` : ''}
-    ${output.loopGroupId ? `<p class="muted">Loop ${escapeHtml(output.loopGroupId)} · iteration ${escapeHtml(String(output.loopIteration ?? '—'))}</p>` : ''}
-    <h3>Artifact</h3>
-    ${artifactBlock(output.artifact)}
-  `;
+function outputPane(view) {
+  const io = view?.io || {};
+  const summary = io.nodeEvidence?.summary || io.output?.summary || 'No evidence recorded for this node yet.';
+  return `<p class="node-summary">${escapeHtml(summary)}</p>${fileChipRow(io.nodeEvidence?.files)}${artifactPreview(io.output?.artifact)}${previewBlock(view?.preview)}`;
 }
 
 function evidencePane(view) {
+  if (view.io?.nodeEvidence) return evidenceBody(view.io.nodeEvidence) + previewBlock(view.preview);
   const fetched = view.artifacts || [];
   if (fetched.length) {
     return fetched.map((artifact) => artifact.error
       ? `<p class="validation-message">${escapeHtml(artifact.path || 'Artifact')}: ${escapeHtml(artifact.error)}</p>`
       : `<article class="evidence-card"><p class="artifact-path">${escapeHtml(artifact.path || '')}</p><pre>${escapeHtml(artifact.content || '')}</pre></article>`
-    ).join('');
+    ).join('') + previewBlock(view.preview);
   }
-  if (view.io?.evidence) return artifactBlock(view.io.evidence);
-  return '<p class="muted">No evidence recorded for this node.</p>';
+  return `<p class="muted">No evidence recorded for this node yet.</p>${previewBlock(view.preview)}`;
 }
 
-function formatEventTime(value) {
-  const text = String(value || '');
-  return text ? text.replace('T', ' ').slice(0, 19) : '—';
-}
-
-function eventForNode(event, nodeId) {
-  if (!event || !nodeId) return false;
-  if (event.nodeId === nodeId) return true;
-  if (Array.isArray(event.changedNodes) && event.changedNodes.includes(nodeId)) return true;
-  if (Array.isArray(event.changes) && event.changes.some((change) => change.nodeId === nodeId)) return true;
-  return false;
+function renderTimelineGroups(groups) {
+  if (!groups.length) return '<p class="muted">No lifecycle events for this node yet.</p>';
+  return groups.map((group) => `
+    <section class="timeline-group">
+      <h3>${escapeHtml(group.label || 'Step')}</h3>
+      <ul class="panel-timeline">${(group.events || []).map((event) => `
+        <li>
+          ${timeTag(event.at) || '<span class="muted">—</span>'}
+          <strong>${escapeHtml(event.label || event.type || 'event')}</strong>
+        </li>`).join('')}</ul>
+    </section>`).join('');
 }
 
 function timelinePane(view) {
-  const events = (view.events || []).filter((event) => eventForNode(event, panelNodeId));
-  if (!events.length) return '<p class="muted">No lifecycle events for this node yet.</p>';
-  return `<ol class="panel-timeline">${events.map((event) => `
-    <li>
-      <time>${escapeHtml(formatEventTime(event.at))}</time>
-      <strong>${escapeHtml(event.type || 'event')}</strong>
-      <span>${escapeHtml(event.message || '')}</span>
-    </li>`).join('')}</ol>`;
+  if (Array.isArray(view.io?.timelineGroups)) return renderTimelineGroups(view.io.timelineGroups);
+  const node = draft?.nodes?.find((item) => item.id === panelNodeId);
+  const gate = node?.legacyGate;
+  const events = (view.events || []).filter((event) => event?.nodeId === panelNodeId || (gate && event?.gate === gate));
+  return renderTimelineGroups(events.length ? [{
+    label: 'This node',
+    events: events.map((event) => ({
+      at: event.at,
+      label: event.message || String(event.type || 'event').replaceAll('_', ' ').toLowerCase()
+    }))
+  }] : []);
 }
 
 function paneBody(view) {
@@ -2357,7 +2574,7 @@ function paneBody(view) {
   }
   if (view.status === 'loading') return '<p class="muted">Loading node details…</p>';
   if (view.status === 'error') return `<p class="validation-message">${escapeHtml(view.message || 'Could not load this node.')}</p>`;
-  if (panelTab === 'output') return outputPane(view.io);
+  if (panelTab === 'output') return outputPane(view);
   if (panelTab === 'evidence') return evidencePane(view);
   if (panelTab === 'timeline') return timelinePane(view);
   return inputPane(view.io);
@@ -2370,27 +2587,21 @@ function renderNodePanel(next) {
   if (!panel || !node) return;
   const index = draft.nodes.indexOf(node);
   const runtime = runtimeFor(node);
-  const duration = headerDuration(node, panelView.io);
-  const state = graphStateClass(runtime?.status || panelView.io?.output?.status);
-  const word = statusWord(runtime?.status || panelView.io?.output?.status);
   panel.innerHTML = `
     <div class="node-panel-frame">
       <header class="node-panel-head">
         <span class="node-icon panel-type-icon">${nodeIcon(node.type)}</span>
         <div class="node-panel-titles">
           <h2>${escapeHtml(displayName(node))}</h2>
-          <p>${escapeHtml(node.type)} · ${escapeHtml(stageLabel(node, index))}</p>
-        </div>
-        <div class="node-panel-meta">
-          <span class="status-pill status-${state}">${escapeHtml(word)}</span>
-          ${duration ? `<span class="status-duration">${escapeHtml(duration)}</span>` : ''}
+          <p>${escapeHtml(panelSubtitle(node, index))}</p>
         </div>
         <button type="button" class="node-panel-close" aria-label="Close node panel">×</button>
       </header>
+      ${nodeChipRow(node, panelView.io, runtime)}
       <div class="io-tabs" role="tablist" aria-label="Node details">
-        ${tabButton('input', 'Input')}
+        ${tabButton('overview', 'Overview')}
         ${tabButton('output', 'Output')}
-        ${tabButton('evidence', 'Evidence')}
+        ${tabButton('evidence', 'Evidence', evidenceCount(panelView))}
         ${tabButton('timeline', 'Timeline')}
       </div>
       <div class="node-panel-body" role="tabpanel" id="node-pane-${panelTab}" aria-labelledby="node-tab-${panelTab}">
@@ -2451,7 +2662,7 @@ async function loadPanel(nodeId) {
 function openNodePanel(nodeId) {
   if (!nodeId || !draft?.nodes?.some((node) => node.id === nodeId)) return;
   const alreadyOpen = panelIsOpen();
-  if (panelNodeId !== nodeId) panelTab = 'input';
+  if (panelNodeId !== nodeId) panelTab = 'overview';
   panelNodeId = nodeId;
   selectNode(nodeId);
   focusNode(nodeId);
@@ -2484,9 +2695,29 @@ function panelIsOpen() {
   return Boolean(panelNodeId && panel && !panel.hidden);
 }
 
+async function loadArtifactPreview(artifactPath) {
+  const runId = followedRunId();
+  if (!runId || !artifactPath) return;
+  const request = panelRequest;
+  try {
+    const result = await api(`/api/runs/${encodeURIComponent(runId)}/artifacts?path=${encodeURIComponent(artifactPath)}`);
+    if (request !== panelRequest) return;
+    panelView = { ...panelView, preview: result.artifact };
+  } catch (error) {
+    if (request !== panelRequest) return;
+    panelView = { ...panelView, preview: { path: artifactPath, error: error.message } };
+  }
+  renderNodePanel();
+}
+
 function onPanelClick(event) {
   if (closestReal(event.target, '.node-panel-close')) {
     closeNodePanel();
+    return;
+  }
+  const artifact = closestReal(event.target, '[data-artifact-path]');
+  if (artifact?.dataset?.artifactPath) {
+    loadArtifactPreview(artifact.dataset.artifactPath);
     return;
   }
   const tab = closestReal(event.target, '[role="tab"]');

@@ -603,7 +603,7 @@ test('Wiring inspection opens a node panel, tooltip, zoom, minimap, and shortcut
     assert.equal(panel.hidden, false);
     assert.match(panel.innerHTML, /role="tablist"/);
     assert.equal((panel.innerHTML.match(/role="tab"/g) || []).length, 4);
-    assert.match(panel.innerHTML, /Input/);
+    assert.match(panel.innerHTML, /Overview/);
     assert.match(panel.innerHTML, /Output/);
     assert.match(panel.innerHTML, /Evidence/);
     assert.match(panel.innerHTML, /Timeline/);

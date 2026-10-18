@@ -260,7 +260,7 @@ test('AC6 the side panel opens Input, Output, Evidence, and Timeline tabs', asyn
     assert.equal(panel.hidden, false);
     assert.match(panel.innerHTML, /role="tablist"/);
     assert.equal((panel.innerHTML.match(/role="tab"/g) || []).length, 4);
-    for (const tab of ['Input', 'Output', 'Evidence', 'Timeline']) {
+    for (const tab of ['Overview', 'Output', 'Evidence', 'Timeline']) {
       assert.match(panel.innerHTML, new RegExp(`>${tab}<`));
     }
     assert.match(panel.innerHTML, /No run to inspect/);
