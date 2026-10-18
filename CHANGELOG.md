@@ -13,6 +13,10 @@ All notable changes to this project are documented here. Versions follow [Semant
 - **Changed:** auto-layout and fit keep every built-in recipe (default, bugfix, refactor, high-risk, docs-light, audit) inside the canvas at 1280×800 and 1600×1000. The edge delete control appears only on hover or selection. Live updates still arrive on `GET /api/events` via `applyEvent`; the client does not poll.
 - **Changed:** workflow structure stays read-only (#80). The canvas has no create, delete, rename, duplicate, or import control for nodes. Rewiring existing edges is still validated by `POST /api/validate`. A backbone-breaking edge shows the compiler's named error and disables Save. Node-set changes still fail with `STUDIO_STRUCTURE_READ_ONLY`, and `POST /api/import/*` stays 404.
 
+### README refresh for 2.0.0 (#86)
+
+- **Docs:** README Workflow Studio section describes the 2.0 live-run view, real-time `/api/events`, and wiring-only canvas (node creation, duplication, import, and Studio-created Agent nodes are gone). Adds `ael bench` (compliance self-check for your own host and model; slow) and personal workflow (`workflow interview|propose|accept|suggest`, `~/.ai-engineering-loop/workflow/`, `workflow-history.jsonl`, project-required > personal > built-in). Updates the CLI cheat sheet, recipe authoring example, major-update note, and Documentation links.
+
 ## 2.0.0 - 2026-10-17
 
 ### Breaking changes
