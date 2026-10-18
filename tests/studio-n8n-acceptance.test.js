@@ -583,10 +583,11 @@ test('AC13 studio docs describe the n8n canvas and the changelog records it', ()
   }
 
   const changelog = fs.readFileSync(path.join(rootDir, 'CHANGELOG.md'), 'utf8');
-  const unreleased = changelog.split(/^## /m)[1];
-  assert.match(unreleased, /^Unreleased/);
-  assert.match(unreleased, /### Studio: n8n-style Wiring canvas \(#88\)/);
-  assert.match(unreleased, /\*\*Added:\*\*/);
-  assert.match(unreleased, /\*\*Changed:\*\*/);
-  assert.equal(unreleased.includes('_No changes yet._'), false);
+  // The #88 entry starts in Unreleased and moves under a version heading at release time.
+  const section = changelog.split(/^## /m).find((part) => part.includes('### Studio: n8n-style Wiring canvas (#88)'));
+  assert.ok(section, 'CHANGELOG records #88');
+  assert.match(section, /^(Unreleased|\d+\.\d+\.\d+ - \d{4}-\d{2}-\d{2})/);
+  const entry = section.slice(section.indexOf('### Studio: n8n-style Wiring canvas (#88)')).split(/^### /m)[1];
+  assert.match(entry, /\*\*Added:\*\*/);
+  assert.match(entry, /\*\*Changed:\*\*/);
 });
