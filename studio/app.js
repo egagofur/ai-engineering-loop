@@ -325,7 +325,17 @@ function renderLoopGroups() {
     element.style.top = `${bounds.top}px`;
     element.style.width = `${bounds.width}px`;
     element.style.height = `${bounds.height}px`;
-    element.innerHTML = `<header class="loop-pill" style="left:${rect.left - bounds.left}px;top:${rect.top - bounds.top}px;width:${Math.max(0, rect.right - rect.left)}px">${escapeHtml(label)}</header>`;
+    // CSP style-src 'self' blocks inline style attributes; position the pill through the CSSOM.
+    const pill = document.createElement('header');
+    pill.className = 'loop-pill';
+    pill.textContent = label;
+    if (pill.style) {
+      pill.style.left = `${rect.left - bounds.left}px`;
+      pill.style.top = `${rect.top - bounds.top}px`;
+      pill.style.width = `${Math.max(0, rect.right - rect.left)}px`;
+    }
+    element.replaceChildren?.(pill);
+    if (!element.replaceChildren) element.innerHTML = `<header class="loop-pill">${escapeHtml(label)}</header>`;
     container.append(element);
   }
 }
