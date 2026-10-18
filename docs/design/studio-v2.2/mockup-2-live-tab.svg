@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000"><style>
+.ui{font-family:Inter,"DejaVu Sans",system-ui,sans-serif}
+.mono{font-family:"DejaVu Sans Mono",Consolas,monospace}
+@keyframes flow{to{stroke-dashoffset:-24}}
+.active{stroke-dasharray:8 8;animation:flow .8s linear infinite}
+</style><rect width="1600" height="1000" fill="#141615"/><rect x="0" y="56" width="1600" height="944" fill="#141615"/>
+<rect width="1600" height="56" fill="#111312"/><line x1="0" y1="56" x2="1600" y2="56" stroke="#2c312d"/>
+<rect x="18" y="13" width="30" height="30" rx="8" fill="#28ad00"/><text class="ui" x="33" y="34" text-anchor="middle" font-size="16" font-weight="800" fill="#fff">A</text>
+<rect x="66" y="14" width="56" height="28" rx="8" fill="#232825"/>
+<text class="ui" x="94.0" y="33" text-anchor="middle" font-size="14" font-weight="700" fill="#eef1ee">Live</text>
+<text class="ui" x="156.0" y="33" text-anchor="middle" font-size="14" font-weight="400" fill="#9aa39c">Runs</text>
+<text class="ui" x="226.0" y="33" text-anchor="middle" font-size="14" font-weight="400" fill="#9aa39c">Wiring</text>
+<text class="ui" x="286" y="34" font-size="14" font-weight="600" fill="#eef1ee">Add retry to webhook sender</text>
+<rect x="497.8" y="17" width="73.80000000000001" height="22" rx="11" fill="#1a1d1b" stroke="#83db69" stroke-opacity=".6"/><text class="ui" x="508.8" y="32" font-size="11" font-weight="800" letter-spacing=".8" fill="#83db69">RUNNING</text>
+<text class="ui" x="589.6" y="33" font-size="13" fill="#9aa39c">started 14 min ago · heartbeat 4s ago</text>
+<circle cx="1350" cy="28" r="5" fill="#28ad00"/><text class="ui" x="1362" y="33" font-size="12" fill="#9aa39c">live: watch</text><text class="ui" x="1540" y="33" font-size="13" fill="#9aa39c">Goal</text>
+<rect x="24" y="76" width="1552" height="112" rx="12" fill="#1b1f1d" stroke="#2c312d"/>
+<line x1="120" y1="118" x2="1480" y2="118" stroke="#343a35" stroke-width="4" stroke-linecap="round"/><line x1="120" y1="118" x2="936" y2="118" stroke="#28ad00" stroke-width="4" stroke-linecap="round"/>
+<circle cx="120" cy="118" r="15" fill="#28ad00"/><path d="M114 118l4 4 8-9" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<text class="ui" x="120" y="156" font-size="12" font-weight="800" fill="#eef1ee" text-anchor="middle">GOAL</text><text class="ui" x="120" y="174" font-size="12" font-weight="400" fill="#9aa39c" text-anchor="middle">1m 02s</text>
+<circle cx="392" cy="118" r="15" fill="#28ad00"/><path d="M386 118l4 4 8-9" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<text class="ui" x="392" y="156" font-size="12" font-weight="800" fill="#eef1ee" text-anchor="middle">MAKER</text><text class="ui" x="392" y="174" font-size="12" font-weight="400" fill="#9aa39c" text-anchor="middle">6m 10s</text>
+<circle cx="664" cy="118" r="15" fill="#28ad00"/><path d="M658 118l4 4 8-9" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<text class="ui" x="664" y="156" font-size="12" font-weight="800" fill="#eef1ee" text-anchor="middle">VERIFY</text><text class="ui" x="664" y="174" font-size="12" font-weight="400" fill="#9aa39c" text-anchor="middle">1m 52s</text>
+<circle cx="936" cy="118" r="24" fill="#28ad00" opacity=".16"/><circle cx="936" cy="118" r="15" fill="#1c211d" stroke="#28ad00" stroke-width="4"/><circle cx="936" cy="118" r="5" fill="#28ad00"/>
+<text class="ui" x="936" y="156" font-size="12" font-weight="800" fill="#eef1ee" text-anchor="middle">REVIEW</text><text class="ui" x="936" y="174" font-size="12" font-weight="400" fill="#9aa39c" text-anchor="middle">2m 04s</text>
+<circle cx="1208" cy="118" r="15" fill="#1c211d" stroke="#3b433d" stroke-width="3"/>
+<text class="ui" x="1208" y="156" font-size="12" font-weight="800" fill="#6c746e" text-anchor="middle">JUDGE</text><text class="ui" x="1208" y="174" font-size="12" font-weight="400" fill="#6c746e" text-anchor="middle">—</text>
+<circle cx="1480" cy="118" r="15" fill="#1c211d" stroke="#3b433d" stroke-width="3"/>
+<text class="ui" x="1480" y="156" font-size="12" font-weight="800" fill="#6c746e" text-anchor="middle">DELIVER</text><text class="ui" x="1480" y="174" font-size="12" font-weight="400" fill="#6c746e" text-anchor="middle">—</text>
+<rect x="24" y="204" width="1552" height="52" rx="12" fill="#1a2418" stroke="#2f5a22"/><rect x="24" y="204" width="5" height="52" rx="2" fill="#83db69"/>
+<text class="ui" x="48" y="236" font-size="12" font-weight="800" fill="#83db69" text-anchor="start">QUESTION</text><text class="ui" x="140" y="236" font-size="14.5" font-weight="400" fill="#eef1ee" text-anchor="start">Should 4xx responses be retried, or only 5xx and timeouts?</text><rect x="1430" y="216" width="128" height="28" rx="8" fill="#28ad00"/><text class="ui" x="1494" y="235" font-size="12" font-weight="700" fill="#fff" text-anchor="middle">Answer in Studio</text>
+<rect x="24" y="272" width="760" height="330" rx="12" fill="#1b1f1d" stroke="#2c312d"/>
+<rect x="24" y="272" width="4" height="330" rx="2" fill="#83db69"/>
+<text class="ui" x="40" y="296" font-size="11" font-weight="800" letter-spacing="1.2" fill="#6c746e">CURRENT STEP</text>
+<rect x="44" y="306" width="56" height="56" rx="14" fill="#24401c"/><path d="M72 318l13 5v9c0 8-6 14-13 18-7-4-13-10-13-18v-9z" fill="none" stroke="#dff5d6" stroke-width="3" stroke-linejoin="round"/>
+<path d="M72 328v8M72 341v1" stroke="#dff5d6" stroke-width="3" stroke-linecap="round"/>
+<text class="ui" x="116" y="326" font-size="19" font-weight="700" fill="#eef1ee" text-anchor="start">review · Devil's Advocate</text><text class="ui" x="116" y="348" font-size="13" font-weight="400" fill="#9aa39c" text-anchor="start">Stage 06 · iteration 2 / 3 · running 2m 04s</text>
+<text class="ui" x="44" y="392" font-size="12" font-weight="700" fill="#6c746e" text-anchor="start">Latest activity</text><text class="ui" x="44" y="414" font-size="14" font-weight="400" fill="#eef1ee" text-anchor="start">Checking retry loop against AC-2 "retries 3× on 5xx"…</text>
+<rect x="44" y="438" width="239.89999999999998" height="28" rx="14" fill="#1d211f" stroke="#2c312d"/><text class="ui" x="56" y="456" font-size="11" font-weight="700" letter-spacing=".6" fill="#6c746e">FINDINGS</text><text class="ui" x="131.2" y="456" font-size="12.5" font-weight="600" fill="#eef1ee">2 open · 0 blocking</text>
+<rect x="291.9" y="438" width="177.1" height="28" rx="14" fill="#1d211f" stroke="#2c312d"/><text class="ui" x="303.9" y="456" font-size="11" font-weight="700" letter-spacing=".6" fill="#6c746e">DIFF</text><text class="ui" x="345.5" y="456" font-size="12.5" font-weight="600" fill="#eef1ee">4 files +86 −12</text>
+<rect x="477.0" y="438" width="149.0" height="28" rx="14" fill="#1d211f" stroke="#2c312d"/><text class="ui" x="489.0" y="456" font-size="11" font-weight="700" letter-spacing=".6" fill="#6c746e">TESTS</text><text class="ui" x="539.0" y="456" font-size="12.5" font-weight="600" fill="#83db69">511 passed</text>
+<rect x="634.0" y="438" width="119.8" height="28" rx="14" fill="#1d211f" stroke="#2c312d"/><text class="ui" x="646.0" y="456" font-size="11" font-weight="700" letter-spacing=".6" fill="#6c746e">SCOPE</text><text class="ui" x="696.0" y="456" font-size="12.5" font-weight="600" fill="#83db69">in map</text>
+<rect x="44" y="520" width="140" height="34" rx="9" fill="#1d211f" stroke="#2c312d"/><text class="ui" x="114" y="542" font-size="12.5" font-weight="600" fill="#eef1ee" text-anchor="middle">Open node details</text>
+<rect x="194" y="520" width="170" height="34" rx="9" fill="#28ad00"/><text class="ui" x="279" y="542" font-size="12.5" font-weight="700" fill="#fff" text-anchor="middle">Start with AI Agent</text>
+<text class="ui" x="44" y="584" font-size="12.5" font-weight="400" fill="#6c746e" text-anchor="start">Next: judge (STRONG_MODEL) → delivery approval → delivery</text>
+<rect x="800" y="272" width="776" height="150" rx="12" fill="#1b1f1d" stroke="#2c312d"/>
+<text class="ui" x="816" y="296" font-size="11" font-weight="800" letter-spacing="1.2" fill="#6c746e">COMPLIANCE &amp; BUDGET</text>
+<rect x="816" y="306" width="126.0" height="28" rx="14" fill="#1d211f" stroke="#2c312d"/><text class="ui" x="828" y="324" font-size="11" font-weight="700" letter-spacing=".6" fill="#6c746e">MODE</text><text class="ui" x="869.6" y="324" font-size="12.5" font-weight="600" fill="#eef1ee">ASSISTED</text>
+<rect x="950.0" y="306" width="82.2" height="28" rx="14" fill="#1d211f" stroke="#2c312d"/><text class="ui" x="962.0" y="324" font-size="11" font-weight="700" letter-spacing=".6" fill="#6c746e">TIER</text><text class="ui" x="1003.6" y="324" font-size="12.5" font-weight="600" fill="#eef1ee">T1</text>
+<rect x="1040.2" y="306" width="192.8" height="28" rx="14" fill="#1d211f" stroke="#2c312d"/><text class="ui" x="1052.2" y="324" font-size="11" font-weight="700" letter-spacing=".6" fill="#6c746e">GUARD</text><text class="ui" x="1102.2" y="324" font-size="12.5" font-weight="600" fill="#83db69">0 warn · 0 block</text>
+<rect x="1241.0" y="306" width="105.2" height="28" rx="14" fill="#1d211f" stroke="#2c312d"/><text class="ui" x="1253.0" y="324" font-size="11" font-weight="700" letter-spacing=".6" fill="#6c746e">DRIFT</text><text class="ui" x="1303.0" y="324" font-size="12.5" font-weight="600" fill="#83db69">none</text>
+<rect x="1354.2" y="306" width="143.9" height="28" rx="14" fill="#1d211f" stroke="#2c312d"/><text class="ui" x="1366.2" y="324" font-size="11" font-weight="700" letter-spacing=".6" fill="#6c746e">RECEIPT</text><text class="ui" x="1433.0" y="324" font-size="12.5" font-weight="600" fill="#e0a537">pending</text>
+<rect x="816" y="342" width="135.5" height="28" rx="14" fill="#1d211f" stroke="#2c312d"/><text class="ui" x="828" y="360" font-size="11" font-weight="700" letter-spacing=".6" fill="#6c746e">TOKENS</text><text class="ui" x="886.4" y="360" font-size="12.5" font-weight="600" fill="#6c746e">unknown</text>
+<text class="ui" x="816" y="400" font-size="12" font-weight="700" fill="#6c746e" text-anchor="start">Budget</text><rect x="880" y="390" width="500" height="10" rx="5" fill="#262b28"/><text class="ui" x="1396" y="400" font-size="12" font-weight="400" fill="#6c746e" text-anchor="start">host reports no usage</text>
+<rect x="800" y="436" width="776" height="166" rx="12" fill="#1b1f1d" stroke="#2c312d"/>
+<text class="ui" x="816" y="460" font-size="11" font-weight="800" letter-spacing="1.2" fill="#6c746e">LATEST EVENTS</text>
+<text class="mono" x="816" y="476" font-size="12" font-weight="400" fill="#6c746e" text-anchor="start">10:44</text><circle cx="868" cy="472" r="4" fill="#e0a537"/><text class="ui" x="882" y="476" font-size="12.5" font-weight="600" fill="#9aa39c" text-anchor="start">review</text><text class="ui" x="950" y="476" font-size="13" font-weight="400" fill="#eef1ee" text-anchor="start">Finding: retry loop ignores 4xx (HIGH)</text>
+<text class="mono" x="816" y="506" font-size="12" font-weight="400" fill="#6c746e" text-anchor="start">10:42</text><circle cx="868" cy="502" r="4" fill="#83db69"/><text class="ui" x="882" y="506" font-size="12.5" font-weight="600" fill="#9aa39c" text-anchor="start">verify</text><text class="ui" x="950" y="506" font-size="13" font-weight="400" fill="#eef1ee" text-anchor="start">npm test · 511 passed</text>
+<text class="mono" x="816" y="536" font-size="12" font-weight="400" fill="#6c746e" text-anchor="start">10:40</text><circle cx="868" cy="532" r="4" fill="#83db69"/><text class="ui" x="882" y="536" font-size="12.5" font-weight="600" fill="#9aa39c" text-anchor="start">maker</text><text class="ui" x="950" y="536" font-size="13" font-weight="400" fill="#eef1ee" text-anchor="start">Maker gate passed · 4 files</text>
+<text class="mono" x="816" y="566" font-size="12" font-weight="400" fill="#6c746e" text-anchor="start">10:33</text><circle cx="868" cy="562" r="4" fill="#83db69"/><text class="ui" x="882" y="566" font-size="12.5" font-weight="600" fill="#9aa39c" text-anchor="start">goal</text><text class="ui" x="950" y="566" font-size="13" font-weight="400" fill="#eef1ee" text-anchor="start">Goal frozen by ega</text>
+<rect x="24" y="618" width="1552" height="290" rx="12" fill="#1b1f1d" stroke="#2c312d"/>
+<text class="ui" x="40" y="642" font-size="11" font-weight="800" letter-spacing="1.2" fill="#6c746e">TIMELINE · grouped by step</text>
+<text class="ui" x="48" y="662" font-size="14" font-weight="700" fill="#eef1ee" text-anchor="start">goal</text><text class="ui" x="48" y="682" font-size="12" font-weight="400" fill="#9aa39c" text-anchor="start">Oct 18 · 10:28 → 10:33 · 5m</text>
+<line x1="53" y1="694" x2="53" y2="728" stroke="#2c312d" stroke-width="2"/><circle cx="53" cy="712" r="5" fill="#83db69"/>
+<text class="ui" x="68" y="716" font-size="12.5" font-weight="400" fill="#eef1ee" text-anchor="start">10:28 Task received</text>
+<line x1="53" y1="728" x2="53" y2="762" stroke="#2c312d" stroke-width="2"/><circle cx="53" cy="746" r="5" fill="#83db69"/>
+<text class="ui" x="68" y="750" font-size="12.5" font-weight="400" fill="#eef1ee" text-anchor="start">10:31 Goal drafted (rev 1)</text>
+<line x1="53" y1="762" x2="53" y2="796" stroke="#2c312d" stroke-width="2"/><circle cx="53" cy="780" r="5" fill="#83db69"/>
+<text class="ui" x="68" y="784" font-size="12.5" font-weight="400" fill="#eef1ee" text-anchor="start">10:33 Goal frozen by ega</text>
+<text class="ui" x="430" y="662" font-size="14" font-weight="700" fill="#eef1ee" text-anchor="start">maker</text><text class="ui" x="430" y="682" font-size="12" font-weight="400" fill="#9aa39c" text-anchor="start">10:33 → 10:40 · 6m 10s</text>
+<line x1="435" y1="694" x2="435" y2="728" stroke="#2c312d" stroke-width="2"/><circle cx="435" cy="712" r="5" fill="#83db69"/>
+<text class="ui" x="450" y="716" font-size="12.5" font-weight="400" fill="#eef1ee" text-anchor="start">10:34 Impact map confirmed</text>
+<line x1="435" y1="728" x2="435" y2="762" stroke="#2c312d" stroke-width="2"/><circle cx="435" cy="746" r="5" fill="#83db69"/>
+<text class="ui" x="450" y="750" font-size="12.5" font-weight="400" fill="#eef1ee" text-anchor="start">10:40 Maker gate passed · diff 4 files</text>
+<text class="ui" x="812" y="662" font-size="14" font-weight="700" fill="#eef1ee" text-anchor="start">verification</text><text class="ui" x="812" y="682" font-size="12" font-weight="400" fill="#9aa39c" text-anchor="start">10:40 → 10:42 · 1m 52s</text>
+<line x1="817" y1="694" x2="817" y2="728" stroke="#2c312d" stroke-width="2"/><circle cx="817" cy="712" r="5" fill="#83db69"/>
+<text class="ui" x="832" y="716" font-size="12.5" font-weight="400" fill="#eef1ee" text-anchor="start">10:41 npm test · 511 passed</text>
+<line x1="817" y1="728" x2="817" y2="762" stroke="#2c312d" stroke-width="2"/><circle cx="817" cy="746" r="5" fill="#83db69"/>
+<text class="ui" x="832" y="750" font-size="12.5" font-weight="400" fill="#eef1ee" text-anchor="start">10:42 Verification gate passed</text>
+<text class="ui" x="1194" y="662" font-size="14" font-weight="700" fill="#eef1ee" text-anchor="start">review</text><text class="ui" x="1194" y="682" font-size="12" font-weight="400" fill="#9aa39c" text-anchor="start">10:42 → now · running</text>
+<line x1="1199" y1="694" x2="1199" y2="728" stroke="#2c312d" stroke-width="2"/><circle cx="1199" cy="712" r="5" fill="#e0a537"/>
+<text class="ui" x="1214" y="716" font-size="12.5" font-weight="400" fill="#eef1ee" text-anchor="start">10:44 Finding HIGH: retry loop ignores 4xx</text>
+<line x1="1199" y1="728" x2="1199" y2="762" stroke="#2c312d" stroke-width="2"/><circle cx="1199" cy="746" r="5" fill="#e0a537"/>
+<text class="ui" x="1214" y="750" font-size="12.5" font-weight="400" fill="#eef1ee" text-anchor="start">10:44 Finding LOW: backoff undocumented</text>
+<text class="ui" x="48" y="892" font-size="12" font-weight="400" fill="#6c746e" text-anchor="start">Times are local (WIB). Hover any time for the exact timestamp; older than a day shows the date.</text></svg>
