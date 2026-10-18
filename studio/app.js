@@ -49,6 +49,11 @@ let selectedId;
 let selectedIds = new Set();
 let selectedEdgeId;
 let validationSequence = 0;
+let validationState = { status: 'pending', hash: '', issues: [], extraCodes: [] };
+let invalidEdgeIds = new Set();
+let edgeIssues = new Map();
+let loadedEdges = [];
+let loadedEdgeSignature = '';
 let positions = new Map();
 let viewport = { x: 0, y: 0, scale: 1 };
 let history = [];
@@ -374,18 +379,20 @@ function edgeClassName(edge) {
   const state = graphStateClass(catalog.live?.edges?.find((candidate) => candidate.id === edge.id)?.state);
   const intoRunning = graphStateClass(catalog.live?.nodes?.[edge.to]?.status) === 'active';
   const active = state === 'active' || intoRunning;
-  return `edge edge-${state}${active ? ' edge-active' : ''}${selectedEdgeId === edge.id ? ' selected' : ''}`;
+  const invalid = invalidEdgeIds.has(edge.id) ? ' edge-invalid' : '';
+  return `edge edge-${state}${active ? ' edge-active' : ''}${selectedEdgeId === edge.id ? ' selected' : ''}${invalid}`;
 }
 
 function edgeDeleteClass(edge) {
   return `edge-delete${selectedEdgeId === edge.id ? ' selected' : ''}`;
 }
 
-function bindEdgeAffordance(path, control, edgeId) {
+function bindEdgeAffordance(path, control, handles, edgeId) {
   const show = () => {
     clearTimeout(edgeHideTimer);
     control.classList.add('visible');
     control.setAttribute('aria-hidden', 'false');
+    handles.forEach((handle) => handle.classList.add('visible'));
   };
   const scheduleHide = () => {
     clearTimeout(edgeHideTimer);
@@ -393,6 +400,7 @@ function bindEdgeAffordance(path, control, edgeId) {
       if (selectedEdgeId !== edgeId) {
         control.classList.remove('visible');
         control.setAttribute('aria-hidden', 'true');
+        handles.forEach((handle) => handle.classList.remove('visible'));
       }
     }, 160);
   };
@@ -400,6 +408,10 @@ function bindEdgeAffordance(path, control, edgeId) {
   path.addEventListener('pointerleave', scheduleHide);
   control.addEventListener('pointerenter', show);
   control.addEventListener('pointerleave', scheduleHide);
+  handles.forEach((handle) => {
+    handle.addEventListener('pointerenter', show);
+    handle.addEventListener('pointerleave', scheduleHide);
+  });
   path.addEventListener('pointerdown', (event) => {
     if (event.button !== 0) return;
     event.stopPropagation();
@@ -448,10 +460,64 @@ function renderEdges() {
       event.stopPropagation();
       deleteEdge(edge.id);
     };
-    bindEdgeAffordance(path, control, edge.id);
-    controls.append(control);
+    const handles = [
+      edgeHandle(edge, 'from', ends.x1, ends.y1),
+      edgeHandle(edge, 'to', ends.x2, ends.y2)
+    ];
+    bindEdgeAffordance(path, control, handles, edge.id);
+    controls.append(control, ...handles);
+    const issue = edgeIssueText(edge.id);
+    if (issue) {
+      const note = document.createElement('p');
+      note.className = 'edge-error';
+      note.textContent = issue;
+      if (note.style) {
+        note.style.left = `${midpoint.x}px`;
+        note.style.top = `${midpoint.y}px`;
+      }
+      controls.append(note);
+    }
   });
   renderMinimap();
+}
+
+function edgeHandle(edge, end, x, y) {
+  const handle = document.createElement('button');
+  handle.type = 'button';
+  handle.className = `edge-end edge-end-${end}${selectedEdgeId === edge.id ? ' visible' : ''}`;
+  handle.dataset.edgeId = edge.id;
+  handle.dataset.end = end;
+  handle.tabIndex = -1;
+  handle.setAttribute('aria-label', end === 'to'
+    ? `Reposition end of ${edge.from} to ${edge.to}`
+    : `Reposition start of ${edge.from} to ${edge.to}`);
+  if (handle.style) {
+    handle.style.left = `${x}px`;
+    handle.style.top = `${y}px`;
+  }
+  handle.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    selectedEdgeId = edge.id;
+    selectedId = null;
+    selectedIds = new Set();
+    connection = {
+      pointerId: event.pointerId,
+      edgeId: edge.id,
+      end,
+      sourceId: end === 'to' ? edge.from : null,
+      fixedId: end === 'to' ? edge.from : edge.to
+    };
+    const preview = scenePart('.preview-edge');
+    if (preview?.style) preview.style.display = 'block';
+    handle.setPointerCapture?.(event.pointerId);
+  });
+  return handle;
+}
+
+function edgeIssueText(edgeId) {
+  return (edgeIssues.get(edgeId) || []).map(issueText).filter(Boolean).join('; ');
 }
 
 const NODE_ICONS = {
@@ -484,7 +550,7 @@ function formatDuration(ms) {
   return `${seconds}s`;
 }
 
-function nodeDurationMs(runtime) {
+function legacyDurationMs(runtime) {
   if (!runtime || typeof runtime !== 'object') return null;
   if (runtime.durationMs != null && runtime.durationMs !== '') {
     const explicit = Number(runtime.durationMs);
@@ -496,6 +562,42 @@ function nodeDurationMs(runtime) {
   if (Number.isFinite(completed)) return Math.max(0, completed - started);
   if (graphStateClass(runtime.status) === 'active') return Math.max(0, Date.now() - started);
   return null;
+}
+
+function dependencyIds(nodeId, recipe) {
+  const ids = new Set();
+  for (const edge of recipe?.edges || []) {
+    if (edge?.to === nodeId && edge.from) ids.add(edge.from);
+  }
+  const node = (recipe?.nodes || []).find((item) => item?.id === nodeId);
+  for (const id of node?.dependsOn || []) {
+    if (id) ids.add(id);
+  }
+  return [...ids];
+}
+
+function nodeDurationMs(nodeId, live, recipe) {
+  if (!nodeId || !live || !recipe) return null;
+  const runtime = live.nodes?.[nodeId];
+  if (!runtime) return null;
+  const status = String(runtime.status || '').toUpperCase();
+  const finished = status === 'PASSED' || status === 'FAILED';
+  const running = status === 'RUNNING' || status === 'IN_PROGRESS' || status === 'WORKING';
+  if (!finished && !running) return null;
+  const dependencies = dependencyIds(nodeId, recipe);
+  let start = NaN;
+  if (!dependencies.length) {
+    start = Date.parse(live.run?.createdAt);
+  } else {
+    const times = dependencies
+      .map((id) => Date.parse(live.nodes?.[id]?.updatedAt))
+      .filter(Number.isFinite);
+    if (times.length) start = Math.max(...times);
+  }
+  if (!Number.isFinite(start)) return null;
+  const end = finished ? Date.parse(runtime.updatedAt) : Date.now();
+  if (!Number.isFinite(end)) return null;
+  return Math.max(0, end - start);
 }
 
 function statusWord(status) {
@@ -514,12 +616,19 @@ function statusWord(status) {
 
 function nodeStatusLine(runtime) {
   const word = statusWord(runtime?.status);
-  const duration = formatDuration(nodeDurationMs(runtime));
+  const duration = formatDuration(legacyDurationMs(runtime));
+  return duration ? `${word} · ${duration}` : word;
+}
+
+function liveStatusText(node) {
+  if (!node) return 'Pending';
+  const runtime = runtimeFor(node);
+  const word = statusWord(runtime?.status);
+  const duration = formatDuration(nodeDurationMs(node.id, catalog.live, draft));
   return duration ? `${word} · ${duration}` : word;
 }
 
 function nodeMarkup(node, index) {
-  const runtimeNode = catalog.live?.nodes?.[node.id];
   const title = `${stageLabel(node, index)} · ${node.type}`;
   return `
     <button class="port port-in" aria-label="Input for ${escapeHtml(node.id)}" tabindex="-1"></button>
@@ -528,7 +637,7 @@ function nodeMarkup(node, index) {
       <span class="node-mark" aria-hidden="true"></span>
     </div>
     <span class="node-name">${escapeHtml(displayName(node))}</span>
-    <span class="node-status">${escapeHtml(nodeStatusLine(runtimeNode))}</span>
+    <span class="node-status">${escapeHtml(liveStatusText(node))}</span>
     <button class="port port-out" aria-label="Connect from ${escapeHtml(node.id)}" tabindex="-1"></button>
   `;
 }
@@ -543,7 +652,7 @@ function nodeFrame(node, index) {
   };
 }
 
-function renderGraph() {
+function renderGraph({ live = false } = {}) {
   if (!draft) return;
   hideTooltip();
   ensurePositions();
@@ -579,8 +688,8 @@ function renderGraph() {
   });
   renderEdges();
   applyViewport();
-  if (!hasFitted) hasFitted = fitView();
-  if (panelNodeId) renderNodePanel();
+  if (!live && !hasFitted) hasFitted = fitView();
+  if (!live && panelNodeId) renderNodePanel();
 }
 
 function nodeElements() {
@@ -623,7 +732,7 @@ function deleteEdge(id) {
 }
 
 function addEdge(from, to) {
-  if (!draft || from === to) return false;
+  if (!draft || !from || !to || from === to) return false;
   if (draft.edges.some((edge) => edge.from === from && edge.to === to)) return false;
   if (transitivelyDependsOn(from, to)) return false;
   if (!draft.nodes.some((node) => node.id === from) || !draft.nodes.some((node) => node.id === to)) return false;
@@ -635,12 +744,28 @@ function addEdge(from, to) {
   return true;
 }
 
+function dependsOnTarget(nodeId, targetId, ignoreEdgeId, seen = new Set()) {
+  if (!nodeId || !targetId) return false;
+  if (nodeId === targetId) return true;
+  if (seen.has(nodeId)) return false;
+  seen.add(nodeId);
+  const upstream = (draft?.edges || [])
+    .filter((edge) => edge.to === nodeId && edge.id !== ignoreEdgeId)
+    .map((edge) => edge.from);
+  return upstream.some((from) => dependsOnTarget(from, targetId, ignoreEdgeId, seen));
+}
+
 function repointEdge(id, from, to) {
   const edge = draft?.edges.find((candidate) => candidate.id === id);
-  if (!edge) return false;
+  if (!edge || !from || !to || from === to) return false;
+  if (edge.from === from && edge.to === to) return true;
+  if (!draft.nodes.some((node) => node.id === from) || !draft.nodes.some((node) => node.id === to)) return false;
+  if (draft.edges.some((candidate) => candidate.id !== id && candidate.from === from && candidate.to === to)) return false;
+  if (dependsOnTarget(from, to, id)) return false;
   edge.from = from;
   edge.to = to;
   syncDependencies();
+  selectedEdgeId = id;
   captureHistory();
   renderGraph();
   validateDraft();
@@ -691,13 +816,29 @@ function beginPan(event) {
 
 function handlePointerMove(event) {
   if (connection) {
-    const from = positions.get(connection.sourceId);
     const preview = scenePart('.preview-edge');
-    if (from && preview?.setAttribute) {
-      const target = screenToWorld(event.clientX, event.clientY);
-      preview.style.display = 'block';
-      preview.setAttribute('d', curvePath(from.x + NODE_WIDTH, from.y + NODE_PORT_Y, target.x, target.y));
+    const cursor = screenToWorld(event.clientX, event.clientY);
+    let x1;
+    let y1;
+    let x2;
+    let y2;
+    if (connection.edgeId && connection.end === 'from') {
+      const target = positions.get(connection.fixedId);
+      if (!target || !preview?.setAttribute) return;
+      x1 = cursor.x;
+      y1 = cursor.y;
+      x2 = target.x;
+      y2 = target.y + NODE_PORT_Y;
+    } else {
+      const source = positions.get(connection.sourceId || connection.fixedId);
+      if (!source || !preview?.setAttribute) return;
+      x1 = source.x + NODE_WIDTH;
+      y1 = source.y + NODE_PORT_Y;
+      x2 = cursor.x;
+      y2 = cursor.y;
     }
+    preview.style.display = 'block';
+    preview.setAttribute('d', curvePath(x1, y1, x2, y2));
     return;
   }
   if (!interaction || interaction.pointerId !== event.pointerId) return;
@@ -759,17 +900,44 @@ function transitivelyDependsOn(nodeId, targetId, seen = new Set()) {
   return (node?.dependsOn || []).some((dependencyId) => transitivelyDependsOn(dependencyId, targetId, seen));
 }
 
+function nodeIdFromPort(hit, selector) {
+  const port = hit?.closest?.(selector);
+  const node = port?.closest?.('.node');
+  return node?.dataset?.nodeId || null;
+}
+
 function finishConnection(event) {
-  const sourceId = connection.sourceId;
+  const pending = connection;
   connection = null;
   const preview = scenePart('.preview-edge');
   if (preview?.style) preview.style.display = 'none';
-  const targetElement = document.elementFromPoint?.(event.clientX, event.clientY)?.closest?.('.node');
-  const targetId = targetElement?.dataset.nodeId;
-  if (!targetId || targetId === sourceId) return;
-  if (draft.edges.some((edge) => edge.from === sourceId && edge.to === targetId)) return notify('Nodes are already connected.');
-  if (transitivelyDependsOn(sourceId, targetId)) return notify('Connection rejected: it would create a cycle.');
-  addEdge(sourceId, targetId);
+  if (!pending || !draft) return;
+  const hit = document.elementFromPoint?.(event.clientX, event.clientY);
+  if (pending.edgeId) {
+    const edge = draft.edges.find((item) => item.id === pending.edgeId);
+    if (!edge) return;
+    if (pending.end === 'from') {
+      const sourceId = nodeIdFromPort(hit, '.port-out');
+      if (!sourceId) return;
+      if (!repointEdge(edge.id, sourceId, edge.to)) notify('Connection rejected.');
+      return;
+    }
+    const targetId = nodeIdFromPort(hit, '.port-in');
+    if (!targetId) return;
+    if (!repointEdge(edge.id, edge.from, targetId)) notify('Connection rejected.');
+    return;
+  }
+  const targetId = nodeIdFromPort(hit, '.port-in');
+  if (!targetId || targetId === pending.sourceId) {
+    if (targetId && targetId === pending.sourceId) notify('A node cannot connect to itself.');
+    return;
+  }
+  if (addEdge(pending.sourceId, targetId)) return;
+  if (draft.edges.some((edge) => edge.from === pending.sourceId && edge.to === targetId)) {
+    notify('Nodes are already connected.');
+    return;
+  }
+  notify('Connection rejected: it would create a cycle.');
 }
 
 function zoomAt(nextScale, clientX, clientY) {
@@ -877,8 +1045,7 @@ function captureHistory({ reset = false } = {}) {
     history.push(snapshot);
     historyIndex = history.length - 1;
   }
-  if (byId('undo')) byId('undo').disabled = historyIndex <= 0;
-  if (byId('redo')) byId('redo').disabled = historyIndex >= history.length - 1;
+  renderWiringBar();
 }
 
 function restoreHistory(index) {
@@ -891,8 +1058,7 @@ function restoreHistory(index) {
   renderGraph();
   validateDraft();
   saveLayoutSoon();
-  if (byId('undo')) byId('undo').disabled = historyIndex <= 0;
-  if (byId('redo')) byId('redo').disabled = historyIndex >= history.length - 1;
+  renderWiringBar();
 }
 
 function saveLayoutSoon() {
@@ -910,8 +1076,159 @@ function saveLayoutSoon() {
   }, 350);
 }
 
+function edgeSignature(recipe) {
+  return (recipe?.edges || [])
+    .map((edge) => `${edge.from}->${edge.to}`)
+    .sort()
+    .join('|');
+}
+
+function rememberLoadedWiring() {
+  loadedEdges = structuredClone(draft?.edges || []);
+  loadedEdgeSignature = edgeSignature({ edges: loadedEdges });
+}
+
+function wiringChangeCount() {
+  const loaded = new Set(loadedEdgeSignature ? loadedEdgeSignature.split('|').filter(Boolean) : []);
+  const current = new Set((draft?.edges || []).map((edge) => `${edge.from}->${edge.to}`));
+  let count = 0;
+  for (const edge of current) if (!loaded.has(edge)) count += 1;
+  for (const edge of loaded) if (!current.has(edge)) count += 1;
+  return count;
+}
+
+function issueText(issue) {
+  const code = issue?.code ? String(issue.code) : '';
+  const message = issue?.message ? String(issue.message) : '';
+  if (code && message) return `${code}: ${message}`;
+  return code || message;
+}
+
+function validationSummary(state = validationState) {
+  const parts = (state.issues || []).map(issueText).filter(Boolean);
+  for (const code of state.extraCodes || []) {
+    if (code && !parts.some((part) => part.includes(code))) parts.push(code);
+  }
+  return parts.join('; ');
+}
+
+function issuesFromPayload(payload) {
+  const validation = payload?.validation;
+  const messages = Array.isArray(validation?.errors) ? validation.errors.map(String) : [];
+  const codes = Array.isArray(validation?.codes) ? validation.codes.filter(Boolean).map(String) : [];
+  if (!messages.length) {
+    if (payload?.error || payload?.code) {
+      return {
+        issues: [{ message: String(payload.error || ''), code: String(payload.code || '') }],
+        extraCodes: []
+      };
+    }
+    return { issues: [{ message: 'Validation failed', code: '' }], extraCodes: [] };
+  }
+  if (codes.length === messages.length) {
+    return {
+      issues: messages.map((message, index) => ({ message, code: codes[index] || '' })),
+      extraCodes: []
+    };
+  }
+  return { issues: messages.map((message) => ({ message, code: '' })), extraCodes: codes };
+}
+
+function assignInvalidEdges(issues) {
+  edgeIssues = new Map();
+  const loaded = new Set(loadedEdgeSignature ? loadedEdgeSignature.split('|').filter(Boolean) : []);
+  const dirtyIds = (draft?.edges || [])
+    .filter((edge) => !loaded.has(`${edge.from}->${edge.to}`))
+    .map((edge) => edge.id);
+  const remember = (edgeId, issue) => {
+    if (!edgeId) return;
+    if (!edgeIssues.has(edgeId)) edgeIssues.set(edgeId, []);
+    const list = edgeIssues.get(edgeId);
+    if (!list.some((item) => item.code === issue.code && item.message === issue.message)) list.push(issue);
+  };
+  for (const issue of issues) {
+    const message = issue.message || '';
+    let matched = false;
+    for (const edge of draft?.edges || []) {
+      if ((edge.id && message.includes(edge.id)) || message.includes(`${edge.from} -> ${edge.to}`)) {
+        remember(edge.id, issue);
+        matched = true;
+      }
+    }
+    const typed = message.match(/^([a-z0-9-]+) must depend on ([a-z0-9-]+)/);
+    if (typed) {
+      const dependents = new Set((draft?.nodes || []).filter((node) => node.type === typed[1]).map((node) => node.id));
+      const dependencies = new Set((draft?.nodes || []).filter((node) => node.type === typed[2]).map((node) => node.id));
+      for (const edgeId of dirtyIds) {
+        const edge = draft.edges.find((item) => item.id === edgeId);
+        if (!edge) continue;
+        if (dependents.has(edge.to) || dependents.has(edge.from) || dependencies.has(edge.to) || dependencies.has(edge.from)) {
+          remember(edge.id, issue);
+          matched = true;
+        }
+      }
+    }
+    if (/must be a terminal node/.test(message)) {
+      const token = message.split(' ')[0];
+      const ids = new Set((draft?.nodes || []).filter((node) => node.type === token || node.id === token).map((node) => node.id));
+      for (const edge of draft?.edges || []) {
+        if (ids.has(edge.from)) {
+          remember(edge.id, issue);
+          matched = true;
+        }
+      }
+    }
+    if (!matched && dirtyIds.length === 1) remember(dirtyIds[0], issue);
+  }
+  invalidEdgeIds = new Set(edgeIssues.keys());
+}
+
+function renderWiringBar() {
+  const changes = draft ? wiringChangeCount() : 0;
+  const bar = byId('wiring-bar');
+  if (bar) bar.hidden = changes === 0;
+  const count = byId('wiring-count');
+  if (count) count.textContent = `${changes} wiring change${changes === 1 ? '' : 's'}`;
+  const pill = byId('wiring-pill');
+  if (pill) {
+    const short = validationState.hash ? String(validationState.hash).slice(0, 8) : '';
+    const status = validationState.status;
+    pill.className = `wiring-pill ${status === 'valid' ? 'valid' : status === 'invalid' ? 'invalid' : 'pending'}`;
+    if (status === 'valid') pill.textContent = short ? `Valid ${short}` : 'Valid';
+    else if (status === 'invalid') pill.textContent = short ? `Invalid ${short}` : 'Invalid';
+    else pill.textContent = 'Checking';
+  }
+  const error = byId('wiring-error');
+  if (error) error.textContent = validationState.status === 'invalid' ? validationSummary() : '';
+  const save = byId('save-wiring');
+  if (save) save.disabled = changes === 0 || validationState.status !== 'valid';
+  const undo = byId('undo');
+  const redo = byId('redo');
+  if (undo) undo.disabled = historyIndex <= 0;
+  if (redo) redo.disabled = historyIndex >= history.length - 1;
+}
+
+function discardWiring() {
+  if (!draft) return;
+  draft.edges = structuredClone(loadedEdges);
+  syncDependencies();
+  selectedEdgeId = null;
+  invalidEdgeIds = new Set();
+  edgeIssues = new Map();
+  captureHistory();
+  renderGraph();
+  validateDraft();
+}
+
+function clearInvalidEdges() {
+  invalidEdgeIds = new Set();
+  edgeIssues = new Map();
+}
+
 async function validateDraft() {
   const sequence = ++validationSequence;
+  validationState = { status: 'pending', hash: '', issues: [], extraCodes: [] };
+  renderWiringBar();
   try {
     const result = await api('/api/validate', {
       method: 'POST',
@@ -919,9 +1236,8 @@ async function validateDraft() {
     });
     if (sequence !== validationSequence) return result;
     const hash = result.plans[0].graphHash;
-    byId('integrity').textContent = `VALID / ${hash.slice(0, 8)}…${hash.slice(-4)}`;
-    byId('integrity').className = 'valid';
-    byId('review').disabled = false;
+    validationState = { status: 'valid', hash, issues: [], extraCodes: [] };
+    clearInvalidEdges();
     byId('review-data').textContent = JSON.stringify({
       recipe: draft.id,
       version: draft.version,
@@ -929,12 +1245,16 @@ async function validateDraft() {
       nodes: draft.nodes.length,
       graphHashes: result.plans.map((plan) => plan.graphHash)
     }, null, 2);
+    renderWiringBar();
+    renderEdges();
     return result;
   } catch (error) {
     if (sequence !== validationSequence) return null;
-    byId('integrity').textContent = `INVALID / ${error.message}`;
-    byId('integrity').className = 'invalid';
-    byId('review').disabled = true;
+    const parsed = issuesFromPayload(error.payload);
+    validationState = { status: 'invalid', hash: '', issues: parsed.issues, extraCodes: parsed.extraCodes };
+    assignInvalidEdges(parsed.issues);
+    renderWiringBar();
+    renderEdges();
     return null;
   }
 }
@@ -1319,10 +1639,135 @@ function scheduleLiveRender() {
   schedule(() => {
     liveRenderScheduled = false;
     renderLive();
+    refreshWiringLive();
   });
 }
 
+function textOrNull(value) {
+  if (value == null) return null;
+  const text = String(value).trim();
+  return text || null;
+}
+
+function shown(value) {
+  return value == null || value === '' ? '—' : String(value);
+}
+
+function summaryFact(label, value) {
+  return `<div class="summary-fact"><span>${escapeHtml(label)}</span><strong>${escapeHtml(shown(value))}</strong></div>`;
+}
+
+function deliveryDestination(live) {
+  const artifacts = live?.artifacts || {};
+  const delivery = (live?.plan?.nodes || []).find((node) => node.type === 'delivery');
+  const runtime = delivery ? live.nodes?.[delivery.id] : null;
+  return textOrNull(live?.run?.destination)
+    || textOrNull(live?.run?.delivery?.destination)
+    || textOrNull(artifacts['artifact.delivery']?.destination)
+    || textOrNull(runtime?.destination)
+    || textOrNull(runtime?.output?.destination);
+}
+
+function approverName(live) {
+  const artifacts = live?.artifacts || {};
+  const approval = (live?.plan?.nodes || []).find((node) => node.type === 'approval');
+  const runtime = approval ? live.nodes?.[approval.id] : null;
+  return textOrNull(runtime?.approvedBy)
+    || textOrNull(live?.run?.approvedBy)
+    || textOrNull(live?.run?.approver)
+    || textOrNull(artifacts['artifact.verdict']?.approvedBy);
+}
+
+function completedRunDurationMs(live) {
+  const start = Date.parse(live?.run?.createdAt);
+  if (!Number.isFinite(start)) return null;
+  const nodeTimes = Object.values(live?.nodes || {})
+    .map((node) => Date.parse(node?.updatedAt))
+    .filter(Number.isFinite);
+  const lastNode = nodeTimes.length ? Math.max(...nodeTimes) : NaN;
+  const delivery = [
+    live?.run?.deliveredAt,
+    live?.run?.deliveryAt,
+    live?.run?.delivery?.at,
+    live?.artifacts?.['artifact.delivery']?.at
+  ].map((value) => Date.parse(value)).find(Number.isFinite);
+  const end = Number.isFinite(delivery) ? delivery : lastNode;
+  if (!Number.isFinite(end)) {
+    const updated = Date.parse(live?.run?.updatedAt);
+    if (!Number.isFinite(updated)) return null;
+    return Math.max(0, updated - start);
+  }
+  return Math.max(0, end - start);
+}
+
+function verificationLabel(summary) {
+  if (!summary || typeof summary !== 'object') return null;
+  const failed = Number(summary.failed);
+  const total = Number(summary.commandCount);
+  if (!Number.isFinite(failed) || !Number.isFinite(total)) return null;
+  return `${Math.max(0, total - failed)} passed / ${failed} failed`;
+}
+
+function findingsLabel(summary) {
+  if (!summary || typeof summary !== 'object') return null;
+  if (summary.count == null && summary.blocking == null) return null;
+  return `${summary.count ?? '—'} / ${summary.blocking ?? '—'}`;
+}
+
+function driftLabel(summary) {
+  if (!summary || typeof summary !== 'object' || summary.outOfMapCount == null) return null;
+  return String(summary.outOfMapCount);
+}
+
+function receiptLabel(summary) {
+  if (!summary || summary.present === false) return 'missing';
+  if (summary.verified === true && !(summary.problems || []).length) return 'verified';
+  if (Array.isArray(summary.problems) && summary.problems.length) return 'problems';
+  if (summary.verified === false) return 'problems';
+  return 'missing';
+}
+
+function tokenLabel(live) {
+  const raw = live?.budget?.totalTokens ?? live?.budget?.spentThisRun ?? live?.run?.totalTokens ?? live?.run?.tokens;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value <= 0) return 'unknown';
+  return String(value);
+}
+
+function renderRunSummary() {
+  const card = byId('run-summary-card');
+  if (!card) return;
+  const live = catalog.live;
+  const state = live?.run?.state;
+  if (!live?.run || !TERMINAL_RUN_STATES.has(state)) {
+    card.hidden = true;
+    card.innerHTML = '';
+    return;
+  }
+  const artifacts = live.artifacts || liveArtifacts || {};
+  const duration = formatDuration(completedRunDurationMs(live));
+  card.hidden = false;
+  card.innerHTML = `<div class="summary-facts">${[
+    summaryFact('State', state),
+    summaryFact('Destination', deliveryDestination(live)),
+    summaryFact('Verdict', textOrNull(artifacts['artifact.verdict']?.verdict) || textOrNull(live.run?.verdict)),
+    summaryFact('Approver', approverName(live)),
+    summaryFact('Duration', duration || null),
+    summaryFact('Tests', verificationLabel(artifacts['artifact.verification'])),
+    summaryFact('Findings', findingsLabel(artifacts['artifact.findings'])),
+    summaryFact('Drift', driftLabel(artifacts['artifact.drift'])),
+    summaryFact('Receipt', receiptLabel(artifacts['artifact.receipt'])),
+    summaryFact('Tokens', tokenLabel(live))
+  ].join('')}</div>`;
+}
+
+function refreshWiringLive() {
+  if (workspace !== 'wiring' || !draft || interaction || connection) return;
+  renderGraph({ live: true });
+}
+
 function renderLive() {
+  renderRunSummary();
   const live = catalog.live;
   const summary = byId('run-summary');
   const rail = byId('stage-rail');
@@ -1459,6 +1904,7 @@ function applyEvent(event) {
     lifecycleEvents = lifecycleEvents.concat(incoming).slice(-100);
     if (event.payload?.presence) agentPresence = event.payload;
     else if (catalog.live) catalog.live.lifecycle = event.payload;
+    applyLifecycleNodes(incoming);
   } else if (event.type === 'presence') {
     agentPresence = event.payload || agentPresence;
     if (catalog.live) catalog.live.presence = agentPresence;
@@ -1470,6 +1916,23 @@ function applyEvent(event) {
     }
   }
   scheduleLiveRender();
+}
+
+const LIVE_NODE_STATUSES = new Set(['PENDING', 'READY', 'RUNNING', 'PASSED', 'FAILED', 'SKIPPED', 'BLOCKED', 'WAITING']);
+
+function applyLifecycleNodes(events) {
+  if (!catalog.live) return;
+  catalog.live.nodes = catalog.live.nodes || {};
+  for (const item of events || []) {
+    const status = String(item?.status || '').toUpperCase();
+    if (!item?.nodeId || !LIVE_NODE_STATUSES.has(status)) continue;
+    const current = catalog.live.nodes[item.nodeId] || {};
+    catalog.live.nodes[item.nodeId] = {
+      ...current,
+      status,
+      ...(item.at ? { updatedAt: item.at } : {})
+    };
+  }
 }
 
 function parseSseBlock(block) {
@@ -1610,6 +2073,7 @@ async function loadRecipe() {
   draft = normalizeDraftGraph(structuredClone(result.recipe));
   source = result.source;
   loadedRecipeId = draft.id;
+  rememberLoadedWiring();
   selectedId = null;
   selectedIds.clear();
   selectedEdgeId = null;
@@ -1759,7 +2223,7 @@ function showTooltip(element) {
   const lines = [
     `<strong>${escapeHtml(displayName(node))}</strong>`,
     `<span class="tooltip-type">${escapeHtml(node.type)} · ${escapeHtml(stageLabel(node, index))}</span>`,
-    `<span class="tooltip-status">${escapeHtml(nodeStatusLine(runtimeFor(node)))}</span>`
+    `<span class="tooltip-status">${escapeHtml(liveStatusText(node))}</span>`
   ];
   if (summary) lines.push(`<span class="tooltip-summary">${escapeHtml(summary)}</span>`);
   nodeTooltip.innerHTML = lines.join('');
@@ -1782,10 +2246,11 @@ function onNodeClick(event) {
 }
 
 function headerDuration(node, io) {
-  const fromRuntime = formatDuration(nodeDurationMs(runtimeFor(node)));
-  if (fromRuntime) return fromRuntime;
+  const derived = formatDuration(nodeDurationMs(node?.id, catalog.live, draft));
+  if (derived) return derived;
   const explicit = Number(io?.durationMs);
-  return Number.isFinite(explicit) ? formatDuration(explicit) : '';
+  if (Number.isFinite(explicit) && explicit >= 0) return formatDuration(explicit);
+  return formatDuration(legacyDurationMs(runtimeFor(node)));
 }
 
 function tabButton(id, label) {
@@ -2318,11 +2783,18 @@ document.addEventListener('keyup', (event) => {
 });
 if (typeof window !== 'undefined') window.addEventListener('resize', scheduleFitView);
 
-byId('review').onclick = () => {
-  if (byId('review').disabled) return;
+byId('undo').onclick = () => restoreHistory(historyIndex - 1);
+byId('redo').onclick = () => restoreHistory(historyIndex + 1);
+byId('discard-wiring').onclick = discardWiring;
+byId('save-wiring').onclick = () => {
+  if (byId('save-wiring').disabled) return;
   byId('confirm').showModal();
 };
 byId('install').onclick = async () => {
+  if (validationState.status !== 'valid') {
+    notify(validationSummary() || 'Wiring is invalid.');
+    return;
+  }
   try {
     const recipe = authoringRecipe();
     const exists = catalog.recipes.some((item) => item.id === recipe.id && item.source !== 'builtin');

@@ -155,7 +155,11 @@ test('Studio default route is the live run view and keeps about 40% of the previ
   const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
   assert.ok(ids.includes('live-view'));
   assert.ok(ids.includes('show-live'));
-  assert.ok(ids.length <= 54, `default route has ${ids.length} ids; 40% of 135 is 54`);
+  assert.ok(ids.includes('wiring-bar'));
+  assert.ok(ids.includes('run-summary-card'));
+  assert.equal(ids.includes('integrity'), false);
+  assert.equal(ids.includes('review'), false);
+  assert.ok(ids.length <= 62, `default route has ${ids.length} ids`);
   assert.equal(html.includes('id="library-panel"'), false);
   assert.equal(html.includes('id="custom-dialog"'), false);
   assert.equal(html.includes('id="import-dialog"'), false);
@@ -178,7 +182,7 @@ test('Studio canvas boots against its authenticated API and graph actions preser
       context,
       { filename: 'studio/app.js' }
     );
-    await waitFor(() => elements.get('integrity').textContent.startsWith('VALID'));
+    await waitFor(() => vm.runInContext('validationState.status', context) === 'valid');
     assert.equal(vm.runInContext('draft.loopGroups.length', context), 1);
     assert.equal(vm.runInContext('draft.loopGroups[0].decisionNodeId', context), 'judge');
 
@@ -200,14 +204,14 @@ test('Studio canvas boots against its authenticated API and graph actions preser
     assert.equal(vm.runInContext('typeof addNode', context), 'undefined');
     assert.equal(vm.runInContext('typeof duplicateSelectedNode', context), 'undefined');
     const nodeCount = vm.runInContext('draft.nodes.length', context);
-    vm.runInContext("addEdge('goal', 'verification')", context);
+    vm.runInContext("addEdge('verification', 'judge')", context);
     assert.equal(vm.runInContext('draft.nodes.length', context), nodeCount);
     assert.equal(vm.runInContext(
-      "draft.edges.some((edge) => edge.from === 'goal' && edge.to === 'verification')",
+      "draft.edges.some((edge) => edge.from === 'verification' && edge.to === 'judge')",
       context
     ), true);
-    await waitFor(() => elements.get('review').disabled === false);
-    elements.get('review').onclick();
+    await waitFor(() => elements.get('save-wiring').disabled === false);
+    elements.get('save-wiring').onclick();
     assert.equal(elements.get('confirm').open, true);
 
     vm.runInContext('showWorkspace("runs")', context);
@@ -259,7 +263,7 @@ test('AC-1 empty Studio opens the simple task-first experience with advanced Goa
       context,
       { filename: 'studio/app.js' }
     );
-    await waitFor(() => elements.get('integrity').textContent.startsWith('VALID'));
+    await waitFor(() => vm.runInContext('validationState.status', context) === 'valid');
     await waitFor(() => elements.get('goal-dialog').open === true);
     assert.equal(elements.get('goal-dialog').open, true);
     assert.equal(elements.get('goal-task').disabled, false);
@@ -388,7 +392,7 @@ test('AC-10 a reconnect failure keeps valid state and exposes a bounded manual r
       context,
       { filename: 'studio/app.js' }
     );
-    await waitFor(() => elements.get('integrity').textContent.startsWith('VALID'));
+    await waitFor(() => vm.runInContext('validationState.status', context) === 'valid');
     const validDraftId = vm.runInContext('draft.id', context);
     context.fetch = async () => { throw new Error('offline'); };
     await vm.runInContext('resync()', context);
@@ -448,7 +452,7 @@ test('DA-06 malformed journey presentation degrades to a safe pending status', a
       context,
       { filename: 'studio/app.js' }
     );
-    await waitFor(() => elements.get('integrity').textContent.startsWith('VALID'));
+    await waitFor(() => vm.runInContext('validationState.status', context) === 'valid');
     vm.runInContext(`catalog.live = {
       run: { state: 'STARTED' },
       plan: { nodes: [] },
@@ -540,7 +544,7 @@ test('Studio reconnects to /api/events with after=lastSeq when the stream ends',
       context,
       { filename: 'studio/app.js' }
     );
-    await waitFor(() => elements.get('integrity').textContent.startsWith('VALID'));
+    await waitFor(() => vm.runInContext('validationState.status', context) === 'valid');
     await waitFor(() => scheduled.some((item) => item.ms === 500));
     assert.equal(eventCalls.length, 1);
     scheduled[0].fn();
@@ -576,7 +580,7 @@ test('Wiring canvas uses one n8n tile per node and fits the default recipe', asy
       context,
       { filename: 'studio/app.js' }
     );
-    await waitFor(() => elements.get('integrity').textContent.startsWith('VALID'));
+    await waitFor(() => vm.runInContext('validationState.status', context) === 'valid');
     vm.runInContext('renderGraph()', context);
     const rendered = elements.get('nodes').children;
     const nodeCount = vm.runInContext('draft.nodes.length', context);
@@ -750,7 +754,7 @@ test('Wiring inspection opens a node panel, tooltip, zoom, minimap, and shortcut
       context,
       { filename: 'studio/app.js' }
     );
-    await waitFor(() => elements.get('integrity').textContent.startsWith('VALID'));
+    await waitFor(() => vm.runInContext('validationState.status', context) === 'valid');
     vm.runInContext("showWorkspace('wiring')", context);
     const canvas = elements.get('canvas');
     const panel = elements.get('node-panel');
@@ -834,6 +838,210 @@ test('Wiring inspection opens a node panel, tooltip, zoom, minimap, and shortcut
       String(element.attributes.class || '').split(/\s+/).includes('minimap-node')
     );
     assert.equal(rects.length, nodes.length);
+  } finally {
+    await new Promise((resolve) => instance.server.close(resolve));
+  }
+});
+
+test('studio wiring client does not add a setInterval', () => {
+  const app = fs.readFileSync(path.join(__dirname, '..', 'studio', 'app.js'), 'utf8');
+  assert.equal((app.match(/setInterval/g) || []).length, 0);
+  assert.equal(app.includes('style="'), false);
+});
+
+test('Wiring save bar, rewiring validation, durations, and completed-run summary', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-studio-ui-'));
+  const instance = createStudioServer(root, { token: 'ui-test-token', watch: false, pollMs: 60_000 });
+  await new Promise((resolve, reject) => {
+    instance.server.once('error', reject);
+    instance.server.listen(0, '127.0.0.1', resolve);
+  });
+  try {
+    const base = `http://127.0.0.1:${instance.server.address().port}`;
+    const { context, elements } = studioContext(base, instance.token);
+    vm.runInContext(
+      fs.readFileSync(path.join(__dirname, '..', 'studio', 'app.js'), 'utf8'),
+      context,
+      { filename: 'studio/app.js' }
+    );
+    await waitFor(() => vm.runInContext('validationState.status', context) === 'valid');
+    const bar = elements.get('wiring-bar');
+    const savedEdges = vm.runInContext('draft.edges.length', context);
+    assert.equal(bar.hidden, true);
+
+    vm.runInContext(`positions.set(draft.nodes[0].id, { x: 12, y: 24 }); renderWiringBar()`, context);
+    assert.equal(bar.hidden, true);
+    assert.equal(vm.runInContext('draft.edges.length', context), savedEdges);
+
+    const first = vm.runInContext('draft.edges[0]', context);
+    assert.equal(vm.runInContext("addEdge('maker', 'maker')", context), false);
+    assert.equal(vm.runInContext(
+      `addEdge(${JSON.stringify(first.from)}, ${JSON.stringify(first.to)})`,
+      context
+    ), false);
+    assert.equal(vm.runInContext('draft.edges.length', context), savedEdges);
+    assert.equal(bar.hidden, true);
+
+    assert.equal(vm.runInContext("addEdge('verification', 'judge')", context), true);
+    assert.equal(bar.hidden, false);
+    assert.equal(elements.get('wiring-count').textContent, '1 wiring change');
+    await waitFor(() => elements.get('save-wiring').disabled === false);
+    assert.match(elements.get('wiring-pill').textContent, /^Valid [a-f0-9]{8}$/);
+    elements.get('discard-wiring').onclick();
+    assert.equal(bar.hidden, true);
+    assert.equal(vm.runInContext('draft.edges.length', context), savedEdges);
+    assert.equal(vm.runInContext(
+      "draft.edges.some((edge) => edge.from === 'verification' && edge.to === 'judge')",
+      context
+    ), false);
+
+    vm.runInContext(`(() => {
+      const edge = draft.edges.find((item) => item.to === 'delivery');
+      deleteEdge(edge.id);
+    })()`, context);
+    assert.equal(elements.get('save-wiring').disabled, true);
+    await waitFor(() => elements.get('wiring-error').textContent.includes('BACKBONE_'));
+    const invalidText = elements.get('wiring-error').textContent;
+    assert.match(invalidText, /BACKBONE_[A-Z0-9_]+/);
+    assert.match(invalidText, /delivery must depend on|ASSISTED/);
+    assert.equal(elements.get('save-wiring').disabled, true);
+    assert.match(elements.get('wiring-pill').textContent, /^Invalid/);
+    elements.get('discard-wiring').onclick();
+    await waitFor(() => vm.runInContext('validationState.status', context) === 'valid');
+    assert.equal(bar.hidden, true);
+
+    const repointed = vm.runInContext(`(() => {
+      const edge = draft.edges.find((item) => item.from === 'maker' && item.to === 'verification');
+      return { ok: repointEdge(edge.id, 'goal', 'verification'), id: edge.id };
+    })()`, context);
+    assert.equal(repointed.ok, true);
+    await waitFor(() => elements.get('wiring-error').textContent.includes('verification must depend on maker'));
+    assert.equal(elements.get('save-wiring').disabled, true);
+    assert.equal(vm.runInContext(`invalidEdgeIds.has(${JSON.stringify(repointed.id)})`, context), true);
+    assert.match(vm.runInContext(
+      `edgeClassName(draft.edges.find((edge) => edge.id === ${JSON.stringify(repointed.id)}))`,
+      context
+    ), /\bedge-invalid\b/);
+    assert.match(vm.runInContext(`edgeIssueText(${JSON.stringify(repointed.id)})`, context), /verification must depend on maker/);
+
+    const durations = vm.runInContext(`(() => {
+      const recipe = {
+        nodes: [
+          { id: 'root' },
+          { id: 'left' },
+          { id: 'right' },
+          { id: 'join' },
+          { id: 'running' },
+          { id: 'idle' }
+        ],
+        edges: [
+          { from: 'root', to: 'left' },
+          { from: 'left', to: 'join' },
+          { from: 'right', to: 'join' },
+          { from: 'join', to: 'running' }
+        ]
+      };
+      const live = {
+        run: { createdAt: '2026-10-18T00:00:00.000Z' },
+        nodes: {
+          root: { status: 'PASSED', updatedAt: '2026-10-18T00:01:00.000Z' },
+          left: { status: 'PASSED', updatedAt: '2026-10-18T00:02:00.000Z' },
+          right: { status: 'PASSED', updatedAt: '2026-10-18T00:04:00.000Z' },
+          join: { status: 'FAILED', updatedAt: '2026-10-18T00:04:30.000Z' },
+          running: { status: 'RUNNING', updatedAt: '2026-10-18T00:04:30.000Z' },
+          idle: { status: 'SKIPPED', updatedAt: '2026-10-18T00:09:00.000Z' }
+        }
+      };
+      return {
+        root: nodeDurationMs('root', live, recipe),
+        join: nodeDurationMs('join', live, recipe),
+        running: nodeDurationMs('running', live, recipe),
+        idle: nodeDurationMs('idle', live, recipe),
+        missing: nodeDurationMs('missing', live, recipe),
+        expectedRunning: Date.now() - Date.parse('2026-10-18T00:04:30.000Z')
+      };
+    })()`, context);
+    assert.equal(durations.root, 60_000);
+    assert.equal(durations.join, 30_000);
+    assert.equal(durations.idle, null);
+    assert.equal(durations.missing, null);
+    assert.ok(Math.abs(durations.running - durations.expectedRunning) < 1000);
+
+    vm.runInContext(`catalog.live = {
+      run: {
+        runId: 'run-delivered',
+        state: 'DELIVERED',
+        createdAt: '2026-10-18T00:00:00.000Z',
+        updatedAt: '2026-10-18T00:12:00.000Z',
+        destination: 'origin/main'
+      },
+      plan: { nodes: [
+        { id: 'approval', type: 'approval' },
+        { id: 'delivery', type: 'delivery' },
+        { id: 'maker', type: 'maker' }
+      ] },
+      nodes: {
+        approval: { status: 'PASSED', approvedBy: 'ada', updatedAt: '2026-10-18T00:10:00.000Z' },
+        delivery: { status: 'PASSED', updatedAt: '2026-10-18T00:12:00.000Z' },
+        maker: { status: 'PASSED', updatedAt: '2026-10-18T00:04:00.000Z' }
+      },
+      artifacts: {
+        'artifact.verdict': { verdict: 'PASS', action: 'deliver' },
+        'artifact.verification': { passed: true, failed: 0, commandCount: 4 },
+        'artifact.findings': { count: 3, blocking: 1 },
+        'artifact.drift': { outOfMapCount: 2 },
+        'artifact.receipt': { present: true, verified: true, problems: [] }
+      },
+      budget: { spentThisRun: 0, perRunTokenLimit: 1000 }
+    }; renderRunSummary()`, context);
+    const card = elements.get('run-summary-card');
+    assert.equal(card.hidden, false);
+    assert.match(card.innerHTML, /State<\/span><strong>DELIVERED<\/strong>/);
+    assert.match(card.innerHTML, /Destination<\/span><strong>origin\/main<\/strong>/);
+    assert.match(card.innerHTML, /Verdict<\/span><strong>PASS<\/strong>/);
+    assert.match(card.innerHTML, /Approver<\/span><strong>ada<\/strong>/);
+    assert.match(card.innerHTML, /Duration<\/span><strong>12m 00s<\/strong>/);
+    assert.match(card.innerHTML, /Tests<\/span><strong>4 passed \/ 0 failed<\/strong>/);
+    assert.match(card.innerHTML, /Findings<\/span><strong>3 \/ 1<\/strong>/);
+    assert.match(card.innerHTML, /Drift<\/span><strong>2<\/strong>/);
+    assert.match(card.innerHTML, /Receipt<\/span><strong>verified<\/strong>/);
+    assert.match(card.innerHTML, /Tokens<\/span><strong>unknown<\/strong>/);
+    vm.runInContext(`delete catalog.live.artifacts['artifact.verdict']; catalog.live.run.verdict = ''; renderRunSummary()`, context);
+    assert.match(card.innerHTML, /Verdict<\/span><strong>—<\/strong>/);
+    vm.runInContext(`catalog.live.artifacts['artifact.verdict'] = { verdict: 'PASS' }; renderRunSummary()`, context);
+
+    const liveCalls = [];
+    const previousFetch = context.fetch;
+    context.fetch = (url, options) => {
+      liveCalls.push(String(url));
+      return previousFetch(url, options);
+    };
+    vm.runInContext(`applyEvent({
+      type: 'artifact.verification',
+      runId: 'run-delivered',
+      payload: { passed: false, failed: 2, commandCount: 4 }
+    })`, context);
+    await waitFor(() => card.innerHTML.includes('2 passed / 2 failed'));
+    assert.equal(liveCalls.some((url) => url.includes('/api/live')), false);
+    assert.match(card.innerHTML, /State<\/span><strong>DELIVERED<\/strong>/);
+    assert.match(card.innerHTML, /Tokens<\/span><strong>unknown<\/strong>/);
+
+    vm.runInContext(`showWorkspace('wiring'); applyEvent({
+      type: 'lifecycle',
+      runId: 'run-delivered',
+      payload: { events: [{ nodeId: 'maker', status: 'RUNNING', at: '2026-10-18T00:11:00.000Z' }] }
+    })`, context);
+    await waitFor(() => {
+      const maker = elements.get('nodes').children.find((node) => node.dataset.nodeId === 'maker');
+      return maker && maker.dataset.status === 'active' && maker.innerHTML.includes('Running');
+    });
+    vm.runInContext('renderMinimap()', context);
+    const minimap = [...elements.get('canvas').children].find((element) =>
+      String(element.attributes['aria-label'] || '') === 'Workflow minimap'
+    );
+    assert.ok((minimap?.children || []).some((node) =>
+      String(node.attributes.class || '').includes('minimap-active')
+    ));
   } finally {
     await new Promise((resolve) => instance.server.close(resolve));
   }

@@ -37,8 +37,16 @@
     <section class="canvas" id="canvas" tabindex="0" aria-label="Workflow wiring" hidden>
       <div class="canvas-toolbar">
         <select id="recipe" aria-label="Workflow"></select>
-        <output id="integrity" title="Graph integrity">…</output>
-        <button class="primary" id="review">Save wiring</button>
+      </div>
+      <section id="run-summary-card" class="run-summary-card" hidden></section>
+      <div id="wiring-bar" class="wiring-bar" hidden>
+        <p id="wiring-count"></p>
+        <p id="wiring-pill" class="wiring-pill"></p>
+        <p id="wiring-error" role="status"></p>
+        <button type="button" id="undo">Undo</button>
+        <button type="button" id="redo">Redo</button>
+        <button type="button" id="discard-wiring">Discard</button>
+        <button type="button" class="primary" id="save-wiring">Save wiring</button>
       </div>
       <aside id="node-panel" aria-label="Node inspection" hidden></aside>
       <div id="scene">
