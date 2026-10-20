@@ -1895,6 +1895,17 @@ function executeGate(gate, runId) {
   return run;
 }
 
+// Blast radius of a Goal draft, so the human sees it with the Goal and can
+// confirm both in one stop (`goal freeze --confirm-impact`). Best effort.
+function impactPreview(runId, goal) {
+  try {
+    const map = impactMap.buildImpactMap(CWD, { run: loadRun(CWD, runId), goal });
+    return { files: (map.files || []).map((file) => file.path), tests: (map.tests || []).map((t) => t.path || t).slice(0, 10) };
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
 // Blast-radius map (#71): written into the Run once the Goal is frozen, so it
 // exists before Stage 3. Best effort: a scan failure never blocks a gate.
 function ensureImpactMap(runId) {
@@ -1945,6 +1956,15 @@ function captureMakerDiff(run) {
   return { path: path.relative(CWD, target).split(path.sep).join('/'), files: untracked.length };
 }
 
+function reviewLedgerBinding(run) {
+  try {
+    const ledger = JSON.parse(fs.readFileSync(path.join(CWD, '.ai-engineering-loop', 'runs', run.runId, 'findings.json'), 'utf8'));
+    return require('../lib/review-ingest.js').checkLedgerBinding(CWD, run, ledger).binding;
+  } catch {
+    return null;
+  }
+}
+
 function handleGate() {
   const gate = process.argv[3];
   const runId = argValue('--run');
@@ -1960,6 +1980,7 @@ function handleGate() {
     }
     const run = executeGate(gate, target.runId);
     const judge = gate === 'review' && run.tier ? judgeRequirement(CWD, run) : null;
+    const ledgerBinding = gate === 'review' ? reviewLedgerBinding(run) : null;
     const guardEvents = guard.guardSummary(CWD, run.runId);
     if (json) {
       console.log(JSON.stringify({
@@ -1970,6 +1991,7 @@ function handleGate() {
         gate,
         ...(run.tier ? { tier: run.tier.current } : {}),
         ...(judge ? { judgeRequired: judge.required, judgeReasons: judge.reasons } : {}),
+        ...(ledgerBinding ? { ledgerBinding } : {}),
         guard: guardEvents
       }));
     } else {
@@ -1979,6 +2001,9 @@ function handleGate() {
       if (run.tier) console.log(`- Tier: ${run.tier.current}`);
       if (guardEvents.warn || guardEvents.block) {
         console.log(`- Guard: ${guardEvents.block} blocked, ${guardEvents.warn} warned (${guardEvents.rules.join(', ')}); see guard-events.json`);
+      }
+      if (ledgerBinding === 'UNBOUND') {
+        console.log('- Ledger: UNBOUND (hand-written findings.json). Prefer `review ingest` so the ledger is bound to the reviewer output.');
       }
       if (judge) {
         console.log(judge.required
@@ -3051,10 +3076,12 @@ function handleGoal() {
         actor: argValue('--by') || 'agent',
         message: argValue('--message') || 'Updating the Goal draft'
       });
-      result = saveGoalDraft(CWD, runId, readBoundedJsonInput(argValue('--file')), {
+      const draftGoal = readBoundedJsonInput(argValue('--file'));
+      result = saveGoalDraft(CWD, runId, draftGoal, {
         actor: argValue('--by') || 'agent',
         expectedRevision: requiredIntegerArg('--revision')
       });
+      result = { ...result, impactPreview: impactPreview(runId, draftGoal) };
       appendRunLifecycle(CWD, runId, {
         type: 'GOAL_DRAFT_UPDATED',
         phase: 'goal',
@@ -3108,6 +3135,12 @@ function handleGoal() {
         message: 'Goal Contract frozen'
       });
       ensureImpactMap(runId);
+      // One human stop: the same person accepts the Goal and its blast radius
+      // (shown as impactPreview with the draft).
+      if (process.argv.includes('--confirm-impact')) {
+        const confirmed = impactMap.confirmImpactMap(CWD, { runId, by: argValue('--by') || 'human' });
+        result = { ...result, impact: { status: confirmed.map ? confirmed.map.status : 'CONFIRMED' } };
+      }
     } else {
       const error = new Error('goal must be show, draft, or freeze');
       error.code = 'INVALID_USAGE';
@@ -3752,6 +3785,42 @@ function handleBench() {
   }
 }
 
+// Command: review ingest (ledger bound to the reviewer output; lib/review-ingest.js)
+// Writes findings.json from the raw child output, gates review, and gates the
+// Judge too when the deterministic verdict is allowed.
+function handleReview() {
+  const json = process.argv.includes('--json');
+  try {
+    if (process.argv[3] !== 'ingest') throw Object.assign(new Error('Usage: review ingest --run <id> --child-id <id> --file <child-output>'), { code: 'INVALID_USAGE' });
+    const { ingestReview } = require('../lib/review-ingest.js');
+    const ingested = ingestReview(CWD, { runId: argValue('--run'), childId: argValue('--child-id'), file: argValue('--file') });
+    let run = executeGate('review', ingested.runId);
+    const judge = run.tier ? judgeRequirement(CWD, run) : { required: true, reasons: ['NO_TIER'] };
+    if (!judge.required) run = executeGate('judge', ingested.runId);
+    const result = {
+      ok: true,
+      runId: run.runId,
+      state: run.state,
+      iteration: run.iteration,
+      findings: ingested.findings,
+      ledgerBinding: 'BOUND',
+      judgeRequired: judge.required,
+      judgeReasons: judge.reasons,
+      next: judge.required
+        ? 'Spawn the Judge with the ledger and contract, write verdict.json, then gate judge.'
+        : (run.state === 'JUDGED_PASS' ? 'Deliver after human approval.' : `Judge returned ${run.state}; fix and re-verify.`)
+    };
+    if (json) console.log(JSON.stringify(result));
+    else {
+      log.success(`✓ review ingested (${ingested.findings} finding(s), bound to the reviewer output)`);
+      console.log(`- State: ${run.state}, iteration ${run.iteration}`);
+      console.log(`- Next: ${result.next}`);
+    }
+  } catch (err) {
+    stageJsonError(err, json, 'REVIEW_INGEST_FAILED');
+  }
+}
+
 // Command: quick start|finish (T0 in two calls; lib/quick.js)
 function handleQuick() {
   const action = process.argv[3];
@@ -3950,6 +4019,9 @@ Commands:
   escalation   Compute the minimum Judge model tier from deterministic risk signals
                --run <id>  target a non-current run
                --json      print machine-readable reasons
+  review       ingest --run <id> --child-id <id> --file <child-output> [--json]
+               bind findings.json to the Devil's Advocate output, gate review, and gate the
+               Judge too when the deterministic verdict is allowed
   quick        T0 in two calls: start creates the Run and a derived Goal; finish gates the
                working-tree diff, verifies, writes claimed-vs-reality, and runs review + judge
                start "<task>" [--mode assisted|unattended] | finish [--run <id>] [--cmd "<command>"]...
@@ -4179,6 +4251,9 @@ switch (command) {
     break;
   case 'quick':
     handleQuick();
+    break;
+  case 'review':
+    handleReview();
     break;
   case 'verify-receipt':
     handleVerifyReceipt();
