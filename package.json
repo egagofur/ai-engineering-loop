@@ -22,7 +22,6 @@
     ".agents/",
     ".grok/",
     ".claude/agents/",
-    ".claude/skills/",
     "LICENSE",
     "THIRD_PARTY_NOTICES.md",
     "CHANGELOG.md",

@@ -215,19 +215,15 @@ const REQUIRED_FILES = [
 // .ael-generated.json) or is package-owned; otherwise the new template goes to
 // `<file>.ael-new` and the user's file is left alone.
 // Legacy projects (no .ael-generated.json yet, decision 5 on #37): the first
-// such refresh overwrites AEL-managed files directly and deletes obsolete
-// AEL-managed files, after copying the old content into a snapshot under
-// .ai-engineering-loop/.ael-backup/<timestamp>/. Hashes are recorded so later
-// refreshes use the normal flow. Only paths this writer generates (or lists in
-// OBSOLETE_CONTEXT_FILES) are touched; files written with overwrite:false
+// such refresh overwrites AEL-managed files directly, after copying the old
+// content into a snapshot under .ai-engineering-loop/.ael-backup/<timestamp>/.
+// Hashes are recorded so later refreshes use the normal flow. Only paths this
+// writer generates are touched; files written with overwrite:false
 // (lessons, glossary, ...) and every other user file are left alone.
 let CONTEXT_WRITE_SAFE = false;
 let CONTEXT_WRITE_LEGACY = null; // { root, snapshotDir } during a legacy refresh
 const CONTEXT_WRITE_REPORT = { updated: [], aelNew: [], kept: [], seen: new Set(), snapshot: [], removed: [], obsoleteKept: [] };
 const PACKAGE_OWNED_CONTEXT = new Set(['metadata.json']);
-// Context files older AEL versions generated and this one no longer does
-// (relative to .ai-engineering-loop/). Deleted on the first legacy refresh.
-const OBSOLETE_CONTEXT_FILES = Object.freeze([]);
 const GENERATED_HASHES_FILE = '.ael-generated.json';
 
 function generatedHashesPath(filePath) {
@@ -300,8 +296,8 @@ function writeContextFile(filePath, content, { overwrite = true } = {}) {
 
 // After a non-destructive refresh: remove AEL-managed files this version no
 // longer generates. Normal flow: only files whose recorded hash still matches
-// (edited ones are reported and kept). Legacy flow: OBSOLETE_CONTEXT_FILES,
-// snapshotted first.
+// (edited ones are reported and kept); removed files are snapshotted first
+// during a legacy refresh.
 function removeObsoleteContextFiles(contextDir) {
   const root = path.resolve(contextDir);
   const candidates = new Map();
@@ -322,12 +318,6 @@ function removeObsoleteContextFiles(contextDir) {
       candidates.set(path.join(dir, name), { hash, dir, name });
     }
   }
-  if (CONTEXT_WRITE_LEGACY) {
-    for (const rel of OBSOLETE_CONTEXT_FILES) {
-      const abs = path.resolve(root, rel);
-      if (abs.startsWith(root + path.sep)) candidates.set(abs, { hash: null, dir: path.dirname(abs), name: path.basename(abs), legacy: true });
-    }
-  }
   for (const [abs, info] of candidates) {
     if (CONTEXT_WRITE_REPORT.seen.has(abs)) continue;
     const rel = path.relative(root, abs).split(path.sep).join('/');
@@ -338,7 +328,7 @@ function removeObsoleteContextFiles(contextDir) {
       stat = null;
     }
     if (stat && stat.isFile()) {
-      if (!info.legacy && sha256Text(fs.readFileSync(abs)) !== info.hash) {
+      if (sha256Text(fs.readFileSync(abs)) !== info.hash) {
         CONTEXT_WRITE_REPORT.obsoleteKept.push(rel);
         continue;
       }

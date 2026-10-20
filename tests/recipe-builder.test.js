@@ -8,10 +8,8 @@ const test = require('node:test');
 const {
   cloneRecipe,
   diffRecipes,
-  applyRecipeImport,
   inspectRecipe,
   installRecipe,
-  planRecipeImport,
   recipeCatalog
 } = require('../lib/recipe-builder.js');
 const { loadRecipe } = require('../lib/recipe.js');
@@ -93,38 +91,4 @@ test('catalog, inspect, and diff provide stable machine-readable authoring data'
   assert.deepEqual(diff.removed, []);
   assert.deepEqual(diff.changed, []);
   assert.equal(diff.metadataChanged, true);
-});
-
-test('import merge preview deterministically renames collisions and rewrites imported references only', () => {
-  const root = project();
-  const existing = loadRecipe(root, 'default').recipe;
-  const imported = loadRecipe(root, 'default').recipe;
-  const before = JSON.stringify(existing);
-  const first = planRecipeImport(existing, imported, 'merge');
-  const second = planRecipeImport(existing, imported, 'merge');
-
-  assert.deepEqual(first, second);
-  assert.equal(JSON.stringify(existing), before);
-  assert.equal(first.nodeIdMap.goal, 'goal-2');
-  assert.ok(first.edgeIdMap[imported.edges[0].id]);
-  const merged = applyRecipeImport(existing, imported, first);
-  assert.equal(merged.nodes.length, existing.nodes.length + imported.nodes.length);
-  assert.ok(merged.edges.some((edge) => edge.from === 'goal-2'));
-  assert.deepEqual(
-    merged.edges.filter((edge) => existing.edges.some((current) => current.id === edge.id)),
-    existing.edges
-  );
-});
-
-test('replace and cancel import plans are explicit and invalid input never mutates existing graph', () => {
-  const root = project();
-  const existing = loadRecipe(root, 'default').recipe;
-  const imported = loadRecipe(root, 'bugfix').recipe;
-  const before = JSON.stringify(existing);
-  assert.equal(applyRecipeImport(existing, imported, planRecipeImport(existing, imported, 'cancel')), existing);
-  const replaced = applyRecipeImport(existing, imported, planRecipeImport(existing, imported, 'replace'));
-  assert.deepEqual(replaced, imported);
-  assert.equal(JSON.stringify(existing), before);
-  assert.throws(() => planRecipeImport(existing, { nodes: [] }, 'merge'), { code: 'INVALID_RECIPE' });
-  assert.equal(JSON.stringify(existing), before);
 });

@@ -8,15 +8,15 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 
 const {
-  parseWorkflowFile,
   parseWorkflowMarkdown,
   writeWorkflowOverlay,
   assertNoRequiredSkip,
-  routeDurableNote,
   parseWriteArg,
   normalizeMakerIntern,
   workflowMarkdown
 } = require('../lib/generate-workflow.js');
+
+const parseWorkflowFile = (dir) => parseWorkflowMarkdown(fs.readFileSync(path.join(dir, '.ai-engineering-loop', 'workflow.md'), 'utf8'));
 
 const CLI = path.join(__dirname, '..', 'bin', 'ai-engineering-loop.js');
 
@@ -39,22 +39,6 @@ test('AC-1 writeWorkflowOverlay writes workflow.md and empty lessons.md', () => 
   assert.doesNotMatch(lessons, /\| 20\d{2}-/);
 });
 
-test('AC-2 missing workflow.md returns default overlay', () => {
-  const dir = tmpRepo();
-  const parsed = parseWorkflowFile(dir);
-  assert.strictEqual(parsed.missing, true);
-  assert.strictEqual(parsed.hooks.before_grill, 'none');
-  assert.strictEqual(parsed.hooks.after_freeze, 'none');
-  assert.strictEqual(parsed.hooks.after_pass, 'none');
-  assert.deepStrictEqual(parsed.optionalSkips, []);
-  assert.deepStrictEqual(parsed.required, [
-    'goal_contract',
-    'verification',
-    'devil_advocate',
-    'judge'
-  ]);
-});
-
 test('AC-3 skip devil_advocate is rejected and does not write', () => {
   const dir = tmpRepo();
   assert.throws(
@@ -66,13 +50,6 @@ test('AC-3 skip devil_advocate is rejected and does not write', () => {
   assert.throws(() => assertNoRequiredSkip(['goal_contract']), /cannot skip/);
   assert.throws(() => assertNoRequiredSkip(['verification']), /cannot skip/);
   assert.doesNotThrow(() => assertNoRequiredSkip(['blast_radius']));
-});
-
-test('AC-4 routeDurableNote sends term to glossary and process to lessons', () => {
-  assert.strictEqual(routeDurableNote('term'), 'glossary.md');
-  assert.strictEqual(routeDurableNote('process'), 'lessons.md');
-  assert.strictEqual(routeDurableNote('convention'), 'conventions.md');
-  assert.strictEqual(routeDurableNote('adr'), 'adrs/');
 });
 
 test('AC-5 --write does not overwrite filled lessons.md', () => {
@@ -133,13 +110,6 @@ test('AC-1 default overlay maker_intern is none', () => {
   assert.strictEqual(parsed.makerIntern, 'none');
   assert.match(workflowMarkdown(), /host's catalog/);
   assert.match(workflowMarkdown(), /Do not type a guessed slug/);
-});
-
-test('AC-2 missing workflow.md makerIntern is none', () => {
-  const dir = tmpRepo();
-  const parsed = parseWorkflowFile(dir);
-  assert.strictEqual(parsed.missing, true);
-  assert.strictEqual(parsed.makerIntern, 'none');
 });
 
 test('AC-3 empty or None intern normalizes to none', () => {
