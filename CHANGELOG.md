@@ -18,6 +18,13 @@ All notable changes to this project are documented here. Versions follow [Semant
 - Windows: `npm` and other `.cmd` shims are resolved for `verification record` and auto-update; atomic writes retry a transient `EPERM`/`EBUSY` rename.
 - Studio live snapshots show the newest 100 lifecycle events, and the watcher seeds its cursor from the latest event, so long Runs no longer replay stale events.
 
+### Lighter package and faster hook calls
+
+- **Changed:** the npm package ships one copy of the host skills (`.agents/skills`, which `sync-hosts` already installs from) instead of two identical trees: 247 files, 1.79 MB unpacked (was 279 files, 2.11 MB). `docs` and `doctor` read `.agents/skills`.
+- **Changed:** the CLI loads command modules on first use. `guard check --hook` now loads 15 modules instead of 61.
+- **Removed:** internal helpers that only tests called (capability selection and report formatting in `lib/orchestration.js`, `lib/intern-catalog.js`, recipe import plan/apply, loop-group create/remove, and a few single-use exports). CLI behaviour is unchanged.
+- **Internal:** one atomic writer, sha256 helper, optional JSON reader and actor-id rule (`lib/fsutil.js`), and one hash-chained JSONL ledger for run interactions and lifecycle (`lib/jsonl-ledger.js`).
+
 ## 2.2.0 - 2026-10-18
 
 ### Studio: richer node detail, Live tab, times, and trackpad gestures (#91)

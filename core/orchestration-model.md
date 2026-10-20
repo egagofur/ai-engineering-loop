@@ -22,7 +22,7 @@ The architecture explicitly distinguishes three separate stages:
 
 > [!IMPORTANT]
 > **Semantic Invariant**:
-> If `CONFIGURATION_SUPPORTED = true`, `INVOCATION_AVAILABLE = false`, and `EXECUTION_PROVEN = false`, the engine **must select `CONTEXT_ISOLATION_ONLY`**.
+> If `CONFIGURATION_SUPPORTED = true`, `INVOCATION_AVAILABLE = false`, and `EXECUTION_PROVEN = false`, the review **must report `CONTEXT_ISOLATION_ONLY`**.
 > Configuration discovery is **never** conflated with execution capability.
 
 ---
@@ -62,7 +62,7 @@ The system categorically rejects the following as proof of independent LLM execu
 | **External Agent CLI** | `/Users/.../.local/bin/claude -p` | `UNAVAILABLE` | Unauthenticated: `Not logged in · Please run /login`. |
 | **Antigravity `new-conversation`** | `agentapi new-conversation` | `UNAVAILABLE` | Blocked by Language Server `project_id` authorization. |
 | **Antigravity `send-message`** | `agentapi send-message` | `IPC_MESSAGE_DISPATCH` | Succeeded (IPC message dispatch works, but is not an agent). |
-| **Artifact Barrier** | `buildReviewContextBarrier()` | `CONTEXT_ISOLATION_ONLY` | **Available & Verified**: 0% prompt bleed on disk. |
+| **Artifact Barrier** | Clean-slate review artifacts | `CONTEXT_ISOLATION_ONLY` | **Available**: review reads only on-disk artifacts. |
 
 ### Architectural Conclusion:
 > *"Antigravity custom subagent configuration is supported/discoverable, but native subagent invocation is not exposed or executable from the current standalone agent runtime."*
@@ -80,7 +80,7 @@ The system categorically rejects the following as proof of independent LLM execu
 | **Headless process** | `grok -p` | `FRESH_PROCESS_AGENT` | Only after the process prints a model response. |
 | **Cavecrew reviewer** | `caveman:cavecrew-reviewer` | `GROK_COMPRESSED_REVIEW_PRESET` | **Rejected** as Devil's Advocate / Judge (wrong output schema). |
 | **Maker resume** | `spawn_subagent(resume_from=maker)` | tainted history | **Rejected**. DA and Judge must spawn fresh. |
-| **Artifact barrier** | `buildReviewContextBarrier()` | `CONTEXT_ISOLATION_ONLY` | Fallback when spawn is disabled. |
+| **Artifact barrier** | Clean-slate review artifacts | `CONTEXT_ISOLATION_ONLY` | Fallback when spawn is disabled. |
 
 ### Architectural Conclusion:
 > *"Grok CLI spawn_subagent is a true independent child session. Select TRUE_INDEPENDENT_AGENT only after a child id and model response are captured without resume_from. Binary presence and agent markdown are never sufficient."*
@@ -91,7 +91,7 @@ See [docs/grok-cli-feasibility.md](../docs/grok-cli-feasibility.md).
 
 ## 5. Truthful Reporting Output
 
-When `CONTEXT_ISOLATION_ONLY` is selected, the report generator strictly produces:
+When `CONTEXT_ISOLATION_ONLY` applies, the review report header is:
 
 ```text
 Execution Mode: CONTEXT_ISOLATION_ONLY
