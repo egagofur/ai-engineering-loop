@@ -165,7 +165,7 @@ test('AC-5 persisted Run state determines the visible first-run journey without 
   });
   fs.appendFileSync(
     path.join(executingRoot, '.ai-engineering-loop', 'runs', executingRun.runId, 'interactions.jsonl'),
-    '{'
+    '{\n'
   );
   const interactionDegraded = runJourney(
     executingRoot,

@@ -32,12 +32,12 @@ npx ai-engineering-loop hooks status | uninstall
 
 | Check | Rule |
 |---|---|
-| Edit / Write / MultiEdit / NotebookEdit | Blocked or warned when the file is outside the Run scope or matches `scope.deniedPaths`. `.ai-engineering-loop/` (Run artifacts) is always writable. A `REPORT_ONLY` Run may not edit at all. |
-| Bash | `rm` with recursive + force flags, `DROP TABLE/DATABASE/SCHEMA`, `TRUNCATE`, `git push --force` / `-f` / `--force-with-lease` / `+refspec`, `git reset --hard`, `git clean` with `-f` and `-d`. |
+| Edit / Write / MultiEdit / NotebookEdit | Blocked or warned when the file is outside the Run scope or matches `scope.deniedPaths`. `.ai-engineering-loop/` (Run artifacts) is writable, except CLI-owned Run evidence (`runs/current.json` and, per Run, `state.json`, `plan.json`, `workflow-state.json`, `events.jsonl`, `lifecycle.jsonl`, `interactions.jsonl`, `verification*`, `sandbox-evidence.json`, `impact-map.json`, `impact-drift.json`, `guard-events.json`, `receipt.*`, `CANCELLED`): rule `run-evidence`. A `REPORT_ONLY` Run may not edit at all. |
+| Bash | `rm` with recursive + force flags (also `\rm` and `"rm"`), `find -delete` / `find -exec rm`, `DROP TABLE/DATABASE/SCHEMA`, `TRUNCATE`, `git push --force` / `-f` / `--force-with-lease` / `+refspec`, `git reset --hard`, `git clean` with `-f` and `-d`, `git checkout -- <paths>` / `git checkout .` / `-f`, `git restore` (except `--staged` only), `git branch -D`. |
 
 **Scope** = the frozen Goal's optional `scope.allowedPaths` plus the confirmed blast-radius map (`impact confirm`, see `docs blast-radius-map`). `scope.deniedPaths` always applies. A Goal without `scope` and without a confirmed map has no path enforcement (backward compatible). Globs: `**` crosses directories, `*` and `?` stay inside one segment, a trailing `/` is a directory prefix; paths are repository-relative.
 
-**Decision** by Run mode: `ASSISTED` → `warn` (the Claude hook answers `ask`, so the human decides); `UNATTENDED` and `REPORT_ONLY` → `block` (`deny`; CLI exit code 2). With no active Run the policy `defaultMode` applies and nothing is recorded.
+**Decision** by Run mode: `ASSISTED` → `warn` (the Claude hook answers `ask`, so the human decides); `UNATTENDED` and `REPORT_ONLY` → `block` (`deny`; CLI exit code 2). If `guard check --hook` itself fails (bad input, unreadable Run), it exits 2 so the host blocks the call, except in `ASSISTED` where it exits 1 and the human still approves. `hooks install` pins the hook to the installed version (`npx --yes ai-engineering-loop@<version>`) and re-pins hooks from older installs. With no active Run the policy `defaultMode` applies and nothing is recorded.
 
 **Evidence:** every warn and block is appended to `RUN_DIR/guard-events.json` (tool, rule ids, reasons, mode, redacted repository-relative target). `gate <name>` prints the counts and `--json` returns `guard: { warn, block, rules }`.
 

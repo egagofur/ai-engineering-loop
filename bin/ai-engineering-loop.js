@@ -3364,7 +3364,8 @@ function handleGuard() {
   } catch (err) {
     if (hook) {
       console.error(`ai-engineering-loop guard: ${err.message}`);
-      process.exitCode = 1;
+      // Exit 2 makes Claude Code block the call; exit 1 would let it run.
+      process.exitCode = guard.hookFailureExitCode(CWD, argValue('--run'));
       return;
     }
     stageJsonError(err, json, 'GUARD_FAILED');
