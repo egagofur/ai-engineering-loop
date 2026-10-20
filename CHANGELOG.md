@@ -4,7 +4,19 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
-_No changes yet._
+### Security
+
+- Studio: mutating requests now need the `x-ael-studio-token` header or an exact same-origin `Origin`, plus `content-type: application/json`. The SameSite cookie alone no longer authorizes a POST from another localhost port.
+- Secret redaction covers JSON keys (`{"password":"…"}`), key names embedded in identifiers (`AWS_SECRET_ACCESS_KEY=`, `_password`, `clientSecret`), npm `npm_` tokens, Stripe `sk_live_`/`rk_live_` keys, Slack `xox*` tokens, JWTs, and credentials in URLs (`postgres://user:pass@host`).
+- Guard: agent edits to CLI-owned Run evidence (`verification.json`, `state.json`, event ledgers, and others) are denied; `\rm -rf`, `find -delete`, `git checkout -- .`, `git restore`, and `git branch -D` are detected; a failing hook exits 2 (fail closed) outside ASSISTED; `hooks install` pins the hook command to the installed version.
+
+### Fixed
+
+- `verification record` timeouts stop the whole process tree (process group on POSIX, `taskkill /T` on Windows) and no longer hang on a grandchild that holds the output pipes.
+- Concurrent `verification record` calls and Run state updates no longer lose each other's writes: both re-read under a lock before writing.
+- An unterminated last line in `events.jsonl`, `lifecycle.jsonl`, or `interactions.jsonl` (crash mid-append) no longer bricks the Run; the next append quarantines it to `<ledger>.torn-*`.
+- Windows: `npm` and other `.cmd` shims are resolved for `verification record` and auto-update; atomic writes retry a transient `EPERM`/`EBUSY` rename.
+- Studio live snapshots show the newest 100 lifecycle events, and the watcher seeds its cursor from the latest event, so long Runs no longer replay stale events.
 
 ## 2.2.0 - 2026-10-18
 
