@@ -8,13 +8,12 @@ REPORT_ONLY runs skip these stages; their single report review is in `loop-maker
 - Use the runtime policy `reviewProfile` (default `lean`); upgrade to `standard` or `thorough` only when the human asks or the budget gate requires it.
 - Spawn a new DA as a sibling (Host rules) with the pack path, the changed paths as a short list, and claimed-vs-reality.md. Do not paste Maker rationale. DA prompt includes "at most 8 tool calls; read the diff file; skip css and generated files".
 - Iteration 2+: give unresolved findings and new hunks, not the whole diff again.
-- Wait, `budget record` its usage (or `--unavailable`), normalize its ledger into `RUN_DIR/findings.json` with runId and diffHash, then `npx ai-engineering-loop gate review --json`. Report Spec and Standards separately.
+- Wait, `budget record` its usage (or `--unavailable`), save its output to a file, then `review ingest --run <runId> --child-id <id> --file <output> --json` (binds the ledger, runs `gate review`, and `gate judge` when not required). Never drop a finding; dismiss or downgrade only with `dismissal: {by, evidence}`. Report Spec and Standards separately.
 
 ## Judge
 
-- T0, or T1 when `gate review --json` reports `judgeRequired: false`: run `gate judge`; the CLI writes the deterministic verdict.
 - Otherwise run `npx ai-engineering-loop escalation --json` and resolve the required tier through the host model catalog; if unavailable, escalate to the user. T2 needs STRONG_MODEL.
 - Judge context: only run-summary.md, verification-summary.json (or verification.json), open-findings.json/findings.json, and the Goal hash; it reads the full diff only if those contradict each other. Judge prompt includes "at most 4 tool calls; ledger and contract only; skip css; do not re-review the whole diff".
-- Spawn a fresh sibling Judge, wait, `budget record`, write `RUN_DIR/verdict.json` with `modelTier`, then `gate judge`. A gate failure overrides optimistic prose.
+- Spawn a fresh sibling Judge, wait, `budget record`, write `RUN_DIR/verdict.json` with `modelTier` and any `judgeFindings`, then `gate judge`. A gate failure overrides optimistic prose.
 - Acting on findings (ITERATE or human MR comments): verify each one before changing code; fix valid ones test-first, decline invalid ones with evidence (skill `ael-receiving-code-review` if installed).
-- ITERATE while iteration < 3: fix in the parent, re-verify, spawn a **new** DA (never resume the previous child). At the iteration ceiling (3) ESCALATE to the human instead.
+- ITERATE under the recipe cap: fix in the parent, re-verify, spawn a **new** DA (never resume the previous child). At the cap or NO_PROGRESS, ESCALATE to the human.

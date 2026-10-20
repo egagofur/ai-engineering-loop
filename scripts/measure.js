@@ -103,66 +103,15 @@ function measureScenario(scenario) {
   // The host loads SKILL.md itself (no tool call).
   parentChars += size(path.join(ROOT, SKILL_DIR, 'SKILL.md'));
 
-  const run = JSON.parse(cli('run --json', 'run', '--json', scenario.task));
+  // `quick start` is the entry for every task: T0 gets a derived Goal; other
+  // tiers get a plain Run and continue with the normal loop.
+  const run = JSON.parse(cli('quick start', 'quick', 'start', scenario.task, '--json'));
   const runDir = path.join('.ai-engineering-loop/runs', run.runId);
   readProject('.ai-engineering-loop/glossary.md');
   readProject('.ai-engineering-loop/workflow.md');
-
-  readRef('loop-goal');
-  if (run.tier === 'T2') {
-    readRef('loop-risky');
-    readDoc('grill-policy', 'core/grill-policy.md');
-  }
-  const goal = {
-    schemaVersion: 1,
-    runId: run.runId,
-    objective: scenario.task,
-    acceptanceCriteria: [{ id: 'AC-1', statement: scenario.task, evidenceRequired: 'node --version exit 0', failureCases: ['regression in existing behavior'] }]
-  };
-  if (run.tier === 'T0') {
-    write('goal-contract.json', path.join(runDir, 'goal-contract.json'), JSON.stringify(goal));
-    cli('gate goal', 'gate', 'goal');
-  } else {
-    write('goal draft file', '.ai-engineering-loop/goal-draft.json', JSON.stringify(goal));
-    cli('goal draft', 'goal', 'draft', '--run', run.runId, '--file', '.ai-engineering-loop/goal-draft.json', '--revision', '0');
-    cli('interaction question', 'interaction', 'question', '--run', run.runId, '--id', 'freeze', '--message', 'Freeze this Goal?');
-    calls.push('human:freeze');
-    cli('goal freeze --latest', 'goal', 'freeze', '--latest', '--run', run.runId, '--by', 'human');
-  }
-
-  // The code edit itself is task work, not orchestration.
-  readRef('loop-maker');
-  if (run.tier !== 'T0') readDoc('tdd-policy', 'policies/tdd-policy.md');
-  fs.writeFileSync(path.join(repo, scenario.file), scenario.after);
-  cli('gate maker --from-git', 'gate', 'maker', '--from-git');
-
-  readRef('loop-verify');
-  cli('verify', 'verify', '--run', run.runId, '--cmd', 'node --version', '--json');
-  write('claimed-vs-reality.md', '.ai-engineering-loop/tasks/claimed-vs-reality.md', '| AC | Claimed | Reality from command log |\n|---|---|---|\n| AC-1 | done | node --version exit 0 |\n');
-
   const state = () => JSON.parse(fs.readFileSync(path.join(repo, runDir, 'state.json'), 'utf8'));
   const tier = () => (state().tier || {}).current;
-  if (tier() !== 'T0') {
-    readRef('loop-review');
-    const pack = JSON.parse(cli('review-pack', 'review-pack', '--run', run.runId, '--json'));
-    spawn('devil-advocate', size(path.join(repo, pack.packPath)) + size(path.join(repo, '.ai-engineering-loop/tasks/claimed-vs-reality.md')));
-    cli('budget record', 'budget', 'record', '--unavailable', '--run', run.runId);
-    write('findings.json', path.join(runDir, 'findings.json'), JSON.stringify({ schemaVersion: 1, runId: run.runId, diffHash: state().artifacts.diff.sha256, findings: [] }));
-  }
-  const review = JSON.parse(cli('gate review', 'gate', 'review', '--json'));
-  if (review.judgeRequired) {
-    cli('escalation', 'escalation', '--run', run.runId, '--json');
-    spawn('judge', ['run-summary.md', 'verification-summary.json', 'findings.json'].reduce((n, f) => n + size(path.join(repo, runDir, f)), 0));
-    cli('budget record', 'budget', 'record', '--unavailable', '--run', run.runId);
-    write('verdict.json', path.join(runDir, 'verdict.json'), JSON.stringify({ schemaVersion: 1, runId: run.runId, verdict: 'PASS', reason: 'no open findings', action: 'deliver', modelTier: 'STRONG_MODEL' }));
-  }
-  cli('gate judge', 'gate', 'judge');
-
-  readRef('loop-deliver');
-  calls.push('human:approve delivery');
-  cli('deliver', 'deliver', '--run', run.runId, '--destination', 'pr', '--summary', scenario.task, '--approve', '--by', 'human', '--json');
-
-  return {
+  const result = () => ({
     id: scenario.id,
     tier: tier(),
     finalState: state().state,
@@ -176,7 +125,70 @@ function measureScenario(scenario) {
     subagents,
     childContextChars: childChars,
     calls
+  });
+
+  if (run.quick) {
+    // The code edit itself is task work, not orchestration.
+    fs.writeFileSync(path.join(repo, scenario.file), scenario.after);
+    cli('quick finish', 'quick', 'finish', '--run', run.runId, '--cmd', 'node --version', '--json');
+    readRef('loop-deliver');
+    calls.push('human:approve delivery');
+    cli('deliver', 'deliver', '--run', run.runId, '--destination', 'pr', '--summary', scenario.task, '--approve', '--by', 'human', '--json');
+    return result();
+  }
+
+  readRef('loop-goal');
+  if (run.tier === 'T2') {
+    readRef('loop-risky');
+    readDoc('grill-policy', 'core/grill-policy.md');
+  }
+  const goal = {
+    schemaVersion: 1,
+    runId: run.runId,
+    objective: scenario.task,
+    acceptanceCriteria: [{ id: 'AC-1', statement: scenario.task, evidenceRequired: 'node --version exit 0', failureCases: ['regression in existing behavior'] }]
   };
+  {
+    write('goal draft file', '.ai-engineering-loop/goal-draft.json', JSON.stringify(goal));
+    cli('goal draft', 'goal', 'draft', '--run', run.runId, '--file', '.ai-engineering-loop/goal-draft.json', '--revision', '0');
+    calls.push('human:freeze');
+    cli('goal freeze --latest --confirm-impact', 'goal', 'freeze', '--latest', '--run', run.runId, '--by', 'human', '--confirm-impact');
+  }
+
+  // The code edit itself is task work, not orchestration.
+  readRef('loop-maker');
+  if (run.tier !== 'T0') readDoc('tdd-policy', 'policies/tdd-policy.md');
+  fs.writeFileSync(path.join(repo, scenario.file), scenario.after);
+  cli('gate maker --from-git', 'gate', 'maker', '--from-git');
+
+  readRef('loop-verify');
+  cli('verify --related', 'verify', '--related', '--run', run.runId, '--cmd', 'node --version', '--json');
+  write('claimed-vs-reality.md', '.ai-engineering-loop/tasks/claimed-vs-reality.md', '| AC | Claimed | Reality from command log |\n|---|---|---|\n| AC-1 | done | node --version exit 0 |\n');
+
+  if (tier() !== 'T0') {
+    readRef('loop-review');
+    const pack = JSON.parse(cli('review-pack', 'review-pack', '--run', run.runId, '--json'));
+    spawn('devil-advocate', size(path.join(repo, pack.packPath)) + size(path.join(repo, '.ai-engineering-loop/tasks/claimed-vs-reality.md')));
+    cli('budget record', 'budget', 'record', '--unavailable', '--run', run.runId);
+    write('da-output.md', '.ai-engineering-loop/da-output.md', '```json\n{"findings":[]}\n```\n');
+  }
+  const review = tier() !== 'T0'
+    ? JSON.parse(cli('review ingest', 'review', 'ingest', '--run', run.runId, '--child-id', 'da-measure', '--file', '.ai-engineering-loop/da-output.md', '--json'))
+    : JSON.parse(cli('gate review', 'gate', 'review', '--json'));
+  if (review.judgeRequired) {
+    cli('escalation', 'escalation', '--run', run.runId, '--json');
+    spawn('judge', ['run-summary.md', 'verification-summary.json', 'findings.json'].reduce((n, f) => n + size(path.join(repo, runDir, f)), 0));
+    cli('budget record', 'budget', 'record', '--unavailable', '--run', run.runId);
+    write('verdict.json', path.join(runDir, 'verdict.json'), JSON.stringify({ schemaVersion: 1, runId: run.runId, verdict: 'PASS', reason: 'no open findings', action: 'deliver', modelTier: 'STRONG_MODEL' }));
+  }
+  if (state().state !== 'JUDGED_PASS') cli('gate judge', 'gate', 'judge');
+
+  readRef('loop-deliver');
+  cli('verify --final', 'verify', '--final', '--run', run.runId, '--cmd', 'node --version', '--json');
+  calls.push('human:approve delivery');
+  cli('deliver', 'deliver', '--run', run.runId, '--destination', 'pr', '--summary', scenario.task, '--approve', '--by', 'human', '--json');
+
+  return result();
 }
 
 function pct(after, before) {

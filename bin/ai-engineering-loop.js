@@ -1895,6 +1895,23 @@ function executeGate(gate, runId) {
   return run;
 }
 
+const FREEZE_QUESTION = /^Freeze Goal draft revision \d+/;
+
+// The freeze answers the pending freeze question(s) that `goal draft` asked,
+// so Studio does not keep showing them. Best effort.
+function closeFreezeQuestions(runId, actor) {
+  try {
+    const { listRunInteractions, appendRunAnswer } = require('../lib/run-interactions.js');
+    for (const question of listRunInteractions(CWD, runId).pending) {
+      if (FREEZE_QUESTION.test(question.message)) {
+        appendRunAnswer(CWD, runId, question.questionId, { message: 'Goal frozen', actor });
+      }
+    }
+  } catch (err) {
+    console.error(`! freeze question not closed: ${err.message}`);
+  }
+}
+
 // Blast radius of a Goal draft, so the human sees it with the Goal and can
 // confirm both in one stop (`goal freeze --confirm-impact`). Best effort.
 function impactPreview(runId, goal) {
@@ -3095,6 +3112,17 @@ function handleGoal() {
         actor: argValue('--by') || 'agent',
         message: `Goal draft revision ${result.metadata.revision} is ready for review`
       });
+      // The freeze question is persisted with the draft, so Studio shows it
+      // without a separate `interaction question` call.
+      try {
+        extra.question = appendRunQuestion(CWD, runId, {
+          message: `Freeze Goal draft revision ${result.metadata.revision} (and accept its blast radius)?`,
+          actor: argValue('--by') || 'agent'
+        });
+        appendRunLifecycle(CWD, runId, { type: 'AGENT_WAITING', phase: 'goal', actor: argValue('--by') || 'agent', message: `Waiting for answer to Q${extra.question.number}` });
+      } catch (err) {
+        extra.question = { error: err.message };
+      }
     } else if (action === 'freeze') {
       const latest = process.argv.includes('--latest');
       const latestDraft = latest ? loadGoalDraft(CWD, runId) : null;
@@ -3136,6 +3164,7 @@ function handleGoal() {
         message: 'Goal Contract frozen'
       });
       ensureImpactMap(runId);
+      closeFreezeQuestions(runId, argValue('--by') || 'human');
       // One human stop: the same person accepts the Goal and its blast radius
       // (shown as impactPreview with the draft).
       if (process.argv.includes('--confirm-impact')) {

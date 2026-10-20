@@ -69,6 +69,8 @@ function toVerified({ repo, cli }) {
   assert.ok(draft.impactPreview, 'the draft carries an impact preview for the human');
   const freeze = JSON.parse(ok(cli('goal', 'freeze', '--latest', '--run', run.runId, '--by', 'human', '--confirm-impact'), 'goal freeze').stdout);
   assert.strictEqual(freeze.impact.status, 'CONFIRMED');
+  const { listRunInteractions } = require('../lib/run-interactions.js');
+  assert.strictEqual(listRunInteractions(repo, run.runId).pending.length, 0, 'freezing answers the freeze question');
   fs.writeFileSync(path.join(repo, 'src/list.js'), 'module.exports = (items, page = 1) => items.slice((page - 1) * 10, page * 10);\n');
   ok(cli('gate', 'maker', '--from-git', '--run', run.runId), 'gate maker');
   ok(cli('verify', '--run', run.runId, '--cmd', 'node --version'), 'verify');

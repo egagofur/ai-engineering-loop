@@ -1,6 +1,6 @@
 # Lower-ceremony, tamper-resistant loop: design
 
-Date: 2026-10-20 · Status: approved by the user's "decide yourself" instruction · Branch: `claude/lower-ceremony-loop`
+Date: 2026-10-20 · Status: implemented on `claude/lower-ceremony-loop` (the user said to decide without asking; every choice marked *your call* below is open for review)
 
 ## Why
 
@@ -139,3 +139,36 @@ Agents already scope tests by hand to stay fast, and that scope is never recorde
 
 - Keep new logic in new modules (`lib/verification-lanes.js`, `lib/quick.js`, `lib/review-ingest.js`, `lib/no-progress.js`) with thin bin handlers. Other branches are rewriting bin, `run-state` and `verification-recorder`.
 - Update the skill sources (`skill-src/`), then run `npm run build:skills`. Update `scripts/measure.js` so the T0 scenario uses `quick`.
+
+## Results (measured after implementation)
+
+**`jest --findRelatedTests` on dltx/backend-service:**
+
+| Changed file | Suites run | Time |
+|---|---|---|
+| One service (`purchase-request.service.ts`) | 2 suites, 22 tests | 6.5 s |
+| A widely imported util (`query-filter.util.ts`) | 127 suites, 846 tests | 30 s |
+| Full suite (for comparison) | 448 suites | 111 s |
+
+**`npm run measure`:**
+
+| Tier | Parent calls | Human stops | Notes |
+|---|---|---|---|
+| T0 | 15 → 6 | 1 | |
+| T1 | 23 → 22 | 2 | Now counts the impact confirmation, which used to be an unmeasured third stop, and the `verify --final` call. Skill and spec context: 17.7k chars, under the 50% budget. |
+| T2 | 29 | 2 | |
+
+## Decisions made without the user (your call)
+
+1. **Where the full suite is enforced:** at delivery, not at the Judge, so it runs once, on a diff that already passed review.
+2. **`verify --final` and already-full verification:** `verify --final` is a no-op when the gated verification already ran full scope.
+3. **Superseded failures:** re-running `verify` on the same diff replaces a failed command's record. The failure is kept under `superseded`, never deleted.
+4. **What `quick` does and does not do:** it uses the CLI's own commands as child processes, so its gates are identical to the long form. It never approves delivery. A non-T0 task becomes a plain Run.
+5. **Unbound ledgers:** accepted in ASSISTED (reported UNBOUND), refused in UNATTENDED.
+6. **What counts as a downgrade:** VALID → INVALID or a lower severity. Either one needs `dismissal.evidence`, and removing a finding always fails.
+7. **Iteration cap:** clamped to 1–5 even though loop-group schemas allow 100.
+8. **No-progress:** compares only against the previous ITERATE, using the same `diffHash` or the same blocking signature set.
+9. **Learnings:** mined automatically on DELIVERED or ESCALATED (`AEL_NO_AUTO_LEARN=1` turns it off). `run --json` shows the top 5 within a 600-token budget.
+10. **Tier from paths:** paths under a docs path never count as risky paths. Trivial-plus-risky text with no paths starts at T1.
+11. **Freeze question:** `goal draft` asks it, and `goal freeze` answers it.
+12. **`test_related` discovery:** Jest goes through the project's own test script, so env setup such as dltx's `scripts/test-unit.cjs` still applies. Vitest uses `vitest related --run`. Other runners get no `test_related` line.

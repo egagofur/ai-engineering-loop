@@ -11,7 +11,7 @@ Host files (`.claude/agents/`, `.grok/agents/`, `.agents/`) may differ only in Y
 
 ## Shared spawn rules
 
-- Write `git diff` to `.ai-engineering-loop/tasks/current.diff` before review.
+- Reviewers read the `review-pack` output or `RUN_DIR/diff.patch`; do not write a separate `tasks/current.diff`.
 - Pass artifact **paths**, not Maker chat.
 - Use the runtime policy `reviewProfile` to size context packs. Default `lean` protects Codex/GPT Plus-style sessions from repeated full-file prompts while keeping all gates intact.
 - Prefer `npx ai-engineering-loop context diff-hunks --run <run-id>` for review. It writes a private hunk-only pack with file summaries and unresolved findings, so reviewers do not need full source bodies unless a cited hunk is insufficient.

@@ -4,7 +4,17 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
-_No changes yet._
+### Lower ceremony, faster verification, tamper-resistant review
+
+- **Added:** `verify --related` runs the project's `test_related` command (`{files}` = changed files of the gated diff; `init` writes it for Jest and Vitest), tagged `scope: related`. When verification was related-only, `gate delivery` needs `verify --final`, a single full run bound to the same diff. Re-running `verify` on an unchanged diff reuses passing commands (`--fresh` re-runs them); a superseded failure stays in `verification.json` under `superseded`.
+- **Added:** `quick start "<task>"` / `quick finish` take a T0 task through the same gates in two calls: a Goal derived from the task, verify, claimed-vs-reality from the recorded output, review, and the deterministic Judge. T0 parent calls in `npm run measure`: 15 → 6.
+- **Added:** `review ingest --child-id <id> --file <output>` binds `findings.json` to the Devil's Advocate output (`reviewer.rawSha256`, `review-raw.txt`), gates review, and gates the Judge when not required. The review gate rejects a dropped finding, or one downgraded without `dismissal.evidence` (`LEDGER_TAMPERED`). UNATTENDED refuses unbound ledgers; ASSISTED reports `ledgerBinding: UNBOUND`.
+- **Added:** `verdict.json` may carry `judgeFindings`, so the Judge can block with evidence the ledger lacks. It still cannot PASS what the ledger blocks.
+- **Added:** `goal draft` returns an `impactPreview` and persists the freeze question; `goal freeze --confirm-impact` accepts the blast radius in the same human stop and closes the question.
+- **Changed:** the iteration cap comes from the recipe's Judge loop group (`maxIterations`, clamped to 1-5; default 3). An ITERATE that repeats the previous Maker diff or blocking findings escalates as `NO_PROGRESS` (`RUN_DIR/iterations.jsonl`).
+- **Changed:** runs that end DELIVERED or ESCALATED mine learnings automatically (`AEL_NO_AUTO_LEARN=1` opts out); `run --json` reports the top `learnings`.
+- **Changed:** tier classification is path-first. Docs-only paths stay T0 even when the task names a risky topic; prose under a risky directory is not a risky path; dependency manifests and lockfiles are never T0; trivial-plus-risky text without paths starts at T1.
+- **Fixed:** spec contradictions: no `tasks/current.diff`, one severity vocabulary (BLOCKER/HIGH, formerly SEV-1/SEV-2), auto-fixing linters before `gate maker`, the CONTEXT_ISOLATION_ONLY header no longer contains a forbidden word, and the Judge matrix covers every MEDIUM/LOW disposition.
 
 ## 2.2.0 - 2026-10-18
 

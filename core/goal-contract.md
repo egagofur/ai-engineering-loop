@@ -66,7 +66,7 @@ Each AC is one row that can **fail**. Happy path alone is not a contract (`polic
 ## 9. Definition of Done (DoD)
 - [ ] All Acceptance Criteria (AC-1 through AC-N) verified with automated tests.
 - [ ] 100% pass on all deterministic verification commands (0 errors, 0 warnings where enforced).
-- [ ] Independent Devil's Advocate review completed with 0 unresolved blocking findings (SEV-1 / SEV-2).
+- [ ] Independent Devil's Advocate review completed with 0 unresolved blocking findings (VALID BLOCKER / HIGH).
 - [ ] All review findings triaged with evidence (VALID, INVALID, UNCERTAIN).
 - [ ] Judge Agent issues a formal PASS verdict.
 ```

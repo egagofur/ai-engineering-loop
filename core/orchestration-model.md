@@ -111,8 +111,9 @@ Review Method: Clean-Slate Artifact Isolation Barrier
 
 REPORT_ONLY (recipe `audit`) policy: when the host can invoke a native subagent, one fresh `devil-advocate` sibling reviews `report.json` before `gate report` (no Judge, no iteration loop); otherwise the same check runs in-session with a reason. `report.json` may carry a `review` block, which `gate report` validates.
 
-### Strictly Forbidden Phrases during `CONTEXT_ISOLATION_ONLY`:
+### Strictly Forbidden Claims during `CONTEXT_ISOLATION_ONLY`:
+Outside the fixed header lines above (which name `Native Subagent Invocation` as a capability), never claim that a separate agent reviewed the work:
 - *"independent agent review"*
-- *"subagent"*
+- *"reviewed by a subagent"* (or any wording that says a subagent ran)
 - *"multi-agent review"*
-- *"independent reviewer"*
+- *"independent reviewer"

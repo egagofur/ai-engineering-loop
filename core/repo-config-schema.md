@@ -18,7 +18,7 @@ The `.ai-engineering-loop/` directory serves as the **Living Project Context** f
     ├── lessons.md          # Optional confirmed process lessons (not a chat log)
     ├── adrs/               # Architecture Decision Records from Stage 1 grill
     │   └── README.md
-    └── tasks/              # Ephemeral: current.diff, handoff.md, verification logs
+    └── tasks/              # Ephemeral: handoff.md, verification logs
 ```
 
 ---
@@ -79,7 +79,7 @@ Maintains lightweight state for instant drift detection:
 - Durable why for load-bearing choices settled in grill. `refresh` does not overwrite existing ADRs.
 
 ### 9. `tasks/` — Run artifacts (optional)
-- `current.diff`, verification logs, `handoff.md`, `claimed-vs-reality.md`, `maker-brief.md`. Not required for `init` validity.
+- Verification logs, `handoff.md`, `claimed-vs-reality.md`, `maker-brief.md`. Not required for `init` validity.
 
 ### 10. `workflow.md` — Loop overlay (optional)
 - Hooks around the 8-stage OS: `before_grill`, `after_freeze`, `after_pass`.
