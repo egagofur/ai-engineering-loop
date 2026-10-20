@@ -497,6 +497,14 @@ function analyzeRepository(rootDir) {
       const pm = discovery.packageManager;
       if (scripts['test:unit']) discovery.scripts.testUnit = `${pm} run test:unit`;
       else if (scripts['test']) discovery.scripts.testUnit = `${pm} test`;
+      // Fast verification lane (`verify --related`): the runner's own
+      // related-test selection, through the project's test script when it has one.
+      const testScript = scripts['test:unit'] ? 'test:unit' : (scripts['test'] ? 'test' : null);
+      const viaScript = (extra) => (testScript ? `${pm} run ${testScript}${pm === 'npm' ? ' --' : ''} ${extra}` : null);
+      if (allDeps['vitest']) discovery.scripts.testRelated = `npx vitest related --run --passWithNoTests {files}`;
+      else if (allDeps['jest'] || allDeps['ts-jest']) {
+        discovery.scripts.testRelated = viaScript('--findRelatedTests --passWithNoTests {files}') || 'npx jest --findRelatedTests --passWithNoTests {files}';
+      }
 
       if (scripts['typecheck']) discovery.scripts.typecheck = `${pm} run typecheck`;
       else if (scripts['type-check']) discovery.scripts.typecheck = `${pm} run type-check`;
@@ -660,6 +668,7 @@ ${discovery.topLevelDirs.map((d) => `- \`${d}/\``).join('\n') || '- Flat directo
 - **lint**: \`${discovery.scripts.lint}\`
 - **build**: \`${discovery.scripts.build}\`
 ${discovery.scripts.e2e ? `- **e2e**: \`${discovery.scripts.e2e}\`` : ''}
+${discovery.scripts.testRelated ? `- **test_related**: \`${discovery.scripts.testRelated}\`` : ''}
 
 ## Verification Protocol
 - Default order, cheapest first, stop at the first failure: build -> typecheck -> lint -> test_unit -> security scan (for example \`npm audit --omit=dev\`) -> e2e (optional).
@@ -1248,6 +1257,27 @@ function detectGrokHost() {
   }
 }
 
+// Top lessons from earlier Runs (learn.js), ranked for the files in play.
+function runLearnings() {
+  try {
+    const { selectLearnings } = require('../lib/learn.js');
+    return selectLearnings(CWD, { files: workingTreePaths(CWD), budgetTokens: 600, limit: 5 }).learnings;
+  } catch {
+    return [];
+  }
+}
+
+// Lessons are mined when a Run ends (delivered or escalated), so the next Run
+// sees them without a manual `learn`. Best effort: never fails the gate.
+function autoLearn(run) {
+  if (!run || !['DELIVERED', 'ESCALATED'].includes(run.state) || process.env.AEL_NO_AUTO_LEARN === '1') return;
+  try {
+    learn(CWD, {});
+  } catch (err) {
+    console.error(`! learnings not updated: ${err.message}`);
+  }
+}
+
 function workingTreePaths(rootDir) {
   try {
     return execSync('git status --porcelain --untracked-files=all', { cwd: rootDir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
@@ -1446,6 +1476,7 @@ function handleRun() {
         const h = hostSkillStatus({ home: homeDir(), version: VERSION });
         return { stale: h.stale, staleFiles: h.staleFiles, installedVersion: h.installedVersion, packageVersion: VERSION };
       })(),
+      learnings: runLearnings(),
       studioUrl: readStudioUrl(CWD)
     }, null, 2));
     return;
@@ -1845,6 +1876,7 @@ function executeGate(gate, runId) {
     : applyGate(CWD, gate, { runId: target.runId });
   if (gate === 'goal') ensureImpactMap(target.runId);
   if (gate === 'verification') recordImpactDrift(target.runId);
+  autoLearn(run);
   const runCompleted = run.state === 'DELIVERED' || run.state === 'REPORTED';
   appendRunLifecycle(CWD, target.runId, {
     type: runCompleted
@@ -1857,6 +1889,34 @@ function executeGate(gate, runId) {
     message: `${lifecycleNode?.displayName || gate} completed`
   });
   return run;
+}
+
+const FREEZE_QUESTION = /^Freeze Goal draft revision \d+/;
+
+// The freeze answers the pending freeze question(s) that `goal draft` asked,
+// so Studio does not keep showing them. Best effort.
+function closeFreezeQuestions(runId, actor) {
+  try {
+    const { listRunInteractions, appendRunAnswer } = require('../lib/run-interactions.js');
+    for (const question of listRunInteractions(CWD, runId).pending) {
+      if (FREEZE_QUESTION.test(question.message)) {
+        appendRunAnswer(CWD, runId, question.questionId, { message: 'Goal frozen', actor });
+      }
+    }
+  } catch (err) {
+    console.error(`! freeze question not closed: ${err.message}`);
+  }
+}
+
+// Blast radius of a Goal draft, so the human sees it with the Goal and can
+// confirm both in one stop (`goal freeze --confirm-impact`). Best effort.
+function impactPreview(runId, goal) {
+  try {
+    const map = impactMap.buildImpactMap(CWD, { run: loadRun(CWD, runId), goal });
+    return { files: (map.files || []).map((file) => file.path), tests: (map.tests || []).map((t) => t.path || t).slice(0, 10) };
+  } catch (err) {
+    return { error: err.message };
+  }
 }
 
 // Blast-radius map (#71): written into the Run once the Goal is frozen, so it
@@ -1909,6 +1969,15 @@ function captureMakerDiff(run) {
   return { path: path.relative(CWD, target).split(path.sep).join('/'), files: untracked.length };
 }
 
+function reviewLedgerBinding(run) {
+  try {
+    const ledger = JSON.parse(fs.readFileSync(path.join(CWD, '.ai-engineering-loop', 'runs', run.runId, 'findings.json'), 'utf8'));
+    return require('../lib/review-ingest.js').checkLedgerBinding(CWD, run, ledger).binding;
+  } catch {
+    return null;
+  }
+}
+
 function handleGate() {
   const gate = process.argv[3];
   const runId = argValue('--run');
@@ -1924,6 +1993,7 @@ function handleGate() {
     }
     const run = executeGate(gate, target.runId);
     const judge = gate === 'review' && run.tier ? judgeRequirement(CWD, run) : null;
+    const ledgerBinding = gate === 'review' ? reviewLedgerBinding(run) : null;
     const guardEvents = guard.guardSummary(CWD, run.runId);
     if (json) {
       console.log(JSON.stringify({
@@ -1934,6 +2004,7 @@ function handleGate() {
         gate,
         ...(run.tier ? { tier: run.tier.current } : {}),
         ...(judge ? { judgeRequired: judge.required, judgeReasons: judge.reasons } : {}),
+        ...(ledgerBinding ? { ledgerBinding } : {}),
         guard: guardEvents
       }));
     } else {
@@ -1943,6 +2014,9 @@ function handleGate() {
       if (run.tier) console.log(`- Tier: ${run.tier.current}`);
       if (guardEvents.warn || guardEvents.block) {
         console.log(`- Guard: ${guardEvents.block} blocked, ${guardEvents.warn} warned (${guardEvents.rules.join(', ')}); see guard-events.json`);
+      }
+      if (ledgerBinding === 'UNBOUND') {
+        console.log('- Ledger: UNBOUND (hand-written findings.json). Prefer `review ingest` so the ledger is bound to the reviewer output.');
       }
       if (judge) {
         console.log(judge.required
@@ -3006,6 +3080,7 @@ function handleGoal() {
   try {
     const runId = requiredRunId('goal');
     let result;
+    const extra = {};
     if (action === 'show') {
       result = loadGoalDraft(CWD, runId);
     } else if (action === 'draft') {
@@ -3015,10 +3090,12 @@ function handleGoal() {
         actor: argValue('--by') || 'agent',
         message: argValue('--message') || 'Updating the Goal draft'
       });
-      result = saveGoalDraft(CWD, runId, readBoundedJsonInput(argValue('--file')), {
+      const draftGoal = readBoundedJsonInput(argValue('--file'));
+      result = saveGoalDraft(CWD, runId, draftGoal, {
         actor: argValue('--by') || 'agent',
         expectedRevision: requiredIntegerArg('--revision')
       });
+      extra.impactPreview = impactPreview(runId, draftGoal);
       appendRunLifecycle(CWD, runId, {
         type: 'GOAL_DRAFT_UPDATED',
         phase: 'goal',
@@ -3031,6 +3108,17 @@ function handleGoal() {
         actor: argValue('--by') || 'agent',
         message: `Goal draft revision ${result.metadata.revision} is ready for review`
       });
+      // The freeze question is persisted with the draft, so Studio shows it
+      // without a separate `interaction question` call.
+      try {
+        extra.question = appendRunQuestion(CWD, runId, {
+          message: `Freeze Goal draft revision ${result.metadata.revision} (and accept its blast radius)?`,
+          actor: argValue('--by') || 'agent'
+        });
+        appendRunLifecycle(CWD, runId, { type: 'AGENT_WAITING', phase: 'goal', actor: argValue('--by') || 'agent', message: `Waiting for answer to Q${extra.question.number}` });
+      } catch (err) {
+        extra.question = { error: err.message };
+      }
     } else if (action === 'freeze') {
       const latest = process.argv.includes('--latest');
       const latestDraft = latest ? loadGoalDraft(CWD, runId) : null;
@@ -3072,12 +3160,19 @@ function handleGoal() {
         message: 'Goal Contract frozen'
       });
       ensureImpactMap(runId);
+      closeFreezeQuestions(runId, argValue('--by') || 'human');
+      // One human stop: the same person accepts the Goal and its blast radius
+      // (shown as impactPreview with the draft).
+      if (process.argv.includes('--confirm-impact')) {
+        const confirmed = impactMap.confirmImpactMap(CWD, { runId, by: argValue('--by') || 'human' });
+        extra.impact = { status: confirmed.map ? confirmed.map.status : 'CONFIRMED' };
+      }
     } else {
       const error = new Error('goal must be show, draft, or freeze');
       error.code = 'INVALID_USAGE';
       throw error;
     }
-    console.log(JSON.stringify({ ok: true, runId, [action === 'show' ? 'draft' : 'result']: result }, null, 2));
+    console.log(JSON.stringify({ ok: true, runId, [action === 'show' ? 'draft' : 'result']: result, ...extra }, null, 2));
   } catch (error) {
     log.error(`${error.code || 'GOAL_FAILED'}: ${error.message}`);
     process.exitCode = 1;
@@ -3253,20 +3348,61 @@ async function handleVerify() {
   try {
     const runId = requiredRunId('verify');
     const shell = process.argv.includes('--shell');
+    const related = process.argv.includes('--related');
+    const final = process.argv.includes('--final');
+    if (related && final) throw Object.assign(new Error('--related and --final cannot be combined'), { code: 'INVALID_USAGE' });
     let texts = repeatedArg('--cmd');
-    if (texts.length === 0) {
-      const fallback = defaultVerificationCommand();
-      if (!fallback) throw Object.assign(new Error('No --cmd given and no test_unit command in .ai-engineering-loop/verification.md'), { code: 'INVALID_COMMAND' });
-      texts = [fallback];
+    const lanes = require('../lib/verification-lanes.js');
+    let commandsToRun;
+    if (related && texts.length === 0) {
+      const target = loadRun(CWD, runId);
+      commandsToRun = [lanes.relatedCommand(CWD, target, { split: splitCommand, shell })];
+    } else {
+      if (texts.length === 0) {
+        const fallback = defaultVerificationCommand();
+        if (!fallback) throw Object.assign(new Error('No --cmd given and no test_unit command in .ai-engineering-loop/verification.md'), { code: 'INVALID_COMMAND' });
+        texts = [fallback];
+      }
+      commandsToRun = texts.map((text) => splitCommand(text, shell));
     }
     const timeoutValue = argValue('--timeout-ms');
+    if (final) {
+      const target = loadRun(CWD, runId);
+      if (target.state !== 'JUDGED_PASS') throw Object.assign(new Error(`verify --final needs a Judge PASS (state is ${target.state})`), { code: 'INVALID_STATE' });
+      const status = lanes.finalVerificationStatus(CWD, target);
+      let recordedFinal = null;
+      if (status.required && !status.satisfied) {
+        recordedFinal = await recordVerificationCommands(CWD, {
+          runId,
+          commands: commandsToRun,
+          target: 'final',
+          fresh: process.argv.includes('--fresh'),
+          serial: process.argv.includes('--serial'),
+          ...(timeoutValue == null ? {} : { timeoutMs: parsePositiveIntegerArg('--timeout-ms', timeoutValue) })
+        });
+      }
+      const result = {
+        ok: recordedFinal ? recordedFinal.passed : true,
+        runId,
+        final: recordedFinal
+          ? { path: recordedFinal.path, commands: recordedFinal.commands.map((c) => ({ command: c.command, exitCode: c.exitCode, reused: Boolean(c.reused) })) }
+          : { reused: true, reason: status.reason }
+      };
+      if (json) console.log(JSON.stringify(result));
+      else if (result.ok) log.success(`✓ final verification ${recordedFinal ? 'passed' : `not needed (${status.reason})`}; deliver next`);
+      else log.error('Final verification failed; fix it before delivery.');
+      if (!result.ok) process.exitCode = 1;
+      return;
+    }
     const recorded = await recordVerificationCommands(CWD, {
       runId,
-      commands: texts.map((text) => splitCommand(text, shell)),
+      commands: commandsToRun,
       serial: process.argv.includes('--serial'),
+      fresh: process.argv.includes('--fresh'),
+      ...(related ? { scope: 'related' } : {}),
       ...(timeoutValue == null ? {} : { timeoutMs: parsePositiveIntegerArg('--timeout-ms', timeoutValue) })
     });
-    const commands = recorded.commands.map((c) => ({ command: c.command, exitCode: c.exitCode, timeoutStatus: c.timeoutStatus }));
+    const commands = recorded.commands.map((c) => ({ command: c.command, exitCode: c.exitCode, timeoutStatus: c.timeoutStatus, ...(c.scope ? { scope: c.scope } : {}), ...(c.reused ? { reused: true } : {}) }));
     if (!recorded.passed) {
       autoHeartbeat(runId, 'verification', 'Verification failed; Maker must fix before review');
       const result = { ok: false, code: 'VERIFICATION_FAILED', runId, commands, gate: null };
@@ -3297,6 +3433,7 @@ async function handleVerify() {
       impactDrift: { mapStatus: drift.mapStatus, outOfMap: drift.outOfMap },
       compact: compact.paths,
       claimedVsReality: claimed,
+      ...(related ? { scope: 'related', finalRequired: 'Run `verify --final` after Judge PASS, before delivery.' } : {}),
       next: run.tier && run.tier.current === 'T0'
         ? 'Fill claimed-vs-reality, then gate review and gate judge'
         : 'Fill claimed-vs-reality, then review-pack and spawn the Devil\'s Advocate'
@@ -3675,6 +3812,83 @@ function handleBench() {
   }
 }
 
+// Command: review ingest (ledger bound to the reviewer output; lib/review-ingest.js)
+// Writes findings.json from the raw child output, gates review, and gates the
+// Judge too when the deterministic verdict is allowed.
+function handleReview() {
+  const json = process.argv.includes('--json');
+  try {
+    if (process.argv[3] !== 'ingest') throw Object.assign(new Error('Usage: review ingest --run <id> --child-id <id> --file <child-output>'), { code: 'INVALID_USAGE' });
+    const { ingestReview } = require('../lib/review-ingest.js');
+    const ingested = ingestReview(CWD, { runId: argValue('--run'), childId: argValue('--child-id'), file: argValue('--file') });
+    let run = executeGate('review', ingested.runId);
+    const judge = run.tier ? judgeRequirement(CWD, run) : { required: true, reasons: ['NO_TIER'] };
+    if (!judge.required) run = executeGate('judge', ingested.runId);
+    const result = {
+      ok: true,
+      runId: run.runId,
+      state: run.state,
+      iteration: run.iteration,
+      findings: ingested.findings,
+      ledgerBinding: 'BOUND',
+      judgeRequired: judge.required,
+      judgeReasons: judge.reasons,
+      next: judge.required
+        ? 'Spawn the Judge with the ledger and contract, write verdict.json, then gate judge.'
+        : (run.state === 'JUDGED_PASS' ? 'Deliver after human approval.' : `Judge returned ${run.state}; fix and re-verify.`)
+    };
+    if (json) console.log(JSON.stringify(result));
+    else {
+      log.success(`✓ review ingested (${ingested.findings} finding(s), bound to the reviewer output)`);
+      console.log(`- State: ${run.state}, iteration ${run.iteration}`);
+      console.log(`- Next: ${result.next}`);
+    }
+  } catch (err) {
+    stageJsonError(err, json, 'REVIEW_INGEST_FAILED');
+  }
+}
+
+// Command: quick start|finish (T0 in two calls; lib/quick.js)
+function handleQuick() {
+  const action = process.argv[3];
+  const json = process.argv.includes('--json');
+  const { startQuick, finishQuick } = require('../lib/quick.js');
+  try {
+    let result;
+    if (action === 'start') {
+      const valued = new Set(['--mode', '--run', '--cmd', '--timeout-ms']);
+      const words = [];
+      for (let index = 4; index < process.argv.length; index += 1) {
+        const arg = process.argv[index];
+        if (valued.has(arg)) { index += 1; continue; }
+        if (arg.startsWith('--')) continue;
+        words.push(arg);
+      }
+      result = startQuick(CWD, { task: words.join(' '), mode: argValue('--mode') });
+    } else if (action === 'finish') {
+      const timeoutValue = argValue('--timeout-ms');
+      result = finishQuick(CWD, {
+        runId: argValue('--run'),
+        commands: repeatedArg('--cmd'),
+        shell: process.argv.includes('--shell'),
+        serial: process.argv.includes('--serial'),
+        timeoutMs: timeoutValue == null ? null : parsePositiveIntegerArg('--timeout-ms', timeoutValue)
+      });
+    } else {
+      throw Object.assign(new Error('Usage: quick start "<task>" [--mode assisted] | quick finish [--run <id>] [--cmd "<command>"]...'), { code: 'INVALID_USAGE' });
+    }
+    if (json) console.log(JSON.stringify(result));
+    else {
+      (result.ok ? log.success : log.warn)(`${result.ok ? '✓' : '!'} quick ${action}: Run ${result.runId} (${result.tier}${result.state ? `, ${result.state}` : ''})`);
+      for (const item of result.learnings || []) console.log(`- Learning [${item.severity}]: ${item.lesson}`);
+      console.log(`- Next: ${result.next}`);
+    }
+    if (!result.ok) process.exitCode = 1;
+  } catch (err) {
+    stageJsonError(err, json, 'QUICK_FAILED');
+  }
+}
+
 function handleLearn() {
   const json = process.argv.includes('--json');
   try {
@@ -3832,9 +4046,18 @@ Commands:
   escalation   Compute the minimum Judge model tier from deterministic risk signals
                --run <id>  target a non-current run
                --json      print machine-readable reasons
+  review       ingest --run <id> --child-id <id> --file <child-output> [--json]
+               bind findings.json to the Devil's Advocate output, gate review, and gate the
+               Judge too when the deterministic verdict is allowed
+  quick        T0 in two calls: start creates the Run and a derived Goal; finish gates the
+               working-tree diff, verifies, writes claimed-vs-reality, and runs review + judge
+               start "<task>" [--mode assisted|unattended] | finish [--run <id>] [--cmd "<command>"]...
   verify       Record verification commands, gate them, compact, and scaffold claimed-vs-reality
-               [--run <id>] [--cmd "<command>"]... [--shell] [--serial] [--timeout-ms <n>] [--json]
+               [--run <id>] [--cmd "<command>"]... [--shell] [--serial] [--timeout-ms <n>] [--fresh] [--json]
                default command: test_unit from .ai-engineering-loop/verification.md; commands run in parallel
+               --related   fast lane: test_related with {files} = changed files of the gated diff
+               --final     after Judge PASS: full run delivery needs when verification was related-only
+               --fresh     re-run commands that already passed for the same diff and revision
   impact       Blast-radius map of the frozen Goal before Stage 3 (written to the Run on Goal freeze)
                map [--run <id>] [--limit <n>] [--force] [--json]   files, modules, endpoints, DB tables, tests
                show [--run <id>] [--json]
@@ -4052,6 +4275,12 @@ switch (command) {
     break;
   case 'learn':
     handleLearn();
+    break;
+  case 'quick':
+    handleQuick();
+    break;
+  case 'review':
+    handleReview();
     break;
   case 'verify-receipt':
     handleVerifyReceipt();

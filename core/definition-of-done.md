@@ -46,7 +46,7 @@ flowchart LR
 
 ### Pillar 4: Adversarial Consensus
 - Independent [Devil's Advocate Review](../agents/devil-advocate.md) has been executed across all 6 core review domains.
-- **Zero Unresolved Blocking Findings**: No open `SEV-1 (Critical)` or `SEV-2 (High)` findings.
+- **Zero Unresolved Blocking Findings**: No open VALID `BLOCKER` or `HIGH` findings (older docs call these SEV-1 and SEV-2).
 - **Evidence-Based Triage**: Every raised finding has been formally triaged with reproducible evidence as `VALID` (and resolved in code) or `INVALID` (with technical proof of why it is a false positive).
 
 ### Pillar 5: Judge Certified PASS
@@ -78,4 +78,4 @@ An engineering run MUST be rejected and flagged as `FAIL` or `BLOCKED` if any of
 1. **Unverified Claims**: The agent states that a test passed or feature works without providing command outputs or test code.
 2. **Post-Hoc Goal Shifting**: Modifying Acceptance Criteria to match buggy behavior instead of fixing the bug.
 3. **Suppressed Errors**: Adding `@ts-ignore`, `eslint-disable`, empty catch blocks, or skipping tests to force a green build.
-4. **Unresolved Critical Findings**: Attempting to declare completion while a `SEV-1` or `SEV-2` finding from the Devil's Advocate remains open.
+4. **Unresolved Critical Findings**: Attempting to declare completion while a VALID `BLOCKER` or `HIGH` finding from the Devil's Advocate remains open.

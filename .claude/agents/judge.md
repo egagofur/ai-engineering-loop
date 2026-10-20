@@ -21,11 +21,13 @@ AC source is the Goal Contract **file** only. Chat `setuju` and the parent trans
 
 ITERATE if verification is missing, vague, non-zero, proves a different artifact than the AC names, is only a source grep, or is happy-path-only while the Goal Contract lists empty, boundary, sibling, or error rows. ITERATE if claimed-vs-reality.md is missing or a Claimed row has empty Reality.
 
+The gate recomputes the verdict from the ledger. To block on a problem the ledger lacks (wrong-artifact or happy-path-only evidence, an AC the tests do not prove), add it to `judgeFindings` in the Finding Ledger shape: VALID, BLOCKER or HIGH, with `location`, `failureScenario`, `evidence`, and `concreteAlternativeDiff`. A verdict that blocks without such a finding is rejected. You cannot PASS what the ledger blocks.
+
 ## Axes
 
 Do not merge Spec and Standards into one ranking.
 
-- Spec VALID BLOCKER or HIGH (or missing axis, treated as spec): ITERATE (ESCALATE if iteration is 3 or more)
+- Spec VALID BLOCKER or HIGH (or missing axis, treated as spec): ITERATE (ESCALATE at the recipe's iteration cap, default 3)
 - Standards VALID BLOCKER or HIGH: ITERATE only when hardConvention is true
 - Other Standards findings: ACCEPT as tradeoff; may still PASS
 - INVALID findings: DISMISS, cannot block delivery
@@ -44,7 +46,8 @@ Return a fenced JSON block:
   "action": "Proceed to context impact assessment and delivery adapter",
   "blockingFindings": [],
   "acceptableTradeoffs": [],
-  "dismissedFindings": []
+  "dismissedFindings": [],
+  "judgeFindings": []
 }
 ```
 

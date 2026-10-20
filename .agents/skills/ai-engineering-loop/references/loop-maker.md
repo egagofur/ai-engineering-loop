@@ -6,6 +6,7 @@
 - Guardrails: Claude Code enforces them after `hooks install`. Elsewhere, before an out-of-scope edit or a destructive command (`rm -rf`, `DROP TABLE`, `git push --force`, `git reset --hard`, `git clean -fd`) run `guard check --tool edit --path <file>` or `--tool bash --command "<cmd>"`: `warn` = ask the human, `block` = do not run it.
 - Bugs: red repro first. Features: one red test per AC row, then green.
 - After package and manifest edits are stable, run `npx ai-engineering-loop refresh` once (drift during red-green is expected; do not refresh per test cycle).
+- `eslint --fix` and other auto-fixers run before `gate maker`, never after.
 - ASSISTED: `npx ai-engineering-loop gate maker --from-git` writes the exact working-tree diff (tracked and new files, excluding `.ai-engineering-loop/`) to `RUN_DIR/diff.patch` and gates it; or write that file yourself and run `gate maker`. UNATTENDED: `sandbox capture` writes it, then `gate maker`. The gate can raise the tier from the diff.
 
 ## REPORT_ONLY report review (recipe `audit`)

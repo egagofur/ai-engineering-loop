@@ -27,7 +27,7 @@ flowchart TD
 ```
 
 ### Trigger 1: Maximum Iterations Reached
-- **Condition**: The system has completed `MAX_ITERATIONS` (default: 3) and unresolved blocking findings (`SEV-1` or `SEV-2`) still persist.
+- **Condition**: The system has completed `MAX_ITERATIONS` (default: 3) and unresolved blocking findings (VALID `BLOCKER` or `HIGH`) still persist, or the loop stopped making progress (`NO_PROGRESS`: the same Maker diff or the same blocking findings as the previous iteration).
 - **Rationale**: Prolonged retries indicate either an incorrect fundamental strategy or a hidden architectural obstacle.
 
 ### Trigger 2: No-Progress / Stagnation Detected

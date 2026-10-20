@@ -62,7 +62,7 @@ flowchart LR
 ### Step 3: Run Deterministic Verification
 - Run test commands: `npx jest`, `pytest`, `cargo test`, `go test`, etc.
 - Run typecheck: `npx tsc --noEmit`, `mypy`, etc.
-- Run linter: `npx eslint --fix`, `ruff`, etc.
+- Run linter: `npx eslint --fix`, `ruff`, etc. Auto-fixes change the diff, so run them **before** `gate maker`; after the gate, run linters in check mode only (a changed diff fails the verification gate).
 - Run build if applicable.
 
 ### Step 4: Submit to Adversarial Gate
