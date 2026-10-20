@@ -3257,20 +3257,61 @@ async function handleVerify() {
   try {
     const runId = requiredRunId('verify');
     const shell = process.argv.includes('--shell');
+    const related = process.argv.includes('--related');
+    const final = process.argv.includes('--final');
+    if (related && final) throw Object.assign(new Error('--related and --final cannot be combined'), { code: 'INVALID_USAGE' });
     let texts = repeatedArg('--cmd');
-    if (texts.length === 0) {
-      const fallback = defaultVerificationCommand();
-      if (!fallback) throw Object.assign(new Error('No --cmd given and no test_unit command in .ai-engineering-loop/verification.md'), { code: 'INVALID_COMMAND' });
-      texts = [fallback];
+    const lanes = require('../lib/verification-lanes.js');
+    let commandsToRun;
+    if (related && texts.length === 0) {
+      const target = loadRun(CWD, runId);
+      commandsToRun = [lanes.relatedCommand(CWD, target, { split: splitCommand, shell })];
+    } else {
+      if (texts.length === 0) {
+        const fallback = defaultVerificationCommand();
+        if (!fallback) throw Object.assign(new Error('No --cmd given and no test_unit command in .ai-engineering-loop/verification.md'), { code: 'INVALID_COMMAND' });
+        texts = [fallback];
+      }
+      commandsToRun = texts.map((text) => splitCommand(text, shell));
     }
     const timeoutValue = argValue('--timeout-ms');
+    if (final) {
+      const target = loadRun(CWD, runId);
+      if (target.state !== 'JUDGED_PASS') throw Object.assign(new Error(`verify --final needs a Judge PASS (state is ${target.state})`), { code: 'INVALID_STATE' });
+      const status = lanes.finalVerificationStatus(CWD, target);
+      let recordedFinal = null;
+      if (status.required && !status.satisfied) {
+        recordedFinal = await recordVerificationCommands(CWD, {
+          runId,
+          commands: commandsToRun,
+          target: 'final',
+          fresh: process.argv.includes('--fresh'),
+          serial: process.argv.includes('--serial'),
+          ...(timeoutValue == null ? {} : { timeoutMs: parsePositiveIntegerArg('--timeout-ms', timeoutValue) })
+        });
+      }
+      const result = {
+        ok: recordedFinal ? recordedFinal.passed : true,
+        runId,
+        final: recordedFinal
+          ? { path: recordedFinal.path, commands: recordedFinal.commands.map((c) => ({ command: c.command, exitCode: c.exitCode, reused: Boolean(c.reused) })) }
+          : { reused: true, reason: status.reason }
+      };
+      if (json) console.log(JSON.stringify(result));
+      else if (result.ok) log.success(`✓ final verification ${recordedFinal ? 'passed' : `not needed (${status.reason})`}; deliver next`);
+      else log.error('Final verification failed; fix it before delivery.');
+      if (!result.ok) process.exitCode = 1;
+      return;
+    }
     const recorded = await recordVerificationCommands(CWD, {
       runId,
-      commands: texts.map((text) => splitCommand(text, shell)),
+      commands: commandsToRun,
       serial: process.argv.includes('--serial'),
+      fresh: process.argv.includes('--fresh'),
+      ...(related ? { scope: 'related' } : {}),
       ...(timeoutValue == null ? {} : { timeoutMs: parsePositiveIntegerArg('--timeout-ms', timeoutValue) })
     });
-    const commands = recorded.commands.map((c) => ({ command: c.command, exitCode: c.exitCode, timeoutStatus: c.timeoutStatus }));
+    const commands = recorded.commands.map((c) => ({ command: c.command, exitCode: c.exitCode, timeoutStatus: c.timeoutStatus, ...(c.scope ? { scope: c.scope } : {}), ...(c.reused ? { reused: true } : {}) }));
     if (!recorded.passed) {
       autoHeartbeat(runId, 'verification', 'Verification failed; Maker must fix before review');
       const result = { ok: false, code: 'VERIFICATION_FAILED', runId, commands, gate: null };
@@ -3301,6 +3342,7 @@ async function handleVerify() {
       impactDrift: { mapStatus: drift.mapStatus, outOfMap: drift.outOfMap },
       compact: compact.paths,
       claimedVsReality: claimed,
+      ...(related ? { scope: 'related', finalRequired: 'Run `verify --final` after Judge PASS, before delivery.' } : {}),
       next: run.tier && run.tier.current === 'T0'
         ? 'Fill claimed-vs-reality, then gate review and gate judge'
         : 'Fill claimed-vs-reality, then review-pack and spawn the Devil\'s Advocate'
@@ -3836,8 +3878,11 @@ Commands:
                --run <id>  target a non-current run
                --json      print machine-readable reasons
   verify       Record verification commands, gate them, compact, and scaffold claimed-vs-reality
-               [--run <id>] [--cmd "<command>"]... [--shell] [--serial] [--timeout-ms <n>] [--json]
+               [--run <id>] [--cmd "<command>"]... [--shell] [--serial] [--timeout-ms <n>] [--fresh] [--json]
                default command: test_unit from .ai-engineering-loop/verification.md; commands run in parallel
+               --related   fast lane: test_related with {files} = changed files of the gated diff
+               --final     after Judge PASS: full run delivery needs when verification was related-only
+               --fresh     re-run commands that already passed for the same diff and revision
   impact       Blast-radius map of the frozen Goal before Stage 3 (written to the Run on Goal freeze)
                map [--run <id>] [--limit <n>] [--force] [--json]   files, modules, endpoints, DB tables, tests
                show [--run <id>] [--json]
