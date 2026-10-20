@@ -501,6 +501,14 @@ function analyzeRepository(rootDir) {
       const pm = discovery.packageManager;
       if (scripts['test:unit']) discovery.scripts.testUnit = `${pm} run test:unit`;
       else if (scripts['test']) discovery.scripts.testUnit = `${pm} test`;
+      // Fast verification lane (`verify --related`): the runner's own
+      // related-test selection, through the project's test script when it has one.
+      const testScript = scripts['test:unit'] ? 'test:unit' : (scripts['test'] ? 'test' : null);
+      const viaScript = (extra) => (testScript ? `${pm} run ${testScript}${pm === 'npm' ? ' --' : ''} ${extra}` : null);
+      if (allDeps['vitest']) discovery.scripts.testRelated = `npx vitest related --run --passWithNoTests {files}`;
+      else if (allDeps['jest'] || allDeps['ts-jest']) {
+        discovery.scripts.testRelated = viaScript('--findRelatedTests --passWithNoTests {files}') || 'npx jest --findRelatedTests --passWithNoTests {files}';
+      }
 
       if (scripts['typecheck']) discovery.scripts.typecheck = `${pm} run typecheck`;
       else if (scripts['type-check']) discovery.scripts.typecheck = `${pm} run type-check`;
@@ -664,6 +672,7 @@ ${discovery.topLevelDirs.map((d) => `- \`${d}/\``).join('\n') || '- Flat directo
 - **lint**: \`${discovery.scripts.lint}\`
 - **build**: \`${discovery.scripts.build}\`
 ${discovery.scripts.e2e ? `- **e2e**: \`${discovery.scripts.e2e}\`` : ''}
+${discovery.scripts.testRelated ? `- **test_related**: \`${discovery.scripts.testRelated}\`` : ''}
 
 ## Verification Protocol
 - Default order, cheapest first, stop at the first failure: build -> typecheck -> lint -> test_unit -> security scan (for example \`npm audit --omit=dev\`) -> e2e (optional).
@@ -1252,6 +1261,27 @@ function detectGrokHost() {
   }
 }
 
+// Top lessons from earlier Runs (learn.js), ranked for the files in play.
+function runLearnings() {
+  try {
+    const { selectLearnings } = require('../lib/learn.js');
+    return selectLearnings(CWD, { files: workingTreePaths(CWD), budgetTokens: 600, limit: 5 }).learnings;
+  } catch {
+    return [];
+  }
+}
+
+// Lessons are mined when a Run ends (delivered or escalated), so the next Run
+// sees them without a manual `learn`. Best effort: never fails the gate.
+function autoLearn(run) {
+  if (!run || !['DELIVERED', 'ESCALATED'].includes(run.state) || process.env.AEL_NO_AUTO_LEARN === '1') return;
+  try {
+    learn(CWD, {});
+  } catch (err) {
+    console.error(`! learnings not updated: ${err.message}`);
+  }
+}
+
 function workingTreePaths(rootDir) {
   try {
     return execSync('git status --porcelain --untracked-files=all', { cwd: rootDir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
@@ -1450,6 +1480,7 @@ function handleRun() {
         const h = hostSkillStatus({ home: homeDir(), version: VERSION });
         return { stale: h.stale, staleFiles: h.staleFiles, installedVersion: h.installedVersion, packageVersion: VERSION };
       })(),
+      learnings: runLearnings(),
       studioUrl: readStudioUrl(CWD)
     }, null, 2));
     return;
@@ -1849,6 +1880,7 @@ function executeGate(gate, runId) {
     : applyGate(CWD, gate, { runId: target.runId });
   if (gate === 'goal') ensureImpactMap(target.runId);
   if (gate === 'verification') recordImpactDrift(target.runId);
+  autoLearn(run);
   const runCompleted = run.state === 'DELIVERED' || run.state === 'REPORTED';
   appendRunLifecycle(CWD, target.runId, {
     type: runCompleted
@@ -3720,6 +3752,47 @@ function handleBench() {
   }
 }
 
+// Command: quick start|finish (T0 in two calls; lib/quick.js)
+function handleQuick() {
+  const action = process.argv[3];
+  const json = process.argv.includes('--json');
+  const { startQuick, finishQuick } = require('../lib/quick.js');
+  try {
+    let result;
+    if (action === 'start') {
+      const valued = new Set(['--mode', '--run', '--cmd', '--timeout-ms']);
+      const words = [];
+      for (let index = 4; index < process.argv.length; index += 1) {
+        const arg = process.argv[index];
+        if (valued.has(arg)) { index += 1; continue; }
+        if (arg.startsWith('--')) continue;
+        words.push(arg);
+      }
+      result = startQuick(CWD, { task: words.join(' '), mode: argValue('--mode') });
+    } else if (action === 'finish') {
+      const timeoutValue = argValue('--timeout-ms');
+      result = finishQuick(CWD, {
+        runId: argValue('--run'),
+        commands: repeatedArg('--cmd'),
+        shell: process.argv.includes('--shell'),
+        serial: process.argv.includes('--serial'),
+        timeoutMs: timeoutValue == null ? null : parsePositiveIntegerArg('--timeout-ms', timeoutValue)
+      });
+    } else {
+      throw Object.assign(new Error('Usage: quick start "<task>" [--mode assisted] | quick finish [--run <id>] [--cmd "<command>"]...'), { code: 'INVALID_USAGE' });
+    }
+    if (json) console.log(JSON.stringify(result));
+    else {
+      (result.ok ? log.success : log.warn)(`${result.ok ? '✓' : '!'} quick ${action}: Run ${result.runId} (${result.tier}${result.state ? `, ${result.state}` : ''})`);
+      for (const item of result.learnings || []) console.log(`- Learning [${item.severity}]: ${item.lesson}`);
+      console.log(`- Next: ${result.next}`);
+    }
+    if (!result.ok) process.exitCode = 1;
+  } catch (err) {
+    stageJsonError(err, json, 'QUICK_FAILED');
+  }
+}
+
 function handleLearn() {
   const json = process.argv.includes('--json');
   try {
@@ -3877,6 +3950,9 @@ Commands:
   escalation   Compute the minimum Judge model tier from deterministic risk signals
                --run <id>  target a non-current run
                --json      print machine-readable reasons
+  quick        T0 in two calls: start creates the Run and a derived Goal; finish gates the
+               working-tree diff, verifies, writes claimed-vs-reality, and runs review + judge
+               start "<task>" [--mode assisted|unattended] | finish [--run <id>] [--cmd "<command>"]...
   verify       Record verification commands, gate them, compact, and scaffold claimed-vs-reality
                [--run <id>] [--cmd "<command>"]... [--shell] [--serial] [--timeout-ms <n>] [--fresh] [--json]
                default command: test_unit from .ai-engineering-loop/verification.md; commands run in parallel
@@ -4100,6 +4176,9 @@ switch (command) {
     break;
   case 'learn':
     handleLearn();
+    break;
+  case 'quick':
+    handleQuick();
     break;
   case 'verify-receipt':
     handleVerifyReceipt();
