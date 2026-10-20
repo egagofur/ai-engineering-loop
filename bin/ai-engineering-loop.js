@@ -13,7 +13,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const crypto = require('crypto');
+const { readJsonOptional, sha256: sha256Text } = require('../lib/fsutil.js');
 const { execSync, spawn } = require('child_process');
 const {
   homeDir,
@@ -231,11 +231,7 @@ function generatedHashesPath(filePath) {
 }
 
 function readGeneratedHashes(filePath) {
-  try {
-    return JSON.parse(fs.readFileSync(generatedHashesPath(filePath), 'utf8'));
-  } catch {
-    return {};
-  }
+  return readJsonOptional(generatedHashesPath(filePath), {});
 }
 
 function writeGeneratedHashes(filePath, hashes) {
@@ -248,12 +244,8 @@ function writeGeneratedHashes(filePath, hashes) {
 
 function recordGeneratedHash(filePath, content) {
   const hashes = readGeneratedHashes(filePath);
-  hashes[path.basename(filePath)] = require('crypto').createHash('sha256').update(content).digest('hex');
+  hashes[path.basename(filePath)] = sha256Text(content);
   writeGeneratedHashes(filePath, hashes);
-}
-
-function sha256Text(content) {
-  return require('crypto').createHash('sha256').update(content).digest('hex');
 }
 
 function snapshotContextFile(filePath) {
@@ -389,7 +381,7 @@ function readFileSafe(filePath) {
 function getFileChecksum(filePath) {
   const content = readFileSafe(filePath);
   if (!content) return null;
-  return crypto.createHash('sha256').update(content).digest('hex').slice(0, 16);
+  return sha256Text(content).slice(0, 16);
 }
 
 /**
