@@ -15,6 +15,20 @@ const os = require('os');
 const path = require('path');
 const { readJsonOptional, sha256: sha256Text } = require('../lib/fsutil.js');
 const { execSync, spawn } = require('child_process');
+
+// Command modules load on first use, so a hot path such as
+// `guard check --hook` (run before every tool call) loads only what it
+// touches. lazyModule: a namespace that requires the file on first property
+// read. lazyFunctions: destructure functions now, require the file on first
+// call. Modules whose constants are read at load time stay eager.
+function lazyModule(file) {
+  let mod;
+  return new Proxy({}, { get: (_, key) => (mod ||= require(file))[key] });
+}
+
+function lazyFunctions(file) {
+  return new Proxy({}, { get: (_, key) => (...params) => require(file)[key](...params) });
+}
 const {
   homeDir,
   applyHostSync,
@@ -22,9 +36,9 @@ const {
   resolveHostSelection,
   planHostSync,
   formatHostSyncReport
-} = require('../lib/sync-hosts.js');
-const hostCommands = require('../lib/hosts/commands.js');
-const { listDocs, readDoc } = require('../lib/docs.js');
+} = lazyFunctions('../lib/sync-hosts.js');
+const hostCommands = lazyModule('../lib/hosts/commands.js');
+const { listDocs, readDoc } = lazyFunctions('../lib/docs.js');
 const {
   wantsCommandHelp,
   unknownWriterArgs,
@@ -36,16 +50,16 @@ const {
   writeShippedAdapter,
   formatGenerateAdapterReport,
   parseTypeArg
-} = require('../lib/generate-adapter.js');
-const { detectAdapter } = require('../lib/adapter-detect.js');
-const { checkAdapter } = require('../lib/adapter-check.js');
+} = lazyFunctions('../lib/generate-adapter.js');
+const { detectAdapter } = lazyFunctions('../lib/adapter-detect.js');
+const { checkAdapter } = lazyFunctions('../lib/adapter-check.js');
 const {
   writeWorkflowOverlay,
   formatGenerateWorkflowReport,
   parseWriteArg,
   workflowMarkdown,
   lessonsMarkdown
-} = require('../lib/generate-workflow.js');
+} = lazyFunctions('../lib/generate-workflow.js');
 const {
   RUN_MODES,
   TERMINAL_STATES,
@@ -66,23 +80,23 @@ const {
 const {
   applyGate,
   judgeRequirement
-} = require('../lib/gates.js');
-const { initialTierState } = require('../lib/tier.js');
-const impactMap = require('../lib/impact-map.js');
-const guard = require('../lib/guard.js');
-const guardHooks = require('../lib/guard-hooks.js');
-const receipts = require('../lib/receipt.js');
-const { learn } = require('../lib/learn.js');
+} = lazyFunctions('../lib/gates.js');
+const { initialTierState } = lazyFunctions('../lib/tier.js');
+const impactMap = lazyModule('../lib/impact-map.js');
+const guard = lazyModule('../lib/guard.js');
+const guardHooks = lazyModule('../lib/guard-hooks.js');
+const receipts = lazyModule('../lib/receipt.js');
+const { learn } = lazyFunctions('../lib/learn.js');
 const {
   runBench,
   compareBenches,
   formatCompare,
   parseBenchTimeoutSeconds
-} = require('../lib/bench.js');
+} = lazyFunctions('../lib/bench.js');
 const {
   createContextPack,
   contextPackSummary
-} = require('../lib/safe-context.js');
+} = lazyFunctions('../lib/safe-context.js');
 const {
   assessSmallTaskFastPath,
   buildContextIndex,
@@ -90,51 +104,51 @@ const {
   queryContextIndex,
   relatedContextIndex,
   smartContextSummary
-} = require('../lib/smart-context.js');
+} = lazyFunctions('../lib/smart-context.js');
 const {
   compactRun
-} = require('../lib/run-compaction.js');
+} = lazyFunctions('../lib/run-compaction.js');
 const {
   defaultCasesDir,
   loadEvaluationCases,
   loadResults,
   scoreEvaluationResults,
   catalogSummary
-} = require('../lib/evaluation.js');
+} = lazyFunctions('../lib/evaluation.js');
 const {
   assessRunEscalation
-} = require('../lib/escalation.js');
+} = lazyFunctions('../lib/escalation.js');
 const {
   writeVerificationSummary
-} = require('../lib/verification-summary.js');
+} = lazyFunctions('../lib/verification-summary.js');
 const {
   recordVerificationCommands,
   recordVerificationCommand
-} = require('../lib/verification-recorder.js');
+} = lazyFunctions('../lib/verification-recorder.js');
 const {
   scaffoldArtifact,
   validateArtifactFile
-} = require('../lib/agent-artifacts.js');
+} = lazyFunctions('../lib/agent-artifacts.js');
 const {
   createClaimedVsRealityTemplate
-} = require('../lib/claimed-vs-reality.js');
+} = lazyFunctions('../lib/claimed-vs-reality.js');
 const {
   runDoctor
-} = require('../lib/doctor.js');
+} = lazyFunctions('../lib/doctor.js');
 const {
   checkForUpdate,
   detectInstallScope,
   executeUpdatePlan
-} = require('../lib/update-manager.js');
-const autoUpdate = require('../lib/auto-update.js');
-const projectRegistry = require('../lib/project-registry.js');
+} = lazyFunctions('../lib/update-manager.js');
+const autoUpdate = lazyModule('../lib/auto-update.js');
+const projectRegistry = lazyModule('../lib/project-registry.js');
 const {
   assertBudgetAvailable,
   budgetStatus,
   recordTokenUsage,
   recordUsageUnavailable,
   setKillSwitch
-} = require('../lib/budget.js');
+} = lazyFunctions('../lib/budget.js');
 const {
   PRIVATE_RUNTIME_GITIGNORE
 } = require('../lib/runtime-files.js');
@@ -142,23 +156,23 @@ const {
   appendRunAnswer,
   appendRunQuestion,
   listRunInteractions
-} = require('../lib/run-interactions.js');
+} = lazyFunctions('../lib/run-interactions.js');
 const {
   appendRunLifecycle,
   listRunLifecycle,
   runAgentPresence
-} = require('../lib/run-lifecycle.js');
+} = lazyFunctions('../lib/run-lifecycle.js');
 const {
   freezeGoal,
   loadGoalDraft,
   saveGoalDraft
-} = require('../lib/goal-runtime.js');
+} = lazyFunctions('../lib/goal-runtime.js');
 const {
   abortSandbox,
   captureSandbox,
   createSandbox,
   sandboxStatus
-} = require('../lib/sandbox.js');
+} = lazyFunctions('../lib/sandbox.js');
 const {
   compileRecipe,
   explainPlan,
@@ -167,7 +181,7 @@ const {
   mermaidPlan,
   simulatePlan,
   validateRecipe
-} = require('../lib/recipe.js');
+} = lazyFunctions('../lib/recipe.js');
 const {
   applyWorkflowGate,
   approveWorkflowNode,
@@ -178,21 +192,21 @@ const {
   retryWorkflowNode,
   startWorkflowNode,
   workflowStatus
-} = require('../lib/workflow-runtime.js');
+} = lazyFunctions('../lib/workflow-runtime.js');
 const {
   cloneRecipe,
   diffRecipes,
   inspectRecipe,
   installRecipe,
   recipeCatalog
-} = require('../lib/recipe-builder.js');
+} = lazyFunctions('../lib/recipe-builder.js');
 const {
   createHandoff,
   handoffBrief,
   readHandoff,
   verifyHandoff
-} = require('../lib/handoff.js');
-const { createStudioServer, readStudioUrl } = require('../lib/studio-server.js');
+} = lazyFunctions('../lib/handoff.js');
+const { createStudioServer, readStudioUrl } = lazyFunctions('../lib/studio-server.js');
 
 const VERSION = require('../package.json').version;
 const CWD = process.cwd();
