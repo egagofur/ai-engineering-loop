@@ -15,11 +15,12 @@ Measured on `dltx/backend-service` (NestJS + Jest, 448 suites, 3400 tests):
 | Command | Time |
 |---|---|
 | Full unit suite, serial (`--runInBand`, the project default) | 111 s |
+| Full unit suite, parallel (`--maxWorkers=50%`, 8 cores) | 150 s, slower than serial: ts-jest compiles again in every worker |
 | Typical scoped runs (`jest src/modules/<x>`) | 6–45 s |
-| `build` | 17–31 s |
-| `tsc --noEmit` | 15–29 s |
+| `build` | 17–31 s in recorded runs, 12 s warm |
+| `tsc --noEmit` | 15–29 s in recorded runs, 7 s warm |
 
-Agents already scope tests by hand to stay fast, and that scope is never recorded or checked.
+Agents already scope tests by hand to stay fast, and that scope is never recorded or checked. More workers do not help, so the gain has to come from running fewer tests.
 
 ## Goals
 
