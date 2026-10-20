@@ -66,9 +66,9 @@ function toVerified({ repo, cli }) {
     acceptanceCriteria: [{ id: 'AC-1', statement: 'returns page 2', evidenceRequired: 'tests exit 0', failureCases: ['page beyond end returns empty'] }]
   }));
   const draft = JSON.parse(ok(cli('goal', 'draft', '--run', run.runId, '--file', '.ai-engineering-loop/goal-draft.json', '--revision', '0'), 'goal draft').stdout);
-  assert.ok(draft.result.impactPreview, 'the draft carries an impact preview for the human');
+  assert.ok(draft.impactPreview, 'the draft carries an impact preview for the human');
   const freeze = JSON.parse(ok(cli('goal', 'freeze', '--latest', '--run', run.runId, '--by', 'human', '--confirm-impact'), 'goal freeze').stdout);
-  assert.strictEqual(freeze.result.impact.status, 'CONFIRMED');
+  assert.strictEqual(freeze.impact.status, 'CONFIRMED');
   fs.writeFileSync(path.join(repo, 'src/list.js'), 'module.exports = (items, page = 1) => items.slice((page - 1) * 10, page * 10);\n');
   ok(cli('gate', 'maker', '--from-git', '--run', run.runId), 'gate maker');
   ok(cli('verify', '--run', run.runId, '--cmd', 'node --version'), 'verify');

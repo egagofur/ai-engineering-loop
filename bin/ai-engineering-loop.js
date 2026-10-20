@@ -3067,6 +3067,7 @@ function handleGoal() {
   try {
     const runId = requiredRunId('goal');
     let result;
+    const extra = {};
     if (action === 'show') {
       result = loadGoalDraft(CWD, runId);
     } else if (action === 'draft') {
@@ -3081,7 +3082,7 @@ function handleGoal() {
         actor: argValue('--by') || 'agent',
         expectedRevision: requiredIntegerArg('--revision')
       });
-      result = { ...result, impactPreview: impactPreview(runId, draftGoal) };
+      extra.impactPreview = impactPreview(runId, draftGoal);
       appendRunLifecycle(CWD, runId, {
         type: 'GOAL_DRAFT_UPDATED',
         phase: 'goal',
@@ -3139,14 +3140,14 @@ function handleGoal() {
       // (shown as impactPreview with the draft).
       if (process.argv.includes('--confirm-impact')) {
         const confirmed = impactMap.confirmImpactMap(CWD, { runId, by: argValue('--by') || 'human' });
-        result = { ...result, impact: { status: confirmed.map ? confirmed.map.status : 'CONFIRMED' } };
+        extra.impact = { status: confirmed.map ? confirmed.map.status : 'CONFIRMED' };
       }
     } else {
       const error = new Error('goal must be show, draft, or freeze');
       error.code = 'INVALID_USAGE';
       throw error;
     }
-    console.log(JSON.stringify({ ok: true, runId, [action === 'show' ? 'draft' : 'result']: result }, null, 2));
+    console.log(JSON.stringify({ ok: true, runId, [action === 'show' ? 'draft' : 'result']: result, ...extra }, null, 2));
   } catch (error) {
     log.error(`${error.code || 'GOAL_FAILED'}: ${error.message}`);
     process.exitCode = 1;
