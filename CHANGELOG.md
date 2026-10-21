@@ -4,6 +4,10 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+_No changes yet._
+
+## 2.3.0 - 2026-10-21
+
 ### Security
 
 - Studio: mutating requests now need the `x-ael-studio-token` header or an exact same-origin `Origin`, plus `content-type: application/json`. The SameSite cookie alone no longer authorizes a POST from another localhost port.
