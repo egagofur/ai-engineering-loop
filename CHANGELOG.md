@@ -4,7 +4,38 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
-_No changes yet._
+### Security
+
+- Studio: mutating requests now need the `x-ael-studio-token` header or an exact same-origin `Origin`, plus `content-type: application/json`. The SameSite cookie alone no longer authorizes a POST from another localhost port.
+- Secret redaction covers JSON keys (`{"password":"…"}`), key names embedded in identifiers (`AWS_SECRET_ACCESS_KEY=`, `_password`, `clientSecret`), npm `npm_` tokens, Stripe `sk_live_`/`rk_live_` keys, Slack `xox*` tokens, JWTs, and credentials in URLs (`postgres://user:pass@host`).
+- Guard: agent edits to CLI-owned Run evidence (`verification.json`, `state.json`, event ledgers, and others) are denied; `\rm -rf`, `find -delete`, `git checkout -- .`, `git restore`, and `git branch -D` are detected; a failing hook exits 2 (fail closed) outside ASSISTED; `hooks install` pins the hook command to the installed version.
+
+### Fixed
+
+- `verification record` timeouts stop the whole process tree (process group on POSIX, `taskkill /T` on Windows) and no longer hang on a grandchild that holds the output pipes.
+- Concurrent `verification record` calls and Run state updates no longer lose each other's writes: both re-read under a lock before writing.
+- An unterminated last line in `events.jsonl`, `lifecycle.jsonl`, or `interactions.jsonl` (crash mid-append) no longer bricks the Run; the next append quarantines it to `<ledger>.torn-*`.
+- Windows: `npm` and other `.cmd` shims are resolved for `verification record` and auto-update; atomic writes retry a transient `EPERM`/`EBUSY` rename.
+- Studio live snapshots show the newest 100 lifecycle events, and the watcher seeds its cursor from the latest event, so long Runs no longer replay stale events.
+
+### Lighter package and faster hook calls
+
+- **Changed:** the npm package ships one copy of the host skills (`.agents/skills`, which `sync-hosts` already installs from) instead of two identical trees: 247 files, 1.79 MB unpacked (was 279 files, 2.11 MB). `docs` and `doctor` read `.agents/skills`.
+- **Changed:** the CLI loads command modules on first use. `guard check --hook` now loads 15 modules instead of 61.
+- **Removed:** internal helpers that only tests called (capability selection and report formatting in `lib/orchestration.js`, `lib/intern-catalog.js`, recipe import plan/apply, loop-group create/remove, and a few single-use exports). CLI behaviour is unchanged.
+- **Internal:** one atomic writer, sha256 helper, optional JSON reader and actor-id rule (`lib/fsutil.js`), and one hash-chained JSONL ledger for run interactions and lifecycle (`lib/jsonl-ledger.js`).
+
+### Lower ceremony, faster verification, tamper-resistant review
+
+- **Added:** `verify --related` runs the project's `test_related` command (`{files}` = changed files of the gated diff; `init` writes it for Jest and Vitest), tagged `scope: related`. When verification was related-only, `gate delivery` needs `verify --final`, a single full run bound to the same diff. Re-running `verify` on an unchanged diff reuses passing commands (`--fresh` re-runs them); a superseded failure stays in `verification.json` under `superseded`.
+- **Added:** `quick start "<task>"` / `quick finish` take a T0 task through the same gates in two calls: a Goal derived from the task, verify, claimed-vs-reality from the recorded output, review, and the deterministic Judge. T0 parent calls in `npm run measure`: 15 → 6.
+- **Added:** `review ingest --child-id <id> --file <output>` binds `findings.json` to the Devil's Advocate output (`reviewer.rawSha256`, `review-raw.txt`), gates review, and gates the Judge when not required. The review gate rejects a dropped finding, or one downgraded without `dismissal.evidence` (`LEDGER_TAMPERED`). UNATTENDED refuses unbound ledgers; ASSISTED reports `ledgerBinding: UNBOUND`.
+- **Added:** `verdict.json` may carry `judgeFindings`, so the Judge can block with evidence the ledger lacks. It still cannot PASS what the ledger blocks.
+- **Added:** `goal draft` returns an `impactPreview` and persists the freeze question; `goal freeze --confirm-impact` accepts the blast radius in the same human stop and closes the question.
+- **Changed:** the iteration cap comes from the recipe's Judge loop group (`maxIterations`, clamped to 1-5; default 3). An ITERATE that repeats the previous Maker diff or blocking findings escalates as `NO_PROGRESS` (`RUN_DIR/iterations.jsonl`).
+- **Changed:** runs that end DELIVERED or ESCALATED mine learnings automatically (`AEL_NO_AUTO_LEARN=1` opts out); `run --json` reports the top `learnings`.
+- **Changed:** tier classification is path-first. Docs-only paths stay T0 even when the task names a risky topic; prose under a risky directory is not a risky path; dependency manifests and lockfiles are never T0; trivial-plus-risky text without paths starts at T1.
+- **Fixed:** spec contradictions: no `tasks/current.diff`, one severity vocabulary (BLOCKER/HIGH, formerly SEV-1/SEV-2), auto-fixing linters before `gate maker`, the CONTEXT_ISOLATION_ONLY header no longer contains a forbidden word, and the Judge matrix covers every MEDIUM/LOW disposition.
 
 ## 2.2.0 - 2026-10-18
 

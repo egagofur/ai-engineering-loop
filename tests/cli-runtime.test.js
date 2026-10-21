@@ -168,6 +168,6 @@ test('CLI publishes revision-bound Goal drafts and lifecycle activity for Studio
   assert.deepStrictEqual(shown.draft, result.result);
   assert.deepStrictEqual(
     listRunLifecycle(root, 'run-001').events.map((event) => event.type),
-    ['GOAL_DRAFTING', 'GOAL_DRAFT_UPDATED', 'GOAL_READY']
+    ['GOAL_DRAFTING', 'GOAL_DRAFT_UPDATED', 'GOAL_READY', 'AGENT_WAITING']
   );
 });

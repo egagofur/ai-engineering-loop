@@ -240,3 +240,20 @@ test('CLI: run --json reports tier and reasons; recipe-bound T0 completes review
   assert.strictEqual(judge.status, 0, judge.stdout + judge.stderr);
   assert.strictEqual(JSON.parse(judge.stdout).state, 'JUDGED_PASS');
 });
+
+test('path-first classification: docs-only paths beat risky words, manifests are never T0', () => {
+  const docs = classifyTier({ task: 'Fix typo in token docs', changedPaths: ['docs/auth.md'] });
+  assert.strictEqual(docs.tier, 'T0');
+  assert.ok(docs.reasons.some((r) => r.code === 'RISKY_TEXT_IGNORED'));
+  const mixed = classifyTier({ task: 'Fix typo in token docs' });
+  assert.strictEqual(mixed.tier, 'T1');
+  assert.ok(mixed.reasons.some((r) => r.code === 'MIXED_TASK_TEXT'));
+  assert.strictEqual(classifyTier({ task: 'bump lodash', changedPaths: ['package.json', 'yarn.lock'] }).tier, 'T1');
+  assert.strictEqual(classifyTier({ task: 'bump lodash', changedPaths: ['requirements.txt'] }).tier, 'T1');
+  assert.strictEqual(classifyTier({ task: 'Fix login permission check' }).tier, 'T2');
+  assert.strictEqual(classifyTier({ task: 'fix typo', changedPaths: ['src/auth/session.js'] }).tier, 'T2');
+  const t0 = initialTierState({ task: 'bump version' });
+  assert.strictEqual(t0.current, 'T0');
+  const manifestDiff = 'diff --git a/package.json b/package.json\n--- a/package.json\n+++ b/package.json\n@@ -1 +1 @@\n-"1"\n+"2"\n';
+  assert.strictEqual(raiseTierFromDiff(t0, { task: 'bump version', diff: manifestDiff }).current, 'T1');
+});

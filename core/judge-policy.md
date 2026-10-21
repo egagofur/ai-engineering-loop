@@ -37,8 +37,8 @@ The Judge renders decisions based strictly on **Validity + Severity**, then **re
 | **`VALID`** | **`BLOCKER`** | Any | **UPHELD (Blocking)** if `axis` is `spec` (or omitted), or `standards` with `hardConvention: true` | **`ITERATE`** — Maker must apply alternative diff & tests. |
 | **`VALID`** | **`HIGH`** | Any | **UPHELD (Blocking)** under the same axis rule | **`ITERATE`** — Maker must apply alternative diff & tests. |
 | **`VALID`** | **`BLOCKER` / `HIGH`** | Any | **TRADEOFF** if `axis` is `standards` and `hardConvention` is not true | **`PASS`** (if ACs met) — smell/convention judgement, not an AC breach. |
-| **`VALID`** | **`MEDIUM`** | `ACCEPTABLE` | **UPHELD (Tradeoff)** | **`PASS`** (if ACs met) — Logged as known tradeoff in MR. |
-| **`VALID`** | **`LOW`** | `ACCEPTABLE` | **UPHELD (Tradeoff)** | **`PASS`** (if ACs met) — Logged as known tradeoff in MR. |
+| **`VALID`** | **`MEDIUM`** | Any | **UPHELD (Tradeoff)** | **`PASS`** (if ACs met) — Logged as known tradeoff in MR. |
+| **`VALID`** | **`LOW`** | Any | **UPHELD (Tradeoff)** | **`PASS`** (if ACs met) — Logged as known tradeoff in MR. |
 | **`INVALID`** | Any | `WEAK` | **DISMISSED (Hallucination)** | **`PASS`** (if ACs met) — Discarded with evidence proof. |
 
 ---
@@ -69,9 +69,15 @@ The Judge renders decisions based strictly on **Validity + Severity**, then **re
 
 ---
 
+### Judge-added findings
+
+The gate recomputes the verdict from the Finding Ledger plus `judgeFindings` in `verdict.json`. A Judge that blocks for a reason the ledger lacks (rows 3-5 above) adds that reason as a `judgeFindings` entry in the Finding Ledger shape (VALID BLOCKER/HIGH with evidence and `concreteAlternativeDiff`). The Judge cannot PASS what the ledger blocks, and the gate rejects a blocking verdict with no supporting finding.
+
+---
+
 ### Verdict 3: `ESCALATE`
 - **Conditions**:
-  1. Active iteration count $\ge \text{MAX\_ITERATIONS}$ (3).
-  2. Stagnation detected (identical finding signatures repeated across 2 iterations).
+  1. Active iteration count $\ge \text{MAX\_ITERATIONS}$ (recipe `maxIterations`, default 3, at most 5).
+  2. Stagnation detected (`NO_PROGRESS`): the same blocking finding signatures or the same Maker diff as the previous iteration. The gate enforces this.
   3. Contradictory architectural invariants that cannot be resolved within task scope.
 - **Action**: Halt the loop immediately and generate an actionable Human Escalation Report.

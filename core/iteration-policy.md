@@ -17,7 +17,8 @@ MAX_ALLOWED_CEILING = 5
 ```
 
 - **Default Cap**: An engineering run is allotted a maximum of **3 iterations** by default.
-- **Configurability**: Projects or workflows may configure `MAX_ITERATIONS` between 1 and 5 in their runtime configuration or Goal Contract.
+- **Configurability**: A recipe sets the cap with `maxIterations` on the loop group whose decision node is the Judge (`recipes/default.json`). Gates clamp it to 1..5; runs without a recipe use 3.
+- **No progress**: an ITERATE that repeats the previous iteration's Maker diff or its blocking findings becomes ESCALATE (`NO_PROGRESS`), recorded in `RUN_DIR/iterations.jsonl`.
 - **Hard Ceiling**: Under no circumstances may an agent loop beyond 5 iterations without human re-authorization.
 
 ---

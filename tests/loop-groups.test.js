@@ -7,11 +7,7 @@ const path = require('node:path');
 const test = require('node:test');
 const { compileRecipe, validateRecipe } = require('../lib/recipe.js');
 const { migrateLegacyRecipe } = require('../lib/recipe-graph.js');
-const {
-  createLoopGroup,
-  removeLoopGroup,
-  validateLoopGroups
-} = require('../lib/loop-groups.js');
+const { validateLoopGroups } = require('../lib/loop-groups.js');
 
 function recipeFixture() {
   const recipe = migrateLegacyRecipe(JSON.parse(fs.readFileSync(
@@ -36,13 +32,6 @@ function recipeFixture() {
   }];
   return recipe;
 }
-
-test('AC-1/2 creates a stable, complete Loop Group from selected nodes', () => {
-  const recipe = { ...recipeFixture(), loopGroups: [] };
-  const next = createLoopGroup(recipe, recipeFixture().loopGroups[0]);
-  assert.equal(next.loopGroups[0].id, 'build-loop');
-  assert.equal(recipe.loopGroups.length, 0);
-});
 
 test('AC-3 supports multiple independent Loop Groups', () => {
   const recipe = recipeFixture();
@@ -121,14 +110,6 @@ test('AC-11 compiles return transitions outside acyclic dependency Edges', () =>
   assert.equal(plan.loopGroups[0].repeatTargetId, 'maker');
   assert.ok(plan.nodes.find((node) => node.id === 'maker').dependsOn.includes('goal'));
   assert.ok(!plan.nodes.find((node) => node.id === 'maker').dependsOn.includes('judge'));
-});
-
-test('AC-14 removes group semantics without deleting nodes or Edges', () => {
-  const recipe = recipeFixture();
-  const next = removeLoopGroup(recipe, 'build-loop');
-  assert.equal(next.loopGroups.length, 0);
-  assert.equal(next.nodes.length, recipe.nodes.length);
-  assert.deepEqual(next.edges, recipe.edges);
 });
 
 test('AC-24/25 validates custom and built-in Loop Groups', () => {
