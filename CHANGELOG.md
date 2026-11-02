@@ -4,6 +4,10 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+_No changes yet._
+
+## 2.5.0 - 2026-11-02
+
 - **Changed:** the core host skill is now `ael` (#107), so the slash command is `/ael` on every host (`~/.claude/skills/ael`, `~/.agents/skills/ael`, and each host's own folder). `sync-hosts` and `update` remove the old `ai-engineering-loop` skill files AEL wrote, so the command no longer appears twice; files you edited or added there are kept, and `hosts doctor` reports the leftover folder. Skill sources moved to `skill-src/ael/`.
 - **Added:** `ael` CLI alias next to `ai-engineering-loop` (`ael --version`). The npm package name and the project folder `.ai-engineering-loop/` are unchanged.
 
