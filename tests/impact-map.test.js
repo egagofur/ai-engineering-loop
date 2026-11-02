@@ -211,3 +211,58 @@ test('validateImpactMap rejects missing reasons, bad status, and unconfirmed sco
   assert.ok(validateImpactMap({ ...base, status: 'CONFIRMED' }).some((e) => /allowedPaths/.test(e)));
   assert.ok(validateImpactMap({ ...base, status: 'SKIPPED' }).some((e) => /skipReason/.test(e)));
 });
+
+// Issue #98: design-scope drift from the frozen Goal's designRef.
+test('design drift lists unplanned and untouched files; review pack gets two lines; no ledger finding', () => {
+  const ctx = setupRepo();
+  ctx.write('docs/designs/lock.md', '# Lock invoices\n\n## Target Scope\n\n- `src/invoices/invoice-service.js`\n- `src/invoices/routes.js`\n');
+  ctx.git('add', '.');
+  ctx.git('-c', 'user.email=a@b.c', '-c', 'user.name=t', 'commit', '-qm', 'design');
+  const run = JSON.parse(ok(ctx.cli('run', '--json', 'Approve invoice must lock the invoice'), 'run').stdout);
+  fs.writeFileSync(path.join(ctx.repo, 'goal.json'), JSON.stringify({
+    objective: 'Lock invoices',
+    acceptanceCriteria: [{ id: 'AC-1', statement: 'approved invoices cannot be edited', evidenceRequired: 'node --version exit 0', failureCases: ['editing succeeds'] }]
+  }));
+  ok(ctx.cli('goal', 'draft', '--run', run.runId, '--from-design', 'docs/designs/lock.md', '--file', 'goal.json', '--revision', '0'), 'draft');
+  ok(ctx.cli('goal', 'freeze', '--latest', '--run', run.runId, '--by', 'human'), 'freeze');
+  const runDir = path.join(ctx.repo, '.ai-engineering-loop/runs', run.runId);
+  ok(ctx.cli('impact', 'confirm', '--run', run.runId, '--by', 'ega', '--allow', 'src/**'), 'confirm');
+  ctx.write('src/invoices/invoice-service.js', 'function approveInvoice(id) { return { id, locked: true }; }\nmodule.exports = { approveInvoice };\n');
+  ctx.write('src/users/profile.js', 'function renderProfile() { return null; }\n');
+  fs.writeFileSync(path.join(runDir, 'diff.patch'), ctx.git('diff'));
+  ok(ctx.cli('gate', 'maker', '--run', run.runId), 'gate maker');
+  const drift = JSON.parse(ok(ctx.cli('impact', 'drift', '--run', run.runId, '--json'), 'drift').stdout).drift;
+  assert.deepStrictEqual(drift.design, {
+    path: 'docs/designs/lock.md',
+    docChanged: false,
+    planned: 2,
+    unplanned: ['src/users/profile.js'],
+    untouched: ['src/invoices/routes.js']
+  });
+  assert.deepStrictEqual(drift.outOfMap, []);
+  ok(ctx.cli('verify', '--run', run.runId, '--cmd', 'node --version', '--json'), 'verify');
+  fs.writeFileSync(
+    path.join(ctx.repo, '.ai-engineering-loop/tasks/claimed-vs-reality.md'),
+    '| AC | Claimed | Reality from command log |\n|---|---|---|\n| AC-1 | locked | node --version exit 0 |\n'
+  );
+  const pack = JSON.parse(ok(ctx.cli('review-pack', '--run', run.runId, '--json'), 'review-pack').stdout);
+  assert.strictEqual(pack.impactDrift.design.length, 2);
+  assert.match(pack.impactDrift.design[0], /1 changed file\(s\) outside its plan \(src\/users\/profile\.js\)/);
+  assert.match(pack.impactDrift.design[1], /1 planned file\(s\) untouched \(src\/invoices\/routes\.js\)/);
+  assert.ok(Buffer.byteLength(pack.impactDrift.design.join('\n')) <= 300);
+  const diffHash = JSON.parse(fs.readFileSync(path.join(runDir, 'state.json'), 'utf8')).artifacts.diff.sha256;
+  fs.writeFileSync(path.join(runDir, 'findings.json'), JSON.stringify({ schemaVersion: 1, runId: run.runId, diffHash, findings: [] }));
+  ok(ctx.cli('gate', 'review', '--run', run.runId), 'gate review');
+  const ledger = JSON.parse(fs.readFileSync(path.join(runDir, 'findings.json'), 'utf8'));
+  assert.deepStrictEqual(ledger.findings, []);
+});
+
+test('design drift without designRef leaves impact-drift.json unchanged', () => {
+  const ctx = setupRepo();
+  const { runId, runDir } = startFrozenRun(ctx);
+  ctx.write('src/users/profile.js', 'function renderProfile() { return 1; }\n');
+  fs.writeFileSync(path.join(runDir, 'diff.patch'), ctx.git('diff'));
+  ok(ctx.cli('gate', 'maker', '--run', runId), 'gate maker');
+  const drift = JSON.parse(ok(ctx.cli('impact', 'drift', '--run', runId, '--json'), 'drift').stdout).drift;
+  assert.ok(!Object.hasOwn(drift, 'design'));
+});

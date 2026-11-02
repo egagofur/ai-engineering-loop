@@ -20,7 +20,7 @@ function ok(result, label) {
 }
 
 // Drives a T1 run to DELIVERED. `rows` = claimed-vs-reality rows to write.
-function deliveredRun({ rows = ['AC-1', 'AC-2'], deliverArgs = [] } = {}) {
+function deliveredRun({ rows = ['AC-1', 'AC-2'], deliverArgs = [], design = false } = {}) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-receipt-home-'));
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-receipt-'));
   const env = { ...process.env, HOME: home, USERPROFILE: home, AEL_HOME: home };
@@ -28,6 +28,10 @@ function deliveredRun({ rows = ['AC-1', 'AC-2'], deliverArgs = [] } = {}) {
   git('init', '-q');
   fs.mkdirSync(path.join(repo, 'src'));
   fs.writeFileSync(path.join(repo, 'src/list.js'), 'module.exports = (items) => items.slice(0, 10);\n');
+  if (design) {
+    fs.mkdirSync(path.join(repo, 'docs'));
+    fs.writeFileSync(path.join(repo, 'docs/list.md'), '# Pagination\n\n## Target Scope\n\n- `src/list.js`\n- `src/pager.js`\n');
+  }
   git('add', '.');
   git('-c', 'user.email=a@b.c', '-c', 'user.name=t', 'commit', '-qm', 'init');
   const cli = (...args) => spawnSync(process.execPath, [CLI, ...args], { cwd: repo, env, encoding: 'utf8' });
@@ -45,7 +49,7 @@ function deliveredRun({ rows = ['AC-1', 'AC-2'], deliverArgs = [] } = {}) {
       { id: 'AC-2', statement: 'page 0 is rejected', evidenceRequired: 'node --version exit 0', failureCases: ['page 0 returns items'] }
     ]
   }));
-  ok(cli('goal', 'draft', '--run', run.runId, '--file', '.ai-engineering-loop/goal-draft.json', '--revision', '0'), 'draft');
+  ok(cli('goal', 'draft', '--run', run.runId, '--file', '.ai-engineering-loop/goal-draft.json', '--revision', '0', ...(design ? ['--from-design', 'docs/list.md'] : [])), 'draft');
   ok(cli('goal', 'freeze', '--latest', '--run', run.runId, '--by', 'human'), 'freeze');
   fs.writeFileSync(path.join(repo, 'src/list.js'), 'module.exports = (items, page = 1) => items.slice((page - 1) * 10, page * 10);\n');
   ok(cli('gate', 'maker', '--from-git', '--run', run.runId), 'maker');
@@ -146,4 +150,10 @@ test('evidence links must be hosted http(s) URLs for a known AC', () => {
     acceptanceCriteria: [{ id: 'AC-1', statement: 'x | y', status: 'MISSING', missing: ['no recorded verification command'], evidence: [] }],
     review: { findings: { total: 0, valid: 0, blocking: 0 }, verdict: { verdict: 'PASS' } }, impact: null, guard: { warn: 0, block: 0 }
   }), /❌ \*\*AC-1\*\* x \\\| y — \*\*missing:\*\*/);
+});
+
+// Issue #98: design drift counts ride in the receipt.
+test('a Goal with designRef puts design drift counts in receipt.impact.design', () => {
+  const { receipt } = deliveredRun({ design: true });
+  assert.deepStrictEqual(receipt.impact.design, { path: 'docs/list.md', docChanged: false, unplanned: 0, untouched: 1 });
 });
