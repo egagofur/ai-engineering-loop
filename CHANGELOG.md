@@ -4,14 +4,14 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
-### Spec pack guide
+_No changes yet._
 
-- **Docs:** `npx ai-engineering-loop docs spec-pack` (#100): when to use the `spec` pack and when not, the flow from `ael-spec-brainstorm` to `goal draft --from-design` and `ael-spec-drift`, the host fallback, and how to pull upstream EGM updates. README and the T2 reference (`loop-risky`) point at it; `THIRD_PARTY_NOTICES.md` lists every shipped EGM-derived file.
+## 2.4.0 - 2026-11-02
 
-### Spec pack hint and doctor status
+### Spec pack: design before code (EGM fork)
 
-- **Added:** a new T2 Run prints one `specHint` (`run --json`) suggesting `ael-spec-brainstorm -> ael-spec-draft -> ael-spec-review` and `goal draft --from-design` (#99), plus the install command when the `spec` pack is missing. T0/T1 and resumed Runs print nothing new.
-- **Added:** `hosts doctor` rows carry `spec { installed, reviewMode }` (`FRESH_SUBAGENT`, or `CONTEXT_ISOLATION_ONLY` on instruction-only hosts) and the text report names the install command when no host has the pack. It never changes `ok`.
+- **Added:** opt-in `spec` host pack (`sync-hosts --pack spec`, #96): six host-neutral skills, `ael-spec-brainstorm`, `ael-spec-draft`, `ael-spec-review`, `ael-spec-review-loop`, `ael-spec-resolve` and `ael-spec-drift`, derived from Google's Elephant-Goldfish Model through the fork [egagofur/elephant-goldfish-model](https://github.com/egagofur/elephant-goldfish-model) (Apache-2.0). Reviewer personas and document standards are `ael-spec-*` docs (`docs ael-spec-zoom-out`). On a host without a subagent tool the reviews run one at a time in-session, labelled `CONTEXT_ISOLATION_ONLY`, instead of stopping. Core and T0/T1 runs are unchanged.
+- **Internal:** `vendor/egm/` holds the pinned fork files (not shipped); `scripts/sync-spec-pack.js` regenerates `adapters/spec/`, `--check` fails on stale output, and `--pull [ref]` refreshes the vendor copy.
 
 ### Design documents as Goal input
 
@@ -22,10 +22,14 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 - **Added:** when the frozen Goal has `designRef` (#98), `impact drift` (run with `verify`) also records `design { path, docChanged, planned, unplanned[], untouched[] }` in `impact-drift.json`: changed files outside the design's plan and planned files nobody touched. The review pack shows it as two short lines for the Devil's Advocate and `receipt.json` carries the counts under `impact.design`. It is informational: no ledger finding, no gate failure. Runs without `designRef` are unchanged.
 
-### Spec pack: design before code (EGM fork)
+### Spec pack hint and doctor status
 
-- **Added:** opt-in `spec` host pack (`sync-hosts --pack spec`, #96): six host-neutral skills, `ael-spec-brainstorm`, `ael-spec-draft`, `ael-spec-review`, `ael-spec-review-loop`, `ael-spec-resolve` and `ael-spec-drift`, derived from Google's Elephant-Goldfish Model through the fork [egagofur/elephant-goldfish-model](https://github.com/egagofur/elephant-goldfish-model) (Apache-2.0). Reviewer personas and document standards are `ael-spec-*` docs (`docs ael-spec-zoom-out`). On a host without a subagent tool the reviews run one at a time in-session, labelled `CONTEXT_ISOLATION_ONLY`, instead of stopping. Core and T0/T1 runs are unchanged.
-- **Internal:** `vendor/egm/` holds the pinned fork files (not shipped); `scripts/sync-spec-pack.js` regenerates `adapters/spec/`, `--check` fails on stale output, and `--pull [ref]` refreshes the vendor copy.
+- **Added:** a new T2 Run prints one `specHint` (`run --json`) suggesting `ael-spec-brainstorm -> ael-spec-draft -> ael-spec-review` and `goal draft --from-design` (#99), plus the install command when the `spec` pack is missing. T0/T1 and resumed Runs print nothing new.
+- **Added:** `hosts doctor` rows carry `spec { installed, reviewMode }` (`FRESH_SUBAGENT`, or `CONTEXT_ISOLATION_ONLY` on instruction-only hosts) and the text report names the install command when no host has the pack. It never changes `ok`.
+
+### Spec pack guide
+
+- **Docs:** `npx ai-engineering-loop docs spec-pack` (#100): when to use the `spec` pack and when not, the flow from `ael-spec-brainstorm` to `goal draft --from-design` and `ael-spec-drift`, the host fallback, and how to pull upstream EGM updates. README and the T2 reference (`loop-risky`) point at it; `THIRD_PARTY_NOTICES.md` lists every shipped EGM-derived file.
 
 ## 2.3.0 - 2026-10-21
 
