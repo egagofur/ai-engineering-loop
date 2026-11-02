@@ -104,10 +104,10 @@ test('hosts doctor: counts visible copies, flags different duplicates and files 
   // Cursor scans ~/.claude/skills too: two identical copies.
   assert.strictEqual(cursor.copies.length, 2);
   assert.ok(cursor.identical);
-  const stale = path.join(dir, '.cursor/skills/ai-engineering-loop/SKILL.md');
+  const stale = path.join(dir, '.cursor/skills/ael/SKILL.md');
   fs.mkdirSync(path.dirname(stale), { recursive: true });
   fs.writeFileSync(stale, '---\nname: ai-engineering-loop\ndescription: old\n---\nold\n');
-  fs.rmSync(path.join(dir, '.agents/skills/ai-engineering-loop/references/loop-hosts.md'));
+  fs.rmSync(path.join(dir, '.agents/skills/ael/references/loop-hosts.md'));
   const before = listFiles(dir);
   report = doctor();
   assert.strictEqual(report.ok, false);

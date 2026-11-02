@@ -69,14 +69,14 @@ test('project-onboarding ships in core; the quality pack is opt-in on every host
 });
 
 test('merged rules land in their target files without growing SKILL.md', () => {
-  assert.match(read('skill-src/ai-engineering-loop/references/loop-verify.md'), /No claim without fresh evidence/);
-  assert.match(read('skill-src/ai-engineering-loop/references/loop-review.md'), /ael-receiving-code-review/);
+  assert.match(read('skill-src/ael/references/loop-verify.md'), /No claim without fresh evidence/);
+  assert.match(read('skill-src/ael/references/loop-review.md'), /ael-receiving-code-review/);
   const rca = read('core/root-cause-analysis.md');
   assert.match(rca, /Trace backward/);
   assert.match(rca, /Three strikes/);
   assert.match(rca, /Test pollution/);
   assert.match(read('bin/ai-engineering-loop.js'), /build -> typecheck -> lint -> test_unit -> security scan/);
-  for (const rel of ['.claude/skills/ai-engineering-loop/SKILL.md', '.agents/skills/ai-engineering-loop/SKILL.md']) {
+  for (const rel of ['.claude/skills/ael/SKILL.md', '.agents/skills/ael/SKILL.md']) {
     assert.ok(read(rel).length <= 4000, rel);
   }
 });

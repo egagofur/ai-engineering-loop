@@ -20,22 +20,22 @@ const skills = () => buildHostSkills(ROOT).filter((out) => out.kind === 'skill')
 test('generated host skills match skill-src (drift check)', () => {
   assert.deepStrictEqual(checkHostSkills(ROOT), []);
   assert.deepStrictEqual(skills().map((out) => out.path), [
-    '.claude/skills/ai-engineering-loop/SKILL.md',
-    '.agents/skills/ai-engineering-loop/SKILL.md'
+    '.claude/skills/ael/SKILL.md',
+    '.agents/skills/ael/SKILL.md'
   ]);
 });
 
 test('one host-neutral skill: every output is byte-identical (#48)', () => {
   const byName = new Map();
   for (const out of buildHostSkills(ROOT).filter((item) => item.kind !== 'digest')) {
-    const name = out.path.split('/ai-engineering-loop/')[1];
+    const name = out.path.split('/ael/')[1];
     if (!byName.has(name)) byName.set(name, out.content);
     assert.strictEqual(out.content, byName.get(name), `${out.path} differs from its sibling copy`);
   }
   assert.ok(byName.has('references/loop-hosts.md'));
   const skill = byName.get('SKILL.md');
   // Standard Agent Skills frontmatter only (agentskills.io): first bytes, name + description.
-  assert.match(skill, /^---\nname: ai-engineering-loop\ndescription: [^\n]{1,1024}\n---\n/);
+  assert.match(skill, /^---\nname: ael\ndescription: [^\n]{1,1024}\n---\n/);
   assert.doesNotMatch(skill.split('\n---\n')[0], /allowed-tools|user-invocable/);
   assert.doesNotMatch(skill, /Claude Code\)|\(Grok CLI\)|\(Antigravity\)/, 'SKILL.md must not be host-branded');
 });
@@ -48,10 +48,10 @@ test('a hand edit of a generated file is reported as drift', () => {
     fs.writeFileSync(path.join(tmp, out.path), out.content);
   }
   assert.deepStrictEqual(checkHostSkills(tmp), []);
-  const edited = '.claude/skills/ai-engineering-loop/SKILL.md';
+  const edited = '.claude/skills/ael/SKILL.md';
   fs.appendFileSync(path.join(tmp, edited), '\nmanual edit\n');
-  fs.rmSync(path.join(tmp, '.agents/skills/ai-engineering-loop/references/loop-goal.md'));
-  assert.deepStrictEqual(checkHostSkills(tmp).sort(), ['.agents/skills/ai-engineering-loop/references/loop-goal.md', '.claude/skills/ai-engineering-loop/SKILL.md']);
+  fs.rmSync(path.join(tmp, '.agents/skills/ael/references/loop-goal.md'));
+  assert.deepStrictEqual(checkHostSkills(tmp).sort(), ['.agents/skills/ael/references/loop-goal.md', '.claude/skills/ael/SKILL.md']);
 });
 
 test('every host SKILL.md stays within the always-loaded budget and keeps the quality core', () => {
@@ -87,7 +87,7 @@ test('sync-hosts installs references beside each host SKILL.md', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-skill-refs-'));
   for (const dir of ['.claude', '.grok', '.gemini/antigravity']) fs.mkdirSync(path.join(home, dir), { recursive: true });
   const plan = planHostSync({ packageRoot: ROOT, home });
-  for (const skillDir of ['.claude/skills/ai-engineering-loop', '.agents/skills/ai-engineering-loop', '.gemini/config/skills/ai-engineering-loop']) {
+  for (const skillDir of ['.claude/skills/ael', '.agents/skills/ael', '.gemini/config/skills/ael']) {
     for (const file of LOOP_REFERENCE_FILES) {
       const dest = path.join(home, skillDir, 'references', file);
       assert.ok(plan.some((item) => item.dest === dest), `plan misses ${dest}`);
@@ -96,8 +96,8 @@ test('sync-hosts installs references beside each host SKILL.md', () => {
   applyHostSync({ packageRoot: ROOT, home });
   // sync-hosts normalizes line endings; a Windows checkout may have CRLF.
   const lf = (file) => fs.readFileSync(file, 'utf8').replace(/\r\n?/g, '\n');
-  const installed = lf(path.join(home, '.claude/skills/ai-engineering-loop/references/loop-review.md'));
-  assert.strictEqual(installed, lf(path.join(ROOT, '.claude/skills/ai-engineering-loop/references/loop-review.md')));
+  const installed = lf(path.join(home, '.claude/skills/ael/references/loop-review.md'));
+  assert.strictEqual(installed, lf(path.join(ROOT, '.claude/skills/ael/references/loop-review.md')));
 });
 
 test('gate maker --from-git captures tracked and new files, excluding .ai-engineering-loop', () => {

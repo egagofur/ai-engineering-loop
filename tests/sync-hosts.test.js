@@ -33,7 +33,7 @@ test('sync upserts Claude AEL files but does not invent DOT skills', () => {
   const results = applyHostSync({ packageRoot: ROOT, home, packs: ['backend', 'design'] });
   const claude = results.filter((item) => item.id === 'claude');
   assert.ok(claude.every((item) => item.action === 'copy' || item.reason === 'pack-not-selected'));
-  assert.ok(fs.existsSync(path.join(home, '.claude/skills/ai-engineering-loop/SKILL.md')));
+  assert.ok(fs.existsSync(path.join(home, '.claude/skills/ael/SKILL.md')));
   assert.ok(fs.existsSync(path.join(home, '.claude/agents/devil-advocate.md')));
   assert.ok(fs.existsSync(path.join(home, '.claude/agents/judge.md')));
   assert.ok(!fs.existsSync(path.join(home, '.claude/commands/ai-engineering-loop.md')), 'commands retired in #48');
@@ -143,7 +143,7 @@ test('DOT skills update only when already installed', () => {
   const results = applyHostSync({ packageRoot: ROOT, home });
   const dotWf = results.find((item) => item.dest === dest);
   assert.strictEqual(dotWf.action, 'copy');
-  assert.match(fs.readFileSync(dest, 'utf8'), /Not a substitute for ai-engineering-loop/);
+  assert.match(fs.readFileSync(dest, 'utf8'), /Not a substitute for ael/);
 });
 
 test('Grok gets the shared skill and no copy of its own; DOT skill stays byte-identical (#48)', () => {
@@ -153,8 +153,8 @@ test('Grok gets the shared skill and no copy of its own; DOT skill stays byte-id
   fs.mkdirSync(path.dirname(dot), { recursive: true });
   fs.writeFileSync(dot, '---\nname: dot-dev-workflow\ndescription: old\n---\n\nold\n');
   applyHostSync({ packageRoot: ROOT, home });
-  const skill = fs.readFileSync(path.join(home, '.agents/skills/ai-engineering-loop/SKILL.md'), 'utf8');
-  assert.strictEqual(skill, fs.readFileSync(path.join(ROOT, '.agents/skills/ai-engineering-loop/SKILL.md'), 'utf8').replace(/\r\n?/g, '\n'));
+  const skill = fs.readFileSync(path.join(home, '.agents/skills/ael/SKILL.md'), 'utf8');
+  assert.strictEqual(skill, fs.readFileSync(path.join(ROOT, '.agents/skills/ael/SKILL.md'), 'utf8').replace(/\r\n?/g, '\n'));
   assert.ok(!fs.existsSync(path.join(home, '.grok/skills')));
   assert.ok(fs.existsSync(path.join(home, '.grok/agents/devil-advocate.md')));
   assert.strictEqual(fs.readFileSync(dot, 'utf8'), fs.readFileSync(path.join(ROOT, 'adapters/dot/skills/dot-dev-workflow/SKILL.md'), 'utf8').replace(/\r\n?/g, '\n'));
@@ -165,8 +165,8 @@ test('Gemini CLI and Codex homes get the loop through ~/.agents/skills, not ~/.g
     const home = tmpHome();
     fs.mkdirSync(path.join(home, dir));
     applyHostSync({ packageRoot: ROOT, home });
-    assert.ok(fs.existsSync(path.join(home, '.agents/skills/ai-engineering-loop/SKILL.md')), dir);
-    assert.ok(fs.existsSync(path.join(home, '.agents/skills/ai-engineering-loop/references/loop-hosts.md')), dir);
+    assert.ok(fs.existsSync(path.join(home, '.agents/skills/ael/SKILL.md')), dir);
+    assert.ok(fs.existsSync(path.join(home, '.agents/skills/ael/references/loop-hosts.md')), dir);
     assert.ok(!fs.existsSync(path.join(home, '.gemini/config')), `${dir}: Antigravity path must not be created for Gemini CLI`);
     assert.ok(!fs.existsSync(path.join(home, '.agents/workflows')), dir);
   }
@@ -176,7 +176,7 @@ test('Antigravity gets skills in ~/.gemini/config/skills and subagents in ~/.gem
   const home = tmpHome();
   fs.mkdirSync(path.join(home, '.gemini/antigravity'), { recursive: true });
   applyHostSync({ packageRoot: ROOT, home });
-  assert.ok(fs.existsSync(path.join(home, '.gemini/config/skills/ai-engineering-loop/SKILL.md')));
+  assert.ok(fs.existsSync(path.join(home, '.gemini/config/skills/ael/SKILL.md')));
   for (const name of ['devil-advocate', 'judge']) {
     const agent = fs.readFileSync(path.join(home, `.gemini/config/agents/${name}.md`), 'utf8');
     assert.match(agent, new RegExp(`^name: ${name}$`, 'm'));
@@ -211,7 +211,7 @@ test('every host sees one copy, or byte-identical copies, of each AEL skill (#48
         else seen.set(name, text);
       }
     }
-    assert.ok(seen.has('ai-engineering-loop'), dirs.join(' + '));
+    assert.ok(seen.has('ael'), dirs.join(' + '));
   }
 });
 
@@ -224,7 +224,7 @@ test('upgrade removes retired AEL host files it wrote, keeps edited ones (#48)',
     '.agents/judge.md': 'old judge\n',
     '.claude/commands/ai-engineering-loop.md': 'old command\n',
     '.grok/commands/ai-engineering-loop.md': 'old grok command\n',
-    '.grok/skills/ai-engineering-loop/SKILL.md': 'old grok skill\n'
+    '.grok/skills/ael/SKILL.md': 'old grok skill\n'
   };
   const files = {};
   for (const [rel, text] of Object.entries(retired)) {
@@ -241,7 +241,7 @@ test('upgrade removes retired AEL host files it wrote, keeps edited ones (#48)',
   applyHostSync({ packageRoot: ROOT, home });
   for (const rel of Object.keys(retired)) assert.ok(!fs.existsSync(path.join(home, rel)), `${rel} should be pruned`);
   assert.strictEqual(fs.readFileSync(edited, 'utf8'), 'my own notes\n');
-  assert.ok(fs.existsSync(path.join(home, '.agents/skills/ai-engineering-loop/SKILL.md')));
+  assert.ok(fs.existsSync(path.join(home, '.agents/skills/ael/SKILL.md')));
 });
 
 test('dry-run does not write; second apply is current', () => {
@@ -251,7 +251,7 @@ test('dry-run does not write; second apply is current', () => {
   const gemini = dry.find((item) => item.id === 'antigravity');
   assert.strictEqual(gemini.action, 'copy');
   assert.ok(gemini.dryRun);
-  assert.ok(!fs.existsSync(path.join(home, '.gemini/config/skills/ai-engineering-loop/SKILL.md')));
+  assert.ok(!fs.existsSync(path.join(home, '.gemini/config/skills/ael/SKILL.md')));
   applyHostSync({ packageRoot: ROOT, home });
   const again = applyHostSync({ packageRoot: ROOT, home });
   assert.strictEqual(summarizeHostSync(again.filter((item) => item.id === 'antigravity')).copy, 0);
@@ -260,7 +260,7 @@ test('dry-run does not write; second apply is current', () => {
 
 test('symlink destinations are left alone', () => {
   const home = tmpHome();
-  const skillDir = path.join(home, '.claude/skills/ai-engineering-loop');
+  const skillDir = path.join(home, '.claude/skills/ael');
   fs.mkdirSync(skillDir, { recursive: true });
   const target = path.join(home, 'outside.md');
   fs.writeFileSync(target, 'keep me\n');
@@ -280,7 +280,7 @@ test('sync skips destinations reached through a symlinked parent directory', { s
   const results = applyHostSync({ packageRoot: ROOT, home });
   const aelSkill = results.find((item) => item.dest === path.join(
     home,
-    '.claude/skills/ai-engineering-loop/SKILL.md'
+    '.claude/skills/ael/SKILL.md'
   ));
 
   assert.equal(aelSkill.action, 'skip');
@@ -297,7 +297,7 @@ test('sync respects a symlinked home directory while still guarding paths below 
 
   applyHostSync({ packageRoot: ROOT, home: homeAlias });
 
-  assert.ok(fs.existsSync(path.join(actualHome, '.claude/skills/ai-engineering-loop/SKILL.md')));
+  assert.ok(fs.existsSync(path.join(actualHome, '.claude/skills/ael/SKILL.md')));
 });
 
 test('CLI sync-hosts --dry-run respects AEL_HOME', () => {
@@ -404,7 +404,7 @@ test('help flags and unknown flags on writer commands never write to home or rep
 test('sync backs up user-edited or untracked host files and not files it wrote itself', () => {
   const home = tmpHome();
   fs.mkdirSync(path.join(home, '.claude'));
-  const dest = path.join(home, '.claude/skills/ai-engineering-loop/SKILL.md');
+  const dest = path.join(home, '.claude/skills/ael/SKILL.md');
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   fs.writeFileSync(dest, 'my local notes\n');
   const first = applyHostSync({ packageRoot: ROOT, home, version: '9.9.9' });
@@ -441,7 +441,7 @@ test('default sync installs only the core pack; packs are opt-in, saved, and pru
   fs.mkdirSync(path.join(home, '.claude'));
   const results = applyHostSync({ packageRoot: ROOT, home });
   assert.deepStrictEqual(results.packs, ['core']);
-  assert.ok(fs.existsSync(path.join(home, '.claude/skills/ai-engineering-loop/SKILL.md')));
+  assert.ok(fs.existsSync(path.join(home, '.claude/skills/ael/SKILL.md')));
   assert.ok(!fs.existsSync(path.join(home, '.claude/skills/emil-design-eng')));
   assert.ok(!fs.existsSync(path.join(home, '.claude/skills/backend-development')));
   const skippedPacks = new Set(results.filter((item) => item.reason === 'pack-not-selected').map((item) => item.pack));
@@ -465,7 +465,7 @@ test('default sync installs only the core pack; packs are opt-in, saved, and pru
   assert.ok(!fs.existsSync(path.join(home, '.claude/skills/emil-design-eng')));
   assert.ok(fs.existsSync(edited));
   assert.strictEqual(pruned.find((item) => item.dest === edited).reason, 'modified');
-  assert.ok(fs.existsSync(path.join(home, '.claude/skills/ai-engineering-loop/SKILL.md')));
+  assert.ok(fs.existsSync(path.join(home, '.claude/skills/ael/SKILL.md')));
 });
 
 test('legacy installs keep updating an optional pack that is already on disk', () => {

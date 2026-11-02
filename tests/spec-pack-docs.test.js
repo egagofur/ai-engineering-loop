@@ -22,7 +22,7 @@ test('docs spec-pack resolves and stays within ~3 KB', () => {
 
 test('README, loop-risky and THIRD_PARTY_NOTICES point at the spec pack', () => {
   assert.match(read('README.md'), /sync-hosts --pack spec .*docs spec-pack/);
-  assert.match(read('.agents/skills/ai-engineering-loop/references/loop-risky.md'), /docs spec-pack/);
+  assert.match(read('.agents/skills/ael/references/loop-risky.md'), /docs spec-pack/);
   const notices = read('THIRD_PARTY_NOTICES.md');
   for (const word of ['Apache License 2.0', 'Google LLC', 'egagofur/elephant-goldfish-model', 'vendor/egm/UPSTREAM.json', 'core/spec-pack.md']) {
     assert.ok(notices.includes(word), word);

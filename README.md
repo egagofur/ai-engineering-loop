@@ -75,7 +75,7 @@ npx ai-engineering-loop deliver --run <run-id> --destination pr --summary "..." 
 
 `deliver` refuses without `--approve` in ASSISTED mode; pass it only after a human approved delivery.
 
-Contributors: the host `ai-engineering-loop` skills are generated. Edit `skill-src/ai-engineering-loop/`, then run `npm run build:skills` (CI checks for drift with `npm run check:skills`). `npm run measure` reports per-tier context and tool calls.
+Contributors: the host `ael` skills are generated. Edit `skill-src/ael/`, then run `npm run build:skills` (CI checks for drift with `npm run check:skills`). `npm run measure` reports per-tier context and tool calls.
 
 ### Staying up to date
 
@@ -183,12 +183,12 @@ Guardrails: **enforced** = `npx ai-engineering-loop hooks install` adds native p
 Not supported (no native skills): Aider, Continue.
 <!-- hosts-table:end -->
 
-Every host gets the **same** `ai-engineering-loop` skill (byte-identical, so an agent that scans several skill folders never sees two different versions). The few host-specific spawn rules live in its `references/loop-hosts.md`. Each host follows the same Goal, verification, review, and approval rules.
+Every host gets the **same** `ael` skill, invoked as `/ael` (byte-identical, so an agent that scans several skill folders never sees two different versions). The few host-specific spawn rules live in its `references/loop-hosts.md`. Earlier releases named the skill `ai-engineering-loop`; `sync-hosts` removes that old folder when AEL wrote it and `hosts doctor` flags any copy it had to keep. Each host follows the same Goal, verification, review, and approval rules.
 
 Install once, then let AEL find your agents:
 
 ```bash
-npm i -g ai-engineering-loop
+npm i -g ai-engineering-loop            # installs the `ai-engineering-loop` and short `ael` commands
 ai-engineering-loop setup              # detects agents (config folder or binary on PATH, never executed), asks, installs
 ai-engineering-loop hosts list         # what is detected / enabled, and where each host reads skills
 ai-engineering-loop hosts doctor       # per host: copies of the skill it sees, identical or not, files to sync
@@ -200,7 +200,7 @@ There is no `postinstall` hook: npm 7+ hides its output, pnpm 10 and Bun block i
 
 Agents you install later are noticed by `status` and the background `update auto` (stat only, cheap). With `auto` (the answer `setup` suggests when it asks; just press Enter), a global install enables and syncs them on its own; with `manual` (the default for `setup --yes` and any non-interactive run) you get one short notice per new agent, at most once a day. Nothing is written or shown in CI, in `--json` output, or with `AEL_NO_AUTO_UPDATE=1`.
 
-`sync-hosts` installs the **core** pack by default: the `ai-engineering-loop` skill, Devil's Advocate and Judge agents, and the small helper skills the loop itself uses. Optional packs stay out of every session's skill index until you ask for them:
+`sync-hosts` installs the **core** pack by default: the `ael` skill, Devil's Advocate and Judge agents, and the small helper skills the loop itself uses. Optional packs stay out of every session's skill index until you ask for them:
 
 ```bash
 npx ai-engineering-loop sync-hosts --pack backend         # framework-agnostic backend best practices

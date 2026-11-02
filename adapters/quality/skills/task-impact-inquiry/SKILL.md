@@ -1,6 +1,6 @@
 ---
 name: task-impact-inquiry
-description: Map business blast radius before code. Use for impact, side effects, sibling data, approval, queues, or when a new developer must learn the current flow. Triggers (EN/ID): check the impact, impact analysis, blast radius, side effects, cek impactnya, analisa pengaruh. Not a substitute for ai-engineering-loop.
+description: Map business blast radius before code. Use for impact, side effects, sibling data, approval, queues, or when a new developer must learn the current flow. Triggers (EN/ID): check the impact, impact analysis, blast radius, side effects, cek impactnya, analisa pengaruh. Not a substitute for ael.
 ---
 
 # Task Impact Inquiry
@@ -9,7 +9,7 @@ Map the **current business flow** and the **blast radius** of a change before an
 
 This skill fills AI Engineering Loop Stage 1 grill. It is not a parallel engineering OS.
 
-If Stage 1 grill already produced this matrix and the user confirmed it, stop. Do not interview again. On commit-bound work, continue in `ai-engineering-loop` (freeze the Goal Contract, then Maker). Do not start a second engineering loop from your team's own workflow skill.
+If Stage 1 grill already produced this matrix and the user confirmed it, stop. Do not interview again. On commit-bound work, continue in `ael` (freeze the Goal Contract, then Maker). Do not start a second engineering loop from your team's own workflow skill.
 
 Works on any adapter. On `adapter_type: dot` it is mandatory in Stage 1; the DOT-only rules live in `adapters/dot/README.md`.
 

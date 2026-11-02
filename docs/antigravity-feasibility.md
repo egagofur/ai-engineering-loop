@@ -86,7 +86,7 @@ flowchart TD
 
 ## 4. Implementation Roadmap for Antigravity Skill
 
-To deploy this workflow as an Antigravity Custom Skill (e.g. `skills/ai-engineering-loop/SKILL.md`):
+To deploy this workflow as an Antigravity Custom Skill (e.g. `skills/ael/SKILL.md`):
 1. Package the core loop into an executable skill definition with YAML frontmatter.
 2. Provide slash command shortcuts (e.g. `/loop:start`, `/loop:review`).
 3. Bind the DOT Adapter as an opt-in release plugin when working inside DOT repositories.

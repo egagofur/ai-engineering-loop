@@ -1,10 +1,10 @@
-@@ outputs: .claude/skills/ai-engineering-loop, .agents/skills/ai-engineering-loop
+@@ outputs: .claude/skills/ael, .agents/skills/ael
 @@ refLine: Stage details: `references/loop-*.md` beside this file (also via `docs`), read only on entering that stage.
 @@ reportIntro: When a subagent returned its own result (Grok: its own `subagent_id`):
 @@ frontmatter
 ---
-name: ai-engineering-loop
-description: Use when the user runs /ai-engineering-loop, says "run the engineering loop" or "devil's advocate review", asks to init or refresh living project context, or wants the Maker / Devil's Advocate / Judge engineering loop.
+name: ael
+description: Use when the user runs /ael, says "run the engineering loop" or "devil's advocate review", asks to init or refresh living project context, or wants the Maker / Devil's Advocate / Judge engineering loop.
 ---
 @@ hostRules
 Same skill on every host. Before the first DA or Judge spawn, read your host's section in `loop-hosts` (exact tool, allowed keys, fallbacks).

@@ -30,7 +30,7 @@ If the user asks for ideas, a feature catalog, or "what should we add" without n
 3. List at most five options. Mark one recommended. Wait for a pick.
 4. After they pick, grill that one task, then freeze.
 
-`/ai-engineering-loop` on an idea request still stays this loop: menu, then grill. Do not switch to a parallel brainstorm product.
+`/ael` on an idea request still stays this loop: menu, then grill. Do not switch to a parallel brainstorm product.
 
 ## Freeze gate
 

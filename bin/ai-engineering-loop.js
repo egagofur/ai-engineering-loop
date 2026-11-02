@@ -1548,10 +1548,10 @@ function handleRun() {
     } else {
       console.log(`- Fallback: CONTEXT_ISOLATION_ONLY (${grok.reason})`);
     }
-    console.log('- Skill: .agents/skills/ai-engineering-loop/SKILL.md (spawn rules: references/loop-hosts.md, Grok CLI section)');
+    console.log('- Skill: .agents/skills/ael/SKILL.md (spawn rules: references/loop-hosts.md, Grok CLI section)');
   }
 
-  const claudeSkill = path.join(CWD, '.claude', 'skills', 'ai-engineering-loop', 'SKILL.md');
+  const claudeSkill = path.join(CWD, '.claude', 'skills', 'ael', 'SKILL.md');
   const claudeAgent = path.join(CWD, '.claude', 'agents', 'devil-advocate.md');
   if (fs.existsSync(claudeSkill) || fs.existsSync(claudeAgent)) {
     console.log('------------------------------------------------------------');
@@ -1560,17 +1560,17 @@ function handleRun() {
     console.log('- Devil\'s Advocate: Task subagent_type=devil-advocate');
     console.log('- Judge: Task subagent_type=judge (sibling, not nested)');
     console.log('- Do not pass spawn_subagent, capability_mode, isolation, resume_from (Kiro 400 REQUEST_BODY_INVALID)');
-    console.log('- Skill: .claude/skills/ai-engineering-loop/SKILL.md');
+    console.log('- Skill: .claude/skills/ael/SKILL.md');
   }
 
-  const sharedSkill = path.join(CWD, '.agents', 'skills', 'ai-engineering-loop', 'SKILL.md');
+  const sharedSkill = path.join(CWD, '.agents', 'skills', 'ael', 'SKILL.md');
   if (fs.existsSync(sharedSkill)) {
     console.log('------------------------------------------------------------');
     log.bold('Shared .agents/skills hosts (Codex, Gemini CLI, Antigravity, Cursor, Copilot, ...):');
     console.log('- Same skill on every host; spawn rules per host: references/loop-hosts.md');
     console.log('- Devil\'s Advocate: 8 tool calls, diff file, skip css');
     console.log('- Judge: 4 tool calls, ledger + contract only');
-    console.log('- Skill: .agents/skills/ai-engineering-loop/SKILL.md');
+    console.log('- Skill: .agents/skills/ael/SKILL.md');
   }
   console.log('------------------------------------------------------------\n');
 }

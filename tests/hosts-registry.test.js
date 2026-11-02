@@ -106,7 +106,7 @@ test('before setup, a sync only writes hosts with a config folder (PATH-only hos
   const { dir } = stubBin(['codex', 'copilot']);
   const result = cli(home, ['sync-hosts'], { pathDirs: [dir] });
   assert.strictEqual(result.status, 0, result.stderr);
-  assert.ok(fs.existsSync(path.join(home, '.claude/skills/ai-engineering-loop/SKILL.md')));
+  assert.ok(fs.existsSync(path.join(home, '.claude/skills/ael/SKILL.md')));
   assert.ok(!fs.existsSync(path.join(home, '.codex')));
   assert.ok(!fs.existsSync(path.join(home, '.agents')));
   assert.strictEqual(resolveHostSelection(home).source, 'legacy-dirs');
@@ -148,7 +148,7 @@ test('every enabled host sees exactly one copy, or byte-identical copies, of eac
         else seen.set(name, text);
       }
     }
-    assert.ok(seen.has('ai-engineering-loop'), `${host.id} does not see the loop skill`);
+    assert.ok(seen.has('ael'), `${host.id} does not see the loop skill`);
     if (host.agents) {
       for (const name of ['devil-advocate', 'judge']) {
         assert.ok(fs.existsSync(path.join(home, host.agents.dir, FORMATS[host.agents.format].file(name))), `${host.id} ${name}`);
@@ -177,7 +177,7 @@ test('setup without a TTY and without --yes writes nothing; --yes enables detect
   assert.deepStrictEqual(out.enabled, ['claude', 'codex']);
   assert.strictEqual(out.mode, 'manual', 'non-interactive setup defaults to manual');
   assert.ok(fs.existsSync(path.join(home, '.codex/agents/devil-advocate.toml')));
-  assert.ok(fs.existsSync(path.join(home, '.agents/skills/ai-engineering-loop/SKILL.md')));
+  assert.ok(fs.existsSync(path.join(home, '.agents/skills/ael/SKILL.md')));
   assert.ok(!fs.existsSync(marker));
   const config = JSON.parse(fs.readFileSync(path.join(home, '.ai-engineering-loop/config.json'), 'utf8'));
   assert.deepStrictEqual(config.hosts.enabled, ['claude', 'codex']);
@@ -194,13 +194,13 @@ test('hosts disable removes unedited AEL files (manifest), keeps edited ones and
   assert.strictEqual(result.status, 0, result.stderr);
   assert.ok(!fs.existsSync(path.join(home, '.codex/agents/devil-advocate.toml')));
   assert.ok(fs.readFileSync(editedAgent, 'utf8').endsWith('# my tweak\n'), 'edited file kept');
-  assert.ok(fs.existsSync(path.join(home, '.agents/skills/ai-engineering-loop/SKILL.md')));
+  assert.ok(fs.existsSync(path.join(home, '.agents/skills/ael/SKILL.md')));
   // Last shared-folder host off: the shared copy goes too (Claude keeps its own).
   result = cli(home, ['hosts', 'disable', 'gemini']);
   assert.strictEqual(result.status, 0, result.stderr);
-  assert.ok(!fs.existsSync(path.join(home, '.agents/skills/ai-engineering-loop/SKILL.md')));
+  assert.ok(!fs.existsSync(path.join(home, '.agents/skills/ael/SKILL.md')));
   assert.ok(!fs.existsSync(path.join(home, '.gemini/agents/judge.md')));
-  assert.ok(fs.existsSync(path.join(home, '.claude/skills/ai-engineering-loop/SKILL.md')));
+  assert.ok(fs.existsSync(path.join(home, '.claude/skills/ael/SKILL.md')));
   const manifest = JSON.parse(fs.readFileSync(path.join(home, '.ai-engineering-loop/host-manifest.json'), 'utf8'));
   assert.ok(!Object.keys(manifest.files).some((f) => f.includes(`${path.sep}.agents${path.sep}`)), 'manifest forgets pruned files');
   // Re-enable restores; the edited file is backed up before it is overwritten.
@@ -268,7 +268,7 @@ test('phase 2 (#50): shared-folder hosts are detected and get no private skill c
   assert.deepStrictEqual(byBin.sort(), ['amp', 'augment', 'factory', 'goose', 'opencode', 'zed']);
   assert.ok(!fs.existsSync(marker));
   applyHostSync({ packageRoot: ROOT, home });
-  assert.ok(fs.existsSync(path.join(home, '.agents/skills/ai-engineering-loop/SKILL.md')));
+  assert.ok(fs.existsSync(path.join(home, '.agents/skills/ael/SKILL.md')));
   for (const own of ['.config/opencode/skills', '.codeium/windsurf/skills', '.config/amp/skills', '.factory/skills', '.augment/skills', '.config/goose/skills']) {
     assert.ok(!fs.existsSync(path.join(home, own)), `${own} must not get a second copy`);
   }
@@ -288,9 +288,9 @@ test('phase 3 (#51): own-folder hosts get one copy in their folder; Roo and Juni
   const detected = detectHosts({ home, env: { PATH: '' } }).filter((d) => d.detected).map((d) => d.id);
   assert.deepStrictEqual(detected.sort(), ['cline', 'junie', 'kiro', 'qwen', 'roo']);
   applyHostSync({ packageRoot: ROOT, home });
-  const shared = fs.readFileSync(path.join(home, '.agents/skills/ai-engineering-loop/SKILL.md'));
+  const shared = fs.readFileSync(path.join(home, '.agents/skills/ael/SKILL.md'));
   for (const own of ['.cline/skills', '.kiro/skills', '.qwen/skills']) {
-    assert.ok(shared.equals(fs.readFileSync(path.join(home, own, 'ai-engineering-loop/SKILL.md'))), `${own} copy is byte-identical`);
+    assert.ok(shared.equals(fs.readFileSync(path.join(home, own, 'ael/SKILL.md'))), `${own} copy is byte-identical`);
   }
   for (const none of ['.roo/skills', '.junie/skills']) assert.ok(!fs.existsSync(path.join(home, none)), `${none}: reads the shared folder`);
   assert.match(fs.readFileSync(path.join(home, '.qwen/agents/judge.md'), 'utf8'), /^approvalMode: plan$/m);

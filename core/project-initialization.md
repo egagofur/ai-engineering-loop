@@ -33,7 +33,7 @@ flowchart TD
 
 ### The `init` Operation
 - **Purpose**: Discovers repository characteristics, extracts manifest scripts, binds archetype profiles, and generates `.ai-engineering-loop/`.
-- **Command**: `npx ai-engineering-loop init` (or `/ai-engineering-loop init`).
+- **Command**: `npx ai-engineering-loop init` (or `/ael init`).
 - **Boundaries**:
   - `init` **MUST NOT** edit application code, write business logic, author unit tests, or run adversarial reviews.
   - `init` **MUST NOT** commit to git, change branches, push to remotes, or open PRs.
@@ -44,7 +44,7 @@ flowchart TD
 
 ### The `run` Operation
 - **Purpose**: Consumes the ground truth in `.ai-engineering-loop/` to solve a specific user task.
-- **Command**: `npx ai-engineering-loop run` (or `/ai-engineering-loop [task]`).
+- **Command**: `npx ai-engineering-loop run` (or `/ael [task]`).
 - **Boundaries**:
   - The Agent reads `.ai-engineering-loop/` (triggering auto-init if missing).
   - Formulates the [Goal Contract](./goal-contract.md).
