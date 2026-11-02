@@ -4,7 +4,10 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
-_No changes yet._
+### Spec pack: design before code (EGM fork)
+
+- **Added:** opt-in `spec` host pack (`sync-hosts --pack spec`, #96): six host-neutral skills, `ael-spec-brainstorm`, `ael-spec-draft`, `ael-spec-review`, `ael-spec-review-loop`, `ael-spec-resolve` and `ael-spec-drift`, derived from Google's Elephant-Goldfish Model through the fork [egagofur/elephant-goldfish-model](https://github.com/egagofur/elephant-goldfish-model) (Apache-2.0). Reviewer personas and document standards are `ael-spec-*` docs (`docs ael-spec-zoom-out`). On a host without a subagent tool the reviews run one at a time in-session, labelled `CONTEXT_ISOLATION_ONLY`, instead of stopping. Core and T0/T1 runs are unchanged.
+- **Internal:** `vendor/egm/` holds the pinned fork files (not shipped); `scripts/sync-spec-pack.js` regenerates `adapters/spec/`, `--check` fails on stale output, and `--pull [ref]` refreshes the vendor copy.
 
 ## 2.3.0 - 2026-10-21
 

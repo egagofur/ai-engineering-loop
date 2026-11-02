@@ -445,7 +445,7 @@ test('default sync installs only the core pack; packs are opt-in, saved, and pru
   assert.ok(!fs.existsSync(path.join(home, '.claude/skills/emil-design-eng')));
   assert.ok(!fs.existsSync(path.join(home, '.claude/skills/backend-development')));
   const skippedPacks = new Set(results.filter((item) => item.reason === 'pack-not-selected').map((item) => item.pack));
-  assert.deepStrictEqual([...skippedPacks].sort(), ['backend', 'design', 'quality']);
+  assert.deepStrictEqual([...skippedPacks].sort(), ['backend', 'design', 'quality', 'spec']);
 
   applyHostSync({ packageRoot: ROOT, home, packs: 'design' });
   assert.ok(fs.existsSync(path.join(home, '.claude/skills/emil-design-eng/SKILL.md')));
