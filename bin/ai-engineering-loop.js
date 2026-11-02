@@ -1477,6 +1477,7 @@ function handleRun() {
         return { stale: h.stale, staleFiles: h.staleFiles, installedVersion: h.installedVersion, packageVersion: VERSION };
       })(),
       learnings: runLearnings(),
+      ...specHintField(runResult),
       studioUrl: readStudioUrl(CWD)
     }, null, 2));
     return;
@@ -1486,6 +1487,8 @@ function handleRun() {
     const t = runResult.run.tier;
     console.log(`- Tier: ${t.current} (${t.source}; ${t.reasons.map((r) => r.code).join(', ')})`);
   }
+  const hint = specHintField(runResult).specHint;
+  if (hint) console.log(`- Spec: ${hint}`);
   console.log(`- State: ${runResult.run.state}, iteration ${runResult.run.iteration}`);
   console.log(`- Mode: ${runResult.run.mode || RUN_MODES.ASSISTED}`);
   if (runResult.run.workflow) {
@@ -3073,6 +3076,23 @@ function readBoundedJsonInput(fileName) {
     throw error;
   }
   return JSON.parse(fs.readFileSync(file, 'utf8'));
+}
+
+// Spec pack hint (#99): once, when a new Run starts at T2. T0/T1 and resumed
+// Runs get nothing, so their output is unchanged.
+function specHintField(runResult) {
+  const run = runResult.run;
+  if (runResult.resumed || run.tier?.current !== 'T2') return {};
+  let installed = false;
+  try {
+    installed = hostSkillStatus({ home: homeDir(), version: VERSION }).packs.includes('spec');
+  } catch {
+    installed = false;
+  }
+  return {
+    specHint: 'For a new feature or architecture change, design first: ael-spec-brainstorm -> ael-spec-draft -> ael-spec-review, then `goal draft --from-design docs/designs/<name>.md`.' +
+      (installed ? '' : ' Install with `sync-hosts --pack spec`.')
+  };
 }
 
 function handleGoal() {
