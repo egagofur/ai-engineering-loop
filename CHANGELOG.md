@@ -9,6 +9,10 @@ All notable changes to this project are documented here. Versions follow [Semant
 - **Added:** `goal draft --from-design <doc.md>` (#97) prefills a Goal draft from a design document: objective from the title and first goal, one acceptance row per Test Plan item (or per goal), `outOfScope` from Non-Goals, and `designRef { path, sha256, targetFiles }` from the Target Scope file paths. With `--file`, the given contract keeps its rows and only gains `designRef`. Missing, outside-the-repo, symlinked, non-Markdown or >256 KB documents are refused.
 - **Added:** `goal freeze` refuses rows that still contain `<fill: …>` placeholders (`GOAL_PLACEHOLDERS`); `goal show` reports `design.designChanged` when the document changed after drafting. Goals without `designRef` behave as before.
 
+### Design drift
+
+- **Added:** when the frozen Goal has `designRef` (#98), `impact drift` (run with `verify`) also records `design { path, docChanged, planned, unplanned[], untouched[] }` in `impact-drift.json`: changed files outside the design's plan and planned files nobody touched. The review pack shows it as two short lines for the Devil's Advocate and `receipt.json` carries the counts under `impact.design`. It is informational: no ledger finding, no gate failure. Runs without `designRef` are unchanged.
+
 ### Spec pack: design before code (EGM fork)
 
 - **Added:** opt-in `spec` host pack (`sync-hosts --pack spec`, #96): six host-neutral skills, `ael-spec-brainstorm`, `ael-spec-draft`, `ael-spec-review`, `ael-spec-review-loop`, `ael-spec-resolve` and `ael-spec-drift`, derived from Google's Elephant-Goldfish Model through the fork [egagofur/elephant-goldfish-model](https://github.com/egagofur/elephant-goldfish-model) (Apache-2.0). Reviewer personas and document standards are `ael-spec-*` docs (`docs ael-spec-zoom-out`). On a host without a subagent tool the reviews run one at a time in-session, labelled `CONTEXT_ISOLATION_ONLY`, instead of stopping. Core and T0/T1 runs are unchanged.

@@ -3644,6 +3644,7 @@ function handleReviewPack() {
       if (result.impactDrift?.outOfMap.length) {
         console.log(`- Outside the impact map: ${result.impactDrift.outOfMap.join(', ')} (check their side effects)`);
       }
+      for (const line of result.impactDrift?.design || []) console.log(`- ${line}`);
     }
   } catch (err) {
     stageJsonError(err, json, 'REVIEW_PACK_FAILED');
