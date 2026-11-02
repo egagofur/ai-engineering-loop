@@ -15,7 +15,7 @@ const { spawnSync, execFileSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
 const CLI = path.join(ROOT, 'bin', 'ai-engineering-loop.js');
-const SKILL_DIR = '.claude/skills/ai-engineering-loop';
+const SKILL_DIR = '.claude/skills/ael';
 
 // Pre-#25 baseline (v1.13.0, Claude Code, ASSISTED, one iteration) from the
 // Pareto analysis: SKILL.md + command (12,960) + mandatory reads runtime-safety,

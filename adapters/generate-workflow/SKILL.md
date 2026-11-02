@@ -126,7 +126,7 @@ Existing: <workflow yes/no> <lessons yes/no>
 Questions: Q1..Q6 with Recommended
 Wrote: .ai-engineering-loop/workflow.md
 Lessons: .ai-engineering-loop/lessons.md (created or left)
-Next: /ai-engineering-loop for product work. Stage 0 reads these files.
+Next: /ael for product work. Stage 0 reads these files.
 ```
 
 ## Forbidden

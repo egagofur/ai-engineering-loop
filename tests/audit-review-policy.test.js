@@ -12,7 +12,7 @@ const ROOT = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 
 test('audit policy is documented once for every host and reaches every installed skill copy', () => {
-  for (const rel of ['.claude/skills/ai-engineering-loop', '.agents/skills/ai-engineering-loop']) {
+  for (const rel of ['.claude/skills/ael', '.agents/skills/ael']) {
     const maker = read(`${rel}/references/loop-maker.md`);
     assert.match(maker, /## REPORT_ONLY report review \(recipe `audit`\)/);
     assert.match(maker, /ONE fresh `devil-advocate`/);

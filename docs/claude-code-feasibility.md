@@ -30,10 +30,10 @@ Do not pass Grok keys (`spawn_subagent`, `capability_mode`, `resume_from`, `isol
 
 Repo files:
 
-- `.claude/skills/ai-engineering-loop/SKILL.md`
+- `.claude/skills/ael/SKILL.md`
 - `.claude/agents/devil-advocate.md`
 - `.claude/agents/judge.md`
-- `.claude/skills/ai-engineering-loop/SKILL.md` (the skill provides `/ai-engineering-loop`; the old command file was retired in #48)
+- `.claude/skills/ael/SKILL.md` (the skill provides `/ael`; the old command file was retired in #48)
 
 ## 3. Mode selection
 

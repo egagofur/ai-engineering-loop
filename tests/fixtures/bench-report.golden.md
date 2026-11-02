@@ -29,8 +29,8 @@
 
 Ranked by frequency:
 
-1. **skipped-gate** (×2) — `skill-src/ai-engineering-loop/SKILL.template.md` § Loop — Do not skip Goal Contract, verification, Devil's Advocate, or Judge gates; the tier only decides who fills them.
-2. **guard-violation** (×1) — `skill-src/ai-engineering-loop/references/loop-maker.md` § Stages 2-4: Maker — before an out-of-scope edit or a destructive command (`rm -rf`, `DROP TABLE`, `git push --force`, `git reset --hard`, `git clean -fd`) run `guard check`
+1. **skipped-gate** (×2) — `skill-src/ael/SKILL.template.md` § Loop — Do not skip Goal Contract, verification, Devil's Advocate, or Judge gates; the tier only decides who fills them.
+2. **guard-violation** (×1) — `skill-src/ael/references/loop-maker.md` § Stages 2-4: Maker — before an out-of-scope edit or a destructive command (`rm -rf`, `DROP TABLE`, `git push --force`, `git reset --hard`, `git clean -fd`) run `guard check`
 
 See `hardening.md` for candidate issues. Suggestions are never applied automatically.
 

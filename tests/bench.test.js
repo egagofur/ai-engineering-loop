@@ -241,9 +241,9 @@ test('AC2 bench runs one target in a temp repo and does not write outside that z
   assert.notStrictEqual(path.resolve(probed.HOME), path.resolve(os.homedir()));
   assert.ok(!probed.AEL_HOME.startsWith(realAel));
   assert.ok(!probed.HOME.startsWith(realAel));
-  assert.ok(probed.skills.includes('.agents/skills/ai-engineering-loop/SKILL.md'));
-  assert.ok(probed.skills.includes('.grok/skills/ai-engineering-loop/SKILL.md'));
-  assert.ok(probed.skills.includes('.claude/skills/ai-engineering-loop/SKILL.md'));
+  assert.ok(probed.skills.includes('.agents/skills/ael/SKILL.md'));
+  assert.ok(probed.skills.includes('.grok/skills/ael/SKILL.md'));
+  assert.ok(probed.skills.includes('.claude/skills/ael/SKILL.md'));
   assert.strictEqual(probed.shim, true);
   assert.match(probed.gitignore, /node_modules\//);
   assert.strictEqual(result.target.host, 'grok');

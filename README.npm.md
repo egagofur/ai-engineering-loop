@@ -72,11 +72,11 @@ npx ai-engineering-loop docs grill-policy --section "When to grill"
 
 ## Grok CLI
 
-Inside a Grok TUI session, `/ai-engineering-loop` uses repo-local `.grok/agents/` types. Devil's Advocate and Judge spawn as sibling children (`capability_mode: execute`, no `resume_from`). Do not use `caveman:cavecrew-reviewer` as the loop reviewer.
+Inside a Grok TUI session, `/ael` uses repo-local `.grok/agents/` types. Devil's Advocate and Judge spawn as sibling children (`capability_mode: execute`, no `resume_from`). Do not use `caveman:cavecrew-reviewer` as the loop reviewer.
 
 ## Claude Code
 
-Inside Claude Code, `/ai-engineering-loop` uses `.claude/agents/` types via the **Task** tool. Pass only `subagent_type`, `description`, and `prompt`. Do not pass Grok keys (`spawn_subagent`, `capability_mode`, `resume_from`) — extra keys cause Kiro `REQUEST_BODY_INVALID`.
+Inside Claude Code, `/ael` uses `.claude/agents/` types via the **Task** tool. Pass only `subagent_type`, `description`, and `prompt`. Do not pass Grok keys (`spawn_subagent`, `capability_mode`, `resume_from`) — extra keys cause Kiro `REQUEST_BODY_INVALID`.
 
 ---
 
@@ -84,10 +84,10 @@ Inside Claude Code, `/ai-engineering-loop` uses `.claude/agents/` types via the 
 
 In Antigravity IDE or compatible agentic platforms, invoke the loop directly in chat:
 
-- `/ai-engineering-loop init` — Bootstrap project context only.
-- `/ai-engineering-loop status` — Check context health and living freshness.
-- `/ai-engineering-loop refresh` — Reconcile drifted context files.
-- `/ai-engineering-loop <task>` — Execute the full 8-stage engineering lifecycle.
+- `/ael init` — Bootstrap project context only.
+- `/ael status` — Check context health and living freshness.
+- `/ael refresh` — Reconcile drifted context files.
+- `/ael <task>` — Execute the full 8-stage engineering lifecycle.
 
 ---
 

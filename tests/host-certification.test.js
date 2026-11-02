@@ -84,6 +84,6 @@ test('AGENTS.md digest is generated, at most 2 KB, and served by docs AGENTS', (
 test('an oversized digest source fails the build', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-digest-'));
   fs.cpSync(path.join(ROOT, 'skill-src'), path.join(tmp, 'skill-src'), { recursive: true });
-  fs.appendFileSync(path.join(tmp, 'skill-src/ai-engineering-loop/digest.md'), 'x'.repeat(DIGEST_BYTE_LIMIT));
+  fs.appendFileSync(path.join(tmp, 'skill-src/ael/digest.md'), 'x'.repeat(DIGEST_BYTE_LIMIT));
   assert.throws(() => buildHostSkills(tmp), /AGENTS\.md: \d+ bytes > 2048/);
 });

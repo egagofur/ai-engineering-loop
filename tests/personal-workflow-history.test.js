@@ -115,9 +115,9 @@ function t1Rows(prefix, drifted, clean) {
 }
 
 test('AC 1: the no-task branch offers the personal workflow without creating a Run', () => {
-  const skill = fs.readFileSync(path.join(ROOT, '.claude', 'skills', 'ai-engineering-loop', 'SKILL.md'), 'utf8');
+  const skill = fs.readFileSync(path.join(ROOT, '.claude', 'skills', 'ael', 'SKILL.md'), 'utf8');
   assert.match(skill, /No task: offer `workflow interview` or a task; no Run\./);
-  const commands = fs.readFileSync(path.join(ROOT, 'skill-src', 'ai-engineering-loop', 'references', 'loop-commands.md'), 'utf8');
+  const commands = fs.readFileSync(path.join(ROOT, 'skill-src', 'ael', 'references', 'loop-commands.md'), 'utf8');
   assert.match(commands, /Do not create a Run or edit files/);
   assert.match(commands, /workflow accept --proposal <id> --by <name>/);
   assert.match(commands, /Never accept for the user/);

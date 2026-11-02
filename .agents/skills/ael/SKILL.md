@@ -1,6 +1,6 @@
 ---
-name: ai-engineering-loop
-description: Use when the user runs /ai-engineering-loop, says "run the engineering loop" or "devil's advocate review", asks to init or refresh living project context, or wants the Maker / Devil's Advocate / Judge engineering loop.
+name: ael
+description: Use when the user runs /ael, says "run the engineering loop" or "devil's advocate review", asks to init or refresh living project context, or wants the Maker / Devil's Advocate / Judge engineering loop.
 ---
 <!-- Generated from skill-src/ by npm run build:skills; do not edit. -->
 

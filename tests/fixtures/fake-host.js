@@ -224,9 +224,9 @@ function writeProbe() {
   const file = process.env.AEL_BENCH_PROBE;
   if (!file) return;
   const rels = [
-    '.agents/skills/ai-engineering-loop/SKILL.md',
-    '.grok/skills/ai-engineering-loop/SKILL.md',
-    '.claude/skills/ai-engineering-loop/SKILL.md'
+    '.agents/skills/ael/SKILL.md',
+    '.grok/skills/ael/SKILL.md',
+    '.claude/skills/ael/SKILL.md'
   ];
   const gitignorePath = path.join(CWD, '.gitignore');
   fs.writeFileSync(file, `${JSON.stringify({

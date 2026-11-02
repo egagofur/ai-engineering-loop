@@ -16,11 +16,11 @@ const { listDocs, readDoc, resolveDoc } = require('../lib/docs.js');
 const ROOT = path.join(__dirname, '..');
 const CLI = path.join(ROOT, 'bin', 'ai-engineering-loop.js');
 const HOST_PARENTS = [
-  '.claude/skills/ai-engineering-loop/SKILL.md',
-  '.agents/skills/ai-engineering-loop/SKILL.md'
+  '.claude/skills/ael/SKILL.md',
+  '.agents/skills/ael/SKILL.md'
 ];
 // Legacy command files were retired in #48: a skill already creates
-// /ai-engineering-loop on every host that supports slash commands.
+// /ael on every host that supports slash commands.
 const HOST_COMMANDS = [];
 
 test('legacy host command files are no longer shipped (#48)', () => {
@@ -136,7 +136,7 @@ test('Stage 0 no longer runs sync-hosts on every run', () => {
 test('DOT router only names skills that exist or are explicitly optional', () => {
   const router = readRepo('adapters/dot/skills/dot-dev-skill-router/SKILL.md');
   const dotPlugin = new Set(JSON.parse(readRepo('tests/fixtures/dot-plugin-skill-names.json')).skills);
-  const ael = new Set(['ai-engineering-loop', 'task-impact-inquiry', 'dot-dev-workflow', 'backend-development', 'dot-dev-skill-router']);
+  const ael = new Set(['ael', 'task-impact-inquiry', 'dot-dev-workflow', 'backend-development', 'dot-dev-skill-router']);
   const optionalLine = router.split('\n').find((line) => line.startsWith('- **Optional, if installed:**'));
   assert.ok(optionalLine, 'router must list optional skills');
   const optional = new Set([...optionalLine.matchAll(/`([a-z0-9-]+)`/g)].map((m) => m[1]));
@@ -150,7 +150,7 @@ test('DOT router only names skills that exist or are explicitly optional', () =>
   }
   assert.deepStrictEqual([...new Set(unknown)], []);
   // Plan-execution and brainstorming routes no longer bypass the AEL loop.
-  assert.doesNotMatch(router, /`executing-plans` → `ai-engineering-loop`/);
+  assert.doesNotMatch(router, /`executing-plans` → `ael`/);
   assert.doesNotMatch(router, /`brainstorming` → /);
   for (const name of optional) {
     assert.ok(!dotPlugin.has(name), `${name} exists in dot-plugin; do not mark it optional`);

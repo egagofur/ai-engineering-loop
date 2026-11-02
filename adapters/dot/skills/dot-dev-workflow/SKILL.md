@@ -1,18 +1,18 @@
 ---
 name: dot-dev-workflow
-description: DOT Stage 8 delivery after AI Engineering Loop Judge PASS. GitLab issue/MR, one topic-branch MR (extra env cherry-pick only if named this turn), pipeline + Sonar gate, Coreview triage, card to Ready to review, Mattermost. Not a substitute for ai-engineering-loop.
+description: DOT Stage 8 delivery after AI Engineering Loop Judge PASS. GitLab issue/MR, one topic-branch MR (extra env cherry-pick only if named this turn), pipeline + Sonar gate, Coreview triage, card to Ready to review, Mattermost. Not a substitute for ael.
 ---
 
 # DOT Delivery Workflow (Stage 8)
 
 This is **not** the engineering OS. On DOT repositories:
 
-1. Run **`ai-engineering-loop`** for Stages 0-7 (grill, RCA, Maker, verification, Devil's Advocate, Judge).
+1. Run **`ael`** for Stages 0-7 (grill, RCA, Maker, verification, Devil's Advocate, Judge).
 2. Run **this skill only after Judge `PASS`** (or the user explicitly asked to ship).
 3. Stage 1 grill already includes `task-impact-inquiry`. Do not interview again.
 4. Stages 6-7 are AEL DA + Judge. Do not re-run skill `devils-advocate` as a second pre-commit OS.
 
-If `ai-engineering-loop` is missing on this host, say so and stop. Do not silently run the old 9-phase loop.
+If `ael` is missing on this host, say so and stop. Do not silently run the old 9-phase loop.
 
 ## Mapping (old phases → AEL)
 

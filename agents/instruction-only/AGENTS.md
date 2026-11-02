@@ -1,7 +1,7 @@
 <!-- Generated from skill-src/ by npm run build:skills; do not edit. -->
 # AI Engineering Loop (digest)
 
-For hosts with no subagent tool (certification `instruction-only`). Full skill: `~/.agents/skills/ai-engineering-loop/SKILL.md` after `sync-hosts`. Stage details: `npx ai-engineering-loop docs loop-<goal|maker|verify|review|deliver>`.
+For hosts with no subagent tool (certification `instruction-only`). Full skill: `~/.agents/skills/ael/SKILL.md` after `sync-hosts`. Stage details: `npx ai-engineering-loop docs loop-<goal|maker|verify|review|deliver>`.
 
 Loop: Specify (0-1), Make (2-4), Review (5-7), Deliver (8). You are Maker. Devil's Advocate (DA) and Judge run in this session as `CONTEXT_ISOLATION_ONLY`, with the same budgets; never claim independent review.
 

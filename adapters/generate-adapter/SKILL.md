@@ -112,7 +112,7 @@ Generate adapter
 Detected: <remote> <ci>
 Questions: Q1..Q5 with Recommended
 Wrote: .ai-engineering-loop/adapter.md (type=<type>)
-Next: /ai-engineering-loop for product work. Stage 8 uses this file.
+Next: /ael for product work. Stage 8 uses this file.
 ```
 
 ## Forbidden
