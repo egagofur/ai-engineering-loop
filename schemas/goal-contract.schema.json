@@ -3,25 +3,55 @@
   "$id": "https://github.com/egagofur/ai-engineering-loop/schemas/goal-contract.schema.json",
   "title": "AI Engineering Loop Goal Contract",
   "type": "object",
-  "required": ["schemaVersion", "runId", "objective", "acceptanceCriteria"],
+  "required": [
+    "schemaVersion",
+    "runId",
+    "objective",
+    "acceptanceCriteria"
+  ],
   "properties": {
-    "schemaVersion": { "const": 1 },
-    "runId": { "type": "string", "minLength": 1 },
-    "objective": { "type": "string", "minLength": 1 },
+    "schemaVersion": {
+      "const": 1
+    },
+    "runId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "objective": {
+      "type": "string",
+      "minLength": 1
+    },
     "acceptanceCriteria": {
       "type": "array",
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["id", "statement", "evidenceRequired", "failureCases"],
+        "required": [
+          "id",
+          "statement",
+          "evidenceRequired",
+          "failureCases"
+        ],
         "properties": {
-          "id": { "type": "string", "pattern": "^AC-[0-9]+$" },
-          "statement": { "type": "string", "minLength": 1 },
-          "evidenceRequired": { "type": "string", "minLength": 1 },
+          "id": {
+            "type": "string",
+            "pattern": "^AC-[0-9]+$"
+          },
+          "statement": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidenceRequired": {
+            "type": "string",
+            "minLength": 1
+          },
           "failureCases": {
             "type": "array",
             "minItems": 1,
-            "items": { "type": "string", "minLength": 1 }
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
           }
         },
         "additionalProperties": true
@@ -31,10 +61,56 @@
       "description": "Optional file scope frozen with the Goal (#59). Absent = no path enforcement. Globs: ** crosses directories, * stays in one segment, a trailing / is a directory prefix.",
       "type": "object",
       "properties": {
-        "allowedPaths": { "type": "array", "items": { "type": "string", "minLength": 1 } },
-        "deniedPaths": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+        "allowedPaths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "deniedPaths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
       },
       "additionalProperties": false
+    },
+    "designRef": {
+      "description": "Optional design document this Goal implements (#97): written by `goal draft --from-design`. targetFiles feed the design drift check.",
+      "type": "object",
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "targetFiles": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "outOfScope": {
+      "description": "Optional list of things this Goal must not change.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
     }
   },
   "additionalProperties": true

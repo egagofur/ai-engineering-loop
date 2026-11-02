@@ -3055,7 +3055,7 @@ function requiredIntegerArg(name) {
 
 function readBoundedJsonInput(fileName) {
   if (!fileName) {
-    const error = new Error('goal draft requires --file <json>');
+    const error = new Error('goal draft requires --file <json> or --from-design <doc.md>');
     error.code = 'INVALID_USAGE';
     throw error;
   }
@@ -3083,6 +3083,7 @@ function handleGoal() {
     const extra = {};
     if (action === 'show') {
       result = loadGoalDraft(CWD, runId);
+      if (result?.contract?.designRef) extra.design = require('../lib/design-ref.js').designStatus(CWD, result.contract.designRef);
     } else if (action === 'draft') {
       appendRunLifecycle(CWD, runId, {
         type: 'GOAL_DRAFTING',
@@ -3090,7 +3091,24 @@ function handleGoal() {
         actor: argValue('--by') || 'agent',
         message: argValue('--message') || 'Updating the Goal draft'
       });
-      const draftGoal = readBoundedJsonInput(argValue('--file'));
+      const designFile = argValue('--from-design');
+      let draftGoal;
+      if (designFile) {
+        const designRef = require('../lib/design-ref.js');
+        const doc = designRef.readDesignDoc(CWD, designFile);
+        const parsed = designRef.parseDesignDoc(doc.text);
+        draftGoal = argValue('--file')
+          ? { ...readBoundedJsonInput(argValue('--file')), designRef: designRef.designRefFrom(doc, parsed) }
+          : designRef.draftFromDesign(doc, parsed);
+        extra.design = {
+          path: doc.path,
+          targetFiles: parsed.targetFiles.length,
+          placeholders: designRef.placeholderRows(draftGoal),
+          warnings: parsed.warnings
+        };
+      } else {
+        draftGoal = readBoundedJsonInput(argValue('--file'));
+      }
       result = saveGoalDraft(CWD, runId, draftGoal, {
         actor: argValue('--by') || 'agent',
         expectedRevision: requiredIntegerArg('--revision')
@@ -3969,6 +3987,7 @@ Commands:
   goal         Share one revision-bound Goal draft between the Agent and Studio
                show [--run <id>]
                draft --file <json> --revision <n> [--run <id>] [--by <agent>]
+               draft --from-design <doc.md> [--file <json>] --revision <n>   prefill from a design doc, record designRef
                freeze --revision <n> --hash <sha256> [--run <id>] [--by <name>]
                freeze --latest [--run <id>] --by <name>   freeze the newest draft (CLI resolves revision/hash)
   verification Summarize verification.json for compact Judge context
