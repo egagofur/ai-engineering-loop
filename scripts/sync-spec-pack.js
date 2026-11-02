@@ -119,7 +119,7 @@ function transform(text, meta) {
 function generate() {
   const meta = upstream();
   const files = new Map();
-  const read = (rel) => fs.readFileSync(path.join(VENDOR, rel), 'utf8');
+  const read = (rel) => fs.readFileSync(path.join(VENDOR, rel), 'utf8').replace(/\r\n?/g, '\n');
   for (const [from, to] of Object.entries(SKILLS)) {
     files.set(`skills/${to}/SKILL.md`, transform(read(`skills/${from}/SKILL.md`), meta));
     for (const extra of SKILL_EXTRAS[from] || []) files.set(`skills/${to}/${extra}`, transform(read(`skills/${from}/${extra}`), meta));
@@ -160,7 +160,7 @@ function check(files) {
   const stale = [];
   for (const [rel, text] of files) {
     const file = path.join(OUT, rel);
-    if (!fs.existsSync(file) || fs.readFileSync(file, 'utf8') !== text) stale.push(rel);
+    if (!fs.existsSync(file) || fs.readFileSync(file, 'utf8').replace(/\r\n?/g, '\n') !== text) stale.push(rel);
   }
   for (const rel of listOut()) if (!files.has(rel)) stale.push(`${rel} (not generated)`);
   return stale;
