@@ -4,6 +4,11 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+### Spec pack hint and doctor status
+
+- **Added:** a new T2 Run prints one `specHint` (`run --json`) suggesting `ael-spec-brainstorm -> ael-spec-draft -> ael-spec-review` and `goal draft --from-design` (#99), plus the install command when the `spec` pack is missing. T0/T1 and resumed Runs print nothing new.
+- **Added:** `hosts doctor` rows carry `spec { installed, reviewMode }` (`FRESH_SUBAGENT`, or `CONTEXT_ISOLATION_ONLY` on instruction-only hosts) and the text report names the install command when no host has the pack. It never changes `ok`.
+
 ### Design documents as Goal input
 
 - **Added:** `goal draft --from-design <doc.md>` (#97) prefills a Goal draft from a design document: objective from the title and first goal, one acceptance row per Test Plan item (or per goal), `outOfScope` from Non-Goals, and `designRef { path, sha256, targetFiles }` from the Target Scope file paths. With `--file`, the given contract keeps its rows and only gains `designRef`. Missing, outside-the-repo, symlinked, non-Markdown or >256 KB documents are refused.
