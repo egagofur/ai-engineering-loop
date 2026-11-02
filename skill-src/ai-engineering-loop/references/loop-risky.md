@@ -7,3 +7,4 @@ Applies to HIGH_RISK_PATH changes (auth, payments, migrations, secrets, infra), 
 - Full DA (not the T1 lean shortcut) and Judge on STRONG_MODEL resolved through the host model catalog; if unavailable, escalate to the user. Never run the deterministic Judge for T2.
 - UNATTENDED: sandbox worktree only, and `budget pause` is the kill switch (`docs runtime-safety`).
 - The tier never falls back once raised.
+- New feature or architecture: suggest a reviewed design first (`docs spec-pack`), then `goal draft --from-design <doc>`.

@@ -4,6 +4,10 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+### Spec pack guide
+
+- **Docs:** `npx ai-engineering-loop docs spec-pack` (#100): when to use the `spec` pack and when not, the flow from `ael-spec-brainstorm` to `goal draft --from-design` and `ael-spec-drift`, the host fallback, and how to pull upstream EGM updates. README and the T2 reference (`loop-risky`) point at it; `THIRD_PARTY_NOTICES.md` lists every shipped EGM-derived file.
+
 ### Spec pack hint and doctor status
 
 - **Added:** a new T2 Run prints one `specHint` (`run --json`) suggesting `ael-spec-brainstorm -> ael-spec-draft -> ael-spec-review` and `goal draft --from-design` (#99), plus the install command when the `spec` pack is missing. T0/T1 and resumed Runs print nothing new.
