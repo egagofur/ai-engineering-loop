@@ -43,7 +43,7 @@ const SCENARIOS = Object.freeze([
 
 function size(file) {
   try {
-    return fs.statSync(file).size;
+    return fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n').length;
   } catch {
     return 0;
   }
