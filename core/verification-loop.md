@@ -43,9 +43,21 @@ A verification `PASS` is **strictly invalid** without concrete execution evidenc
 }
 ```
 
+## 3. Verification Layers & Command Mapping
+
+Verification terminates through three explicit layers of evidence. Unit tests alone have systematic blind spots for cross-component and integration defects. An acceptance criterion crossing component boundaries requires Layer 3 verification or written justification if Layer 3 is unavailable.
+
+| Layer | Scope | Configured Command (`verification.md`) | Purpose |
+|---|---|---|---|
+| **L1: Static / Syntax** | Syntax, static types, style, compilation | `typecheck`, `lint`, `build` | Fast static catch before runtime. Rejects type errors, lint regressions, and compilation breakage. |
+| **L2: Behavioral / Runtime** | Functions, units, modules, regressions | `test_unit`, `test_related`, `test_all` | Fast behavioral feedback at named seams and regression verification. |
+| **L3: End-to-End** | Cross-component flows, integrations, browser/API | `e2e` (optional) | Realistic integrated proof across boundary seams. |
+
+When `e2e` is configured in `verification.md`, cross-component acceptance criteria must cite L3 command evidence. If `e2e` is empty, Maker must document in Reality why L3 is not configured.
+
 ---
 
-## 3. The 4 Verification Gates
+## 4. The 4 Verification Gates
 
 1. **Gate 1: Unit & Integration Tests**: All unit and edge-case tests must pass with 0 failures.
 2. **Gate 2: Static Type Analysis**: `tsc --noEmit` or compiler type checking must exit with code `0` (zero type errors).
@@ -54,7 +66,7 @@ A verification `PASS` is **strictly invalid** without concrete execution evidenc
 
 ---
 
-## 4. Rejection Triggers
+## 5. Rejection Triggers
 
 The Verification Gate immediately halts and returns to the Maker if:
 - Any test suite fails or times out.
@@ -66,7 +78,7 @@ The Verification Gate immediately halts and returns to the Maker if:
 
 ---
 
-## 5. Claimed vs Reality (before Devil's Advocate)
+## 6. Claimed vs Reality (before Devil's Advocate)
 
 Write `.ai-engineering-loop/tasks/claimed-vs-reality.md` after verification logs exist:
 
@@ -74,14 +86,14 @@ Write `.ai-engineering-loop/tasks/claimed-vs-reality.md` after verification logs
 npx ai-engineering-loop context claimed-vs-reality --run <run-id>
 ```
 
-This scaffolds one row per frozen acceptance criterion but leaves Claimed and Reality empty. Fill them from the implemented change and actual command output; the scaffold is not verification evidence.
+This scaffolds one row per frozen acceptance criterion but leaves Claimed, Reality, and Layer empty. Fill them from the implemented change and actual command output; the scaffold is not verification evidence.
 
 ```markdown
 # Claimed vs Reality
 
-| AC | Claimed | Reality |
-|---|---|---|
-| AC-1 | <what Maker said is done> | <command, exit code, assertion or log line> |
+| AC | Claimed | Reality from command log | Layer |
+|---|---|---|---|
+| AC-1 | <what Maker said is done> | <command, exit code, assertion or log line> | L2 |
 ```
 
 Do **not** spawn Devil's Advocate if:
