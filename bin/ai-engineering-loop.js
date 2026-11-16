@@ -3521,6 +3521,14 @@ async function handleVerify() {
       impactDrift: { mapStatus: drift.mapStatus, outOfMap: drift.outOfMap },
       compact: compact.paths,
       claimedVsReality: claimed,
+      acStatus: (() => {
+        try {
+          return require('../lib/ac-status.js').runAcStatuses(CWD, run, require('../lib/claimed-vs-reality.js').loadFrozenGoal(CWD, run))
+            .filter((ac) => ac.status !== 'unbound');
+        } catch {
+          return [];
+        }
+      })(),
       ...(related ? { scope: 'related', finalRequired: 'Run `verify --final` after Judge PASS, before delivery.' } : {}),
       next: run.tier && run.tier.current === 'T0'
         ? 'Fill claimed-vs-reality, then gate review and gate judge'
@@ -3537,6 +3545,7 @@ async function handleVerify() {
         console.log('! No impact map for this Run; drift was not checked');
       }
       console.log(`- Claimed-vs-reality: ${claimed.path}${claimed.created ? ' (scaffolded; fill it from the command output)' : ''}`);
+      for (const ac of result.acStatus) console.log(`- ${ac.id}: ${ac.status} (\`${ac.command}\`)`);
       console.log(`- Next: ${result.next}`);
     }
   } catch (err) {

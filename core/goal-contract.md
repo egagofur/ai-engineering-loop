@@ -113,3 +113,14 @@ Every single item listed under `Acceptance Criteria` must map to at least one co
 - **The Wrong Artifact**: Tests pass on a `/tmp` build while the sample the user opens omits the feature.
 - **The Happy-Path Contract**: Only the sunny case is an AC. Coverage % is not a substitute for a failure table.
 - **The Sloppy Ship**: Implementing from a vague prompt without a drafted failure table in the Goal Contract file.
+
+## Per-AC verify command (C-07)
+
+An AC may name the command that proves it:
+
+```json
+{ "id": "AC-2", "statement": "page 0 is rejected", "evidenceRequired": "unit test", "failureCases": ["page 0 returns items"],
+  "verify": { "command": "npm test -- list.test.js", "layer": "L2" } }
+```
+
+The harness owns the status: `proven` when that exact command passed on the gated diff (`verification.json` or `final-verification.json`), `failed` when it ran and failed, `pending` when it never ran. `verify` prints each status, and `gate judge` refuses PASS while any AC with a verify command is `pending` or `failed` (`AC_NOT_PROVEN`). ACs without `verify` keep the existing evidence rules.

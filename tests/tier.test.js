@@ -72,8 +72,8 @@ function claimedVsReality(root, reality = 'node --test: 1 passed, exit 0; manual
   );
 }
 
-function advanceToVerified(root, diff) {
-  writeArtifact(root, 'goal-contract.json', goal());
+function advanceToVerified(root, diff, goalDoc = goal()) {
+  writeArtifact(root, 'goal-contract.json', goalDoc);
   applyGate(root, 'goal');
   const diffPath = writeArtifact(root, 'diff.patch', diff);
   applyGate(root, 'maker');
@@ -217,6 +217,22 @@ test('#110 T2 review gate refuses L2-only evidence, accepts L3 or a reasoned wai
   assert.throws(() => applyGate(root, 'review'), (err) => err.details.some((d) => d.includes('needs L3')));
   write('L2; L3 waived: no e2e harness and the flow needs a live SMTP server');
   applyGate(root, 'review');
+});
+
+test('C-07 Judge PASS is refused until an AC verify command passed on the gated diff', () => {
+  const root = tempRepo('Add pagination to the list endpoint');
+  const contract = goal();
+  contract.acceptanceCriteria[0].verify = { command: 'node --test test/list.test.js' };
+  const diffHash = advanceToVerified(root, CODE_DIFF, contract);
+  claimedVsReality(root);
+  writeArtifact(root, 'findings.json', { schemaVersion: 1, runId: 'run-001', diffHash, findings: [] });
+  applyGate(root, 'review');
+  assert.throws(() => applyGate(root, 'judge'), (err) => /AC_NOT_PROVEN/.test(err.message)
+    && err.details.some((d) => d.includes('AC-1') && d.includes('pending')) && /verify --run/.test(err.fix));
+  const finalPath = artifactPath(root, 'run-001', 'final-verification.json');
+  const record = { ...verification(root, diffHash).commands[0], command: 'node --test test/list.test.js' };
+  fs.writeFileSync(finalPath, JSON.stringify({ commands: [record] }));
+  assert.strictEqual(applyGate(root, 'judge').state, RUN_STATES.JUDGED_PASS);
 });
 
 test('legacy runs without a tier keep the full Judge requirement', () => {
