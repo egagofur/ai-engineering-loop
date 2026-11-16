@@ -3406,6 +3406,11 @@ async function handleVerify() {
       // C-02: no --cmd runs the cheapest-first plan (L1 build/typecheck/lint,
       // then L2 test_unit) and stops at the first failure.
       const plan = lanes.defaultCommandPlan(CWD);
+      // C-03: startup-risky diffs also run the configured smoke check (L2).
+      const smokeText = lanes.verificationCommands(CWD).smoke;
+      if (smokeText && !baselineMode && lanes.startupRiskFiles(CWD, loadRun(CWD, runId)).length) {
+        plan.push({ key: 'smoke', layer: 'L2', text: smokeText });
+      }
       if (!plan.length) throw Object.assign(new Error('No --cmd given and no build/typecheck/lint/test_unit command in .ai-engineering-loop/verification.md. FIX: add them to verification.md or pass --cmd.'), { code: 'INVALID_COMMAND' });
       commandsToRun = plan.map((step) => ({ ...splitCommand(step.text, shell), key: step.key, layer: step.layer }));
       defaultPlan = true;

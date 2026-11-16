@@ -155,3 +155,27 @@ test('init does not guess typecheck, lint or build commands the project does not
   assert.match(md, /\*\*test_unit\*\*: `npm test`/);
   assert.doesNotMatch(md, /npx tsc|eslint --fix|\*\*build\*\*/);
 });
+
+test('C-03 a startup-risky diff runs the smoke check by default and the gate requires it', () => {
+  const ctx = setupRepo('# V\n- **test_unit**: `node tools/pass.js unit`\n- **smoke**: `node tools/mark.js smoke`\n');
+  const { runId } = freeze(ctx);
+  fs.writeFileSync(path.join(ctx.repo, 'package.json'), '{"name":"demo","version":"1.0.1"}\n');
+  assert.strictEqual(ctx.cli('gate', 'maker', '--from-git', '--run', runId).status, 0);
+  const onlyUnit = ctx.cli('verify', '--run', runId, '--cmd', 'node tools/pass.js unit', '--json');
+  assert.strictEqual(onlyUnit.status, 1);
+  assert.match(onlyUnit.stdout, /SMOKE_MISSING/);
+  const full = ctx.cli('verify', '--run', runId, '--json');
+  assert.strictEqual(full.status, 0, full.stdout);
+  assert.ok(JSON.parse(full.stdout).commands.some((c) => c.command === 'node tools/mark.js smoke'));
+  assert.ok(fs.existsSync(path.join(ctx.repo, 'ran-smoke')));
+});
+
+test('C-03 a diff with no startup-risky file does not need smoke', () => {
+  const ctx = setupRepo('# V\n- **test_unit**: `node tools/pass.js unit`\n- **smoke**: `node tools/mark.js smoke`\n');
+  const { runId } = freeze(ctx);
+  fs.writeFileSync(path.join(ctx.repo, 'tools/pass.js'), 'console.log("v2");\n');
+  assert.strictEqual(ctx.cli('gate', 'maker', '--from-git', '--run', runId).status, 0);
+  const res = ctx.cli('verify', '--run', runId, '--json');
+  assert.strictEqual(res.status, 0, res.stdout);
+  assert.ok(!fs.existsSync(path.join(ctx.repo, 'ran-smoke')));
+});

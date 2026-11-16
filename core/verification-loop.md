@@ -82,6 +82,8 @@ Enforcement (`lib/claimed-vs-reality.js`, `gate review`):
 
 `init` writes only commands the project really has: `typecheck` from a script or a TypeScript setup, `lint` and `build` only from package scripts.
 
+**Smoke (C-03).** An optional `smoke` key in `verification.md` is a command that starts the app, probes readiness (a health URL, a golden journey), stops it, and exits. It counts as L2. When the gated diff touches startup-risky files (migrations, `.env*`, `config/`, `*.config.*`, Docker/Procfile, `main|index|server|app` entrypoints, dependency manifests), default `verify` runs it after `test_unit`, and the verification gate fails with `SMOKE_MISSING` when it did not run. A smoke command that times out or exits non-zero blocks the gate; on timeout the recorder kills its process group.
+
 ## 3b. Verification Integrity (C-11)
 
 At `gate review` the CLI scans the gated diff and adds `source: "verification-integrity"` findings (HIGH; BLOCKER at T2, VALID, with a concrete fix) for:
