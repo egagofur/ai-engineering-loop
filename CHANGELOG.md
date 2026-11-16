@@ -4,7 +4,19 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
-_No changes yet._
+Harness gaps from a full review against learn-harness-engineering (cards C-01..C-16 in `docs/cards/harness-gaps-2026-11-16.md`).
+
+- **Added:** L3 enforcement (#112 follow-up): `crossComponent` ACs and every T2 AC need L3 evidence or `L3 waived: <reason>`; Layer tags must match a recorded command of that layer (C-01); `gate review` checks claimed-vs-reality on T1/T2 too.
+- **Added:** `verify --baseline` records the untouched tree before the Maker gate; later failures are labelled pre-existing or new (C-10).
+- **Changed:** `verify` without `--cmd` runs build -> typecheck -> lint -> test_unit and stops at the first failure; T1/T2 need an L1 record when typecheck or lint is configured (`L1_MISSING`, C-02). Optional `smoke` runs for migration/config/env/entrypoint changes (`SMOKE_MISSING`, C-03).
+- **Fixed:** `init` no longer writes guessed `npx tsc --noEmit`, `npx eslint --fix` or `npm run build` for projects that do not have them; commands with `--fix`/`--write` never run by default.
+- **Added:** weakened verification in the diff (new skip/only markers, deleted tests, dropped assertions, edited verification config) becomes a VALID finding only a human can dismiss (C-11).
+- **Added:** every gate failure prints `WHY:` and `FIX:` (C-04); delivery blocks debugger statements, conflict markers, committed `.env`/keys and leftover `_templateOnly` scaffolds, and reports stray untracked files (C-06).
+- **Added:** Goal Contract AC fields `verify.command` (Judge PASS needs it green, C-07) and `rubric` (scored per criterion with evidence, C-09); Goal `featureId` links `.ai-engineering-loop/features.json` (C-15).
+- **Added:** `ael stats` (failure cause per harness layer, false-victory rate, C-12), `ael outcome record` + `ael calibrate` (C-13), `ael debt` (C-14), `ael next` (C-15), `learn promote` rules (C-05), `doctor --harness` and `bench --without` (C-08).
+- **Added:** review-pack records what the Devil's Advocate saw (pack, diff, prompt hashes); the review gate rejects a ledger whose inputs changed (C-16).
+- **Changed:** the REPORT_ONLY report review moved from `loop-maker` to the new `loop-report` reference, so normal runs do not load it; new harness commands are documented in `loop-commands`.
+- **Added:** root `AGENTS.md` for contributors and agents working on this repository.
 
 ## 2.6.0 - 2026-11-10
 
