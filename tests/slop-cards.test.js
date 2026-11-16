@@ -169,3 +169,53 @@ test('C-22 AC-2 doctor --harness warns when e2e or smoke exists but the feature 
   fs.writeFileSync(path.join(root, '.ai-engineering-loop/feature-map.md'), MAP);
   assert.ok(!auditHarness(root, { budget: false }).items.some((item) => item.id === 'feature-map'));
 });
+
+// C-21: intended flow and artifact-first receipt.
+const { flowProblems, flowWarnings, renderFlow } = require('../lib/flow.js');
+const { validateGoalContract } = require('../lib/gates.js');
+
+const FLOW = [
+  { from: 'List', event: 'click Export', to: 'Exporting' },
+  { from: 'Exporting', event: 'file ready', to: 'Done' },
+  { from: 'Exporting', event: 'disk full', to: 'Stuck' }
+];
+
+test('C-21 AC-3 a Goal flow renders as a transition table and dead ends are flagged', () => {
+  assert.strictEqual(renderFlow(FLOW).split('\n')[2], '| List | click Export | Exporting |');
+  assert.deepStrictEqual(flowWarnings(FLOW), ['"Stuck" has no way out; mark it terminal (Done/Error) or add the next step']);
+  assert.deepStrictEqual(flowProblems([{ from: 'A', to: 'B' }]), ['flow[0].event is required']);
+  const contract = { objective: 'x', flow: [{ from: 'A' }], acceptanceCriteria: [{ id: 'AC-1', statement: 's', evidenceRequired: 'e', failureCases: ['f'] }] };
+  assert.ok(validateGoalContract(contract).errors.some((e) => e.includes('flow[0].event')));
+});
+
+test('C-21 AC-1/AC-2 receipt lists artifacts first and marks a crossComponent AC without one as missing', () => {
+  const { renderReceiptMarkdown } = require('../lib/receipt.js');
+  const receipt = {
+    runId: 'r1', goal: { version: 1, contentHash: 'abc', flow: FLOW }, base: { sha: 'b' }, head: { sha: 'h' }, digest: 'd',
+    acceptanceCriteria: [
+      { id: 'AC-1', statement: 'export', status: 'PASS', evidence: [{ type: 'link', kind: 'video', url: 'https://cdn.example/export.mp4' }] },
+      { id: 'AC-2', statement: 'import', status: 'MISSING', missing: ['no verification artifact (video, screenshot or diagram); pass --evidence AC-2=<https-url>'], evidence: [] }
+    ],
+    review: { findings: { total: 0, valid: 0, blocking: 0 }, verdict: { verdict: 'PASS' } },
+    guard: { block: 0, warn: 0 }
+  };
+  const md = renderReceiptMarkdown(receipt);
+  assert.ok(md.indexOf('### Verification artifacts') < md.indexOf('### Intended flow'));
+  assert.ok(md.indexOf('### Intended flow') < md.indexOf('### Acceptance criteria'));
+  assert.match(md, /- \*\*AC-1\*\* video: \[video\]\(https:\/\/cdn\.example\/export\.mp4\)/);
+  assert.match(md, /❌ \*\*AC-2\*\* import — \*\*missing:\*\* no verification artifact/);
+});
+
+test('C-21 AC-2 crossComponent and rubric ACs need an artifact link; others do not', () => {
+  const { criterionEntry } = require('../lib/receipt.js');
+  const passing = [{ type: 'command', passed: true }];
+  const claims = [{ ac: 'AC-1', reality: 'npm run e2e exit 0' }, { ac: 'AC-2', reality: 'ok' }, { ac: 'AC-3', reality: 'ok' }];
+  const cross = criterionEntry({ id: 'AC-1', statement: 's', crossComponent: true }, { commands: passing, claims, links: {} });
+  assert.strictEqual(cross.status, 'MISSING');
+  assert.match(cross.missing[0], /no verification artifact/);
+  const withLink = criterionEntry({ id: 'AC-1', statement: 's', crossComponent: true }, { commands: passing, claims, links: { 'AC-1': ['https://cdn.example/a.png'] } });
+  assert.strictEqual(withLink.status, 'PASS');
+  assert.strictEqual(withLink.evidence.find((e) => e.type === 'link').kind, 'screenshot');
+  assert.strictEqual(criterionEntry({ id: 'AC-2', statement: 's', rubric: [{ criterion: 'c', pass: 'p' }] }, { commands: passing, claims, links: {} }).status, 'MISSING');
+  assert.strictEqual(criterionEntry({ id: 'AC-3', statement: 's' }, { commands: passing, claims, links: {} }).status, 'PASS');
+});

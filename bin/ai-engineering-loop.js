@@ -3162,6 +3162,11 @@ function handleGoal() {
         expectedRevision: requiredIntegerArg('--revision')
       });
       extra.impactPreview = impactPreview(runId, draftGoal);
+      // C-21: show the intended user flow as a transition table before freeze.
+      if (draftGoal && draftGoal.flow != null) {
+        const flowLib = require('../lib/flow.js');
+        extra.flow = { table: flowLib.renderFlow(draftGoal.flow), problems: flowLib.flowProblems(draftGoal.flow), warnings: flowLib.flowWarnings(draftGoal.flow) };
+      }
       appendRunLifecycle(CWD, runId, {
         type: 'GOAL_DRAFT_UPDATED',
         phase: 'goal',

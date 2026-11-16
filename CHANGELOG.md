@@ -12,6 +12,7 @@ From "All Code Is Slop (Except Mine)" (cards C-17..C-24 in `docs/cards/slop-to-g
 - **Added:** built-in rule kinds: `learn promote --forbid-import "<fromGlob> -> <toGlob>"` and `--forbid-api "<regex>" [--except <glob>]`, run by `rules check <id>` on added lines only, reporting `file:line` (C-20).
 - **Added:** verification catalog: `security`, `property`, `fuzz`, `mutation`, `coverage`, `benchmark`, `contract`, `pentest` and `formal` (new layer `LF`) are recognised in `verification.md` and mapped to layers; `property` runs in the default plan; an AC can require any key (`verify.key`) or layer (`verify.layer`), default `verify` runs required keys, and Judge PASS waits for them (C-23).
 - **Added:** optional feature map (`.ai-engineering-loop/feature-map.md`): `review-pack` includes the user-facing features a diff touches with how to reach them and an optional driver command; `doctor --harness` warns when e2e/smoke exists without one (C-22).
+- **Added:** Goal `flow` (from/event/to transitions) rendered as a table with dead-end warnings by `goal draft` and in the receipt; the receipt now opens with verification artifacts (video, screenshot, diagram) and marks crossComponent/rubric ACs without one as missing (C-21).
 - **Fixed:** the `verification.md` template no longer suggests `npx eslint --fix` and describes the current default plan.
 
 ## 2.7.0 - 2026-11-16

@@ -5,7 +5,7 @@
 - If the user prompt has no numbered AC, draft the contract (`docs goal-contract` if needed), list it, and wait. Chat agreement is not freeze.
 - AC is a failure table: each row has a statement, required evidence, and failure cases. Do not freeze sunny-path-only. T0 may use 1-3 rows that still list failure cases.
 - Boundary-crossing AC (UI-API, service-DB, queue, IPC): `crossComponent: true`; needs L3.
-- Optional per AC: `verify.command` (Judge PASS needs it green), `rubric` for subjective ACs; Goal `featureId` links `features.json` (`docs goal-contract`).
+- Optional per AC: `verify.command` (Judge PASS needs it green), `rubric` for subjective ACs; Goal `featureId` links `features.json`; Goal `flow` (from/event/to) for UI work: show its table with the draft (`docs goal-contract`).
 - Write the contract JSON to a repository-local file, then `npx ai-engineering-loop goal draft --run <runId> --file <file> --revision <currentRevision>` (publishes the draft and the freeze question to Studio). Show the human the draft and its `impactPreview` in one message.
 - Wait for the explicit human freeze, then `npx ai-engineering-loop goal freeze --latest --run <runId> --by <name>` (or `--revision <r> --hash <h>`). Add `--confirm-impact` when that answer also accepts the blast radius. T0: `quick start`.
 - Otherwise the freeze writes a DRAFT blast-radius map: `impact show --run <runId>`. ASSISTED: the human confirms or edits it (`impact confirm --by <name> [--allow <glob>] [--remove <path>]`); copy/CSS/comment-only goals: `impact skip --by <name> --reason <text>` (`docs blast-radius-map`).
