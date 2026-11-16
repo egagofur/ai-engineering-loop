@@ -29,4 +29,4 @@
 | C-23 P2: verification catalog (property, fuzz, mutation, contract, pentest, formal LF, ...) | Engineer Bot | Done | [#117](https://github.com/egagofur/ai-engineering-loop/pull/117) | Claude | 67d4d41 (merged 2026-11-16, v2.8.0) |
 | C-24 P3: auto revert rate + verification token share in stats | Engineer Bot | Done | [#117](https://github.com/egagofur/ai-engineering-loop/pull/117) | Claude | 67d4d41 (merged 2026-11-16, v2.8.0) |
 | C-25 P3: pstack `/statechart` via `formal` recipe + Mermaid `flow` in receipt | Engineer Bot | Done | [#117](https://github.com/egagofur/ai-engineering-loop/pull/117) | Claude | 67d4d41 (merged 2026-11-16, v2.8.0) |
-| C-26 P1: no comments in product code (blocking `no-comments` findings) | Engineer Bot | In Review | branch `feat/no-comments` | Claude | not merged |
+| C-26 P1: no comments in product code (blocking `no-comments` findings) | Engineer Bot | Done | [#119](https://github.com/egagofur/ai-engineering-loop/pull/119) | Claude | 7bb7abf (merged 2026-11-16, v2.9.0) |
