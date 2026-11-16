@@ -3553,6 +3553,38 @@ async function handleVerify() {
   }
 }
 
+function handleOutcome() {
+  const json = process.argv.includes('--json');
+  try {
+    const action = args[1] && !args[1].startsWith('--') ? args[1] : null;
+    if (action !== 'record') throw Object.assign(new Error('outcome supports: record --run <id> --source mr-comment|revert|bug|incident --location <file[:line]> --summary <text> --by <name> [--evidence <path|url>]'), { code: 'INVALID_USAGE' });
+    const entry = require('../lib/calibration.js').recordOutcome(CWD, {
+      runId: argValue('--run'),
+      source: argValue('--source'),
+      location: argValue('--location'),
+      summary: argValue('--summary'),
+      evidence: argValue('--evidence'),
+      by: argValue('--by')
+    });
+    if (json) console.log(JSON.stringify({ ok: true, outcome: entry }));
+    else log.success(`✓ outcome recorded for ${argValue('--run')}; run \`calibrate\` to compare it with the review`);
+  } catch (err) {
+    stageJsonError(err, json, 'OUTCOME_FAILED');
+  }
+}
+
+function handleCalibrate() {
+  const json = process.argv.includes('--json');
+  try {
+    const calibration = require('../lib/calibration.js');
+    const report = calibration.calibrate(CWD);
+    if (json) console.log(JSON.stringify({ ok: true, ...report }));
+    else console.log(calibration.formatCalibration(report));
+  } catch (err) {
+    stageJsonError(err, json, 'CALIBRATE_FAILED');
+  }
+}
+
 function handleDebt() {
   const json = process.argv.includes('--json');
   try {
@@ -4194,6 +4226,9 @@ Commands:
                A missing binary is UNAVAILABLE, not a model failure.
                Progress lines go to stderr. Writes .ai-engineering-loop/bench/<benchId>/{results.json,report.md,hardening.md}
                bench compare <benchIdA> <benchIdB> [--json]   read-only side-by-side table
+  outcome      record --run <id> --source mr-comment|revert|bug|incident --location <file[:line]> --summary <text> --by <name>
+               a post-delivery problem traced to a Run (input for calibrate)
+  calibrate    Compare recorded outcomes with each Run's Finding Ledger: DA misses, wrong dismissals, per reviewer prompt
   debt         Accepted trade-offs and L3 waivers recorded at delivery: list [--file <path>] | close <id> --by <name> [--note <text>]
   stats        Failure causes by harness layer, false-victory rate, iterations to PASS [--last <n>] [--json]
   escalation   Compute the minimum Judge model tier from deterministic risk signals
@@ -4414,6 +4449,12 @@ switch (command) {
     break;
   case 'debt':
     handleDebt();
+    break;
+  case 'outcome':
+    handleOutcome();
+    break;
+  case 'calibrate':
+    handleCalibrate();
     break;
   case 'docs':
     handleDocs();

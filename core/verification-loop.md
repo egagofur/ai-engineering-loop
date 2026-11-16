@@ -160,3 +160,14 @@ At `gate delivery` the CLI copies two kinds of deferred work into `.ai-engineeri
 
 "Model-visible means logged": `review-pack` writes `runs/<id>/review-inputs.json` with the sha256 of the review pack, the gated diff, and the Devil's Advocate prompt body. `review ingest` copies them into `findings.json` (`reviewer.inputs`, `reviewer.promptSha256`). `gate review` fails the ledger binding when any recorded input changed after the reviewer saw it, so a missed defect can always be traced to exactly what the reviewer was shown.
 
+## 10. Reviewer Calibration (C-13)
+
+Gates prove the change matches the Goal; only reality proves the reviewers were right. After delivery, record problems people found:
+
+```
+ael outcome record --run <id> --source mr-comment|revert|bug|incident --location <file[:line]> --summary <text> --by <name> [--evidence <path|url>]
+ael calibrate [--json]
+```
+
+`calibrate` compares each outcome with that Run's Finding Ledger: `DA_MISS` (no finding on that file), `FALSE_DISMISS` (a finding on that file was marked INVALID or dismissed), `CAUGHT_BUT_SHIPPED` (a VALID finding was accepted as a trade-off). Results are grouped by the reviewer prompt hash (C-16), so after you tighten `agents/shared/devil-advocate.body.md` for a recurring miss you can see whether the next prompt version misses less. Plan for several tuning rounds; record each prompt change in its commit message.
+
