@@ -4,7 +4,10 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
-_No changes yet._
+From "All Code Is Slop (Except Mine)" (cards C-17..C-24 in `docs/cards/slop-to-gold-2026-11-16.md`).
+
+- **Added:** ratchet rules: `learn promote --scope diff` judges only lines the change adds (`$AEL_ADDED_LINES_FILE`, `$AEL_CHANGED_FILES`), so a rule can be promoted on a codebase with old violations; `doctor --harness` reports each diff rule's legacy backlog (C-17).
+- **Added:** suppressions (`eslint-disable`, `@ts-ignore`, `# noqa`, ...) and workaround comments added in product code become `comment-justification` review findings (HIGH without a reason, otherwise MEDIUM); reviewers may dismiss them only with evidence (C-18).
 
 ## 2.7.0 - 2026-11-16
 

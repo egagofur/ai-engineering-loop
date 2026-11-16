@@ -94,6 +94,14 @@ At `gate review` the CLI scans the gated diff and adds `source: "verification-in
 
 These findings cannot be dropped or downgraded by the reviewer. Only a human dismissal (`dismissal: {by, evidence}`) can downgrade them; otherwise the review gate fails.
 
+## 3c. Justification Comments and Suppressions (C-18)
+
+Agents write comments to justify not doing the right thing, and comments cannot be enforced. At `gate review` the CLI scans comments added in non-test product files and adds `source: "comment-justification"` findings (`axis: "standards"`):
+- a suppression (`eslint-disable*`, `@ts-ignore`, `@ts-expect-error`, `# type: ignore`, `# noqa`, `//nolint`, `NOSONAR`, `istanbul/c8 ignore`): **HIGH** without a reason, **MEDIUM** with one (eslint `-- reason`, or text after the directive);
+- a comment that justifies a workaround (`workaround`, `quick fix`, `hack`, `temporary`, `for now`, `band-aid`, `fix later`, ...): **MEDIUM**. Projects add patterns in `.ai-engineering-loop/rules.json` as `"justificationPatterns": ["<regex>"]`.
+
+Docs, changelogs, data files and tests are skipped. Unlike C-11, a reviewer may downgrade these with `dismissal: {by, evidence}` (for example generated code); dropping or downgrading one without evidence fails the review gate.
+
 ## 4. The 4 Verification Gates
 
 1. **Gate 1: Unit & Integration Tests**: All unit and edge-case tests must pass with 0 failures.
