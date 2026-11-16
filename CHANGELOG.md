@@ -4,12 +4,18 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+_No changes yet._
+
+## 2.9.0 - 2026-11-16
+
+From "All Code Is Slop (Except Mine)" 08:06-08:46 (card C-26 in `docs/cards/slop-to-gold-2026-11-16.md`).
+
 - **Added:** no comments in product code by default (C-26): every comment line a change adds in a non-test product file (besides suppressions and workaround comments, which stay C-18 findings) becomes one blocking `no-comments` finding per file (`hardConvention: true`, HIGH), so the Judge returns ITERATE. Comment detection follows each language's syntax and ignores strings, shebangs, license headers, `@generated` and tool directives. Opt out per project with `"comments": "allow"` in `.ai-engineering-loop/rules.json`; a reviewer may dismiss one finding only with evidence.
 - **Changed:** C-18 suppression detection now follows each file's comment syntax and also covers `prettier-ignore`, `biome-ignore`, `stylelint-disable`, `rubocop:disable` and `pylint: disable`.
 
 ## 2.8.0 - 2026-11-16
 
-From "All Code Is Slop (Except Mine)" (cards C-17..C-24 in `docs/cards/slop-to-gold-2026-11-16.md`).
+From "All Code Is Slop (Except Mine)" (cards C-17..C-25 in `docs/cards/slop-to-gold-2026-11-16.md`).
 
 - **Added:** ratchet rules: `learn promote --scope diff` judges only lines the change adds (`$AEL_ADDED_LINES_FILE`, `$AEL_CHANGED_FILES`), so a rule can be promoted on a codebase with old violations; `doctor --harness` reports each diff rule's legacy backlog (C-17).
 - **Added:** suppressions (`eslint-disable`, `@ts-ignore`, `# noqa`, ...) and workaround comments added in product code become `comment-justification` review findings (HIGH without a reason, otherwise MEDIUM); reviewers may dismiss them only with evidence (C-18).
