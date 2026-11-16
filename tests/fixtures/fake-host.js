@@ -229,7 +229,10 @@ function writeProbe() {
     '.claude/skills/ael/SKILL.md'
   ];
   const gitignorePath = path.join(CWD, '.gitignore');
-  fs.writeFileSync(file, `${JSON.stringify({
+  // Write then rename: a host killed by a bench timeout must never leave a
+  // half-written probe for the test to parse (flaky on slow Windows runners).
+  const tmp = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, `${JSON.stringify({
     HOME: process.env.HOME || null,
     USERPROFILE: process.env.USERPROFILE || null,
     AEL_HOME: process.env.AEL_HOME || null,
@@ -237,6 +240,7 @@ function writeProbe() {
     shim: fs.existsSync(path.join(CWD, 'node_modules', '.bin', 'ai-engineering-loop')),
     gitignore: fs.existsSync(gitignorePath) ? fs.readFileSync(gitignorePath, 'utf8') : ''
   })}\n`);
+  fs.renameSync(tmp, file);
 }
 
 function runCompliant(scenario, model) {
