@@ -135,3 +135,37 @@ test('C-23 AC-2 an AC requiring a key or layer is proven only by a passing recor
   assert.deepStrictEqual(acStatuses(goal, records).map((ac) => [ac.id, ac.status]), [['AC-1', 'proven'], ['AC-2', 'failed'], ['AC-3', 'pending']]);
   assert.deepStrictEqual(requiredKeys(goal), ['pentest', 'contract']);
 });
+
+// C-22: feature map.
+const { parseFeatureMap, featuresForFiles, renderForPack } = require('../lib/feature-map.js');
+const { auditHarness } = require('../lib/harness-audit.js');
+
+const MAP = [
+  '# Feature map',
+  '',
+  '| Feature | Where | Paths | How to reach | Driver |',
+  '|---|---|---|---|---|',
+  '| export-csv | Reports > Export button | src/reports/**, src/export/** | open Reports, click Export | `npm run drive -- export` |',
+  '| login | /login page | src/auth/** | open /login | |'
+].join('\n');
+
+test('C-22 AC-1 the review pack gets the feature-map entries whose paths the diff touches', () => {
+  const entries = parseFeatureMap(MAP);
+  assert.deepStrictEqual(entries.map((e) => [e.id, e.paths.length, e.driver]), [['export-csv', 2, 'npm run drive -- export'], ['login', 1, null]]);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-fmap-'));
+  fs.mkdirSync(path.join(root, '.ai-engineering-loop'));
+  fs.writeFileSync(path.join(root, '.ai-engineering-loop/feature-map.md'), MAP);
+  const touched = featuresForFiles(root, ['src/export/csv.js', 'README.md']);
+  assert.deepStrictEqual(touched.map((e) => e.id), ['export-csv']);
+  assert.match(renderForPack(touched), /export-csv: Reports > Export button\. Reach: open Reports, click Export\. Driver: `npm run drive -- export`/);
+  assert.strictEqual(renderForPack([]), '');
+});
+
+test('C-22 AC-2 doctor --harness warns when e2e or smoke exists but the feature map is empty', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-fmap-doc-'));
+  fs.mkdirSync(path.join(root, '.ai-engineering-loop'));
+  fs.writeFileSync(path.join(root, '.ai-engineering-loop/verification.md'), '- **e2e**: `npm run e2e`\n');
+  assert.ok(auditHarness(root, { budget: false }).items.some((item) => item.id === 'feature-map'));
+  fs.writeFileSync(path.join(root, '.ai-engineering-loop/feature-map.md'), MAP);
+  assert.ok(!auditHarness(root, { budget: false }).items.some((item) => item.id === 'feature-map'));
+});

@@ -15,6 +15,7 @@ Run these when the user asks how the loop is doing, before planning work, or whe
 - `debt [--file <path>]` lists trade-offs the Judge accepted and L3 waivers; `debt close <id> --by <name>` only on the human's word.
 - `next`: the next unblocked feature in `.ai-engineering-loop/features.json` and VCR (verified/activated). Finish the active feature before starting another.
 - `learn` lists lessons seen in 3+ Runs; a human promotes one with `learn promote <id> --check "<cmd>" --fix "<instruction>" --by <name>`. Default `verify` then runs it as an L1 rule. On a codebase that already has old violations use `--scope diff`: the check reads only added lines from `$AEL_ADDED_LINES_FILE`, so new ones fail and the old ones become a backlog (`doctor --harness`). Common cases need no script: `--forbid-import "src/renderer/** -> src/main/**"` or `--forbid-api "\buseEffect\(" --except "src/framework/**"`.
+- `.ai-engineering-loop/feature-map.md` (Feature | Where | Paths | How to reach | Driver): `review-pack` adds the features a diff touches; use those names and drivers for L3 evidence.
 - `doctor --harness`: harness debt (entry-file size and structure, stale learnings, rule provenance, skill budget). Report findings; do not mass-delete.
 - `bench --without <integrity|l3|l1|smoke|rules>` measures whether a gate component still earns its cost (`docs bench`). Never use it on a real task.
 

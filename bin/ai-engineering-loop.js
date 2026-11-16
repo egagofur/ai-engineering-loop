@@ -3853,6 +3853,7 @@ function handleReviewPack() {
     const tier = run.tier ? run.tier.current : null;
     // C-14: open debt on the files this change touches goes into the pack.
     let openDebt = [];
+    let touchedFeatures = [];
     try {
       const changed = require('../lib/verification-lanes.js').relatedFiles(CWD, run);
       openDebt = require('../lib/debt.js').openDebtFor(CWD, changed);
@@ -3860,6 +3861,10 @@ function handleReviewPack() {
         const lines = ['', '## Open debt on changed files', '', ...openDebt.map((item) => `- ${item.id} ${item.location}: ${item.debt} (deferred: ${item.whyDeferred}; risk ${item.risk})`)];
         fs.appendFileSync(path.join(CWD, pack.path), `${lines.join('\n')}\n`);
       }
+      // C-22: user-facing features this diff touches, with how to reach them.
+      const featureMap = require('../lib/feature-map.js');
+      touchedFeatures = featureMap.featuresForFiles(CWD, changed);
+      if (touchedFeatures.length && pack.path) fs.appendFileSync(path.join(CWD, pack.path), `${featureMap.renderForPack(touchedFeatures)}\n`);
     } catch {
       openDebt = [];
     }
@@ -3879,6 +3884,7 @@ function handleReviewPack() {
       unresolvedFindings: pack.unresolvedFindings,
       impactDrift: pack.impactDrift,
       openDebt: openDebt.map((item) => ({ id: item.id, location: item.location, debt: item.debt })),
+      features: touchedFeatures.map((entry) => ({ id: entry.id, where: entry.where, driver: entry.driver })),
       reviewInputs: { inputs: reviewInputs.inputs, promptSha256: reviewInputs.promptSha256 },
       fastPath: { eligible: fastPath.eligible, reasons: fastPath.reasons },
       escalation: { requiredTier: escalation.requiredTier, reasons: escalation.reasons.map((r) => r.code) }
@@ -3893,6 +3899,7 @@ function handleReviewPack() {
         console.log(`- Outside the impact map: ${result.impactDrift.outOfMap.join(', ')} (check their side effects)`);
       }
       for (const line of result.impactDrift?.design || []) console.log(`- ${line}`);
+      if (touchedFeatures.length) console.log(`- Features touched: ${touchedFeatures.map((entry) => entry.id).join(', ')} (in the pack; use them for L3 evidence)`);
       if (openDebt.length) console.log(`- Open debt on changed files: ${openDebt.map((item) => item.id).join(', ')} (in the pack; resolve or keep consciously)`);
     }
   } catch (err) {
