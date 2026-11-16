@@ -265,3 +265,73 @@ test('C-24 budget record rejects an unknown role', () => {
   assert.throws(() => recordTokenUsage(root, { runId: 'run-1', inputTokens: 1, outputTokens: 1, model: 'claude-x', role: 'boss' }), /role must be one of/);
   assert.strictEqual(recordTokenUsage(root, { runId: 'run-1', inputTokens: 1, outputTokens: 1, model: 'claude-x', role: 'judge' }).entry.role, 'judge');
 });
+
+// C-25: Mermaid flow and the formal/statechart recipe.
+test('C-25 AC-1 the receipt renders the flow as a valid Mermaid stateDiagram with escaped labels', () => {
+  const { renderMermaid } = require('../lib/flow.js');
+  const { renderReceiptMarkdown } = require('../lib/receipt.js');
+  const flow = [
+    { from: 'Cart page', event: 'click Pay; card "4242"', to: 'Paying #1' },
+    { from: 'Paying #1', event: 'gateway ok', to: 'Done' }
+  ];
+  const text = renderMermaid(flow);
+  assert.deepStrictEqual(text.split('\n'), [
+    'stateDiagram-v2',
+    '  state "Cart page" as s0',
+    '  state "Paying no. 1" as s1',
+    '  state "Done" as s2',
+    '  [*] --> s0',
+    "  s0 --> s1: click Pay, card '4242'",
+    '  s1 --> s2: gateway ok',
+    '  s2 --> [*]'
+  ]);
+  assert.strictEqual(renderMermaid([{ from: 'A' }]), '', 'malformed flow renders nothing');
+  const md = renderReceiptMarkdown({
+    runId: 'r', goal: { version: 1, contentHash: 'c', flow }, base: { sha: 'b' }, head: { sha: 'h' }, digest: 'd',
+    acceptanceCriteria: [], review: { findings: { total: 0, valid: 0, blocking: 0 }, verdict: { verdict: 'PASS' } }, guard: { block: 0, warn: 0 }
+  });
+  assert.match(md, /### Intended flow\n\n```mermaid\nstateDiagram-v2\n[\s\S]*```\n\n\| From \| Event \| To \|/);
+});
+
+test('C-25 AC-3 docs formal-statechart resolves and credits pstack; skill text stays Mermaid-free', () => {
+  const res = spawnSync(process.execPath, [CLI, 'docs', 'formal-statechart'], { encoding: 'utf8' });
+  assert.strictEqual(res.status, 0, res.stderr);
+  assert.match(res.stdout, /pstack plugin by Lauren Tan \(MIT\)/);
+  assert.match(res.stdout, /"verify": \{ "layer": "LF" \}/);
+  for (const rel of ['.claude/skills/ael/SKILL.md', '.agents/skills/ael/SKILL.md']) {
+    assert.doesNotMatch(fs.readFileSync(path.join(__dirname, '..', rel), 'utf8'), /mermaid|stateDiagram/i);
+  }
+});
+
+test('C-25 an AC requiring layer LF makes default verify run the formal key, and it proves the AC', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-lf-home-'));
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-lf-'));
+  const env = { ...process.env, HOME: home, USERPROFILE: home, AEL_HOME: home };
+  const git = (...args) => execFileSync('git', args, { cwd: repo, stdio: 'pipe', encoding: 'utf8' });
+  git('init', '-q');
+  fs.mkdirSync(path.join(repo, 'tools'));
+  fs.writeFileSync(path.join(repo, 'tools/model.js'), 'require("fs").writeFileSync("ran-formal", "1");\n');
+  fs.writeFileSync(path.join(repo, 'a.js'), 'module.exports = 1;\n');
+  git('add', '.');
+  git('-c', 'user.email=a@b.c', '-c', 'user.name=t', 'commit', '-qm', 'init');
+  const cli = (...args) => spawnSync(process.execPath, [CLI, ...args], { cwd: repo, env, encoding: 'utf8' });
+  assert.strictEqual(cli('init').status, 0);
+  fs.writeFileSync(path.join(repo, '.ai-engineering-loop/verification.md'), '- **test_unit**: `node --version`\n- **formal**: `node tools/model.js`\n');
+  git('add', '-A');
+  git('-c', 'user.email=a@b.c', '-c', 'user.name=t', 'commit', '-qm', 'ctx');
+  const run = JSON.parse(cli('run', '--json', 'Change the refund flow').stdout);
+  const runDir = path.join(repo, '.ai-engineering-loop/runs', run.runId);
+  fs.writeFileSync(path.join(runDir, 'goal-contract.json'), JSON.stringify({
+    schemaVersion: 1, runId: run.runId, objective: 'refund',
+    acceptanceCriteria: [{ id: 'AC-1', statement: 'never paid and refunded', evidenceRequired: 'TLC', failureCases: ['double refund'], verify: { layer: 'LF' } }]
+  }));
+  assert.strictEqual(cli('gate', 'goal', '--run', run.runId).status, 0);
+  fs.writeFileSync(path.join(repo, 'a.js'), 'module.exports = 2;\n');
+  assert.strictEqual(cli('gate', 'maker', '--from-git', '--run', run.runId).status, 0);
+  const verify = cli('verify', '--run', run.runId, '--json');
+  assert.strictEqual(verify.status, 0, verify.stdout);
+  const out = JSON.parse(verify.stdout);
+  assert.ok(out.commands.some((c) => c.layer === 'LF'));
+  assert.ok(fs.existsSync(path.join(repo, 'ran-formal')));
+  assert.deepStrictEqual(out.acStatus.map((ac) => [ac.id, ac.status]), [['AC-1', 'proven']]);
+});

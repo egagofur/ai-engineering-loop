@@ -28,3 +28,4 @@
 | C-22 P2: feature map + reusable verification driver | Engineer Bot | Review (branch feat/p2-slop-cards) | - | Claude | - |
 | C-23 P2: verification catalog (property, fuzz, mutation, contract, pentest, formal LF, ...) | Engineer Bot | Review (branch feat/p2-slop-cards) | - | Claude | - |
 | C-24 P3: auto revert rate + verification token share in stats | Engineer Bot | Review (branch feat/p2-slop-cards) | - | Claude | - |
+| C-25 P3: pstack `/statechart` via `formal` recipe + Mermaid `flow` in receipt | Engineer Bot | Review (branch feat/p2-slop-cards) | [#117](https://github.com/egagofur/ai-engineering-loop/pull/117) | Claude | - |

@@ -3166,7 +3166,7 @@ function handleGoal() {
       // C-21: show the intended user flow as a transition table before freeze.
       if (draftGoal && draftGoal.flow != null) {
         const flowLib = require('../lib/flow.js');
-        extra.flow = { table: flowLib.renderFlow(draftGoal.flow), problems: flowLib.flowProblems(draftGoal.flow), warnings: flowLib.flowWarnings(draftGoal.flow) };
+        extra.flow = { table: flowLib.renderFlow(draftGoal.flow), mermaid: flowLib.renderMermaid(draftGoal.flow), problems: flowLib.flowProblems(draftGoal.flow), warnings: flowLib.flowWarnings(draftGoal.flow) };
       }
       appendRunLifecycle(CWD, runId, {
         type: 'GOAL_DRAFT_UPDATED',
@@ -3451,8 +3451,15 @@ async function handleVerify() {
           const target = loadRun(CWD, runId);
           const goal = require('../lib/claimed-vs-reality.js').loadFrozenGoal(CWD, target);
           const configured = lanes.verificationCommands(CWD);
-          for (const key of require('../lib/ac-status.js').requiredKeys(goal)) {
+          const acStatusLib = require('../lib/ac-status.js');
+          for (const key of acStatusLib.requiredKeys(goal)) {
             if (configured[key] && !plan.some((step) => step.key === key)) plan.push({ key, layer: lanes.layerOfKey(key), text: configured[key] });
+          }
+          // A required layer with no step yet: the first configured catalog key of that layer.
+          for (const layer of acStatusLib.requiredLayers(goal)) {
+            if (plan.some((step) => step.layer === layer)) continue;
+            const key = Object.keys(lanes.VERIFICATION_CATALOG).find((name) => lanes.VERIFICATION_CATALOG[name].layer === layer && configured[name]);
+            if (key) plan.push({ key, layer, text: configured[key] });
           }
         } catch {
           // No frozen Goal yet; nothing extra to run.

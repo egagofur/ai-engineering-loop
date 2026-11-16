@@ -160,7 +160,7 @@ For UI or multi-step work, add the flow the user should experience as transition
 ]
 ```
 
-`goal draft` returns it as a `From | Event | To` table with warnings (a state nothing reaches, a state with no way out that is not Done/Error), so the human checks the intent before freeze. A malformed `flow` fails the Goal gate. The PR receipt shows the same table under "Intended flow", after "Verification artifacts" and before the acceptance criteria.
+`goal draft` returns it as a `From | Event | To` table and a Mermaid `stateDiagram-v2` (`flow.mermaid`), with warnings (a state nothing reaches, a state with no way out that is not Done/Error), so the human checks the intent before freeze. A malformed `flow` fails the Goal gate. The PR receipt shows the same diagram (GitHub renders it) and table under "Intended flow", after "Verification artifacts" and before the acceptance criteria.
 
 ## Verification artifacts in the receipt (C-21)
 
