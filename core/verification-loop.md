@@ -81,6 +81,16 @@ Enforcement (`lib/claimed-vs-reality.js`, `gate review`):
 
 `init` writes only commands the project really has: `typecheck` from a script or a TypeScript setup, `lint` and `build` only from package scripts.
 
+## 3b. Verification Integrity (C-11)
+
+At `gate review` the CLI scans the gated diff and adds `source: "verification-integrity"` findings (HIGH; BLOCKER at T2, VALID, with a concrete fix) for:
+- a skip/only/todo marker added in a test file (`it.skip`, `xit`, `fit`, `@Disabled`, `pytest.mark.skip`, `t.Skip`, ...);
+- a test file deleted without a replacement test in the same directory;
+- assertions removed from a test file without replacement;
+- a change to verification config (`.ai-engineering-loop/verification.md`, jest/vitest/playwright/cypress config, `pytest.ini`, coverage config) that the frozen Goal Contract does not name.
+
+These findings cannot be dropped or downgraded by the reviewer. Only a human dismissal (`dismissal: {by, evidence}`) can downgrade them; otherwise the review gate fails.
+
 ## 4. The 4 Verification Gates
 
 1. **Gate 1: Unit & Integration Tests**: All unit and edge-case tests must pass with 0 failures.
