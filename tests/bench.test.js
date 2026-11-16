@@ -127,7 +127,12 @@ function bench(profile, scenarioId, extra = {}) {
       ...(extra.options && extra.options.env)
     }
   });
-  const probed = fs.existsSync(probe) ? JSON.parse(fs.readFileSync(probe, 'utf8')) : null;
+  let probed = null;
+  try {
+    probed = fs.existsSync(probe) ? JSON.parse(fs.readFileSync(probe, 'utf8')) : null;
+  } catch {
+    probed = null; // host killed mid-write (timeout scenarios); probe-based tests assert on it explicitly
+  }
   return { zone, root, home, probe, probed, result };
 }
 
