@@ -2391,6 +2391,16 @@ function handleState() {
 
 function handleDoctor() {
   const json = process.argv.includes('--json');
+  if (process.argv.includes('--harness')) {
+    // C-08: harness debt in this project (warnings never block).
+    const audit = require('../lib/harness-audit.js').auditHarness(CWD);
+    if (json) console.log(JSON.stringify(audit));
+    else {
+      console.log(`Harness audit: ${audit.ok ? 'no debt found' : 'debt found'}`);
+      for (const item of audit.items) console.log(`${item.level === 'warn' ? '!' : '-'} ${item.id}: ${item.detail}`);
+    }
+    return;
+  }
   const result = runDoctor(path.join(__dirname, '..'), { projectDir: CWD });
   if (json) console.log(JSON.stringify(result));
   else {
@@ -4011,6 +4021,7 @@ function handleBench() {
       sandboxHome: process.argv.includes('--sandbox-home'),
       hostArgs: repeatedArg('--host-arg'),
       scenarioIds: repeatedArg('--scenario'),
+      without: repeatedArg('--without').flatMap((value) => value.split(',')).map((value) => value.trim()).filter(Boolean),
       repeat: repeatArg == null ? 1 : parsePositiveIntegerArg('--repeat', repeatArg),
       timeoutMs: timeoutArg == null ? undefined : parseBenchTimeoutSeconds(timeoutArg),
       mode: modeArg == null ? 'ASSISTED' : normalizeMode(modeArg),
@@ -4345,6 +4356,7 @@ Commands:
                list [--json]
                <name> [--section <heading>] [--json]   e.g. docs grill-policy --section "When to grill"
   doctor       Check runtime, schemas, host assets, package contents, and eval catalog
+               --harness   audit harness debt instead: entry-file size/structure, stale learnings, rule provenance, skill budget
                --json      print machine-readable diagnostics
   update       Check or apply the package update workflow
                check|plan [--json]

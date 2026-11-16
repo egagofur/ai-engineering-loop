@@ -75,3 +75,18 @@ Bench results do not feed `ael learn`. Learnings stay findings mined from Runs; 
 `bench compare <a> <b>` prints a side-by-side table and does not write.
 
 A live run against your own host is manual evidence for a change review. CI uses the fake host only.
+
+## Ablation and the simplification log (C-08)
+
+Every harness component encodes an assumption about what the model cannot do alone; as models improve, some assumptions go stale. Measure instead of guessing:
+
+```bash
+npx ai-engineering-loop bench --host <host> --model <model>                     # baseline
+npx ai-engineering-loop bench --host <host> --model <model> --without integrity # one component off
+npx ai-engineering-loop bench compare <baselineId> <ablationId>
+```
+
+`--without` accepts `integrity`, `l3`, `l1`, `smoke`, `rules` (repeat or comma-separate). It only takes effect inside bench scenario repos: bench sets `AEL_ABLATE` and writes `.ai-engineering-loop/bench-ablation.json`; the gates honour the switch only when both are present together with `AEL_BENCH_MODE`, and every skip is logged to the Run's `ablation.log`. The result carries `ablation.without`, and an entry is appended to `.ai-engineering-loop/simplification-log.json` (`decision: null` until a human records keep / remove / replace).
+
+`doctor --harness` audits harness debt in the project: entry-file size (50-200 lines) and structure (only headings, lists, tables and code count, so keywords in prose cannot game it), learnings not seen in the last 10 Runs, rules without provenance or older than 90 days, and, inside the AEL repo, T1 skill-context headroom from `scripts/measure.js`.
+
