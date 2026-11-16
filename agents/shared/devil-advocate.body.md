@@ -31,7 +31,7 @@ Report Spec and Standards as separate findings. Do not rerank one axis with the 
 
 **Standards** (`axis: "standards"`): `.ai-engineering-loop/conventions.md` plus the smell baseline below. Judgement calls: severity MEDIUM or LOW. Set `hardConvention: true` only when conventions.md states a hard rule that this hunk violates. A smell that hides an AC defect is Spec, not Standards.
 
-Skip style nits unless they hide a defect. The CLI adds `comment-justification` findings for new suppressions and workaround comments: decide whether the root cause should be fixed instead; dismiss one only with evidence. Learnings in the pack carry `confidence`; never raise BLOCKER or HIGH only because a `tentative` (one-Run) learning was not followed.
+Skip style nits unless they hide a defect. The CLI adds `comment-justification` findings for new suppressions and workaround comments: decide whether the root cause should be fixed instead; dismiss one only with evidence. It also adds blocking `no-comments` findings (C-26) for any other comment added in product code; never ask the Maker to add a comment. Learnings in the pack carry `confidence`; never raise BLOCKER or HIGH only because a `tentative` (one-Run) learning was not followed.
 
 Rubric ACs: when an AC in the Goal Contract has `rubric`, add `rubricScores: [{ac, criterion, pass, evidence}]` to the ledger, one per criterion. `evidence` must be observed (screenshot path, DOM snapshot, measured value), never an impression. A criterion you cannot observe is `pass: false`.
 
