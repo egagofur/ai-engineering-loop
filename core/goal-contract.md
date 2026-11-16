@@ -113,3 +113,38 @@ Every single item listed under `Acceptance Criteria` must map to at least one co
 - **The Wrong Artifact**: Tests pass on a `/tmp` build while the sample the user opens omits the feature.
 - **The Happy-Path Contract**: Only the sunny case is an AC. Coverage % is not a substitute for a failure table.
 - **The Sloppy Ship**: Implementing from a vague prompt without a drafted failure table in the Goal Contract file.
+
+## Per-AC verify command (C-07)
+
+An AC may name the command that proves it:
+
+```json
+{ "id": "AC-2", "statement": "page 0 is rejected", "evidenceRequired": "unit test", "failureCases": ["page 0 returns items"],
+  "verify": { "command": "npm test -- list.test.js", "layer": "L2" } }
+```
+
+The harness owns the status: `proven` when that exact command passed on the gated diff (`verification.json` or `final-verification.json`), `failed` when it ran and failed, `pending` when it never ran. `verify` prints each status, and `gate judge` refuses PASS while any AC with a verify command is `pending` or `failed` (`AC_NOT_PROVEN`). ACs without `verify` keep the existing evidence rules.
+
+## Rubric for subjective ACs (C-09)
+
+For ACs that are judged rather than computed (layout, copy, visual design), add a rubric:
+
+```json
+{ "id": "AC-3", "statement": "The empty state guides the user", "evidenceRequired": "screenshot", "failureCases": ["blank panel"],
+  "rubric": [ { "criterion": "contrast", "pass": ">= 4.5:1 (WCAG AA)" }, { "criterion": "guidance", "pass": "explains how to import a document" } ] }
+```
+
+The Devil's Advocate scores every criterion in the ledger as `rubricScores: [{ac, criterion, pass, evidence}]` with observed evidence (screenshot path, DOM snapshot, measured value). `gate judge` refuses PASS while any criterion is unscored or `pass: false` (`AC_RUBRIC`).
+
+## Project feature ledger (C-15)
+
+Optional `.ai-engineering-loop/features.json` lists what the project must do, one triple per feature:
+
+```json
+{ "schemaVersion": 1, "features": [
+  { "id": "F-1", "title": "Import", "behavior": "user imports a .md file and sees it in the list", "verify": "npm run e2e -- import", "status": "not_started", "priority": 1, "dependsOn": [] }
+] }
+```
+
+Status moves only through Runs: a Goal Contract with `"featureId": "F-1"` makes it `active` at the Goal gate, and delivery makes it `passing` with the Run as evidence (passing is final). `ael next` prints the highest-priority unblocked feature, VCR (verified / activated), and flags any `passing` feature without a delivered Run behind it. `run --new` warns when an unfinished Run exists and VCR is below 1 (WIP=1).
+

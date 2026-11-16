@@ -7,6 +7,7 @@
 - **lint**: `npx eslint --fix`
 - **build**: `npm run build`
 - **e2e**: `npm run test:e2e` # Optional
+- **smoke**: `npm run smoke` # Optional: start app, probe readiness, stop; runs when migrations/config/env/entrypoints change
 
 ## Default order
 

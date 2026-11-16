@@ -53,6 +53,28 @@
               "minLength": 1
             }
           },
+          "rubric": {
+            "description": "Optional (C-09) for subjective ACs: criteria the Devil's Advocate scores with evidence in ledger.rubricScores. Judge PASS needs every criterion scored pass:true.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["criterion", "pass"],
+              "properties": {
+                "criterion": { "type": "string", "minLength": 1 },
+                "pass": { "type": "string", "minLength": 1, "description": "What counts as passing, e.g. 'contrast >= 4.5:1 (WCAG AA)'" }
+              }
+            }
+          },
+          "verify": {
+            "description": "Optional (C-07). The command that proves this AC. Gate judge refuses PASS until this exact command passed on the gated diff (verification.json or final-verification.json).",
+            "type": "object",
+            "required": ["command"],
+            "properties": {
+              "command": { "type": "string", "minLength": 1 },
+              "layer": { "enum": ["L1", "L2", "L3"] }
+            },
+            "additionalProperties": false
+          },
           "crossComponent": {
             "description": "Optional (#110). true when the AC crosses a component boundary; claimed-vs-reality then needs L3 (end-to-end) evidence or an 'L3 waived: <reason>' Layer cell before gate review.",
             "type": "boolean"
@@ -107,6 +129,11 @@
         }
       },
       "additionalProperties": false
+    },
+    "featureId": {
+      "description": "Optional (C-15): id of the feature in .ai-engineering-loop/features.json this Goal delivers. Goal freeze marks it active; delivery marks it passing with this Run as evidence.",
+      "type": "string",
+      "minLength": 1
     },
     "outOfScope": {
       "description": "Optional list of things this Goal must not change.",

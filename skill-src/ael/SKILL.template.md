@@ -10,7 +10,7 @@
 
 ## Commands
 
-`init|status|refresh|sync-hosts|generate-adapter|generate-workflow`: run `npx ai-engineering-loop <command>` (`loop-commands`); do not commit unless asked. No task: offer `workflow interview` or a task; no Run. Otherwise: the loop.
+`init|status|refresh|sync-hosts|generate-*|stats|calibrate|debt|next`: run `npx ai-engineering-loop <command>` (`loop-commands`); do not commit unless asked. No task: offer `workflow interview` or a task; no Run. Otherwise: the loop.
 
 ## Loop
 

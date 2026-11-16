@@ -22,6 +22,20 @@
         },
         "additionalProperties": true
       }
+    },
+    "rubricScores": {
+      "description": "C-09: one score per rubric criterion of a subjective AC",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["ac", "criterion", "pass", "evidence"],
+        "properties": {
+          "ac": { "type": "string", "pattern": "^AC-[0-9]+$" },
+          "criterion": { "type": "string", "minLength": 1 },
+          "pass": { "type": "boolean" },
+          "evidence": { "type": "string", "minLength": 1 }
+        }
+      }
     }
   },
   "additionalProperties": true

@@ -425,9 +425,9 @@ function analyzeRepository(rootDir) {
     scripts: {
       testUnit: 'npm test',
       testAll: 'npm test',
-      typecheck: 'npx tsc --noEmit',
-      lint: 'npx eslint --fix',
-      build: 'npm run build',
+      typecheck: null,
+      lint: null,
+      build: null,
       e2e: null
     },
     adapter: {
@@ -506,12 +506,16 @@ function analyzeRepository(rootDir) {
         discovery.scripts.testRelated = viaScript('--findRelatedTests --passWithNoTests {files}') || 'npx jest --findRelatedTests --passWithNoTests {files}';
       }
 
+      // Only commands the project really has: a guessed `npx tsc` can fetch an
+      // unrelated package, and `eslint --fix` would edit files during verify.
+      const hasTypeScript = Boolean(allDeps['typescript']) || fs.existsSync(path.join(rootDir, 'tsconfig.json'));
       if (scripts['typecheck']) discovery.scripts.typecheck = `${pm} run typecheck`;
       else if (scripts['type-check']) discovery.scripts.typecheck = `${pm} run type-check`;
       else if (scripts['check']) discovery.scripts.typecheck = `${pm} run check`;
+      else discovery.scripts.typecheck = hasTypeScript ? 'npx tsc --noEmit' : null;
 
-      if (scripts['lint']) discovery.scripts.lint = `${pm} run lint`;
-      if (scripts['build']) discovery.scripts.build = `${pm} run build`;
+      discovery.scripts.lint = scripts['lint'] ? `${pm} run lint` : null;
+      discovery.scripts.build = scripts['build'] ? `${pm} run build` : null;
       if (scripts['test:e2e']) discovery.scripts.e2e = `${pm} run test:e2e`;
     } catch (e) {}
   }
@@ -664,9 +668,9 @@ ${discovery.topLevelDirs.map((d) => `- \`${d}/\``).join('\n') || '- Flat directo
 
 ## Discovered Verification Commands
 - **test_unit**: \`${discovery.scripts.testUnit}\`
-- **typecheck**: \`${discovery.scripts.typecheck}\`
-- **lint**: \`${discovery.scripts.lint}\`
-- **build**: \`${discovery.scripts.build}\`
+${discovery.scripts.typecheck ? `- **typecheck**: \`${discovery.scripts.typecheck}\`` : ''}
+${discovery.scripts.lint ? `- **lint**: \`${discovery.scripts.lint}\`` : ''}
+${discovery.scripts.build ? `- **build**: \`${discovery.scripts.build}\`` : ''}
 ${discovery.scripts.e2e ? `- **e2e**: \`${discovery.scripts.e2e}\`` : ''}
 ${discovery.scripts.testRelated ? `- **test_related**: \`${discovery.scripts.testRelated}\`` : ''}
 
@@ -1390,6 +1394,15 @@ function handleRun() {
     const current = getCurrentRun(CWD);
     const policy = loadPolicy(CWD);
     const startsNewRun = forceNew || !current || TERMINAL_STATES.has(current.state);
+    if (forceNew && current && !TERMINAL_STATES.has(current.state)) {
+      // C-15 (L07 WIP=1): starting another Run while one is unfinished.
+      try {
+        const ratio = require('../lib/features.js').vcr(require('../lib/features.js').loadFeatures(CWD));
+        if (ratio.value < 1) console.error(`! VCR ${ratio.verified}/${ratio.activated}: Run ${current.runId} is still ${current.state}. Finishing it first usually beats starting another (WIP=1).`);
+      } catch {
+        // No feature ledger.
+      }
+    }
     let mode = modeArg ? normalizeMode(modeArg) : (startsNewRun ? policy.defaultMode : null);
     let workflow = null;
     let requestedRunId = null;
@@ -2015,6 +2028,7 @@ function handleGate() {
       console.log(`- Run: ${run.runId}`);
       console.log(`- State: ${run.state}, iteration ${run.iteration}`);
       if (run.tier) console.log(`- Tier: ${run.tier.current}`);
+      for (const warning of (run.history || []).at(-1)?.cleanStateWarnings || []) console.log(`! Clean state: ${warning}`);
       if (guardEvents.warn || guardEvents.block) {
         console.log(`- Guard: ${guardEvents.block} blocked, ${guardEvents.warn} warned (${guardEvents.rules.join(', ')}); see guard-events.json`);
       }
@@ -2037,10 +2051,14 @@ function handleGate() {
         ok: false,
         code: err.code || 'GATE_FAILED',
         error: err.message,
+        ...(err.why ? { why: err.why } : {}),
+        ...(err.fix ? { fix: err.fix } : {}),
         details
       }));
     } else {
       log.error(err.message);
+      if (err.why) console.error(`WHY: ${err.why}`);
+      if (err.fix) console.error(`FIX: ${err.fix}`);
       for (const detail of details) console.error(`- ${detail}`);
     }
     process.exit(1);
@@ -2373,6 +2391,16 @@ function handleState() {
 
 function handleDoctor() {
   const json = process.argv.includes('--json');
+  if (process.argv.includes('--harness')) {
+    // C-08: harness debt in this project (warnings never block).
+    const audit = require('../lib/harness-audit.js').auditHarness(CWD);
+    if (json) console.log(JSON.stringify(audit));
+    else {
+      console.log(`Harness audit: ${audit.ok ? 'no debt found' : 'debt found'}`);
+      for (const item of audit.items) console.log(`${item.level === 'warn' ? '!' : '-'} ${item.id}: ${item.detail}`);
+    }
+    return;
+  }
   const result = runDoctor(path.join(__dirname, '..'), { projectDir: CWD });
   if (json) console.log(JSON.stringify(result));
   else {
@@ -3363,9 +3391,11 @@ function splitCommand(text, shell) {
 
 function stageJsonError(err, json, code) {
   if (json) {
-    console.log(JSON.stringify({ ok: false, code: err.code || code, error: err.message, details: err.details || [] }));
+    console.log(JSON.stringify({ ok: false, code: err.code || code, error: err.message, ...(err.why ? { why: err.why } : {}), ...(err.fix ? { fix: err.fix } : {}), details: err.details || [] }));
   } else {
     log.error(err.message);
+    if (err.why) console.error(`WHY: ${err.why}`);
+    if (err.fix) console.error(`FIX: ${err.fix}`);
     for (const detail of err.details || []) console.error(`- ${detail}`);
   }
   process.exit(1);
@@ -3391,19 +3421,55 @@ async function handleVerify() {
     if (related && final) throw Object.assign(new Error('--related and --final cannot be combined'), { code: 'INVALID_USAGE' });
     let texts = repeatedArg('--cmd');
     const lanes = require('../lib/verification-lanes.js');
+    const baselineMode = process.argv.includes('--baseline');
+    if (baselineMode && (related || final)) throw Object.assign(new Error('--baseline cannot be combined with --related or --final'), { code: 'INVALID_USAGE' });
     let commandsToRun;
+    let defaultPlan = false;
     if (related && texts.length === 0) {
       const target = loadRun(CWD, runId);
-      commandsToRun = [lanes.relatedCommand(CWD, target, { split: splitCommand, shell })];
-    } else {
-      if (texts.length === 0) {
-        const fallback = defaultVerificationCommand();
-        if (!fallback) throw Object.assign(new Error('No --cmd given and no test_unit command in .ai-engineering-loop/verification.md'), { code: 'INVALID_COMMAND' });
-        texts = [fallback];
+      commandsToRun = [{ ...lanes.relatedCommand(CWD, target, { split: splitCommand, shell }), layer: 'L2' }];
+    } else if (texts.length === 0) {
+      // C-02: no --cmd runs the cheapest-first plan (L1 build/typecheck/lint,
+      // then L2 test_unit) and stops at the first failure.
+      const plan = lanes.defaultCommandPlan(CWD);
+      // C-05: promoted review rules run as L1 checks, after the static checks.
+      const rules = require('../lib/rules.js').rulePlan(CWD);
+      if (rules.length) {
+        const firstL2 = plan.findIndex((step) => step.layer !== 'L1');
+        plan.splice(firstL2 === -1 ? plan.length : firstL2, 0, ...rules);
       }
-      commandsToRun = texts.map((text) => splitCommand(text, shell));
+      // C-03: startup-risky diffs also run the configured smoke check (L2).
+      const smokeText = lanes.verificationCommands(CWD).smoke;
+      if (smokeText && !baselineMode && lanes.startupRiskFiles(CWD, loadRun(CWD, runId)).length) {
+        plan.push({ key: 'smoke', layer: 'L2', text: smokeText });
+      }
+      if (!plan.length) throw Object.assign(new Error('No --cmd given and no build/typecheck/lint/test_unit command in .ai-engineering-loop/verification.md. FIX: add them to verification.md or pass --cmd.'), { code: 'INVALID_COMMAND' });
+      commandsToRun = plan.map((step) => ({ ...splitCommand(step.text, shell || Boolean(step.shell)), key: step.key, layer: step.layer }));
+      defaultPlan = true;
+    } else {
+      commandsToRun = texts.map((text) => {
+        const layer = lanes.layerOfCommand(CWD, text);
+        return { ...splitCommand(text, shell), ...(layer ? { layer } : {}) };
+      });
     }
     const timeoutValue = argValue('--timeout-ms');
+    if (baselineMode) {
+      const outcome = await require('../lib/baseline.js').recordBaseline(CWD, {
+        runId,
+        plan: commandsToRun,
+        ...(timeoutValue == null ? {} : { timeoutMs: parsePositiveIntegerArg('--timeout-ms', timeoutValue) })
+      });
+      const result = { ok: outcome.status !== 'BROKEN', runId, baseline: outcome };
+      if (json) console.log(JSON.stringify(result));
+      else {
+        const say = outcome.status === 'GREEN' ? log.success : (outcome.status === 'RED' ? log.warn : log.error);
+        say(`Baseline ${outcome.status}: ${outcome.path}`);
+        for (const c of outcome.commands) console.log(`- ${c.command}: exit ${c.exitCode}`);
+        for (const problem of outcome.problems) console.log(`! ${problem}`);
+      }
+      if (!result.ok) process.exitCode = 1;
+      return;
+    }
     if (final) {
       const target = loadRun(CWD, runId);
       if (target.state !== 'JUDGED_PASS') throw Object.assign(new Error(`verify --final needs a Judge PASS (state is ${target.state})`), { code: 'INVALID_STATE' });
@@ -3437,17 +3503,30 @@ async function handleVerify() {
       commands: commandsToRun,
       serial: process.argv.includes('--serial'),
       fresh: process.argv.includes('--fresh'),
+      stopOnFailure: defaultPlan,
       ...(related ? { scope: 'related' } : {}),
       ...(timeoutValue == null ? {} : { timeoutMs: parsePositiveIntegerArg('--timeout-ms', timeoutValue) })
     });
-    const commands = recorded.commands.map((c) => ({ command: c.command, exitCode: c.exitCode, timeoutStatus: c.timeoutStatus, ...(c.scope ? { scope: c.scope } : {}), ...(c.reused ? { reused: true } : {}) }));
+    const commands = recorded.commands.map((c) => ({ command: c.command, exitCode: c.exitCode, timeoutStatus: c.timeoutStatus, ...(c.layer ? { layer: c.layer } : {}), ...(c.scope ? { scope: c.scope } : {}), ...(c.reused ? { reused: true } : {}) }));
     if (!recorded.passed) {
       autoHeartbeat(runId, 'verification', 'Verification failed; Maker must fix before review');
-      const result = { ok: false, code: 'VERIFICATION_FAILED', runId, commands, gate: null };
+      const baselineModule = require('../lib/baseline.js');
+      const failures = baselineModule.classifyAgainstBaseline(baselineModule.loadBaseline(CWD, runId), recorded.commands);
+      const result = { ok: false, code: 'VERIFICATION_FAILED', runId, commands, skipped: recorded.skipped, failures, gate: null };
       if (json) console.log(JSON.stringify(result));
       else {
         log.error('Verification failed; the gate was not attempted.');
         for (const c of commands) console.log(`- ${c.command}: exit ${c.exitCode} (${c.timeoutStatus})`);
+        for (const skippedCommand of recorded.skipped) console.log(`- ${skippedCommand}: skipped (an earlier, cheaper check failed)`);
+        for (const c of commands.filter((item) => item.exitCode !== 0)) {
+          const rule = require('../lib/rules.js').ruleForCommand(CWD, c.command);
+          if (rule) console.log(`! Rule ${rule.id} violated. WHY: ${rule.why} FIX: ${rule.fix}`);
+        }
+        for (const f of failures) {
+          console.log(f.preExisting
+            ? `! ${f.command}: every failure was already failing at baseline (pre-existing). FIX: repair it in a separate Run, or narrow --cmd to the tests this change owns.`
+            : `! ${f.command}: new failure(s)${f.newFailures.length ? `: ${f.newFailures.slice(0, 5).join('; ')}` : ''}. FIX: fix the change before review.`);
+        }
       }
       process.exitCode = 1;
       return;
@@ -3471,6 +3550,14 @@ async function handleVerify() {
       impactDrift: { mapStatus: drift.mapStatus, outOfMap: drift.outOfMap },
       compact: compact.paths,
       claimedVsReality: claimed,
+      acStatus: (() => {
+        try {
+          return require('../lib/ac-status.js').runAcStatuses(CWD, run, require('../lib/claimed-vs-reality.js').loadFrozenGoal(CWD, run))
+            .filter((ac) => ac.status !== 'unbound');
+        } catch {
+          return [];
+        }
+      })(),
       ...(related ? { scope: 'related', finalRequired: 'Run `verify --final` after Judge PASS, before delivery.' } : {}),
       next: run.tier && run.tier.current === 'T0'
         ? 'Fill claimed-vs-reality, then gate review and gate judge'
@@ -3487,10 +3574,102 @@ async function handleVerify() {
         console.log('! No impact map for this Run; drift was not checked');
       }
       console.log(`- Claimed-vs-reality: ${claimed.path}${claimed.created ? ' (scaffolded; fill it from the command output)' : ''}`);
+      for (const ac of result.acStatus) console.log(`- ${ac.id}: ${ac.status} (\`${ac.command}\`)`);
       console.log(`- Next: ${result.next}`);
     }
   } catch (err) {
     stageJsonError(err, json, 'VERIFY_FAILED');
+  }
+}
+
+function handleOutcome() {
+  const json = process.argv.includes('--json');
+  try {
+    const action = args[1] && !args[1].startsWith('--') ? args[1] : null;
+    if (action !== 'record') throw Object.assign(new Error('outcome supports: record --run <id> --source mr-comment|revert|bug|incident --location <file[:line]> --summary <text> --by <name> [--evidence <path|url>]'), { code: 'INVALID_USAGE' });
+    const entry = require('../lib/calibration.js').recordOutcome(CWD, {
+      runId: argValue('--run'),
+      source: argValue('--source'),
+      location: argValue('--location'),
+      summary: argValue('--summary'),
+      evidence: argValue('--evidence'),
+      by: argValue('--by')
+    });
+    if (json) console.log(JSON.stringify({ ok: true, outcome: entry }));
+    else log.success(`✓ outcome recorded for ${argValue('--run')}; run \`calibrate\` to compare it with the review`);
+  } catch (err) {
+    stageJsonError(err, json, 'OUTCOME_FAILED');
+  }
+}
+
+function handleCalibrate() {
+  const json = process.argv.includes('--json');
+  try {
+    const calibration = require('../lib/calibration.js');
+    const report = calibration.calibrate(CWD);
+    if (json) console.log(JSON.stringify({ ok: true, ...report }));
+    else console.log(calibration.formatCalibration(report));
+  } catch (err) {
+    stageJsonError(err, json, 'CALIBRATE_FAILED');
+  }
+}
+
+function handleDebt() {
+  const json = process.argv.includes('--json');
+  try {
+    const debt = require('../lib/debt.js');
+    const action = args[1] && !args[1].startsWith('--') ? args[1] : 'list';
+    if (action === 'close') {
+      const item = debt.closeDebt(CWD, args[2], { by: argValue('--by'), note: argValue('--note') });
+      if (json) console.log(JSON.stringify({ ok: true, item }));
+      else log.success(`✓ closed ${item.id}`);
+      return;
+    }
+    if (action !== 'list') throw Object.assign(new Error('debt supports: list, close <id> --by <name>'), { code: 'INVALID_USAGE' });
+    const file = argValue('--file');
+    const items = debt.loadDebt(CWD).items.filter((item) => item.status === 'open' && (!file || item.file === file));
+    if (json) console.log(JSON.stringify({ ok: true, items }));
+    else if (!items.length) console.log('No open debt.');
+    else for (const item of items) console.log(`- ${item.id} [${item.risk}] ${item.location}: ${item.debt} (deferred: ${item.whyDeferred}; revisit: ${item.nextTrigger})`);
+  } catch (err) {
+    stageJsonError(err, json, 'DEBT_FAILED');
+  }
+}
+
+function handleNext() {
+  const json = process.argv.includes('--json');
+  try {
+    const features = require('../lib/features.js');
+    const document = features.loadFeatures(CWD);
+    if (!document) throw Object.assign(new Error('No .ai-engineering-loop/features.json. FIX: create it with {"schemaVersion":1,"features":[{"id","title","behavior","verify","status":"not_started","priority","dependsOn":[]}]}.'), { code: 'NO_FEATURES' });
+    const next = features.nextFeature(document);
+    const ratio = features.vcr(document);
+    const problems = features.auditFeatures(CWD, document);
+    const active = document.features.filter((item) => item.status === 'active').map((item) => item.id);
+    const result = { ok: problems.length === 0, next, vcr: ratio, active, problems };
+    if (json) console.log(JSON.stringify(result));
+    else {
+      console.log(`VCR: ${ratio.verified}/${ratio.activated} (${ratio.value})${active.length ? `; active: ${active.join(', ')}` : ''}`);
+      if (ratio.value < 1 && active.length) console.log(`! Finish ${active[0]} before starting another feature (WIP=1).`);
+      console.log(next ? `Next: ${next.id} - ${next.title || next.behavior}${next.verify ? ` (verify: ${next.verify})` : ''}. Start it with a Goal whose featureId is "${next.id}".` : 'Next: nothing unblocked.');
+      for (const problem of problems) console.log(`! ${problem}`);
+    }
+    if (problems.length) process.exitCode = 1;
+  } catch (err) {
+    stageJsonError(err, json, 'NEXT_FAILED');
+  }
+}
+
+function handleStats() {
+  const json = process.argv.includes('--json');
+  try {
+    const lastValue = argValue('--last');
+    const stats = require('../lib/stats.js');
+    const result = stats.computeStats(CWD, lastValue == null ? {} : { last: parsePositiveIntegerArg('--last', lastValue) });
+    if (json) console.log(JSON.stringify({ ok: true, ...result }));
+    else console.log(stats.formatStats(result));
+  } catch (err) {
+    stageJsonError(err, json, 'STATS_FAILED');
   }
 }
 
@@ -3639,6 +3818,20 @@ function handleReviewPack() {
     const pack = smartContextSummary(createDiffHunkPack(CWD, { runId, base, profile: argValue('--profile') }));
     const escalation = assessRunEscalation(CWD, { runId });
     const tier = run.tier ? run.tier.current : null;
+    // C-14: open debt on the files this change touches goes into the pack.
+    let openDebt = [];
+    try {
+      const changed = require('../lib/verification-lanes.js').relatedFiles(CWD, run);
+      openDebt = require('../lib/debt.js').openDebtFor(CWD, changed);
+      if (openDebt.length && pack.path) {
+        const lines = ['', '## Open debt on changed files', '', ...openDebt.map((item) => `- ${item.id} ${item.location}: ${item.debt} (deferred: ${item.whyDeferred}; risk ${item.risk})`)];
+        fs.appendFileSync(path.join(CWD, pack.path), `${lines.join('\n')}\n`);
+      }
+    } catch {
+      openDebt = [];
+    }
+    const diffRelative = path.relative(CWD, path.join(runsDir(CWD), runId, 'diff.patch')).split(path.sep).join('/');
+    const reviewInputs = require('../lib/review-ingest.js').recordReviewInputs(CWD, runId, { packPath: pack.path, diffPath: diffRelative });
     autoHeartbeat(runId, 'review', 'Review pack built');
     const result = {
       ok: true,
@@ -3652,6 +3845,8 @@ function handleReviewPack() {
       truncated: pack.truncated,
       unresolvedFindings: pack.unresolvedFindings,
       impactDrift: pack.impactDrift,
+      openDebt: openDebt.map((item) => ({ id: item.id, location: item.location, debt: item.debt })),
+      reviewInputs: { inputs: reviewInputs.inputs, promptSha256: reviewInputs.promptSha256 },
       fastPath: { eligible: fastPath.eligible, reasons: fastPath.reasons },
       escalation: { requiredTier: escalation.requiredTier, reasons: escalation.reasons.map((r) => r.code) }
     };
@@ -3665,6 +3860,7 @@ function handleReviewPack() {
         console.log(`- Outside the impact map: ${result.impactDrift.outOfMap.join(', ')} (check their side effects)`);
       }
       for (const line of result.impactDrift?.design || []) console.log(`- ${line}`);
+      if (openDebt.length) console.log(`- Open debt on changed files: ${openDebt.map((item) => item.id).join(', ')} (in the pack; resolve or keep consciously)`);
     }
   } catch (err) {
     stageJsonError(err, json, 'REVIEW_PACK_FAILED');
@@ -3825,6 +4021,7 @@ function handleBench() {
       sandboxHome: process.argv.includes('--sandbox-home'),
       hostArgs: repeatedArg('--host-arg'),
       scenarioIds: repeatedArg('--scenario'),
+      without: repeatedArg('--without').flatMap((value) => value.split(',')).map((value) => value.trim()).filter(Boolean),
       repeat: repeatArg == null ? 1 : parsePositiveIntegerArg('--repeat', repeatArg),
       timeoutMs: timeoutArg == null ? undefined : parseBenchTimeoutSeconds(timeoutArg),
       mode: modeArg == null ? 'ASSISTED' : normalizeMode(modeArg),
@@ -3930,6 +4127,22 @@ function handleQuick() {
 
 function handleLearn() {
   const json = process.argv.includes('--json');
+  if (args[1] === 'promote') {
+    try {
+      const rule = require('../lib/rules.js').promoteLearning(CWD, args[2], {
+        check: argValue('--check'),
+        fix: argValue('--fix'),
+        why: argValue('--why'),
+        by: argValue('--by'),
+        shell: !process.argv.includes('--no-shell')
+      });
+      if (json) console.log(JSON.stringify({ ok: true, rule }));
+      else log.success(`✓ ${rule.from} promoted to rule ${rule.id}; default \`verify\` now runs: ${rule.check}`);
+    } catch (err) {
+      stageJsonError(err, json, 'LEARN_PROMOTE_FAILED');
+    }
+    return;
+  }
   try {
     const maxAge = argValue('--max-age-runs');
     const result = learn(CWD, {
@@ -3938,8 +4151,9 @@ function handleLearn() {
       ...(maxAge == null ? {} : { maxAgeRuns: parsePositiveIntegerArg('--max-age-runs', maxAge) })
     });
     const { document } = result;
+    const candidates = require('../lib/rules.js').promotionCandidates(CWD, document.entries);
     if (json) {
-      console.log(JSON.stringify({ ok: true, written: result.written, path: result.path, pruned: result.pruned, learnings: document }));
+      console.log(JSON.stringify({ ok: true, written: result.written, path: result.path, pruned: result.pruned, promotionCandidates: candidates, learnings: document }));
       return;
     }
     log.success(`✓ ${document.entries.length} learning(s) from ${document.sourceRuns} Run(s)${result.written ? ` → ${result.path}` : ' (dry run, nothing written)'}`);
@@ -3947,6 +4161,9 @@ function handleLearn() {
       console.log(`- ${entry.id} [${entry.axis}, ${entry.severity}, ×${entry.occurrences}] ${entry.lesson}`);
     }
     for (const item of result.pruned) console.log(`  pruned ${item.id} (${item.reason})`);
+    for (const item of candidates) {
+      console.log(`! Promote candidate ${item.id} (seen in ${item.runs} Runs): ${item.lesson}. Make it a check: learn promote ${item.id} --check "<command>" --fix "<instruction>" --by <name>`);
+    }
   } catch (err) {
     stageJsonError(err, json, 'LEARN_FAILED');
   }
@@ -4083,6 +4300,12 @@ Commands:
                A missing binary is UNAVAILABLE, not a model failure.
                Progress lines go to stderr. Writes .ai-engineering-loop/bench/<benchId>/{results.json,report.md,hardening.md}
                bench compare <benchIdA> <benchIdB> [--json]   read-only side-by-side table
+  outcome      record --run <id> --source mr-comment|revert|bug|incident --location <file[:line]> --summary <text> --by <name>
+               a post-delivery problem traced to a Run (input for calibrate)
+  calibrate    Compare recorded outcomes with each Run's Finding Ledger: DA misses, wrong dismissals, per reviewer prompt
+  debt         Accepted trade-offs and L3 waivers recorded at delivery: list [--file <path>] | close <id> --by <name> [--note <text>]
+  next         Next unblocked feature from .ai-engineering-loop/features.json, VCR (verified/activated), evidence audit [--json]
+  stats        Failure causes by harness layer, false-victory rate, iterations to PASS [--last <n>] [--json]
   escalation   Compute the minimum Judge model tier from deterministic risk signals
                --run <id>  target a non-current run
                --json      print machine-readable reasons
@@ -4094,7 +4317,8 @@ Commands:
                start "<task>" [--mode assisted|unattended] | finish [--run <id>] [--cmd "<command>"]...
   verify       Record verification commands, gate them, compact, and scaffold claimed-vs-reality
                [--run <id>] [--cmd "<command>"]... [--shell] [--serial] [--timeout-ms <n>] [--fresh] [--json]
-               default command: test_unit from .ai-engineering-loop/verification.md; commands run in parallel
+               default (no --cmd): build -> typecheck -> lint -> test_unit from verification.md, serial, stops at first failure
+               --baseline  before the Maker gate: run the plan on the untouched tree, write baseline.json
                --related   fast lane: test_related with {files} = changed files of the gated diff
                --final     after Judge PASS: full run delivery needs when verification was related-only
                --fresh     re-run commands that already passed for the same diff and revision
@@ -4122,6 +4346,8 @@ Commands:
                writes RUN_DIR/receipt.json + receipt.md (paste into the PR/MR body); digest stored in delivery.json
   verify-receipt  Re-check a delivery receipt: artifact hashes, frozen Goal, AC evidence, verdict, head SHA
                [--run <id> | <repository-relative-receipt.json>] [--head <sha>] [--json]   exit 1 on mismatch (CI)
+  learn promote <learningId> --check "<command>" --fix "<instruction>" --by <name> [--why <text>] [--no-shell]
+               turn a recurring review lesson into an executable L1 rule (.ai-engineering-loop/rules.json)
   learn        Mine past Runs' VALID findings into .ai-engineering-loop/learnings.json (+ .md) for context packs
                [--dry-run] [--prune] [--max-age-runs <n>] [--json]
                deterministic and deduped with runId provenance; --prune drops lessons whose files are gone
@@ -4130,6 +4356,7 @@ Commands:
                list [--json]
                <name> [--section <heading>] [--json]   e.g. docs grill-policy --section "When to grill"
   doctor       Check runtime, schemas, host assets, package contents, and eval catalog
+               --harness   audit harness debt instead: entry-file size/structure, stale learnings, rule provenance, skill budget
                --json      print machine-readable diagnostics
   update       Check or apply the package update workflow
                check|plan [--json]
@@ -4294,6 +4521,21 @@ switch (command) {
     break;
   case 'escalation':
     handleEscalation();
+    break;
+  case 'stats':
+    handleStats();
+    break;
+  case 'next':
+    handleNext();
+    break;
+  case 'debt':
+    handleDebt();
+    break;
+  case 'outcome':
+    handleOutcome();
+    break;
+  case 'calibrate':
+    handleCalibrate();
     break;
   case 'docs':
     handleDocs();

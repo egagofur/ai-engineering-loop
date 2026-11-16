@@ -11,7 +11,8 @@
     "reason": { "type": "string", "minLength": 1 },
     "action": { "type": "string", "minLength": 1 },
     "modelTier": { "enum": ["CHEAP_MODEL", "STRONG_MODEL", "HUMAN"] },
-    "humanApproved": { "type": "boolean" }
+    "humanApproved": { "type": "boolean" },
+    "cause": { "description": "C-12: harness layer a non-PASS verdict points at", "enum": ["task_spec", "context", "environment", "verification", "state", "model"] }
   },
   "additionalProperties": true
 }

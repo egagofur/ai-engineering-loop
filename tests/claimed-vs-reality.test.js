@@ -234,3 +234,25 @@ test('#110 scaffold marks crossComponent rows "needs L3" and a hint row is not r
   assert.strictEqual(rows[1].layer, undefined);
   assert.match(markdown, /L3 waived: <reason>/);
 });
+
+test('C-01 AC-1 an L3 tag needs a recorded e2e command or a cited manual flow', () => {
+  const md = table([['AC-1', 'export works', 'npm test exit 0', 'L2+L3']]);
+  const status = checkClaimedVsReality(md, { layers: new Set(['L2']) });
+  assert.strictEqual(status.ready, false);
+  assert.match(status.problems[0], /Layer says L3 but no e2e command was recorded.*FIX:/);
+  assert.strictEqual(checkClaimedVsReality(md, { layers: new Set(['L2', 'L3']) }).ready, true);
+  const manual = table([['AC-1', 'export works', 'manual flow: clicked Export, file at /tmp/a.csv', 'L2+L3']]);
+  assert.strictEqual(checkClaimedVsReality(manual, { layers: new Set(['L2']) }).ready, true);
+});
+
+test('C-01 AC-2 an L1 tag needs a recorded L1 command; unknown layers skip the check', () => {
+  const md = table([['AC-1', 'types ok', 'tsc exit 0', 'L1']]);
+  assert.match(checkClaimedVsReality(md, { layers: new Set(['L2']) }).problems[0], /Layer says L1 but no L1 command/);
+  assert.strictEqual(checkClaimedVsReality(md, { layers: null }).ready, true);
+});
+
+test('C-01 AC-3 a reasoned L3 waiver needs no recorded command', () => {
+  const goal = { acceptanceCriteria: [{ id: 'AC-1', statement: 'x', crossComponent: true }] };
+  const md = table([['AC-1', 'done', 'npm test exit 0', 'L2; L3 waived: flow needs production payment provider']]);
+  assert.strictEqual(checkClaimedVsReality(md, { goal, tier: 'T1', layers: new Set(['L2']) }).ready, true);
+});

@@ -163,7 +163,7 @@ function measureScenario(scenario) {
 
   readRef('loop-verify');
   cli('verify --related', 'verify', '--related', '--run', run.runId, '--cmd', 'node --version', '--json');
-  write('claimed-vs-reality.md', '.ai-engineering-loop/tasks/claimed-vs-reality.md', '| AC | Claimed | Reality from command log | Layer |\n|---|---|---|---|\n| AC-1 | done | node --version exit 0 | L2+L3 |\n');
+  write('claimed-vs-reality.md', '.ai-engineering-loop/tasks/claimed-vs-reality.md', '| AC | Claimed | Reality from command log | Layer |\n|---|---|---|---|\n| AC-1 | done | manual flow ok | L2+L3 |\n');
 
   if (tier() !== 'T0') {
     readRef('loop-review');

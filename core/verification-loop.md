@@ -65,9 +65,34 @@ Enforcement (`lib/claimed-vs-reality.js`, `gate review`):
 - The Layer cell accepts `L1`, `L2`, `L3`, combos such as `L2+L3`, and `L3 waived: <reason>` (at least 15 characters). Unknown tokens fail the gate.
 - An AC that needs L3 without L3 or a reasoned waiver fails `gate review` on every tier, with a FIX line that says what to run.
 - Legacy 3-column files stay valid when no AC needs L3.
+- Tags are bound to recorded evidence (C-01): `L1` needs a passing L1 command in `verification.json`/`final-verification.json`; `L3` needs a passing `e2e` command, or Reality that describes a manual end-to-end flow (steps, URL, screenshot path). Commands not mapped in `verification.md` count as L2. Waivers need no command.
 - When `e2e` is empty in `verification.md`, run the AC's real user flow and cite the observation, or write the waiver. Devil's Advocate and Judge challenge waivers like any other claim.
 
 ---
+
+## 3a. Baseline and Default Plan
+
+**Baseline (C-10).** After the Goal gate and before the Maker gate, `verify --baseline --run <id>` runs the default plan on the untouched tree and writes `runs/<id>/baseline.json` with status `GREEN`, `RED`, or `BROKEN`.
+- `BROKEN` (a command exits 127, i.e. it does not exist): the command fails with a FIX to correct `verification.md`. Verification cannot prove anything with a broken command.
+- `RED`: the tree was already failing. Later, when `verify` fails, each failing command is labelled `pre-existing` (every failing test name was already failing at baseline) or new. Unnamed failures are always treated as new. The gate still blocks; the label tells the Maker whether the change caused it.
+
+**Default plan (C-02).** `verify` without `--cmd` runs `build -> typecheck -> lint -> test_unit` (whichever are configured), serially, and stops at the first failure. Commands that rewrite files (`--fix`, `--write`) are never run by default. Each record carries its layer (`L1`/`L2`/`L3`).
+
+**L1 at T1/T2.** When `verification.md` configures `typecheck` or `lint`, the verification gate at T1/T2 refuses a full-scope bundle with no L1 record (`L1_MISSING`). The related lane is exempt; `verify --final` runs the full plan.
+
+`init` writes only commands the project really has: `typecheck` from a script or a TypeScript setup, `lint` and `build` only from package scripts.
+
+**Smoke (C-03).** An optional `smoke` key in `verification.md` is a command that starts the app, probes readiness (a health URL, a golden journey), stops it, and exits. It counts as L2. When the gated diff touches startup-risky files (migrations, `.env*`, `config/`, `*.config.*`, Docker/Procfile, `main|index|server|app` entrypoints, dependency manifests), default `verify` runs it after `test_unit`, and the verification gate fails with `SMOKE_MISSING` when it did not run. A smoke command that times out or exits non-zero blocks the gate; on timeout the recorder kills its process group.
+
+## 3b. Verification Integrity (C-11)
+
+At `gate review` the CLI scans the gated diff and adds `source: "verification-integrity"` findings (HIGH; BLOCKER at T2, VALID, with a concrete fix) for:
+- a skip/only/todo marker added in a test file (`it.skip`, `xit`, `fit`, `@Disabled`, `pytest.mark.skip`, `t.Skip`, ...);
+- a test file deleted without a replacement test in the same directory;
+- assertions removed from a test file without replacement;
+- a change to verification config (`.ai-engineering-loop/verification.md`, jest/vitest/playwright/cypress config, `pytest.ini`, coverage config) that the frozen Goal Contract does not name.
+
+These findings cannot be dropped or downgraded by the reviewer. Only a human dismissal (`dismissal: {by, evidence}`) can downgrade them; otherwise the review gate fails.
 
 ## 4. The 4 Verification Gates
 
@@ -116,3 +141,43 @@ Do **not** spawn Devil's Advocate if:
 - Reality is only `seems green`
 
 Parser: `lib/claimed-vs-reality.js` (`readyForDa`). Pass that path to DA/Judge with the verification log.
+
+## 7. Clean State at Delivery (C-06)
+
+`gate delivery` also checks that the next session starts from a tree it can trust:
+- **Always blocks:** a `debugger` statement, merge-conflict marker or interactive breakpoint added by the change; a secret-like file in the change (`.env`, `.env.local`, keys; `.env.example` is fine); a `_templateOnly` scaffold left in the Run directory or `.ai-engineering-loop/tasks/`.
+- **Untracked files that are not part of the reviewed diff** (logs, coverage, scratch files): block in UNATTENDED, warn in ASSISTED. Warnings are printed and kept in the Run history as `cleanStateWarnings`.
+
+## 8. Debt Ledger (C-14)
+
+At `gate delivery` the CLI copies two kinds of deferred work into `.ai-engineering-loop/debt.json` (tracked in git, like `learnings.json`):
+- VALID `MEDIUM`/`LOW` findings the Judge accepted as trade-offs (file, scenario, risk, "revisit on the next change touching <file>");
+- claimed-vs-reality rows with `L3 waived: <reason>` ("revisit when an e2e command exists").
+
+`review-pack` appends open debt on the files the new diff touches to the Devil's Advocate pack and lists it. `ael debt` lists open items (`--file <path>`); `ael debt close <id> --by <name> [--note <text>]` closes one.
+
+## 9. Reviewer Inputs Are Logged (C-16)
+
+"Model-visible means logged": `review-pack` writes `runs/<id>/review-inputs.json` with the sha256 of the review pack, the gated diff, and the Devil's Advocate prompt body. `review ingest` copies them into `findings.json` (`reviewer.inputs`, `reviewer.promptSha256`). `gate review` fails the ledger binding when any recorded input changed after the reviewer saw it, so a missed defect can always be traced to exactly what the reviewer was shown.
+
+## 10. Reviewer Calibration (C-13)
+
+Gates prove the change matches the Goal; only reality proves the reviewers were right. After delivery, record problems people found:
+
+```
+ael outcome record --run <id> --source mr-comment|revert|bug|incident --location <file[:line]> --summary <text> --by <name> [--evidence <path|url>]
+ael calibrate [--json]
+```
+
+`calibrate` compares each outcome with that Run's Finding Ledger: `DA_MISS` (no finding on that file), `FALSE_DISMISS` (a finding on that file was marked INVALID or dismissed), `CAUGHT_BUT_SHIPPED` (a VALID finding was accepted as a trade-off). Results are grouped by the reviewer prompt hash (C-16), so after you tighten `agents/shared/devil-advocate.body.md` for a recurring miss you can see whether the next prompt version misses less. Plan for several tuning rounds; record each prompt change in its commit message.
+
+## 11. Promoting Review Feedback to Rules (C-05)
+
+`learn` lists **promotion candidates**: learnings seen in 3 or more Runs. A human turns one into an executable check:
+
+```
+ael learn promote L-abc123 --check "! grep -rq \"require('fs')\" src/renderer" --fix "Move file access to src/preload/file-ops.ts and call window.api" --by <name> [--why <text>]
+```
+
+Rules live in `.ai-engineering-loop/rules.json` (tracked). Default `verify` runs every rule as an L1 check after the static checks; a violation prints `Rule <id> violated. WHY: ... FIX: ...`. The verification gate refuses a full-scope bundle in which any rule has no passing record (`RULES_MISSING`). The check must exit non-zero on a violation and is run through the shell unless `--no-shell` is given.
+
