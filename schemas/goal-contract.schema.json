@@ -52,6 +52,10 @@
               "type": "string",
               "minLength": 1
             }
+          },
+          "crossComponent": {
+            "description": "Optional (#110). true when the AC crosses a component boundary; claimed-vs-reality then needs L3 (end-to-end) evidence or an 'L3 waived: <reason>' Layer cell before gate review.",
+            "type": "boolean"
           }
         },
         "additionalProperties": true

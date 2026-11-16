@@ -51,6 +51,7 @@ flowchart LR
 - Cross-reference every Acceptance Criterion (AC-1 through AC-N) from the [Goal Contract](../core/goal-contract.md).
 - Verify that automated tests exist that explicitly exercise and prove each criterion, including non-happy-path rows in the failure table.
 - A happy-path-only suite while the contract lists empty, boundary, sibling, or error rows is `ITERATE`.
+- Read the Layer column of claimed-vs-reality. An AC with `crossComponent: true`, or any AC at T2, whose evidence stops at L1/L2 is `ITERATE`, even when every unit test is green. A `L3 waived` row passes only if the reason shows no end-to-end path or manual flow could run this iteration.
 - Verify that no out-of-scope files were touched and technical constraints were respected.
 
 ### Step 3: Finding Triage & Evidence Verification

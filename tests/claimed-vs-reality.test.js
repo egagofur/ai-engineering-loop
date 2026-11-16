@@ -8,8 +8,10 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { createRun, transitionRun } = require('../lib/run-state.js');
 const {
+  checkClaimedVsReality,
   createClaimedVsRealityTemplate,
   parseClaimedVsReality,
+  parseLayerCell,
   readyForDa
 } = require('../lib/claimed-vs-reality.js');
 
@@ -151,4 +153,84 @@ test('AC-4 4-column files with Layer pass readyForDa, but empty Reality or seems
 | AC-1 | cross-component contract verified | seems green | L3 |
 `;
   assert.strictEqual(readyForDa(seemsGreen4Col), false);
+});
+
+const table = (rows) => `| AC | Claimed | Reality from command log | Layer |\n|---|---|---|---|\n${rows.map((r) => `| ${r.join(' | ')} |`).join('\n')}\n`;
+const crossGoal = {
+  acceptanceCriteria: [
+    { id: 'AC-1', statement: 'export writes file', crossComponent: true },
+    { id: 'AC-2', statement: 'pure formatter', crossComponent: false }
+  ]
+};
+
+test('#110 Layer cell parses combos and waivers; unknown tokens are rejected with a FIX', () => {
+  const combo = parseLayerCell('L1+L2+L3');
+  assert.deepStrictEqual([...combo.layers].sort(), ['L1', 'L2', 'L3']);
+  const waived = parseLayerCell('L2; L3 waived: no e2e harness in this repo yet');
+  assert.ok(waived.layers.has('L2'));
+  assert.match(waived.waiver, /no e2e harness/);
+  assert.strictEqual(parseLayerCell('needs L3').empty, true);
+
+  const bad = checkClaimedVsReality(table([['AC-1', 'done', 'npm test exit 0', 'L9']]));
+  assert.strictEqual(bad.ready, false);
+  assert.ok(bad.problems.some((p) => p.includes('L9') && p.includes('FIX:')));
+});
+
+test('#110 crossComponent AC needs L3 evidence; non-cross AC is fine with L2', () => {
+  const l2Only = table([
+    ['AC-1: export writes file', 'export done', 'npm test exit 0; 4 passed', 'L2'],
+    ['AC-2: pure formatter', 'formats', 'npm test exit 0; 2 passed', 'L2']
+  ]);
+  const status = checkClaimedVsReality(l2Only, { goal: crossGoal, tier: 'T1' });
+  assert.strictEqual(status.ready, false);
+  assert.strictEqual(status.problems.length, 1);
+  assert.match(status.problems[0], /AC-1: needs L3 .*crossComponent/);
+  assert.strictEqual(readyForDa(l2Only), true, 'without goal/tier only syntax is checked');
+
+  const withL3 = l2Only.replace('npm test exit 0; 4 passed | L2', 'npm run e2e exit 0; 1 flow passed | L2+L3');
+  assert.strictEqual(checkClaimedVsReality(withL3, { goal: crossGoal, tier: 'T1' }).ready, true);
+});
+
+test('#110 tier T2 requires L3 on every AC; waiver needs a concrete reason', () => {
+  const goal = { acceptanceCriteria: [{ id: 'AC-1', statement: 'x' }] };
+  const short = table([['AC-1', 'done', 'npm test exit 0', 'L2; L3 waived: n/a']]);
+  const shortStatus = checkClaimedVsReality(short, { goal, tier: 'T2' });
+  assert.strictEqual(shortStatus.ready, false);
+  assert.ok(shortStatus.problems.some((p) => p.includes('waiver reason is too short')));
+  const reasoned = table([['AC-1', 'done', 'npm test exit 0', 'L2; L3 waived: flow needs production payment provider']]);
+  assert.strictEqual(checkClaimedVsReality(reasoned, { goal, tier: 'T2' }).ready, true);
+  const legacy = '| AC | Claimed | Reality from command log |\n|---|---|---|\n| AC-1 | done | npm test exit 0 |\n';
+  const legacyStatus = checkClaimedVsReality(legacy, { goal, tier: 'T2' });
+  assert.strictEqual(legacyStatus.ready, false);
+  assert.match(legacyStatus.problems[0], /no Layer column/);
+});
+
+test('#110 scaffold marks crossComponent rows "needs L3" and a hint row is not ready', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-claimed-reality-l3-'));
+  createRun(root, { runId: 'run-l3', task: 'Exercise L3 hint' });
+  const goalPath = path.join(root, '.ai-engineering-loop/runs/run-l3/goal-contract.json');
+  fs.writeFileSync(goalPath, JSON.stringify({
+    schemaVersion: 1,
+    runId: 'run-l3',
+    objective: 'Export across renderer and service.',
+    acceptanceCriteria: [
+      { id: 'AC-1', statement: 'export file', evidenceRequired: 'e2e', failureCases: ['path mismatch'], crossComponent: true },
+      { id: 'AC-2', statement: 'format date', evidenceRequired: 'unit', failureCases: ['bad tz'] }
+    ]
+  }));
+  transitionRun(root, 'run-l3', 'GOAL_FROZEN', {
+    gate: 'goal',
+    artifacts: {
+      goalContract: {
+        path: '.ai-engineering-loop/runs/run-l3/goal-contract.json',
+        sha256: crypto.createHash('sha256').update(fs.readFileSync(goalPath)).digest('hex')
+      }
+    }
+  });
+  const result = createClaimedVsRealityTemplate(root, { runId: 'run-l3' });
+  const markdown = fs.readFileSync(path.join(root, result.path), 'utf8');
+  const rows = parseClaimedVsReality(markdown).rows;
+  assert.strictEqual(rows[0].layer, 'needs L3');
+  assert.strictEqual(rows[1].layer, undefined);
+  assert.match(markdown, /L3 waived: <reason>/);
 });

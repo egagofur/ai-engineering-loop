@@ -20,7 +20,7 @@ Use only paths in the spawn prompt: Goal Contract, verification evidence, Findin
 
 AC source is the Goal Contract **file** only. Chat `setuju` and the parent transcript are not AC. Do not PASS because the parent agreed in chat. `CONTEXT_ISOLATION_ONLY` does not relax this.
 
-ITERATE if verification is missing, vague, non-zero, proves a different artifact than the AC names, is only a source grep, or is happy-path-only while the Goal Contract lists empty, boundary, sibling, or error rows. ITERATE if claimed-vs-reality.md is missing or a Claimed row has empty Reality.
+ITERATE if verification is missing, vague, non-zero, proves a different artifact than the AC names, is only a source grep, or is happy-path-only while the Goal Contract lists empty, boundary, sibling, or error rows. ITERATE if claimed-vs-reality.md is missing or a Claimed row has empty Reality. ITERATE if an AC with `crossComponent: true`, or any AC at T2, stops at L1/L2 in the Layer column, even when all unit tests are green; accept `L3 waived: <reason>` only when the reason shows no end-to-end run or manual flow was possible.
 
 The gate recomputes the verdict from the ledger. To block on a problem the ledger lacks (wrong-artifact or happy-path-only evidence, an AC the tests do not prove), add it to `judgeFindings` in the Finding Ledger shape: VALID, BLOCKER or HIGH, with `location`, `failureScenario`, `evidence`, and `concreteAlternativeDiff`. A verdict that blocks without such a finding is rejected. You cannot PASS what the ledger blocks.
 
