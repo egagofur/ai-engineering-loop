@@ -3553,6 +3553,28 @@ async function handleVerify() {
   }
 }
 
+function handleDebt() {
+  const json = process.argv.includes('--json');
+  try {
+    const debt = require('../lib/debt.js');
+    const action = args[1] && !args[1].startsWith('--') ? args[1] : 'list';
+    if (action === 'close') {
+      const item = debt.closeDebt(CWD, args[2], { by: argValue('--by'), note: argValue('--note') });
+      if (json) console.log(JSON.stringify({ ok: true, item }));
+      else log.success(`✓ closed ${item.id}`);
+      return;
+    }
+    if (action !== 'list') throw Object.assign(new Error('debt supports: list, close <id> --by <name>'), { code: 'INVALID_USAGE' });
+    const file = argValue('--file');
+    const items = debt.loadDebt(CWD).items.filter((item) => item.status === 'open' && (!file || item.file === file));
+    if (json) console.log(JSON.stringify({ ok: true, items }));
+    else if (!items.length) console.log('No open debt.');
+    else for (const item of items) console.log(`- ${item.id} [${item.risk}] ${item.location}: ${item.debt} (deferred: ${item.whyDeferred}; revisit: ${item.nextTrigger})`);
+  } catch (err) {
+    stageJsonError(err, json, 'DEBT_FAILED');
+  }
+}
+
 function handleStats() {
   const json = process.argv.includes('--json');
   try {
@@ -3711,6 +3733,18 @@ function handleReviewPack() {
     const pack = smartContextSummary(createDiffHunkPack(CWD, { runId, base, profile: argValue('--profile') }));
     const escalation = assessRunEscalation(CWD, { runId });
     const tier = run.tier ? run.tier.current : null;
+    // C-14: open debt on the files this change touches goes into the pack.
+    let openDebt = [];
+    try {
+      const changed = require('../lib/verification-lanes.js').relatedFiles(CWD, run);
+      openDebt = require('../lib/debt.js').openDebtFor(CWD, changed);
+      if (openDebt.length && pack.path) {
+        const lines = ['', '## Open debt on changed files', '', ...openDebt.map((item) => `- ${item.id} ${item.location}: ${item.debt} (deferred: ${item.whyDeferred}; risk ${item.risk})`)];
+        fs.appendFileSync(path.join(CWD, pack.path), `${lines.join('\n')}\n`);
+      }
+    } catch {
+      openDebt = [];
+    }
     autoHeartbeat(runId, 'review', 'Review pack built');
     const result = {
       ok: true,
@@ -3724,6 +3758,7 @@ function handleReviewPack() {
       truncated: pack.truncated,
       unresolvedFindings: pack.unresolvedFindings,
       impactDrift: pack.impactDrift,
+      openDebt: openDebt.map((item) => ({ id: item.id, location: item.location, debt: item.debt })),
       fastPath: { eligible: fastPath.eligible, reasons: fastPath.reasons },
       escalation: { requiredTier: escalation.requiredTier, reasons: escalation.reasons.map((r) => r.code) }
     };
@@ -3737,6 +3772,7 @@ function handleReviewPack() {
         console.log(`- Outside the impact map: ${result.impactDrift.outOfMap.join(', ')} (check their side effects)`);
       }
       for (const line of result.impactDrift?.design || []) console.log(`- ${line}`);
+      if (openDebt.length) console.log(`- Open debt on changed files: ${openDebt.map((item) => item.id).join(', ')} (in the pack; resolve or keep consciously)`);
     }
   } catch (err) {
     stageJsonError(err, json, 'REVIEW_PACK_FAILED');
@@ -4155,6 +4191,7 @@ Commands:
                A missing binary is UNAVAILABLE, not a model failure.
                Progress lines go to stderr. Writes .ai-engineering-loop/bench/<benchId>/{results.json,report.md,hardening.md}
                bench compare <benchIdA> <benchIdB> [--json]   read-only side-by-side table
+  debt         Accepted trade-offs and L3 waivers recorded at delivery: list [--file <path>] | close <id> --by <name> [--note <text>]
   stats        Failure causes by harness layer, false-victory rate, iterations to PASS [--last <n>] [--json]
   escalation   Compute the minimum Judge model tier from deterministic risk signals
                --run <id>  target a non-current run
@@ -4371,6 +4408,9 @@ switch (command) {
     break;
   case 'stats':
     handleStats();
+    break;
+  case 'debt':
+    handleDebt();
     break;
   case 'docs':
     handleDocs();

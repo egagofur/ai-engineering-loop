@@ -147,3 +147,12 @@ Parser: `lib/claimed-vs-reality.js` (`readyForDa`). Pass that path to DA/Judge w
 `gate delivery` also checks that the next session starts from a tree it can trust:
 - **Always blocks:** a `debugger` statement, merge-conflict marker or interactive breakpoint added by the change; a secret-like file in the change (`.env`, `.env.local`, keys; `.env.example` is fine); a `_templateOnly` scaffold left in the Run directory or `.ai-engineering-loop/tasks/`.
 - **Untracked files that are not part of the reviewed diff** (logs, coverage, scratch files): block in UNATTENDED, warn in ASSISTED. Warnings are printed and kept in the Run history as `cleanStateWarnings`.
+
+## 8. Debt Ledger (C-14)
+
+At `gate delivery` the CLI copies two kinds of deferred work into `.ai-engineering-loop/debt.json` (tracked in git, like `learnings.json`):
+- VALID `MEDIUM`/`LOW` findings the Judge accepted as trade-offs (file, scenario, risk, "revisit on the next change touching <file>");
+- claimed-vs-reality rows with `L3 waived: <reason>` ("revisit when an e2e command exists").
+
+`review-pack` appends open debt on the files the new diff touches to the Devil's Advocate pack and lists it. `ael debt` lists open items (`--file <path>`); `ael debt close <id> --by <name> [--note <text>]` closes one.
+
