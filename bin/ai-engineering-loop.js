@@ -3553,6 +3553,19 @@ async function handleVerify() {
   }
 }
 
+function handleStats() {
+  const json = process.argv.includes('--json');
+  try {
+    const lastValue = argValue('--last');
+    const stats = require('../lib/stats.js');
+    const result = stats.computeStats(CWD, lastValue == null ? {} : { last: parsePositiveIntegerArg('--last', lastValue) });
+    if (json) console.log(JSON.stringify({ ok: true, ...result }));
+    else console.log(stats.formatStats(result));
+  } catch (err) {
+    stageJsonError(err, json, 'STATS_FAILED');
+  }
+}
+
 function readGuardInput() {
   const source = argValue('--input') || (process.argv.includes('--hook') ? '-' : null);
   if (source == null) {
@@ -4142,6 +4155,7 @@ Commands:
                A missing binary is UNAVAILABLE, not a model failure.
                Progress lines go to stderr. Writes .ai-engineering-loop/bench/<benchId>/{results.json,report.md,hardening.md}
                bench compare <benchIdA> <benchIdB> [--json]   read-only side-by-side table
+  stats        Failure causes by harness layer, false-victory rate, iterations to PASS [--last <n>] [--json]
   escalation   Compute the minimum Judge model tier from deterministic risk signals
                --run <id>  target a non-current run
                --json      print machine-readable reasons
@@ -4354,6 +4368,9 @@ switch (command) {
     break;
   case 'escalation':
     handleEscalation();
+    break;
+  case 'stats':
+    handleStats();
     break;
   case 'docs':
     handleDocs();
