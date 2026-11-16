@@ -8,6 +8,10 @@ From "All Code Is Slop (Except Mine)" (cards C-17..C-24 in `docs/cards/slop-to-g
 
 - **Added:** ratchet rules: `learn promote --scope diff` judges only lines the change adds (`$AEL_ADDED_LINES_FILE`, `$AEL_CHANGED_FILES`), so a rule can be promoted on a codebase with old violations; `doctor --harness` reports each diff rule's legacy backlog (C-17).
 - **Added:** suppressions (`eslint-disable`, `@ts-ignore`, `# noqa`, ...) and workaround comments added in product code become `comment-justification` review findings (HIGH without a reason, otherwise MEDIUM); reviewers may dismiss them only with evidence (C-18).
+- **Changed:** learnings in context packs carry `confidence` (`tentative` 1 Run, `recurring` 2, `rule-candidate` 3+); a one-Run lesson reads "Consider ... not a rule" and the DA may not raise BLOCKER/HIGH on it alone (C-19).
+- **Added:** built-in rule kinds: `learn promote --forbid-import "<fromGlob> -> <toGlob>"` and `--forbid-api "<regex>" [--except <glob>]`, run by `rules check <id>` on added lines only, reporting `file:line` (C-20).
+- **Added:** verification catalog: `security`, `property`, `fuzz`, `mutation`, `coverage`, `benchmark`, `contract`, `pentest` and `formal` (new layer `LF`) are recognised in `verification.md` and mapped to layers; `property` runs in the default plan; an AC can require any key (`verify.key`) or layer (`verify.layer`), default `verify` runs required keys, and Judge PASS waits for them (C-23).
+- **Fixed:** the `verification.md` template no longer suggests `npx eslint --fix` and describes the current default plan.
 
 ## 2.7.0 - 2026-11-16
 
