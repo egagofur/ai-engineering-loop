@@ -1394,6 +1394,15 @@ function handleRun() {
     const current = getCurrentRun(CWD);
     const policy = loadPolicy(CWD);
     const startsNewRun = forceNew || !current || TERMINAL_STATES.has(current.state);
+    if (forceNew && current && !TERMINAL_STATES.has(current.state)) {
+      // C-15 (L07 WIP=1): starting another Run while one is unfinished.
+      try {
+        const ratio = require('../lib/features.js').vcr(require('../lib/features.js').loadFeatures(CWD));
+        if (ratio.value < 1) console.error(`! VCR ${ratio.verified}/${ratio.activated}: Run ${current.runId} is still ${current.state}. Finishing it first usually beats starting another (WIP=1).`);
+      } catch {
+        // No feature ledger.
+      }
+    }
     let mode = modeArg ? normalizeMode(modeArg) : (startsNewRun ? policy.defaultMode : null);
     let workflow = null;
     let requestedRunId = null;
@@ -3617,6 +3626,30 @@ function handleDebt() {
   }
 }
 
+function handleNext() {
+  const json = process.argv.includes('--json');
+  try {
+    const features = require('../lib/features.js');
+    const document = features.loadFeatures(CWD);
+    if (!document) throw Object.assign(new Error('No .ai-engineering-loop/features.json. FIX: create it with {"schemaVersion":1,"features":[{"id","title","behavior","verify","status":"not_started","priority","dependsOn":[]}]}.'), { code: 'NO_FEATURES' });
+    const next = features.nextFeature(document);
+    const ratio = features.vcr(document);
+    const problems = features.auditFeatures(CWD, document);
+    const active = document.features.filter((item) => item.status === 'active').map((item) => item.id);
+    const result = { ok: problems.length === 0, next, vcr: ratio, active, problems };
+    if (json) console.log(JSON.stringify(result));
+    else {
+      console.log(`VCR: ${ratio.verified}/${ratio.activated} (${ratio.value})${active.length ? `; active: ${active.join(', ')}` : ''}`);
+      if (ratio.value < 1 && active.length) console.log(`! Finish ${active[0]} before starting another feature (WIP=1).`);
+      console.log(next ? `Next: ${next.id} - ${next.title || next.behavior}${next.verify ? ` (verify: ${next.verify})` : ''}. Start it with a Goal whose featureId is "${next.id}".` : 'Next: nothing unblocked.');
+      for (const problem of problems) console.log(`! ${problem}`);
+    }
+    if (problems.length) process.exitCode = 1;
+  } catch (err) {
+    stageJsonError(err, json, 'NEXT_FAILED');
+  }
+}
+
 function handleStats() {
   const json = process.argv.includes('--json');
   try {
@@ -4260,6 +4293,7 @@ Commands:
                a post-delivery problem traced to a Run (input for calibrate)
   calibrate    Compare recorded outcomes with each Run's Finding Ledger: DA misses, wrong dismissals, per reviewer prompt
   debt         Accepted trade-offs and L3 waivers recorded at delivery: list [--file <path>] | close <id> --by <name> [--note <text>]
+  next         Next unblocked feature from .ai-engineering-loop/features.json, VCR (verified/activated), evidence audit [--json]
   stats        Failure causes by harness layer, false-victory rate, iterations to PASS [--last <n>] [--json]
   escalation   Compute the minimum Judge model tier from deterministic risk signals
                --run <id>  target a non-current run
@@ -4478,6 +4512,9 @@ switch (command) {
     break;
   case 'stats':
     handleStats();
+    break;
+  case 'next':
+    handleNext();
     break;
   case 'debt':
     handleDebt();

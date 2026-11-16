@@ -136,3 +136,15 @@ For ACs that are judged rather than computed (layout, copy, visual design), add 
 
 The Devil's Advocate scores every criterion in the ledger as `rubricScores: [{ac, criterion, pass, evidence}]` with observed evidence (screenshot path, DOM snapshot, measured value). `gate judge` refuses PASS while any criterion is unscored or `pass: false` (`AC_RUBRIC`).
 
+## Project feature ledger (C-15)
+
+Optional `.ai-engineering-loop/features.json` lists what the project must do, one triple per feature:
+
+```json
+{ "schemaVersion": 1, "features": [
+  { "id": "F-1", "title": "Import", "behavior": "user imports a .md file and sees it in the list", "verify": "npm run e2e -- import", "status": "not_started", "priority": 1, "dependsOn": [] }
+] }
+```
+
+Status moves only through Runs: a Goal Contract with `"featureId": "F-1"` makes it `active` at the Goal gate, and delivery makes it `passing` with the Run as evidence (passing is final). `ael next` prints the highest-priority unblocked feature, VCR (verified / activated), and flags any `passing` feature without a delivered Run behind it. `run --new` warns when an unfinished Run exists and VCR is below 1 (WIP=1).
+

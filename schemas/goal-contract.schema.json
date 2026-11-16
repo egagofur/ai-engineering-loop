@@ -130,6 +130,11 @@
       },
       "additionalProperties": false
     },
+    "featureId": {
+      "description": "Optional (C-15): id of the feature in .ai-engineering-loop/features.json this Goal delivers. Goal freeze marks it active; delivery marks it passing with this Run as evidence.",
+      "type": "string",
+      "minLength": 1
+    },
     "outOfScope": {
       "description": "Optional list of things this Goal must not change.",
       "type": "array",
