@@ -20,8 +20,8 @@
 | C-14 P2: tech-debt ledger for accepted trade-offs/waivers | Engineer Bot | Done | [#113](https://github.com/egagofur/ai-engineering-loop/pull/113) | Claude | cb146ed (merged 2026-11-16, v2.7.0) |
 | C-15 P3: project feature ledger + VCR | Engineer Bot | Done | [#113](https://github.com/egagofur/ai-engineering-loop/pull/113) | Claude | cb146ed (merged 2026-11-16, v2.7.0) |
 | C-16 P3: log reviewer inputs (pack + prompt hash) | Engineer Bot | Done | [#113](https://github.com/egagofur/ai-engineering-loop/pull/113) | Claude | cb146ed (merged 2026-11-16, v2.7.0) |
-| C-17 P1: rule ratchet mode (`scope: diff`, new occurrences only) | - | Backlog | - | - | - |
-| C-18 P1: justification/suppress comments in diff become findings | - | Backlog | - | - | - |
+| C-17 P1: rule ratchet mode (`scope: diff`, new occurrences only) | Engineer Bot | Review (branch feat/p1-ratchet-comments) | - | Claude | - |
+| C-18 P1: justification/suppress comments in diff become findings | Engineer Bot | Review (branch feat/p1-ratchet-comments) | - | Claude | - |
 | C-19 P2: tentative learnings labelled, never hard rules | - | Backlog | - | - | - |
 | C-20 P2: built-in forbid-import / forbid-api rules | - | Backlog | - | - | - |
 | C-21 P2: artifact-first receipt + Goal `flow` transitions | - | Backlog | - | - | - |
