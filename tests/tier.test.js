@@ -68,7 +68,7 @@ function claimedVsReality(root, reality = 'node --test: 1 passed, exit 0') {
   fs.mkdirSync(path.join(root, '.ai-engineering-loop/tasks'), { recursive: true });
   fs.writeFileSync(
     path.join(root, '.ai-engineering-loop/tasks/claimed-vs-reality.md'),
-    `# Claimed vs Reality\n\n| AC | Claimed | Reality from command log |\n|---|---|---|\n| AC-1 | fixed | ${reality} |\n`
+    `# Claimed vs Reality\n\n| AC | Claimed | Reality from command log | Layer |\n|---|---|---|---|\n| AC-1 | fixed | ${reality} | L2+L3 |\n`
   );
 }
 
@@ -191,6 +191,32 @@ test('T1 diff that touches auth rises to T2; T2 PASS needs STRONG_MODEL', () => 
   assert.throws(() => applyGate(root, 'judge'), /STRONG_MODEL/);
   writeArtifact(root, 'verdict.json', { schemaVersion: 1, runId: 'run-001', verdict: 'PASS', reason: 'ok', action: 'deliver', modelTier: 'STRONG_MODEL' });
   assert.strictEqual(applyGate(root, 'judge').state, RUN_STATES.JUDGED_PASS);
+});
+
+test('#110 T1 review gate refuses a missing claimed-vs-reality file with a FIX hint', () => {
+  const root = tempRepo('Add pagination to the list endpoint');
+  const diffHash = advanceToVerified(root, CODE_DIFF);
+  writeArtifact(root, 'findings.json', { schemaVersion: 1, runId: 'run-001', diffHash, findings: [] });
+  assert.throws(
+    () => applyGate(root, 'review'),
+    (err) => /CLAIMED_VS_REALITY_INCOMPLETE/.test(err.message) && err.details.some((d) => d.includes('FIX:'))
+  );
+});
+
+test('#110 T2 review gate refuses L2-only evidence, accepts L3 or a reasoned waiver', () => {
+  const root = tempRepo('Add pagination to the list endpoint');
+  const diffHash = advanceToVerified(root, AUTH_DIFF);
+  assert.strictEqual(loadRun(root, 'run-001').tier.current, 'T2');
+  writeArtifact(root, 'findings.json', { schemaVersion: 1, runId: 'run-001', diffHash, findings: [] });
+  const write = (layer) => fs.writeFileSync(
+    path.join(root, '.ai-engineering-loop/tasks/claimed-vs-reality.md'),
+    `| AC | Claimed | Reality from command log | Layer |\n|---|---|---|---|\n| AC-1 | fixed | node --test: 1 passed, exit 0 | ${layer} |\n`
+  );
+  fs.mkdirSync(path.join(root, '.ai-engineering-loop/tasks'), { recursive: true });
+  write('L2');
+  assert.throws(() => applyGate(root, 'review'), (err) => err.details.some((d) => d.includes('needs L3')));
+  write('L2; L3 waived: no e2e harness and the flow needs a live SMTP server');
+  applyGate(root, 'review');
 });
 
 test('legacy runs without a tier keep the full Judge requirement', () => {

@@ -53,7 +53,19 @@ Verification terminates through three explicit layers of evidence. Unit tests al
 | **L2: Behavioral / Runtime** | Functions, units, modules, regressions | `test_unit`, `test_related`, `test_all` | Fast behavioral feedback at named seams and regression verification. |
 | **L3: End-to-End** | Cross-component flows, integrations, browser/API | `e2e` (optional) | Realistic integrated proof across boundary seams. |
 
-When `e2e` is configured in `verification.md`, cross-component acceptance criteria must cite L3 command evidence. If `e2e` is empty, Maker must document in Reality why L3 is not configured.
+Unit tests isolate and mock by design, which is exactly why they miss interface mismatches, state propagation errors, resource leaks, and environment dependencies between components.
+
+| Tier | Required layers |
+|---|---|
+| T0 | L1-L2 (L3 when an AC is `crossComponent: true`) |
+| T1 | L1-L2, plus L3 for every `crossComponent: true` AC |
+| T2 | L1-L3 on every AC |
+
+Enforcement (`lib/claimed-vs-reality.js`, `gate review`):
+- The Layer cell accepts `L1`, `L2`, `L3`, combos such as `L2+L3`, and `L3 waived: <reason>` (at least 15 characters). Unknown tokens fail the gate.
+- An AC that needs L3 without L3 or a reasoned waiver fails `gate review` on every tier, with a FIX line that says what to run.
+- Legacy 3-column files stay valid when no AC needs L3.
+- When `e2e` is empty in `verification.md`, run the AC's real user flow and cite the observation, or write the waiver. Devil's Advocate and Judge challenge waivers like any other claim.
 
 ---
 

@@ -6,6 +6,12 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 _No changes yet._
 
+## 2.6.0 - 2026-11-10
+
+- **Added:** three-layer verification naming in `loop-verify` (#110): L1 unit, L2 related/integration, L3 end-to-end through the existing optional `e2e` verification key, with a manual flow check plus written evidence when `e2e` is not configured. T0 needs L1-L2, T1 adds L3 when an AC crosses component boundaries, T2 always needs L1-L3.
+- **Added:** `context claimed-vs-reality` scaffolds a 4-column table (`AC | Claimed | Reality from command log | Layer`). Existing 3-column files stay valid for `readyForDa`; empty or "seems green" Reality still fails.
+- **Fixed:** the measure script counts characters the same on Windows (CRLF) as on macOS and Linux.
+
 ## 2.5.0 - 2026-11-02
 
 - **Changed:** the core host skill is now `ael` (#107), so the slash command is `/ael` on every host (`~/.claude/skills/ael`, `~/.agents/skills/ael`, and each host's own folder). `sync-hosts` and `update` remove the old `ai-engineering-loop` skill files AEL wrote, so the command no longer appears twice; files you edited or added there are kept, and `hosts doctor` reports the leftover folder. Skill sources moved to `skill-src/ael/`.

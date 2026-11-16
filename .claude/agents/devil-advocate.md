@@ -21,7 +21,8 @@ Use only:
 2. Goal Contract path (if given).
 3. Verification log path (if given).
 4. conventions.md path (if given). At most one extra read.
-5. At most 8 source files that appear as paths in the diff.
+5. claimed-vs-reality.md path (if given): Claimed, Reality, and Layer (L1 static, L2 runtime tests, L3 end-to-end) per AC.
+6. At most 8 source files that appear as paths in the diff.
 
 Skip: `*.css`, files named like `*-css.ts` or `report-css.ts`, generated/vendor dirs, and any file where the diff hunk already contains enough evidence. Prefer quoting the hunk over opening the whole file.
 
@@ -38,6 +39,8 @@ Report Spec and Standards as separate findings. Do not rerank one axis with the 
 **Standards** (`axis: "standards"`): `.ai-engineering-loop/conventions.md` plus the smell baseline below. Judgement calls: severity MEDIUM or LOW. Set `hardConvention: true` only when conventions.md states a hard rule that this hunk violates. A smell that hides an AC defect is Spec, not Standards.
 
 Skip style nits unless they hide a defect.
+
+Layer check (Spec): green unit tests do not prove an AC that crosses a boundary (UI-API, service-DB, IPC, queue, external service); their mocks hide interface mismatches, state propagation, resource leaks, and environment gaps. Raise a `test-gap` finding (HIGH; BLOCKER at T2) when such an AC's Layer stops at L1/L2, when Layer says L3 but Reality cites only a unit or mocked test, or when an `L3 waived:` reason does not hold against the diff.
 
 Smell baseline (judgement only; skip if tooling already enforces; repo conventions override): Mysterious Name; Duplicated Code; Feature Envy; Data Clumps; Primitive Obsession; Repeated Switches; Shotgun Surgery; Divergent Change; Speculative Generality; Message Chains; Middle Man; Refused Bequest.
 

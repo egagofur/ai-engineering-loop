@@ -34,9 +34,17 @@ The Devil's Advocate receives **only** the objective artifact package:
 - `Project Context` (`.ai-engineering-loop/`: `architecture.md`, `conventions.md`, `verification.md`, `glossary.md`).
 - `Pure Git Diff` (`git diff <base>...HEAD`).
 - `Deterministic Verification Logs` (exit code 0 proof).
+- `claimed-vs-reality.md` (Claimed, Reality, and Layer `L1`/`L2`/`L3` per AC).
 - `Prior Finding Signatures`.
 
 *Maker conversational history, intermediate attempts, and author rationalizations are strictly excluded.*
+
+### Layer check (three-layer termination)
+
+Green unit tests do not prove an AC that crosses a component boundary: their mocks hide interface mismatches, state propagation errors, resource leaks, and environment gaps. For each AC row:
+- The diff crosses a boundary (UI-API, service-DB, IPC, queue, external service) but the row's Layer stops at L1/L2: raise a `test-gap` finding (HIGH; BLOCKER at T2) naming the missing end-to-end path.
+- Layer says `L3` but Reality cites only a unit or mocked test: raise a finding; the tag is wrong.
+- `L3 waived: <reason>`: check the reason against the diff. Reject waivers that only say e2e is slow or missing when a manual flow could run.
 
 ---
 
