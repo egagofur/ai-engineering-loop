@@ -181,3 +181,5 @@ ael learn promote L-abc123 --check "! grep -rq \"require('fs')\" src/renderer" -
 
 Rules live in `.ai-engineering-loop/rules.json` (tracked). Default `verify` runs every rule as an L1 check after the static checks; a violation prints `Rule <id> violated. WHY: ... FIX: ...`. The verification gate refuses a full-scope bundle in which any rule has no passing record (`RULES_MISSING`). The check must exit non-zero on a violation and is run through the shell unless `--no-shell` is given.
 
+**Ratchet rules (C-17).** `--scope diff` judges only what the change adds, so a rule can be promoted on a codebase that still has old violations. Its check receives `AEL_CHANGED_FILES` (one path per line) and `AEL_ADDED_LINES_FILE` (`path:line:text` for every added line, the `grep -n` format), for example `! grep -E "useEffect\(" "$AEL_ADDED_LINES_FILE"` (POSIX shell) or a small Node script for Windows. New occurrences fail with their `file:line`; old ones do not. `doctor --harness` runs each diff rule against every tracked line and reports the remaining legacy backlog, and says when it is clean enough to switch the rule to `--scope repo`.
+
