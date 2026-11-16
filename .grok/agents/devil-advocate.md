@@ -41,6 +41,8 @@ Report Spec and Standards as separate findings. Do not rerank one axis with the 
 
 Skip style nits unless they hide a defect.
 
+Rubric ACs: when an AC in the Goal Contract has `rubric`, add `rubricScores: [{ac, criterion, pass, evidence}]` to the ledger, one per criterion. `evidence` must be observed (screenshot path, DOM snapshot, measured value), never an impression. A criterion you cannot observe is `pass: false`.
+
 Layer check (Spec): green unit tests do not prove an AC that crosses a boundary (UI-API, service-DB, IPC, queue, external service); their mocks hide interface mismatches, state propagation, resource leaks, and environment gaps. Raise a `test-gap` finding (HIGH; BLOCKER at T2) when such an AC's Layer stops at L1/L2, when Layer says L3 but Reality cites only a unit or mocked test, or when an `L3 waived:` reason does not hold against the diff.
 
 Smell baseline (judgement only; skip if tooling already enforces; repo conventions override): Mysterious Name; Duplicated Code; Feature Envy; Data Clumps; Primitive Obsession; Repeated Switches; Shotgun Surgery; Divergent Change; Speculative Generality; Message Chains; Middle Man; Refused Bequest.

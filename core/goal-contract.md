@@ -124,3 +124,15 @@ An AC may name the command that proves it:
 ```
 
 The harness owns the status: `proven` when that exact command passed on the gated diff (`verification.json` or `final-verification.json`), `failed` when it ran and failed, `pending` when it never ran. `verify` prints each status, and `gate judge` refuses PASS while any AC with a verify command is `pending` or `failed` (`AC_NOT_PROVEN`). ACs without `verify` keep the existing evidence rules.
+
+## Rubric for subjective ACs (C-09)
+
+For ACs that are judged rather than computed (layout, copy, visual design), add a rubric:
+
+```json
+{ "id": "AC-3", "statement": "The empty state guides the user", "evidenceRequired": "screenshot", "failureCases": ["blank panel"],
+  "rubric": [ { "criterion": "contrast", "pass": ">= 4.5:1 (WCAG AA)" }, { "criterion": "guidance", "pass": "explains how to import a document" } ] }
+```
+
+The Devil's Advocate scores every criterion in the ledger as `rubricScores: [{ac, criterion, pass, evidence}]` with observed evidence (screenshot path, DOM snapshot, measured value). `gate judge` refuses PASS while any criterion is unscored or `pass: false` (`AC_RUBRIC`).
+

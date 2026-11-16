@@ -53,6 +53,18 @@
               "minLength": 1
             }
           },
+          "rubric": {
+            "description": "Optional (C-09) for subjective ACs: criteria the Devil's Advocate scores with evidence in ledger.rubricScores. Judge PASS needs every criterion scored pass:true.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["criterion", "pass"],
+              "properties": {
+                "criterion": { "type": "string", "minLength": 1 },
+                "pass": { "type": "string", "minLength": 1, "description": "What counts as passing, e.g. 'contrast >= 4.5:1 (WCAG AA)'" }
+              }
+            }
+          },
           "verify": {
             "description": "Optional (C-07). The command that proves this AC. Gate judge refuses PASS until this exact command passed on the gated diff (verification.json or final-verification.json).",
             "type": "object",
