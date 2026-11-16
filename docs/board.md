@@ -22,9 +22,10 @@
 | C-16 P3: log reviewer inputs (pack + prompt hash) | Engineer Bot | Done | [#113](https://github.com/egagofur/ai-engineering-loop/pull/113) | Claude | cb146ed (merged 2026-11-16, v2.7.0) |
 | C-17 P1: rule ratchet mode (`scope: diff`, new occurrences only) | Engineer Bot | Review (branch feat/p1-ratchet-comments) | - | Claude | - |
 | C-18 P1: justification/suppress comments in diff become findings | Engineer Bot | Review (branch feat/p1-ratchet-comments) | - | Claude | - |
-| C-19 P2: tentative learnings labelled, never hard rules | - | Backlog | - | - | - |
-| C-20 P2: built-in forbid-import / forbid-api rules | - | Backlog | - | - | - |
-| C-21 P2: artifact-first receipt + Goal `flow` transitions | - | Backlog | - | - | - |
-| C-22 P2: feature map + reusable verification driver | - | Backlog | - | - | - |
-| C-23 P2: `property` and `formal` verification keys | - | Backlog | - | - | - |
-| C-24 P3: auto revert rate + verification token share in stats | - | Backlog | - | - | - |
+| C-19 P2: tentative learnings labelled, never hard rules | Engineer Bot | Review (branch feat/p2-slop-cards) | - | Claude | - |
+| C-20 P2: built-in forbid-import / forbid-api rules | Engineer Bot | Review (branch feat/p2-slop-cards) | - | Claude | - |
+| C-21 P2: artifact-first receipt + Goal `flow` transitions | Engineer Bot | Review (branch feat/p2-slop-cards) | - | Claude | - |
+| C-22 P2: feature map + reusable verification driver | Engineer Bot | Review (branch feat/p2-slop-cards) | - | Claude | - |
+| C-23 P2: verification catalog (property, fuzz, mutation, contract, pentest, formal LF, ...) | Engineer Bot | Review (branch feat/p2-slop-cards) | - | Claude | - |
+| C-24 P3: auto revert rate + verification token share in stats | Engineer Bot | Review (branch feat/p2-slop-cards) | - | Claude | - |
+| C-25 P3: pstack `/statechart` via `formal` recipe + Mermaid `flow` in receipt | Engineer Bot | Review (branch feat/p2-slop-cards) | [#117](https://github.com/egagofur/ai-engineering-loop/pull/117) | Claude | - |

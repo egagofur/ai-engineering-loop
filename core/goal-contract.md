@@ -148,3 +148,21 @@ Optional `.ai-engineering-loop/features.json` lists what the project must do, on
 
 Status moves only through Runs: a Goal Contract with `"featureId": "F-1"` makes it `active` at the Goal gate, and delivery makes it `passing` with the Run as evidence (passing is final). `ael next` prints the highest-priority unblocked feature, VCR (verified / activated), and flags any `passing` feature without a delivered Run behind it. `run --new` warns when an unfinished Run exists and VCR is below 1 (WIP=1).
 
+## Intended flow (C-21)
+
+For UI or multi-step work, add the flow the user should experience as transitions:
+
+```json
+"flow": [
+  { "from": "List", "event": "click Export", "to": "Exporting" },
+  { "from": "Exporting", "event": "file ready", "to": "Done" },
+  { "from": "Exporting", "event": "disk full", "to": "Error" }
+]
+```
+
+`goal draft` returns it as a `From | Event | To` table and a Mermaid `stateDiagram-v2` (`flow.mermaid`), with warnings (a state nothing reaches, a state with no way out that is not Done/Error), so the human checks the intent before freeze. A malformed `flow` fails the Goal gate. The PR receipt shows the same diagram (GitHub renders it) and table under "Intended flow", after "Verification artifacts" and before the acceptance criteria.
+
+## Verification artifacts in the receipt (C-21)
+
+The receipt lists `--evidence AC-N=<https-url>` links first, typed as video, screenshot or diagram from the URL. An AC with `crossComponent: true` or a `rubric` is `MISSING` (❌) until it has at least one such link, because a reviewer should be able to look at the behaviour rather than read the diff.
+

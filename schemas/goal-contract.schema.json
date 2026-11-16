@@ -66,12 +66,17 @@
             }
           },
           "verify": {
-            "description": "Optional (C-07). The command that proves this AC. Gate judge refuses PASS until this exact command passed on the gated diff (verification.json or final-verification.json).",
+            "description": "Optional (C-07, C-23). What proves this AC: an exact `command`, a verification catalog `key` (e.g. pentest, property, formal; default verify runs it when configured), or a `layer` (any passing command of that layer). Gate judge refuses PASS until it passed on the gated diff.",
             "type": "object",
-            "required": ["command"],
+            "anyOf": [
+              { "required": ["command"] },
+              { "required": ["key"] },
+              { "required": ["layer"] }
+            ],
             "properties": {
               "command": { "type": "string", "minLength": 1 },
-              "layer": { "enum": ["L1", "L2", "L3"] }
+              "key": { "enum": ["build", "typecheck", "lint", "security", "test_unit", "test_related", "test_all", "property", "fuzz", "mutation", "coverage", "benchmark", "smoke", "contract", "e2e", "pentest", "formal"] },
+              "layer": { "enum": ["L1", "L2", "L3", "LF"] }
             },
             "additionalProperties": false
           },
@@ -129,6 +134,20 @@
         }
       },
       "additionalProperties": false
+    },
+    "flow": {
+      "description": "Optional (C-21): the intended user flow as transitions. goal draft renders it as a From | Event | To table for the human to check before freeze; the receipt shows it next to the verification artifacts.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["from", "event", "to"],
+        "properties": {
+          "from": { "type": "string", "minLength": 1 },
+          "event": { "type": "string", "minLength": 1 },
+          "to": { "type": "string", "minLength": 1 }
+        }
+      }
     },
     "featureId": {
       "description": "Optional (C-15): id of the feature in .ai-engineering-loop/features.json this Goal delivers. Goal freeze marks it active; delivery marks it passing with this Run as evidence.",

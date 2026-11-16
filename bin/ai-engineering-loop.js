@@ -1698,7 +1698,8 @@ function handleBudget() {
         nodeId,
         inputTokens: parseNonNegativeIntegerArg('--input', argValue('--input')),
         outputTokens: parseNonNegativeIntegerArg('--output', argValue('--output')),
-        model: argValue('--model')
+        model: argValue('--model'),
+        role: argValue('--role')
       });
     } else if (action === 'pause' || action === 'resume') {
       result = setKillSwitch(CWD, action === 'pause');
@@ -3162,6 +3163,11 @@ function handleGoal() {
         expectedRevision: requiredIntegerArg('--revision')
       });
       extra.impactPreview = impactPreview(runId, draftGoal);
+      // C-21: show the intended user flow as a transition table before freeze.
+      if (draftGoal && draftGoal.flow != null) {
+        const flowLib = require('../lib/flow.js');
+        extra.flow = { table: flowLib.renderFlow(draftGoal.flow), mermaid: flowLib.renderMermaid(draftGoal.flow), problems: flowLib.flowProblems(draftGoal.flow), warnings: flowLib.flowWarnings(draftGoal.flow) };
+      }
       appendRunLifecycle(CWD, runId, {
         type: 'GOAL_DRAFT_UPDATED',
         phase: 'goal',
@@ -3438,6 +3444,27 @@ async function handleVerify() {
         const firstL2 = plan.findIndex((step) => step.layer !== 'L1');
         plan.splice(firstL2 === -1 ? plan.length : firstL2, 0, ...rules);
       }
+      // C-23: catalog keys an AC requires (verify.key, e.g. pentest, formal)
+      // run too when the project configures them.
+      if (!baselineMode) {
+        try {
+          const target = loadRun(CWD, runId);
+          const goal = require('../lib/claimed-vs-reality.js').loadFrozenGoal(CWD, target);
+          const configured = lanes.verificationCommands(CWD);
+          const acStatusLib = require('../lib/ac-status.js');
+          for (const key of acStatusLib.requiredKeys(goal)) {
+            if (configured[key] && !plan.some((step) => step.key === key)) plan.push({ key, layer: lanes.layerOfKey(key), text: configured[key] });
+          }
+          // A required layer with no step yet: the first configured catalog key of that layer.
+          for (const layer of acStatusLib.requiredLayers(goal)) {
+            if (plan.some((step) => step.layer === layer)) continue;
+            const key = Object.keys(lanes.VERIFICATION_CATALOG).find((name) => lanes.VERIFICATION_CATALOG[name].layer === layer && configured[name]);
+            if (key) plan.push({ key, layer, text: configured[key] });
+          }
+        } catch {
+          // No frozen Goal yet; nothing extra to run.
+        }
+      }
       // C-03: startup-risky diffs also run the configured smoke check (L2).
       const smokeText = lanes.verificationCommands(CWD).smoke;
       if (smokeText && !baselineMode && lanes.startupRiskFiles(CWD, loadRun(CWD, runId)).length) {
@@ -3518,8 +3545,9 @@ async function handleVerify() {
         log.error('Verification failed; the gate was not attempted.');
         for (const c of commands) console.log(`- ${c.command}: exit ${c.exitCode} (${c.timeoutStatus})`);
         for (const skippedCommand of recorded.skipped) console.log(`- ${skippedCommand}: skipped (an earlier, cheaper check failed)`);
-        for (const c of commands.filter((item) => item.exitCode !== 0)) {
-          const rule = require('../lib/rules.js').ruleForCommand(CWD, c.command);
+        for (const c of recorded.commands.filter((item) => item.exitCode !== 0)) {
+          const rulesLib = require('../lib/rules.js');
+          const rule = (c.key && c.key.startsWith('rule:') ? rulesLib.findRule(CWD, c.key.slice(5)) : null) || rulesLib.ruleForCommand(CWD, c.command);
           if (rule) console.log(`! Rule ${rule.id} violated. WHY: ${rule.why} FIX: ${rule.fix}`);
         }
         for (const f of failures) {
@@ -3657,6 +3685,24 @@ function handleNext() {
     if (problems.length) process.exitCode = 1;
   } catch (err) {
     stageJsonError(err, json, 'NEXT_FAILED');
+  }
+}
+
+// C-20: `rules check <id>` runs a built-in rule kind against the lines the
+// change adds ($AEL_ADDED_LINES_FILE); violations print as file:line.
+function handleRules() {
+  const json = process.argv.includes('--json');
+  try {
+    if (args[1] !== 'check' || !args[2]) throw Object.assign(new Error('rules supports: check <ruleId>'), { code: 'INVALID_USAGE' });
+    const rule = require('../lib/rules.js').findRule(CWD, args[2]);
+    if (!rule) throw Object.assign(new Error(`No rule ${args[2]} in .ai-engineering-loop/rules.json`), { code: 'NOT_FOUND' });
+    const ruleCheck = require('../lib/rule-check.js');
+    const violations = ruleCheck.checkRule(rule, ruleCheck.readAddedLines());
+    if (json) console.log(JSON.stringify({ ok: violations.length === 0, rule: rule.id, violations }));
+    else for (const v of violations) console.log(`${v.file}:${v.line}: ${v.message}`);
+    if (violations.length) process.exitCode = 1;
+  } catch (err) {
+    stageJsonError(err, json, 'RULES_FAILED');
   }
 }
 
@@ -3820,6 +3866,7 @@ function handleReviewPack() {
     const tier = run.tier ? run.tier.current : null;
     // C-14: open debt on the files this change touches goes into the pack.
     let openDebt = [];
+    let touchedFeatures = [];
     try {
       const changed = require('../lib/verification-lanes.js').relatedFiles(CWD, run);
       openDebt = require('../lib/debt.js').openDebtFor(CWD, changed);
@@ -3827,6 +3874,10 @@ function handleReviewPack() {
         const lines = ['', '## Open debt on changed files', '', ...openDebt.map((item) => `- ${item.id} ${item.location}: ${item.debt} (deferred: ${item.whyDeferred}; risk ${item.risk})`)];
         fs.appendFileSync(path.join(CWD, pack.path), `${lines.join('\n')}\n`);
       }
+      // C-22: user-facing features this diff touches, with how to reach them.
+      const featureMap = require('../lib/feature-map.js');
+      touchedFeatures = featureMap.featuresForFiles(CWD, changed);
+      if (touchedFeatures.length && pack.path) fs.appendFileSync(path.join(CWD, pack.path), `${featureMap.renderForPack(touchedFeatures)}\n`);
     } catch {
       openDebt = [];
     }
@@ -3846,6 +3897,7 @@ function handleReviewPack() {
       unresolvedFindings: pack.unresolvedFindings,
       impactDrift: pack.impactDrift,
       openDebt: openDebt.map((item) => ({ id: item.id, location: item.location, debt: item.debt })),
+      features: touchedFeatures.map((entry) => ({ id: entry.id, where: entry.where, driver: entry.driver })),
       reviewInputs: { inputs: reviewInputs.inputs, promptSha256: reviewInputs.promptSha256 },
       fastPath: { eligible: fastPath.eligible, reasons: fastPath.reasons },
       escalation: { requiredTier: escalation.requiredTier, reasons: escalation.reasons.map((r) => r.code) }
@@ -3860,6 +3912,7 @@ function handleReviewPack() {
         console.log(`- Outside the impact map: ${result.impactDrift.outOfMap.join(', ')} (check their side effects)`);
       }
       for (const line of result.impactDrift?.design || []) console.log(`- ${line}`);
+      if (touchedFeatures.length) console.log(`- Features touched: ${touchedFeatures.map((entry) => entry.id).join(', ')} (in the pack; use them for L3 evidence)`);
       if (openDebt.length) console.log(`- Open debt on changed files: ${openDebt.map((item) => item.id).join(', ')} (in the pack; resolve or keep consciously)`);
     }
   } catch (err) {
@@ -4135,6 +4188,9 @@ function handleLearn() {
         why: argValue('--why'),
         by: argValue('--by'),
         scope: argValue('--scope') || 'repo',
+        forbidImport: argValue('--forbid-import'),
+        forbidApi: argValue('--forbid-api'),
+        except: argValue('--except'),
         shell: !process.argv.includes('--no-shell')
       });
       if (json) console.log(JSON.stringify({ ok: true, rule }));
@@ -4349,6 +4405,8 @@ Commands:
                [--run <id> | <repository-relative-receipt.json>] [--head <sha>] [--json]   exit 1 on mismatch (CI)
   learn promote <learningId> --check "<command>" --fix "<instruction>" --by <name> [--why <text>] [--scope repo|diff] [--no-shell]
                --scope diff: the check sees only lines this change adds ($AEL_ADDED_LINES_FILE, $AEL_CHANGED_FILES)
+               built-in instead of --check: --forbid-import "<fromGlob> -> <toGlob>" | --forbid-api "<regex>" [--except <glob>]
+  rules check <ruleId>   run a built-in rule on the added lines (used by verify)
                turn a recurring review lesson into an executable L1 rule (.ai-engineering-loop/rules.json)
   learn        Mine past Runs' VALID findings into .ai-engineering-loop/learnings.json (+ .md) for context packs
                [--dry-run] [--prune] [--max-age-runs <n>] [--json]
@@ -4526,6 +4584,9 @@ switch (command) {
     break;
   case 'stats':
     handleStats();
+    break;
+  case 'rules':
+    handleRules();
     break;
   case 'next':
     handleNext();

@@ -78,6 +78,10 @@ Enforcement (`lib/claimed-vs-reality.js`, `gate review`):
 
 **Default plan (C-02).** `verify` without `--cmd` runs `build -> typecheck -> lint -> test_unit` (whichever are configured), serially, and stops at the first failure. Commands that rewrite files (`--fix`, `--write`) are never run by default. Each record carries its layer (`L1`/`L2`/`L3`).
 
+**Verification catalog (C-23).** AEL does not ship test tools; it recognises the ones a project has. Any of these keys in `verification.md` is mapped to a layer and recorded with it: `security` (L1); `property`, `fuzz`, `mutation`, `coverage`, `benchmark` (L2); `contract`, `pentest` (L3); `formal` (LF, a separate layer for model checking and proofs). Only `property` joins the default plan (after `test_unit`); the rest run when an AC requires them with `"verify": { "key": "<key>" }`, or with `--cmd`. An AC that requires only a layer (`"layer": "LF"`) makes default `verify` add the first configured catalog key of that layer when no step covers it (for `LF`, `formal`; see `docs formal-statechart` for model checking with pstack `/statechart`). `gate judge` refuses PASS until each required key passed on the gated diff (`AC_NOT_PROVEN`). Claimed-vs-reality accepts `LF` as a Layer tag. Testing in production (canary, shadowing, monitoring) stays outside AEL; its outcomes come back through `outcome record` (C-13).
+
+**Feature map (C-22).** Optional `.ai-engineering-loop/feature-map.md` is a site map of what users can do, one Markdown table: `| Feature | Where (UI or endpoint) | Paths (globs) | How to reach | Driver |`. `review-pack` appends the entries whose `Paths` the diff touches, so the Devil's Advocate and L3 evidence use the same names ("export-csv", not "the button on the left"). `Driver` is an optional reusable command that runs the flow (cheaper and more repeatable than an agent clicking around). `doctor --harness` warns when `e2e` or `smoke` is configured but the map is empty.
+
 **L1 at T1/T2.** When `verification.md` configures `typecheck` or `lint`, the verification gate at T1/T2 refuses a full-scope bundle with no L1 record (`L1_MISSING`). The related lane is exempt; `verify --final` runs the full plan.
 
 `init` writes only commands the project really has: `typecheck` from a script or a TypeScript setup, `lint` and `build` only from package scripts.
@@ -168,6 +172,14 @@ At `gate delivery` the CLI copies two kinds of deferred work into `.ai-engineeri
 
 "Model-visible means logged": `review-pack` writes `runs/<id>/review-inputs.json` with the sha256 of the review pack, the gated diff, and the Devil's Advocate prompt body. `review ingest` copies them into `findings.json` (`reviewer.inputs`, `reviewer.promptSha256`). `gate review` fails the ledger binding when any recorded input changed after the reviewer saw it, so a missed defect can always be traced to exactly what the reviewer was shown.
 
+## 9b. Quality Anchors from Git and the Budget Ledger (C-24)
+
+`ael stats` also reports:
+- **Revert rate**: git `Revert "<subject>"` commits matched to DELIVERED Runs, by the reverted sha (the receipt's head) or by subject (squash merges keep it). A stable, low revert rate while throughput rises is the signal that quality held.
+- **Verification token share**: tokens recorded with `budget record --role reviewer|judge|verification` over all role-labelled tokens (`maker`, `other` are the rest).
+
+`calibrate` treats each detected revert as an outcome (`by: git`) unless one was already recorded by hand.
+
 ## 10. Reviewer Calibration (C-13)
 
 Gates prove the change matches the Goal; only reality proves the reviewers were right. After delivery, record problems people found:
@@ -190,4 +202,10 @@ ael learn promote L-abc123 --check "! grep -rq \"require('fs')\" src/renderer" -
 Rules live in `.ai-engineering-loop/rules.json` (tracked). Default `verify` runs every rule as an L1 check after the static checks; a violation prints `Rule <id> violated. WHY: ... FIX: ...`. The verification gate refuses a full-scope bundle in which any rule has no passing record (`RULES_MISSING`). The check must exit non-zero on a violation and is run through the shell unless `--no-shell` is given.
 
 **Ratchet rules (C-17).** `--scope diff` judges only what the change adds, so a rule can be promoted on a codebase that still has old violations. Its check receives `AEL_CHANGED_FILES` (one path per line) and `AEL_ADDED_LINES_FILE` (`path:line:text` for every added line, the `grep -n` format), for example `! grep -E "useEffect\(" "$AEL_ADDED_LINES_FILE"` (POSIX shell) or a small Node script for Windows. New occurrences fail with their `file:line`; old ones do not. `doctor --harness` runs each diff rule against every tracked line and reports the remaining legacy backlog, and says when it is clean enough to switch the rule to `--scope repo`.
+
+**Built-in rule kinds (C-20).** The two most common corrections need no hand-written check:
+- `--forbid-import "<fromGlob> -> <toGlob>"`: files under `fromGlob` may not import modules under `toGlob`. Relative specifiers are resolved against the importing file (with common extensions); bare names such as `fs` or `react` match as written, so `"src/renderer/** -> fs"` forbids Node's `fs` in the renderer.
+- `--forbid-api "<regex>" [--except "<glob>"]`: the API may appear only inside the excepted paths, for example `useEffect` only in `src/framework/**`.
+
+Both are stored with `kind`, always use `scope: "diff"`, and run as `rules check <ruleId>` through the same CLI (so `rules.json` holds no machine-specific path). Violations print as `file:line: <message>` and the rule's FIX.
 

@@ -97,6 +97,19 @@ Keduanya punya FIX bawaan, misalnya "pindahkan akses ke <toGlob> lewat ..."; tek
 - AC-2: `stats` menampilkan porsi token per role kalau ledger punya `role`.
 **Effort:** M.
 
+## C-25 · P3 · Integrasi pstack `/statechart` lewat `formal` + diagram Mermaid untuk `flow`
+
+**Sumber:** 12:46–13:06 (skill `statechart` di plugin pstack, untuk memvisualisasikan state machine dari sudut pandang user dan mereview-nya bersama video dan screenshot); [`cursor/plugins/pstack/skills/statechart`](https://github.com/cursor/plugins/tree/main/pstack/skills/statechart) (MIT, Lauren Tan).
+**Bukti:** skill `statechart` melakukan model checking TLA+ dengan TLC lalu menggambar hasilnya sebagai statechart Mermaid, dengan jalur terpendek ke setiap state yang melanggar rule. Dependensinya Java + TLC (lewat `mise`, butuh internet saat pertama jalan), runtime TypeScript, dan renderer Pele; skill ini juga `disable-model-invocation`. AEL adalah Node murni tanpa dependency, jadi skill ini tidak di-vendor. AEL sudah punya slot `formal` (layer `LF`, C-23) dan link `--evidence` bertipe diagram (C-21), tapi belum ada resep yang menyambungkan keduanya. `flow` di Goal (C-21) sejauh ini hanya dirender sebagai tabel, belum sebagai diagram (`lib/receipt.js:286`).
+**Usulan:**
+1. **Resep (hanya dokumentasi):** `docs formal-statechart` di `core/` menjelaskan alurnya. Pasang pstack sebagai plugin (Cursor, atau Claude Code lewat `/pstack:statechart`), tulis spec `.tla` beserta rule INVARIANT untuk alur berisiko (pembayaran, sinkronisasi, protokol), lalu daftarkan command-nya sebagai key `formal` di `verification.md`, misalnya `- **formal**: \`<pstack>/skills/statechart/scripts/statechart spec/checkout.tla --out .tmp/statechart\``. AC mensyaratkannya dengan `"verify": { "layer": "LF" }`, dan `chart.mmd` (atau gambar hasil render) dilampirkan lewat `--evidence AC-N=<url>`. Dokumen ini juga menjelaskan bahwa TLC melanjutkan pemeriksaan melewati bug, jadi konstanta model harus dijaga kecil.
+2. **Diagram Mermaid untuk `flow` (kode kecil):** receipt merender `flow` sebagai blok ```` ```mermaid stateDiagram-v2 ```` di samping tabel yang sudah ada (GitHub merender Mermaid), dan `goal draft` mengembalikan teks Mermaid yang sama di `extra.flow.mermaid`. Ini visualisasi saja, bukan model checking, jadi tidak menggantikan `formal`. Mermaid tidak boleh masuk ke SKILL.md (test Kiro-safe); aturan itu hanya berlaku untuk skill, sedangkan receipt adalah output PR.
+**AC:**
+- AC-1: Receipt dengan `flow` memuat blok `mermaid` berisi `stateDiagram-v2` dan satu baris transisi per langkah (`A --> B: event`). Nama state yang mengandung spasi atau karakter khusus di-escape, sehingga diagram tetap valid.
+- AC-2: `goal draft` dengan `flow` mengembalikan `flow.mermaid` (string) di samping `flow.table`.
+- AC-3: `ael docs formal-statechart` tersedia dan menyebut lisensi MIT serta sumber pstack. Tidak ada dependency atau file pstack yang ikut dipaket ke npm (`audit:package` tetap lolos).
+**Effort:** S.
+
 ---
 
 **Sengaja tidak dibuat card:** outer loop fuzz → PR fix → auto-merge (16:07–16:47) dan auto-merge saat "nothing left to review" (09:26). Keduanya bergantung pada C-17..C-24 dan fondasi yang sudah ada berjalan lebih dulu, sesuai peringatan di 15:26.
