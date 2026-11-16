@@ -2041,10 +2041,14 @@ function handleGate() {
         ok: false,
         code: err.code || 'GATE_FAILED',
         error: err.message,
+        ...(err.why ? { why: err.why } : {}),
+        ...(err.fix ? { fix: err.fix } : {}),
         details
       }));
     } else {
       log.error(err.message);
+      if (err.why) console.error(`WHY: ${err.why}`);
+      if (err.fix) console.error(`FIX: ${err.fix}`);
       for (const detail of details) console.error(`- ${detail}`);
     }
     process.exit(1);
@@ -3367,9 +3371,11 @@ function splitCommand(text, shell) {
 
 function stageJsonError(err, json, code) {
   if (json) {
-    console.log(JSON.stringify({ ok: false, code: err.code || code, error: err.message, details: err.details || [] }));
+    console.log(JSON.stringify({ ok: false, code: err.code || code, error: err.message, ...(err.why ? { why: err.why } : {}), ...(err.fix ? { fix: err.fix } : {}), details: err.details || [] }));
   } else {
     log.error(err.message);
+    if (err.why) console.error(`WHY: ${err.why}`);
+    if (err.fix) console.error(`FIX: ${err.fix}`);
     for (const detail of err.details || []) console.error(`- ${detail}`);
   }
   process.exit(1);
