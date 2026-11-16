@@ -4,6 +4,10 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+_No changes yet._
+
+## 2.7.0 - 2026-11-16
+
 Harness gaps from a full review against learn-harness-engineering (cards C-01..C-16 in `docs/cards/harness-gaps-2026-11-16.md`).
 
 - **Added:** L3 enforcement (#112 follow-up): `crossComponent` ACs and every T2 AC need L3 evidence or `L3 waived: <reason>`; Layer tags must match a recorded command of that layer (C-01); `gate review` checks claimed-vs-reality on T1/T2 too.

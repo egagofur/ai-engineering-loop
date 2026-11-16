@@ -1,5 +1,7 @@
 # Harness gap cards (2026-11-16)
 
+> **Status: closed.** All cards C-01..C-16 shipped in [#113](https://github.com/egagofur/ai-engineering-loop/pull/113) (v2.7.0); the L3 gate that started this audit shipped in [#112](https://github.com/egagofur/ai-engineering-loop/pull/112). Deviation: C-10 labels pre-existing failures but still blocks the gate.
+
 Audit `ai-engineering-loop` terhadap praktik di [walkinglabs/learn-harness-engineering](https://github.com/walkinglabs/learn-harness-engineering) (MIT). Ide diadaptasi dengan kata sendiri.
 
 **Cakupan bacaan (revisi 2):** semua lecture 01-14 (isi lengkap + folder `code/`), dokumen project 01-08, file harness di `projects/*/solution` (AGENTS.md, feature_list, init.sh, handoff, clean-state, quality doc, rubric, sprint contract, script `check-architecture`/`cleanup-scanner`/`benchmark`), `docs/en/resources` (templates, reference, OpenAI advanced pack + SOP), `docs/en/harness-designs` (Claude Code, Codex, DeepSeek, Pi), skill `harness-creator` (SKILL, references, script scoring, templates), `tools/audit-harness.sh`, README dan CLAUDE.md. **Tidak dibaca:** source code aplikasi Electron di `projects/*/src` (kode produk contoh, bukan harness) dan terjemahan non-Inggris.
