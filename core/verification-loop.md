@@ -156,3 +156,7 @@ At `gate delivery` the CLI copies two kinds of deferred work into `.ai-engineeri
 
 `review-pack` appends open debt on the files the new diff touches to the Devil's Advocate pack and lists it. `ael debt` lists open items (`--file <path>`); `ael debt close <id> --by <name> [--note <text>]` closes one.
 
+## 9. Reviewer Inputs Are Logged (C-16)
+
+"Model-visible means logged": `review-pack` writes `runs/<id>/review-inputs.json` with the sha256 of the review pack, the gated diff, and the Devil's Advocate prompt body. `review ingest` copies them into `findings.json` (`reviewer.inputs`, `reviewer.promptSha256`). `gate review` fails the ledger binding when any recorded input changed after the reviewer saw it, so a missed defect can always be traced to exactly what the reviewer was shown.
+

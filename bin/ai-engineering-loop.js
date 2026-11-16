@@ -3745,6 +3745,8 @@ function handleReviewPack() {
     } catch {
       openDebt = [];
     }
+    const diffRelative = path.relative(CWD, path.join(runsDir(CWD), runId, 'diff.patch')).split(path.sep).join('/');
+    const reviewInputs = require('../lib/review-ingest.js').recordReviewInputs(CWD, runId, { packPath: pack.path, diffPath: diffRelative });
     autoHeartbeat(runId, 'review', 'Review pack built');
     const result = {
       ok: true,
@@ -3759,6 +3761,7 @@ function handleReviewPack() {
       unresolvedFindings: pack.unresolvedFindings,
       impactDrift: pack.impactDrift,
       openDebt: openDebt.map((item) => ({ id: item.id, location: item.location, debt: item.debt })),
+      reviewInputs: { inputs: reviewInputs.inputs, promptSha256: reviewInputs.promptSha256 },
       fastPath: { eligible: fastPath.eligible, reasons: fastPath.reasons },
       escalation: { requiredTier: escalation.requiredTier, reasons: escalation.reasons.map((r) => r.code) }
     };
