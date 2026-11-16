@@ -3413,13 +3413,19 @@ async function handleVerify() {
       // C-02: no --cmd runs the cheapest-first plan (L1 build/typecheck/lint,
       // then L2 test_unit) and stops at the first failure.
       const plan = lanes.defaultCommandPlan(CWD);
+      // C-05: promoted review rules run as L1 checks, after the static checks.
+      const rules = require('../lib/rules.js').rulePlan(CWD);
+      if (rules.length) {
+        const firstL2 = plan.findIndex((step) => step.layer !== 'L1');
+        plan.splice(firstL2 === -1 ? plan.length : firstL2, 0, ...rules);
+      }
       // C-03: startup-risky diffs also run the configured smoke check (L2).
       const smokeText = lanes.verificationCommands(CWD).smoke;
       if (smokeText && !baselineMode && lanes.startupRiskFiles(CWD, loadRun(CWD, runId)).length) {
         plan.push({ key: 'smoke', layer: 'L2', text: smokeText });
       }
       if (!plan.length) throw Object.assign(new Error('No --cmd given and no build/typecheck/lint/test_unit command in .ai-engineering-loop/verification.md. FIX: add them to verification.md or pass --cmd.'), { code: 'INVALID_COMMAND' });
-      commandsToRun = plan.map((step) => ({ ...splitCommand(step.text, shell), key: step.key, layer: step.layer }));
+      commandsToRun = plan.map((step) => ({ ...splitCommand(step.text, shell || Boolean(step.shell)), key: step.key, layer: step.layer }));
       defaultPlan = true;
     } else {
       commandsToRun = texts.map((text) => {
@@ -3493,6 +3499,10 @@ async function handleVerify() {
         log.error('Verification failed; the gate was not attempted.');
         for (const c of commands) console.log(`- ${c.command}: exit ${c.exitCode} (${c.timeoutStatus})`);
         for (const skippedCommand of recorded.skipped) console.log(`- ${skippedCommand}: skipped (an earlier, cheaper check failed)`);
+        for (const c of commands.filter((item) => item.exitCode !== 0)) {
+          const rule = require('../lib/rules.js').ruleForCommand(CWD, c.command);
+          if (rule) console.log(`! Rule ${rule.id} violated. WHY: ${rule.why} FIX: ${rule.fix}`);
+        }
         for (const f of failures) {
           console.log(f.preExisting
             ? `! ${f.command}: every failure was already failing at baseline (pre-existing). FIX: repair it in a separate Run, or narrow --cmd to the tests this change owns.`
@@ -4073,6 +4083,22 @@ function handleQuick() {
 
 function handleLearn() {
   const json = process.argv.includes('--json');
+  if (args[1] === 'promote') {
+    try {
+      const rule = require('../lib/rules.js').promoteLearning(CWD, args[2], {
+        check: argValue('--check'),
+        fix: argValue('--fix'),
+        why: argValue('--why'),
+        by: argValue('--by'),
+        shell: !process.argv.includes('--no-shell')
+      });
+      if (json) console.log(JSON.stringify({ ok: true, rule }));
+      else log.success(`✓ ${rule.from} promoted to rule ${rule.id}; default \`verify\` now runs: ${rule.check}`);
+    } catch (err) {
+      stageJsonError(err, json, 'LEARN_PROMOTE_FAILED');
+    }
+    return;
+  }
   try {
     const maxAge = argValue('--max-age-runs');
     const result = learn(CWD, {
@@ -4081,8 +4107,9 @@ function handleLearn() {
       ...(maxAge == null ? {} : { maxAgeRuns: parsePositiveIntegerArg('--max-age-runs', maxAge) })
     });
     const { document } = result;
+    const candidates = require('../lib/rules.js').promotionCandidates(CWD, document.entries);
     if (json) {
-      console.log(JSON.stringify({ ok: true, written: result.written, path: result.path, pruned: result.pruned, learnings: document }));
+      console.log(JSON.stringify({ ok: true, written: result.written, path: result.path, pruned: result.pruned, promotionCandidates: candidates, learnings: document }));
       return;
     }
     log.success(`✓ ${document.entries.length} learning(s) from ${document.sourceRuns} Run(s)${result.written ? ` → ${result.path}` : ' (dry run, nothing written)'}`);
@@ -4090,6 +4117,9 @@ function handleLearn() {
       console.log(`- ${entry.id} [${entry.axis}, ${entry.severity}, ×${entry.occurrences}] ${entry.lesson}`);
     }
     for (const item of result.pruned) console.log(`  pruned ${item.id} (${item.reason})`);
+    for (const item of candidates) {
+      console.log(`! Promote candidate ${item.id} (seen in ${item.runs} Runs): ${item.lesson}. Make it a check: learn promote ${item.id} --check "<command>" --fix "<instruction>" --by <name>`);
+    }
   } catch (err) {
     stageJsonError(err, json, 'LEARN_FAILED');
   }
@@ -4271,6 +4301,8 @@ Commands:
                writes RUN_DIR/receipt.json + receipt.md (paste into the PR/MR body); digest stored in delivery.json
   verify-receipt  Re-check a delivery receipt: artifact hashes, frozen Goal, AC evidence, verdict, head SHA
                [--run <id> | <repository-relative-receipt.json>] [--head <sha>] [--json]   exit 1 on mismatch (CI)
+  learn promote <learningId> --check "<command>" --fix "<instruction>" --by <name> [--why <text>] [--no-shell]
+               turn a recurring review lesson into an executable L1 rule (.ai-engineering-loop/rules.json)
   learn        Mine past Runs' VALID findings into .ai-engineering-loop/learnings.json (+ .md) for context packs
                [--dry-run] [--prune] [--max-age-runs <n>] [--json]
                deterministic and deduped with runId provenance; --prune drops lessons whose files are gone

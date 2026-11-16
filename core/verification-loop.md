@@ -171,3 +171,13 @@ ael calibrate [--json]
 
 `calibrate` compares each outcome with that Run's Finding Ledger: `DA_MISS` (no finding on that file), `FALSE_DISMISS` (a finding on that file was marked INVALID or dismissed), `CAUGHT_BUT_SHIPPED` (a VALID finding was accepted as a trade-off). Results are grouped by the reviewer prompt hash (C-16), so after you tighten `agents/shared/devil-advocate.body.md` for a recurring miss you can see whether the next prompt version misses less. Plan for several tuning rounds; record each prompt change in its commit message.
 
+## 11. Promoting Review Feedback to Rules (C-05)
+
+`learn` lists **promotion candidates**: learnings seen in 3 or more Runs. A human turns one into an executable check:
+
+```
+ael learn promote L-abc123 --check "! grep -rq \"require('fs')\" src/renderer" --fix "Move file access to src/preload/file-ops.ts and call window.api" --by <name> [--why <text>]
+```
+
+Rules live in `.ai-engineering-loop/rules.json` (tracked). Default `verify` runs every rule as an L1 check after the static checks; a violation prints `Rule <id> violated. WHY: ... FIX: ...`. The verification gate refuses a full-scope bundle in which any rule has no passing record (`RULES_MISSING`). The check must exit non-zero on a violation and is run through the shell unless `--no-shell` is given.
+
