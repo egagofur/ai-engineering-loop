@@ -64,7 +64,7 @@ function verification(root, diffHash, exitCode = 0) {
   };
 }
 
-function claimedVsReality(root, reality = 'node --test: 1 passed, exit 0') {
+function claimedVsReality(root, reality = 'node --test: 1 passed, exit 0; manual flow ok') {
   fs.mkdirSync(path.join(root, '.ai-engineering-loop/tasks'), { recursive: true });
   fs.writeFileSync(
     path.join(root, '.ai-engineering-loop/tasks/claimed-vs-reality.md'),

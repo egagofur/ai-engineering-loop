@@ -65,6 +65,7 @@ Enforcement (`lib/claimed-vs-reality.js`, `gate review`):
 - The Layer cell accepts `L1`, `L2`, `L3`, combos such as `L2+L3`, and `L3 waived: <reason>` (at least 15 characters). Unknown tokens fail the gate.
 - An AC that needs L3 without L3 or a reasoned waiver fails `gate review` on every tier, with a FIX line that says what to run.
 - Legacy 3-column files stay valid when no AC needs L3.
+- Tags are bound to recorded evidence (C-01): `L1` needs a passing L1 command in `verification.json`/`final-verification.json`; `L3` needs a passing `e2e` command, or Reality that describes a manual end-to-end flow (steps, URL, screenshot path). Commands not mapped in `verification.md` count as L2. Waivers need no command.
 - When `e2e` is empty in `verification.md`, run the AC's real user flow and cite the observation, or write the waiver. Devil's Advocate and Judge challenge waivers like any other claim.
 
 ---

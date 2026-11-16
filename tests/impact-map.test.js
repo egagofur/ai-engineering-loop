@@ -173,7 +173,7 @@ test('verify records out-of-map files; review-pack shows them and the review gat
   assert.deepStrictEqual(verify.impactDrift, { mapStatus: 'CONFIRMED', outOfMap: ['src/users/profile.js'] });
   fs.writeFileSync(
     path.join(ctx.repo, '.ai-engineering-loop/tasks/claimed-vs-reality.md'),
-    '| AC | Claimed | Reality from command log | Layer |\n|---|---|---|---|\n| AC-1 | locked | node --version exit 0 | L2+L3 |\n'
+    '| AC | Claimed | Reality from command log | Layer |\n|---|---|---|---|\n| AC-1 | locked | node --version exit 0; manual flow ok | L2+L3 |\n'
   );
   const pack = JSON.parse(ok(ctx.cli('review-pack', '--run', runId, '--json'), 'review-pack').stdout);
   assert.deepStrictEqual(pack.impactDrift.outOfMap, ['src/users/profile.js']);
@@ -243,7 +243,7 @@ test('design drift lists unplanned and untouched files; review pack gets two lin
   ok(ctx.cli('verify', '--run', run.runId, '--cmd', 'node --version', '--json'), 'verify');
   fs.writeFileSync(
     path.join(ctx.repo, '.ai-engineering-loop/tasks/claimed-vs-reality.md'),
-    '| AC | Claimed | Reality from command log | Layer |\n|---|---|---|---|\n| AC-1 | locked | node --version exit 0 | L2+L3 |\n'
+    '| AC | Claimed | Reality from command log | Layer |\n|---|---|---|---|\n| AC-1 | locked | node --version exit 0; manual flow ok | L2+L3 |\n'
   );
   const pack = JSON.parse(ok(ctx.cli('review-pack', '--run', run.runId, '--json'), 'review-pack').stdout);
   assert.strictEqual(pack.impactDrift.design.length, 2);
