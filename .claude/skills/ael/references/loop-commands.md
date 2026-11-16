@@ -10,7 +10,7 @@
 ## Harness health and history
 
 Run these when the user asks how the loop is doing, before planning work, or when a gate points at them. All read local Run files; none starts a Run.
-- `stats [--last <n>] [--json]`: failure causes by harness layer (`task_spec`, `context`, `environment`, `verification`, `state`, `model`), false-victory rate per tier, iterations to PASS. Fix the bottleneck layer first.
+- `stats [--last <n>] [--json]`: failure causes by harness layer (`task_spec`, `context`, `environment`, `verification`, `state`, `model`), false-victory rate per tier, iterations to PASS, revert rate of delivered Runs (from git) and the verification share of tokens. Fix the bottleneck layer first.
 - `outcome record --run <id> --source mr-comment|revert|bug|incident --location <file[:line]> --summary <text> --by <name>`: a problem people found after delivery. Only record what the human reported; never invent one. Then `calibrate` lists DA misses and wrong dismissals per reviewer prompt version.
 - `debt [--file <path>]` lists trade-offs the Judge accepted and L3 waivers; `debt close <id> --by <name>` only on the human's word.
 - `next`: the next unblocked feature in `.ai-engineering-loop/features.json` and VCR (verified/activated). Finish the active feature before starting another.
@@ -29,7 +29,7 @@ Stage commands (`run`, `goal`, `gate`, `verify`, `review-pack`, `deliver`, `node
 
 ## Budget
 
-`run --json` already reports the budget; run `budget status --run <runId>` only before each new iteration. After each child, `budget record --input <n> --output <n> --model <id> --run <runId>` from provider usage. No usage shown: `budget record --unavailable --run <runId>` once; ASSISTED continues and discloses it at delivery (do not ask the human); UNATTENDED fails that command, so stop and escalate. `budget pause` is the kill switch. The ledger mode is immutable. UNATTENDED or budget errors: `docs runtime-safety`.
+`run --json` already reports the budget; run `budget status --run <runId>` only before each new iteration. After each child, `budget record --input <n> --output <n> --model <id> --role maker|reviewer|judge|verification --run <runId>` from provider usage. No usage shown: `budget record --unavailable --run <runId>` once; ASSISTED continues and discloses it at delivery (do not ask the human); UNATTENDED fails that command, so stop and escalate. `budget pause` is the kill switch. The ledger mode is immutable. UNATTENDED or budget errors: `docs runtime-safety`.
 
 ## Resuming
 

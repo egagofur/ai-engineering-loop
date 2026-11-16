@@ -172,6 +172,14 @@ At `gate delivery` the CLI copies two kinds of deferred work into `.ai-engineeri
 
 "Model-visible means logged": `review-pack` writes `runs/<id>/review-inputs.json` with the sha256 of the review pack, the gated diff, and the Devil's Advocate prompt body. `review ingest` copies them into `findings.json` (`reviewer.inputs`, `reviewer.promptSha256`). `gate review` fails the ledger binding when any recorded input changed after the reviewer saw it, so a missed defect can always be traced to exactly what the reviewer was shown.
 
+## 9b. Quality Anchors from Git and the Budget Ledger (C-24)
+
+`ael stats` also reports:
+- **Revert rate**: git `Revert "<subject>"` commits matched to DELIVERED Runs, by the reverted sha (the receipt's head) or by subject (squash merges keep it). A stable, low revert rate while throughput rises is the signal that quality held.
+- **Verification token share**: tokens recorded with `budget record --role reviewer|judge|verification` over all role-labelled tokens (`maker`, `other` are the rest).
+
+`calibrate` treats each detected revert as an outcome (`by: git`) unless one was already recorded by hand.
+
 ## 10. Reviewer Calibration (C-13)
 
 Gates prove the change matches the Goal; only reality proves the reviewers were right. After delivery, record problems people found:

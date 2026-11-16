@@ -219,3 +219,49 @@ test('C-21 AC-2 crossComponent and rubric ACs need an artifact link; others do n
   assert.strictEqual(criterionEntry({ id: 'AC-2', statement: 's', rubric: [{ criterion: 'c', pass: 'p' }] }, { commands: passing, claims, links: {} }).status, 'MISSING');
   assert.strictEqual(criterionEntry({ id: 'AC-3', statement: 's' }, { commands: passing, claims, links: {} }).status, 'PASS');
 });
+
+// C-24: revert rate from git and token share per role.
+test('C-24 AC-1/AC-2 stats reports the revert rate from git and the verification token share', () => {
+  const { computeStats } = require('../lib/stats.js');
+  const { usageDir } = require('../lib/budget.js');
+  const { calibrate } = require('../lib/calibration.js');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-revert-'));
+  const git = (...args) => execFileSync('git', ['-c', 'user.email=a@b.c', '-c', 'user.name=t', ...args], { cwd: root, encoding: 'utf8' }).trim();
+  git('init', '-q');
+  fs.writeFileSync(path.join(root, 'base.txt'), 'base\n');
+  git('add', '.');
+  git('commit', '-qm', 'init');
+  const heads = [];
+  for (let i = 0; i < 20; i += 1) {
+    fs.writeFileSync(path.join(root, `f${i}.js`), `module.exports = ${i};\n`);
+    git('add', '.');
+    git('commit', '-qm', `feat: change ${i}`);
+    heads.push(git('rev-parse', 'HEAD'));
+  }
+  git('revert', '--no-edit', heads[7]);
+  heads.forEach((head, i) => {
+    const dir = path.join(root, '.ai-engineering-loop', 'runs', `run-${String(i).padStart(2, '0')}`);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify({ runId: `run-${String(i).padStart(2, '0')}`, state: 'DELIVERED' }));
+    fs.writeFileSync(path.join(dir, 'receipt.json'), JSON.stringify({ head: { sha: head } }));
+  });
+  fs.mkdirSync(usageDir(root), { recursive: true });
+  const usage = (role, total) => JSON.stringify({ schemaVersion: 1, runId: 'run-00', inputTokens: total, outputTokens: 0, totalTokens: total, model: 'claude-x', role, recordedAt: '2026-11-16T00:00:00.000Z' });
+  fs.writeFileSync(path.join(usageDir(root), '2026-11-16.jsonl'), [usage('maker', 300), usage('reviewer', 500), usage('judge', 200)].join('\n') + '\n');
+  const stats = computeStats(root);
+  assert.strictEqual(stats.delivered, 20);
+  assert.deepStrictEqual(stats.reverted.map((r) => [r.runId, r.location]), [['run-07', 'f7.js']]);
+  assert.strictEqual(stats.revertRate, 0.05);
+  assert.strictEqual(stats.verificationTokenShare, 0.7);
+  const report = calibrate(root);
+  assert.deepStrictEqual(report.rows.map((row) => [row.runId, row.source, row.by, row.verdict]), [['run-07', 'revert', 'git', 'DA_MISS']]);
+});
+
+test('C-24 budget record rejects an unknown role', () => {
+  const { recordTokenUsage } = require('../lib/budget.js');
+  const { createRun } = require('../lib/run-state.js');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-role-'));
+  createRun(root, { runId: 'run-1', task: 'x' });
+  assert.throws(() => recordTokenUsage(root, { runId: 'run-1', inputTokens: 1, outputTokens: 1, model: 'claude-x', role: 'boss' }), /role must be one of/);
+  assert.strictEqual(recordTokenUsage(root, { runId: 'run-1', inputTokens: 1, outputTokens: 1, model: 'claude-x', role: 'judge' }).entry.role, 'judge');
+});

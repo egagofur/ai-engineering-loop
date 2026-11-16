@@ -1698,7 +1698,8 @@ function handleBudget() {
         nodeId,
         inputTokens: parseNonNegativeIntegerArg('--input', argValue('--input')),
         outputTokens: parseNonNegativeIntegerArg('--output', argValue('--output')),
-        model: argValue('--model')
+        model: argValue('--model'),
+        role: argValue('--role')
       });
     } else if (action === 'pause' || action === 'resume') {
       result = setKillSwitch(CWD, action === 'pause');
