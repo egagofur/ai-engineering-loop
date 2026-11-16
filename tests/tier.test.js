@@ -253,6 +253,20 @@ test('C-09 a rubric AC needs every criterion scored with evidence before Judge P
   assert.strictEqual(judgeWith([contrast, { ac: 'AC-1', criterion: 'empty state', pass: true, evidence: 'guidance in shots/e2.png' }])().state, RUN_STATES.JUDGED_PASS);
 });
 
+test('C-18 review gate adds suppression findings to the ledger and the Judge must decide', () => {
+  const root = tempRepo('Add pagination to the list endpoint');
+  const SUPPRESS_DIFF = 'diff --git a/src/list.ts b/src/list.ts\n--- a/src/list.ts\n+++ b/src/list.ts\n@@ -1 +1,2 @@\n-const a = 1;\n+// @ts-ignore\n+const a: number = "1";\n';
+  const diffHash = advanceToVerified(root, SUPPRESS_DIFF);
+  claimedVsReality(root);
+  writeArtifact(root, 'findings.json', { schemaVersion: 1, runId: 'run-001', diffHash, findings: [] });
+  applyGate(root, 'review');
+  const ledger = JSON.parse(fs.readFileSync(artifactPath(root, 'run-001', 'findings.json'), 'utf8'));
+  const found = ledger.findings.find((f) => f.source === 'comment-justification');
+  assert.strictEqual(found.location, 'src/list.ts:1');
+  assert.strictEqual(found.severity, 'HIGH');
+  assert.throws(() => applyGate(root, 'judge'), /Judge subagent required/);
+});
+
 test('legacy runs without a tier keep the full Judge requirement', () => {
   const root = tempRepo(null);
   const diffHash = advanceToVerified(root, CODE_DIFF);

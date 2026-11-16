@@ -94,6 +94,14 @@ At `gate review` the CLI scans the gated diff and adds `source: "verification-in
 
 These findings cannot be dropped or downgraded by the reviewer. Only a human dismissal (`dismissal: {by, evidence}`) can downgrade them; otherwise the review gate fails.
 
+## 3c. Justification Comments and Suppressions (C-18)
+
+Agents write comments to justify not doing the right thing, and comments cannot be enforced. At `gate review` the CLI scans comments added in non-test product files and adds `source: "comment-justification"` findings (`axis: "standards"`):
+- a suppression (`eslint-disable*`, `@ts-ignore`, `@ts-expect-error`, `# type: ignore`, `# noqa`, `//nolint`, `NOSONAR`, `istanbul/c8 ignore`): **HIGH** without a reason, **MEDIUM** with one (eslint `-- reason`, or text after the directive);
+- a comment that justifies a workaround (`workaround`, `quick fix`, `hack`, `temporary`, `for now`, `band-aid`, `fix later`, ...): **MEDIUM**. Projects add patterns in `.ai-engineering-loop/rules.json` as `"justificationPatterns": ["<regex>"]`.
+
+Docs, changelogs, data files and tests are skipped. Unlike C-11, a reviewer may downgrade these with `dismissal: {by, evidence}` (for example generated code); dropping or downgrading one without evidence fails the review gate.
+
 ## 4. The 4 Verification Gates
 
 1. **Gate 1: Unit & Integration Tests**: All unit and edge-case tests must pass with 0 failures.
@@ -180,4 +188,6 @@ ael learn promote L-abc123 --check "! grep -rq \"require('fs')\" src/renderer" -
 ```
 
 Rules live in `.ai-engineering-loop/rules.json` (tracked). Default `verify` runs every rule as an L1 check after the static checks; a violation prints `Rule <id> violated. WHY: ... FIX: ...`. The verification gate refuses a full-scope bundle in which any rule has no passing record (`RULES_MISSING`). The check must exit non-zero on a violation and is run through the shell unless `--no-shell` is given.
+
+**Ratchet rules (C-17).** `--scope diff` judges only what the change adds, so a rule can be promoted on a codebase that still has old violations. Its check receives `AEL_CHANGED_FILES` (one path per line) and `AEL_ADDED_LINES_FILE` (`path:line:text` for every added line, the `grep -n` format), for example `! grep -E "useEffect\(" "$AEL_ADDED_LINES_FILE"` (POSIX shell) or a small Node script for Windows. New occurrences fail with their `file:line`; old ones do not. `doctor --harness` runs each diff rule against every tracked line and reports the remaining legacy backlog, and says when it is clean enough to switch the rule to `--scope repo`.
 

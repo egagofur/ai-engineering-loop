@@ -3433,7 +3433,7 @@ async function handleVerify() {
       // then L2 test_unit) and stops at the first failure.
       const plan = lanes.defaultCommandPlan(CWD);
       // C-05: promoted review rules run as L1 checks, after the static checks.
-      const rules = require('../lib/rules.js').rulePlan(CWD);
+      const rules = require('../lib/rules.js').rulePlan(CWD, loadRun(CWD, runId));
       if (rules.length) {
         const firstL2 = plan.findIndex((step) => step.layer !== 'L1');
         plan.splice(firstL2 === -1 ? plan.length : firstL2, 0, ...rules);
@@ -3444,7 +3444,7 @@ async function handleVerify() {
         plan.push({ key: 'smoke', layer: 'L2', text: smokeText });
       }
       if (!plan.length) throw Object.assign(new Error('No --cmd given and no build/typecheck/lint/test_unit command in .ai-engineering-loop/verification.md. FIX: add them to verification.md or pass --cmd.'), { code: 'INVALID_COMMAND' });
-      commandsToRun = plan.map((step) => ({ ...splitCommand(step.text, shell || Boolean(step.shell)), key: step.key, layer: step.layer }));
+      commandsToRun = plan.map((step) => ({ ...splitCommand(step.text, shell || Boolean(step.shell)), key: step.key, layer: step.layer, ...(step.env ? { env: step.env } : {}) }));
       defaultPlan = true;
     } else {
       commandsToRun = texts.map((text) => {
@@ -4134,6 +4134,7 @@ function handleLearn() {
         fix: argValue('--fix'),
         why: argValue('--why'),
         by: argValue('--by'),
+        scope: argValue('--scope') || 'repo',
         shell: !process.argv.includes('--no-shell')
       });
       if (json) console.log(JSON.stringify({ ok: true, rule }));
@@ -4346,7 +4347,8 @@ Commands:
                writes RUN_DIR/receipt.json + receipt.md (paste into the PR/MR body); digest stored in delivery.json
   verify-receipt  Re-check a delivery receipt: artifact hashes, frozen Goal, AC evidence, verdict, head SHA
                [--run <id> | <repository-relative-receipt.json>] [--head <sha>] [--json]   exit 1 on mismatch (CI)
-  learn promote <learningId> --check "<command>" --fix "<instruction>" --by <name> [--why <text>] [--no-shell]
+  learn promote <learningId> --check "<command>" --fix "<instruction>" --by <name> [--why <text>] [--scope repo|diff] [--no-shell]
+               --scope diff: the check sees only lines this change adds ($AEL_ADDED_LINES_FILE, $AEL_CHANGED_FILES)
                turn a recurring review lesson into an executable L1 rule (.ai-engineering-loop/rules.json)
   learn        Mine past Runs' VALID findings into .ai-engineering-loop/learnings.json (+ .md) for context packs
                [--dry-run] [--prune] [--max-age-runs <n>] [--json]
