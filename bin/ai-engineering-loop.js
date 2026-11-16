@@ -2019,6 +2019,7 @@ function handleGate() {
       console.log(`- Run: ${run.runId}`);
       console.log(`- State: ${run.state}, iteration ${run.iteration}`);
       if (run.tier) console.log(`- Tier: ${run.tier.current}`);
+      for (const warning of (run.history || []).at(-1)?.cleanStateWarnings || []) console.log(`! Clean state: ${warning}`);
       if (guardEvents.warn || guardEvents.block) {
         console.log(`- Guard: ${guardEvents.block} blocked, ${guardEvents.warn} warned (${guardEvents.rules.join(', ')}); see guard-events.json`);
       }

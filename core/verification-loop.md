@@ -141,3 +141,9 @@ Do **not** spawn Devil's Advocate if:
 - Reality is only `seems green`
 
 Parser: `lib/claimed-vs-reality.js` (`readyForDa`). Pass that path to DA/Judge with the verification log.
+
+## 7. Clean State at Delivery (C-06)
+
+`gate delivery` also checks that the next session starts from a tree it can trust:
+- **Always blocks:** a `debugger` statement, merge-conflict marker or interactive breakpoint added by the change; a secret-like file in the change (`.env`, `.env.local`, keys; `.env.example` is fine); a `_templateOnly` scaffold left in the Run directory or `.ai-engineering-loop/tasks/`.
+- **Untracked files that are not part of the reviewed diff** (logs, coverage, scratch files): block in UNATTENDED, warn in ASSISTED. Warnings are printed and kept in the Run history as `cleanStateWarnings`.
