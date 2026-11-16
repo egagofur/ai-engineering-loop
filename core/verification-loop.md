@@ -69,6 +69,18 @@ Enforcement (`lib/claimed-vs-reality.js`, `gate review`):
 
 ---
 
+## 3a. Baseline and Default Plan
+
+**Baseline (C-10).** After the Goal gate and before the Maker gate, `verify --baseline --run <id>` runs the default plan on the untouched tree and writes `runs/<id>/baseline.json` with status `GREEN`, `RED`, or `BROKEN`.
+- `BROKEN` (a command exits 127, i.e. it does not exist): the command fails with a FIX to correct `verification.md`. Verification cannot prove anything with a broken command.
+- `RED`: the tree was already failing. Later, when `verify` fails, each failing command is labelled `pre-existing` (every failing test name was already failing at baseline) or new. Unnamed failures are always treated as new. The gate still blocks; the label tells the Maker whether the change caused it.
+
+**Default plan (C-02).** `verify` without `--cmd` runs `build -> typecheck -> lint -> test_unit` (whichever are configured), serially, and stops at the first failure. Commands that rewrite files (`--fix`, `--write`) are never run by default. Each record carries its layer (`L1`/`L2`/`L3`).
+
+**L1 at T1/T2.** When `verification.md` configures `typecheck` or `lint`, the verification gate at T1/T2 refuses a full-scope bundle with no L1 record (`L1_MISSING`). The related lane is exempt; `verify --final` runs the full plan.
+
+`init` writes only commands the project really has: `typecheck` from a script or a TypeScript setup, `lint` and `build` only from package scripts.
+
 ## 4. The 4 Verification Gates
 
 1. **Gate 1: Unit & Integration Tests**: All unit and edge-case tests must pass with 0 failures.

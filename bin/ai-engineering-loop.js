@@ -425,9 +425,9 @@ function analyzeRepository(rootDir) {
     scripts: {
       testUnit: 'npm test',
       testAll: 'npm test',
-      typecheck: 'npx tsc --noEmit',
-      lint: 'npx eslint --fix',
-      build: 'npm run build',
+      typecheck: null,
+      lint: null,
+      build: null,
       e2e: null
     },
     adapter: {
@@ -506,12 +506,16 @@ function analyzeRepository(rootDir) {
         discovery.scripts.testRelated = viaScript('--findRelatedTests --passWithNoTests {files}') || 'npx jest --findRelatedTests --passWithNoTests {files}';
       }
 
+      // Only commands the project really has: a guessed `npx tsc` can fetch an
+      // unrelated package, and `eslint --fix` would edit files during verify.
+      const hasTypeScript = Boolean(allDeps['typescript']) || fs.existsSync(path.join(rootDir, 'tsconfig.json'));
       if (scripts['typecheck']) discovery.scripts.typecheck = `${pm} run typecheck`;
       else if (scripts['type-check']) discovery.scripts.typecheck = `${pm} run type-check`;
       else if (scripts['check']) discovery.scripts.typecheck = `${pm} run check`;
+      else discovery.scripts.typecheck = hasTypeScript ? 'npx tsc --noEmit' : null;
 
-      if (scripts['lint']) discovery.scripts.lint = `${pm} run lint`;
-      if (scripts['build']) discovery.scripts.build = `${pm} run build`;
+      discovery.scripts.lint = scripts['lint'] ? `${pm} run lint` : null;
+      discovery.scripts.build = scripts['build'] ? `${pm} run build` : null;
       if (scripts['test:e2e']) discovery.scripts.e2e = `${pm} run test:e2e`;
     } catch (e) {}
   }
@@ -664,9 +668,9 @@ ${discovery.topLevelDirs.map((d) => `- \`${d}/\``).join('\n') || '- Flat directo
 
 ## Discovered Verification Commands
 - **test_unit**: \`${discovery.scripts.testUnit}\`
-- **typecheck**: \`${discovery.scripts.typecheck}\`
-- **lint**: \`${discovery.scripts.lint}\`
-- **build**: \`${discovery.scripts.build}\`
+${discovery.scripts.typecheck ? `- **typecheck**: \`${discovery.scripts.typecheck}\`` : ''}
+${discovery.scripts.lint ? `- **lint**: \`${discovery.scripts.lint}\`` : ''}
+${discovery.scripts.build ? `- **build**: \`${discovery.scripts.build}\`` : ''}
 ${discovery.scripts.e2e ? `- **e2e**: \`${discovery.scripts.e2e}\`` : ''}
 ${discovery.scripts.testRelated ? `- **test_related**: \`${discovery.scripts.testRelated}\`` : ''}
 
@@ -3391,19 +3395,44 @@ async function handleVerify() {
     if (related && final) throw Object.assign(new Error('--related and --final cannot be combined'), { code: 'INVALID_USAGE' });
     let texts = repeatedArg('--cmd');
     const lanes = require('../lib/verification-lanes.js');
+    const baselineMode = process.argv.includes('--baseline');
+    if (baselineMode && (related || final)) throw Object.assign(new Error('--baseline cannot be combined with --related or --final'), { code: 'INVALID_USAGE' });
     let commandsToRun;
+    let defaultPlan = false;
     if (related && texts.length === 0) {
       const target = loadRun(CWD, runId);
-      commandsToRun = [lanes.relatedCommand(CWD, target, { split: splitCommand, shell })];
+      commandsToRun = [{ ...lanes.relatedCommand(CWD, target, { split: splitCommand, shell }), layer: 'L2' }];
+    } else if (texts.length === 0) {
+      // C-02: no --cmd runs the cheapest-first plan (L1 build/typecheck/lint,
+      // then L2 test_unit) and stops at the first failure.
+      const plan = lanes.defaultCommandPlan(CWD);
+      if (!plan.length) throw Object.assign(new Error('No --cmd given and no build/typecheck/lint/test_unit command in .ai-engineering-loop/verification.md. FIX: add them to verification.md or pass --cmd.'), { code: 'INVALID_COMMAND' });
+      commandsToRun = plan.map((step) => ({ ...splitCommand(step.text, shell), key: step.key, layer: step.layer }));
+      defaultPlan = true;
     } else {
-      if (texts.length === 0) {
-        const fallback = defaultVerificationCommand();
-        if (!fallback) throw Object.assign(new Error('No --cmd given and no test_unit command in .ai-engineering-loop/verification.md'), { code: 'INVALID_COMMAND' });
-        texts = [fallback];
-      }
-      commandsToRun = texts.map((text) => splitCommand(text, shell));
+      commandsToRun = texts.map((text) => {
+        const layer = lanes.layerOfCommand(CWD, text);
+        return { ...splitCommand(text, shell), ...(layer ? { layer } : {}) };
+      });
     }
     const timeoutValue = argValue('--timeout-ms');
+    if (baselineMode) {
+      const outcome = await require('../lib/baseline.js').recordBaseline(CWD, {
+        runId,
+        plan: commandsToRun,
+        ...(timeoutValue == null ? {} : { timeoutMs: parsePositiveIntegerArg('--timeout-ms', timeoutValue) })
+      });
+      const result = { ok: outcome.status !== 'BROKEN', runId, baseline: outcome };
+      if (json) console.log(JSON.stringify(result));
+      else {
+        const say = outcome.status === 'GREEN' ? log.success : (outcome.status === 'RED' ? log.warn : log.error);
+        say(`Baseline ${outcome.status}: ${outcome.path}`);
+        for (const c of outcome.commands) console.log(`- ${c.command}: exit ${c.exitCode}`);
+        for (const problem of outcome.problems) console.log(`! ${problem}`);
+      }
+      if (!result.ok) process.exitCode = 1;
+      return;
+    }
     if (final) {
       const target = loadRun(CWD, runId);
       if (target.state !== 'JUDGED_PASS') throw Object.assign(new Error(`verify --final needs a Judge PASS (state is ${target.state})`), { code: 'INVALID_STATE' });
@@ -3437,17 +3466,26 @@ async function handleVerify() {
       commands: commandsToRun,
       serial: process.argv.includes('--serial'),
       fresh: process.argv.includes('--fresh'),
+      stopOnFailure: defaultPlan,
       ...(related ? { scope: 'related' } : {}),
       ...(timeoutValue == null ? {} : { timeoutMs: parsePositiveIntegerArg('--timeout-ms', timeoutValue) })
     });
-    const commands = recorded.commands.map((c) => ({ command: c.command, exitCode: c.exitCode, timeoutStatus: c.timeoutStatus, ...(c.scope ? { scope: c.scope } : {}), ...(c.reused ? { reused: true } : {}) }));
+    const commands = recorded.commands.map((c) => ({ command: c.command, exitCode: c.exitCode, timeoutStatus: c.timeoutStatus, ...(c.layer ? { layer: c.layer } : {}), ...(c.scope ? { scope: c.scope } : {}), ...(c.reused ? { reused: true } : {}) }));
     if (!recorded.passed) {
       autoHeartbeat(runId, 'verification', 'Verification failed; Maker must fix before review');
-      const result = { ok: false, code: 'VERIFICATION_FAILED', runId, commands, gate: null };
+      const baselineModule = require('../lib/baseline.js');
+      const failures = baselineModule.classifyAgainstBaseline(baselineModule.loadBaseline(CWD, runId), recorded.commands);
+      const result = { ok: false, code: 'VERIFICATION_FAILED', runId, commands, skipped: recorded.skipped, failures, gate: null };
       if (json) console.log(JSON.stringify(result));
       else {
         log.error('Verification failed; the gate was not attempted.');
         for (const c of commands) console.log(`- ${c.command}: exit ${c.exitCode} (${c.timeoutStatus})`);
+        for (const skippedCommand of recorded.skipped) console.log(`- ${skippedCommand}: skipped (an earlier, cheaper check failed)`);
+        for (const f of failures) {
+          console.log(f.preExisting
+            ? `! ${f.command}: every failure was already failing at baseline (pre-existing). FIX: repair it in a separate Run, or narrow --cmd to the tests this change owns.`
+            : `! ${f.command}: new failure(s)${f.newFailures.length ? `: ${f.newFailures.slice(0, 5).join('; ')}` : ''}. FIX: fix the change before review.`);
+        }
       }
       process.exitCode = 1;
       return;
@@ -4094,7 +4132,8 @@ Commands:
                start "<task>" [--mode assisted|unattended] | finish [--run <id>] [--cmd "<command>"]...
   verify       Record verification commands, gate them, compact, and scaffold claimed-vs-reality
                [--run <id>] [--cmd "<command>"]... [--shell] [--serial] [--timeout-ms <n>] [--fresh] [--json]
-               default command: test_unit from .ai-engineering-loop/verification.md; commands run in parallel
+               default (no --cmd): build -> typecheck -> lint -> test_unit from verification.md, serial, stops at first failure
+               --baseline  before the Maker gate: run the plan on the untouched tree, write baseline.json
                --related   fast lane: test_related with {files} = changed files of the gated diff
                --final     after Judge PASS: full run delivery needs when verification was related-only
                --fresh     re-run commands that already passed for the same diff and revision
