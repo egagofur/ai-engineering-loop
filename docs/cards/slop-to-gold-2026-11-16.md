@@ -1,5 +1,7 @@
 # Cards from "All Code Is Slop (Except Mine)" (2026-11-16)
 
+> **Status: closed.** C-17 and C-18 shipped in [#116](https://github.com/egagofur/ai-engineering-loop/pull/116), C-19..C-25 in [#117](https://github.com/egagofur/ai-engineering-loop/pull/117), released in v2.8.0. Deviations: C-22 keeps the driver per feature in the map; C-23 became a full verification catalog.
+
 Sumber: talk Lauren Tan ("Potato"), SpaceXSI, AI Engineer, 17:31, [youtube.com/watch?v=O_zcc6Xl12g](https://www.youtube.com/watch?v=O_zcc6Xl12g). Timestamp diambil dari auto-caption YouTube, sehingga nama produk di caption tidak konsisten. Ide diadaptasi dengan kata sendiri.
 
 **Tesis talk:** kualitas harus naik bersamaan dengan volume kode. Caranya: setiap koreksi diubah menjadi pemeriksaan deterministik di codebase (01:02–03:23, 09:06), verifikasi dibuat kuat (09:26–12:46), dan prosa dipakai paling akhir (02:43). Mengotomasi inner loop yang masih sloppy hanya menghasilkan slop lebih banyak (15:26).
