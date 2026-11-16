@@ -4,7 +4,8 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
-_No changes yet._
+- **Added:** no comments in product code by default (C-26): every comment line a change adds in a non-test product file (besides suppressions and workaround comments, which stay C-18 findings) becomes one blocking `no-comments` finding per file (`hardConvention: true`, HIGH), so the Judge returns ITERATE. Comment detection follows each language's syntax and ignores strings, shebangs, license headers, `@generated` and tool directives. Opt out per project with `"comments": "allow"` in `.ai-engineering-loop/rules.json`; a reviewer may dismiss one finding only with evidence.
+- **Changed:** C-18 suppression detection now follows each file's comment syntax and also covers `prettier-ignore`, `biome-ignore`, `stylelint-disable`, `rubocop:disable` and `pylint: disable`.
 
 ## 2.8.0 - 2026-11-16
 

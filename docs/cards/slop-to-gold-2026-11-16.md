@@ -115,3 +115,15 @@ Keduanya punya FIX bawaan, misalnya "pindahkan akses ke <toGlob> lewat ..."; tek
 ---
 
 **Sengaja tidak dibuat card:** outer loop fuzz → PR fix → auto-merge (16:07–16:47) dan auto-merge saat "nothing left to review" (09:26). Keduanya bergantung pada C-17..C-24 dan fondasi yang sudah ada berjalan lebih dulu, sesuai peringatan di 15:26.
+
+## C-26 · P1 · Tanpa komentar di kode produk (aturan default)
+
+**Sumber:** 08:06–08:46 (ban 99% komentar: komentar basi, manusia tidak membacanya, agent memakainya untuk membenarkan tidak melakukan hal yang benar, dan komentar tidak bisa di-enforce; intent harus ada di kode, tes, dan lint).
+**Bukti:** C-18 hanya menangkap suppress dan komentar pembenaran (`quick fix`, `for now`). Komentar biasa yang ditulis agent lolos, dan deteksinya tidak paham sintaks bahasa (`#` dianggap komentar di JS, `//` di dalam URL string ikut terdeteksi).
+**Usulan:** di `gate review`, setiap baris komentar baru di file produk non-tes menjadi satu finding `source: "no-comments"` per file (`axis: standards`, `hardConvention: true`, HIGH, VALID), sehingga Judge ITERATE. Deteksi mengikuti sintaks bahasa per ekstensi dan mengabaikan string. Pengecualian: shebang, lisensi/SPDX/copyright, `@generated`, `/// <reference`, `//go:build`, encoding, `#region`. Opt-out per project hanya lewat `"comments": "allow"` di `rules.json` (diedit manusia); dismiss per finding butuh `dismissal.evidence`. Prompt Maker melarang komentar; DA tidak boleh meminta komentar.
+**AC:**
+- AC-1: Komentar biasa di `src/*.js` dan `*.py` menghasilkan satu finding `no-comments` per file yang `isBlockingFinding` = true, dengan nomor baris sebagai evidence.
+- AC-2: Shebang, SPDX, `@generated`, `//go:build`, tes, docs, config, `#private` di JS, dan `//` atau `#` di dalam string tidak menghasilkan finding.
+- AC-3: Suppress dan komentar pembenaran tetap menjadi finding C-18 dan tidak dihitung dua kali.
+- AC-4: `"comments": "allow"` mematikan C-26; menurunkan severity atau `hardConvention` tanpa `dismissal.evidence` menggagalkan review gate.
+**Effort:** S.

@@ -106,6 +106,16 @@ Agents write comments to justify not doing the right thing, and comments cannot 
 
 Docs, changelogs, data files and tests are skipped. Unlike C-11, a reviewer may downgrade these with `dismissal: {by, evidence}` (for example generated code); dropping or downgrading one without evidence fails the review gate.
 
+## 3d. No Comments in Product Code (C-26)
+
+Comments go stale, humans skip them, agents use them to justify not doing the right thing, and nothing enforces them. So AEL bans new comments in product code by default. At `gate review` every other comment line added in a non-test product file (not a suppression or justification, which stay C-18 findings) becomes one `source: "no-comments"` finding per file: `axis: "standards"`, `hardConvention: true`, **HIGH**, VALID, with the line numbers as evidence. It blocks, so the Judge returns ITERATE until the comments are gone.
+
+Where the intent goes instead: names, types, tests and lint rules (`learn promote`); rationale goes in the commit message, PR body or `docs/`.
+
+Detection follows the file's comment syntax: `//`, `/* */` and `*` lines in C-family, JS/TS, Go, Rust, CSS and similar; `#` in Python, shell, Ruby, Terraform, Makefile and Dockerfile; `<!-- -->` in HTML, Vue, Svelte; `--` in SQL and Lua. Markers inside string literals do not count, nor does `#` glued to a name (JS `#private`). Always allowed: shebangs, `SPDX-License-Identifier`, copyright and `@license`, `@generated`, TS `/// <reference`, `//go:build`/`//go:generate`, encoding lines, `#region`. Docs, data and config files (`.md`, `.json`, `.yml`, `.toml`, ...) and tests are skipped.
+
+A reviewer can downgrade a finding (for example public API docs that a doc generator reads) only with `dismissal: {by, evidence}`. A project that needs comments (a library shipping JSDoc, for example) opts out for every Run by having a human add `"comments": "allow"` to `.ai-engineering-loop/rules.json`; C-18 findings still apply.
+
 ## 4. The 4 Verification Gates
 
 1. **Gate 1: Unit & Integration Tests**: All unit and edge-case tests must pass with 0 failures.
