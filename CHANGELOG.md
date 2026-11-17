@@ -4,7 +4,7 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
-_No changes yet._
+- **Fixed:** after a Judge `ITERATE`, `verify` refused to record evidence for the new Maker diff ("Verification has already passed its gate") and `gate verification` rejected the old evidence's diff hash, so the Run could not continue. The iteration's verification files now move to `runs/<id>/iterations/<n>/` and the next iteration starts with a fresh bundle.
 
 ## 2.10.0 - 2026-11-17
 
