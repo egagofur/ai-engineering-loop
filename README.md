@@ -6,15 +6,21 @@
 
 Give your AI agent a goal. It plans the work, builds it, checks itself, challenges the result, and prepares a safe delivery. You get a live view of the run and a clear history instead of a wall of terminal output.
 
-[![npm](https://img.shields.io/npm/v/ai-engineering-loop?style=flat-square&color=28AD00)](https://www.npmjs.com/package/ai-engineering-loop)
-[![GitHub release](https://img.shields.io/github/v/release/egagofur/ai-engineering-loop?style=flat-square&color=28AD00)](https://github.com/egagofur/ai-engineering-loop/releases)
+[![npm](https://img.shields.io/npm/v/ai-engineering-loop?style=flat-square&color=fc6404)](https://www.npmjs.com/package/ai-engineering-loop)
+[![GitHub release](https://img.shields.io/github/v/release/egagofur/ai-engineering-loop?style=flat-square&color=fc6404)](https://github.com/egagofur/ai-engineering-loop/releases)
 [![license](https://img.shields.io/badge/license-MIT-181c19?style=flat-square)](LICENSE)
 
-[Get started](#get-started-in-a-minute) · [See what it does](#one-workspace-from-idea-to-delivery) · [Open Workflow Studio](#meet-workflow-studio) · [Read the docs](core/)
+[Get started](#get-started-in-a-minute) · [Website](https://ael.egagofur.studio) · [Workflow Studio](#meet-workflow-studio) · [Read the docs](core/)
 
 </div>
 
-[![AI Engineering Loop Workflow Studio](docs/images/studio-hero.svg)](docs/images/studio-hero.svg)
+[![AI Engineering Loop quick start](docs/images/ael-hero.svg)](https://ael.egagofur.studio)
+
+```bash
+npx ai-engineering-loop init
+```
+
+[![AI Engineering Loop Workflow Studio](docs/images/studio-hero-orange.svg)](docs/images/studio-hero-orange.svg)
 
 ## Software delivery that feels simple
 
@@ -33,13 +39,7 @@ You stay in control of the product decisions. Your AI agent takes care of the re
 
 ## Get started in a minute
 
-Install it in any project:
-
-```bash
-npx ai-engineering-loop init
-```
-
-Then tell your coding agent:
+Run the command above in any project. Then tell your coding agent:
 
 > Use AI Engineering Loop to build this feature: **your idea here**
 
@@ -152,6 +152,9 @@ Under the hood, these moments use eight evidence-backed stages. The rigor is the
 
 AI Engineering Loop is designed to work with the tools developers already use:
 
+<details>
+<summary>Works with Claude Code, Codex, Cursor, Kiro, and 16 more.</summary>
+
 <!-- hosts-table:start (generated from lib/hosts/registry.js; run npm run build:hosts-table) -->
 | Host | id | Certification | Guardrails | Skill folder | Reviewer agents | Detected by |
 |---|---|---|---|---|---|---|
@@ -182,6 +185,8 @@ Guardrails: **enforced** = `npx ai-engineering-loop hooks install` adds native p
 
 Not supported (no native skills): Aider, Continue.
 <!-- hosts-table:end -->
+
+</details>
 
 Every host gets the **same** `ael` skill, invoked as `/ael` (byte-identical, so an agent that scans several skill folders never sees two different versions). The few host-specific spawn rules live in its `references/loop-hosts.md`. Earlier releases named the skill `ai-engineering-loop`; `sync-hosts` removes that old folder when AEL wrote it and `hosts doctor` flags any copy it had to keep. Each host follows the same Goal, verification, review, and approval rules.
 
