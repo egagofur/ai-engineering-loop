@@ -4,7 +4,8 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
-_No changes yet._
+- **Added:** look before you freeze (C-27). Goal `flow` steps may carry `actor`, `guard`, `effects` (with or without an AC) and `hotspot`, plus Goal-level `flowSubject`, `forbiddenTransitions` and `plainSummary`. `goal draft` returns `diagramOptions` and counts of undecided transitions, hotspots and side effects, and its impact preview no longer cuts tests to 10. `goal diagram --view state|storyboard|lanes` renders only the chosen view as an offline HTML page; the state view includes a full state × event transition table. Set a project default with `freeze_diagram` in `workflow.md`.
+- **Added:** `ael recap` (C-28): an evidence-backed HTML recap of the last N days for me, the lead or a client, built only from Run artifacts (`docs recap`).
 
 ## 2.9.0 - 2026-11-16
 

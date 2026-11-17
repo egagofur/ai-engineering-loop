@@ -1930,7 +1930,7 @@ function closeFreezeQuestions(runId, actor) {
 function impactPreview(runId, goal) {
   try {
     const map = impactMap.buildImpactMap(CWD, { run: loadRun(CWD, runId), goal });
-    return { files: (map.files || []).map((file) => file.path), tests: (map.tests || []).map((t) => t.path || t).slice(0, 10) };
+    return { files: (map.files || []).map((file) => file.path), tests: (map.tests || []).map((t) => t.path || t) };
   } catch (err) {
     return { error: err.message };
   }
@@ -3163,10 +3163,13 @@ function handleGoal() {
         expectedRevision: requiredIntegerArg('--revision')
       });
       extra.impactPreview = impactPreview(runId, draftGoal);
-      // C-21: show the intended user flow as a transition table before freeze.
       if (draftGoal && draftGoal.flow != null) {
         const flowLib = require('../lib/flow.js');
-        extra.flow = { table: flowLib.renderFlow(draftGoal.flow), mermaid: flowLib.renderMermaid(draftGoal.flow), problems: flowLib.flowProblems(draftGoal.flow), warnings: flowLib.flowWarnings(draftGoal.flow) };
+        extra.flow = { table: flowLib.renderFlow(draftGoal.flow), mermaid: flowLib.renderMermaid(draftGoal.flow), problems: flowLib.flowProblems(draftGoal.flow), warnings: flowLib.flowWarnings(draftGoal.flow), ...flowLib.flowCounts(draftGoal) };
+        const preference = require('../lib/generate-workflow.js').readFreezeDiagram(CWD);
+        extra.diagramOptions = flowLib.diagramOptions(draftGoal, { preference });
+        if (preference === 'off') extra.diagramsOff = true;
+        else extra.diagramHint = `Offer the recommended view or freeze; render one with \`goal diagram --run ${runId} --view <state|storyboard|lanes>\`.`;
       }
       appendRunLifecycle(CWD, runId, {
         type: 'GOAL_DRAFT_UPDATED',
@@ -3239,8 +3242,10 @@ function handleGoal() {
         const confirmed = impactMap.confirmImpactMap(CWD, { runId, by: argValue('--by') || 'human' });
         extra.impact = { status: confirmed.map ? confirmed.map.status : 'CONFIRMED' };
       }
+    } else if (action === 'diagram') {
+      Object.assign(extra, renderGoalDiagram(runId));
     } else {
-      const error = new Error('goal must be show, draft, or freeze');
+      const error = new Error('goal must be show, draft, freeze, or diagram');
       error.code = 'INVALID_USAGE';
       throw error;
     }
@@ -3249,6 +3254,61 @@ function handleGoal() {
     log.error(`${error.code || 'GOAL_FAILED'}: ${error.message}`);
     process.exitCode = 1;
   }
+}
+
+function contentLangArg() {
+  const lang = argValue('--lang');
+  if (lang == null) return null;
+  if (!/^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(lang)) {
+    throw Object.assign(new Error('--lang must be a language tag such as id, en or pt-BR'), { code: 'INVALID_USAGE' });
+  }
+  return lang;
+}
+
+function renderGoalDiagram(runId) {
+  const view = argValue('--view');
+  const { VIEWS } = require('../lib/flow.js');
+  if (!VIEWS.includes(view)) {
+    throw Object.assign(new Error('goal diagram needs --view state|storyboard|lanes'), { code: 'INVALID_USAGE' });
+  }
+  const run = loadRun(CWD, runId);
+  let goal;
+  let revision;
+  let suffix;
+  if (run.goal?.frozen) {
+    goal = JSON.parse(fs.readFileSync(path.join(CWD, '.ai-engineering-loop', 'runs', runId, 'goal-contract.json'), 'utf8'));
+    revision = null;
+    suffix = 'frozen';
+  } else {
+    const draft = loadGoalDraft(CWD, runId);
+    if (!draft) throw Object.assign(new Error('No Goal draft yet: run `goal draft` first'), { code: 'GOAL_DRAFT_MISSING' });
+    revision = draft.metadata.revision;
+    const requested = argValue('--revision');
+    if (requested != null && Number(requested) !== revision) {
+      throw Object.assign(new Error(`Only the latest draft is kept: it is revision ${revision}. Rerun with --revision ${revision} or without --revision.`), { code: 'GOAL_REVISION_MISMATCH' });
+    }
+    goal = draft.contract;
+    suffix = `r${revision}`;
+  }
+  if (!Array.isArray(goal.flow) || !goal.flow.length) {
+    throw Object.assign(new Error('The Goal has no flow to draw. Add flow steps ({from, event, to}) to the draft, then rerun `goal draft`.'), { code: 'GOAL_FLOW_MISSING' });
+  }
+  const html = require('../lib/flow-diagram.js').renderDiagram(goal, { view, revision, lang: contentLangArg() });
+  const dir = path.join(CWD, '.ai-engineering-loop', 'runs', runId, 'diagrams');
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const file = path.join(dir, `${view}-${suffix}.html`);
+  fs.writeFileSync(file, html, { mode: 0o600 });
+  fs.chmodSync(file, 0o600);
+  if (process.argv.includes('--open')) openStudio(file);
+  const counts = require('../lib/flow.js').flowCounts(goal);
+  return {
+    view,
+    path: file,
+    counts,
+    next: counts.undecided || counts.hotspots || counts.sideEffects
+      ? 'Ask the human: freeze, another view, or turn the ? cells, hotspots and side effects into AC, non-goals or forbiddenTransitions (new draft revision).'
+      : 'Ask the human: freeze or another view.'
+  };
 }
 
 function handleActivity() {
@@ -3703,6 +3763,46 @@ function handleRules() {
     if (violations.length) process.exitCode = 1;
   } catch (err) {
     stageJsonError(err, json, 'RULES_FAILED');
+  }
+}
+
+function handleRecap() {
+  try {
+    const days = argValue('--days') == null ? 7 : Number(argValue('--days'));
+    if (!Number.isInteger(days) || days < 1 || days > 366) {
+      throw Object.assign(new Error('--days must be a whole number from 1 to 366'), { code: 'INVALID_USAGE' });
+    }
+    const { AUDIENCES, renderRecap } = require('../lib/recap-html.js');
+    const audience = argValue('--for') || 'me';
+    if (!AUDIENCES.includes(audience)) throw Object.assign(new Error('--for must be me, lead or client'), { code: 'INVALID_USAGE' });
+    const projectsArg = argValue('--projects');
+    const projects = !projectsArg
+      ? [CWD]
+      : projectsArg === 'all'
+        ? projectRegistry.listProjects().projects.map((project) => project.path)
+        : projectsArg.split(',').map((item) => path.resolve(CWD, item.trim())).filter(Boolean);
+    if (!projects.length) throw Object.assign(new Error('No projects to recap: register one with `ael projects` or pass --projects <path>'), { code: 'INVALID_USAGE' });
+    if (audience === 'client' && projects.length > 1) {
+      throw Object.assign(new Error('A client recap covers one project only: pass --projects <path> with a single path'), { code: 'INVALID_USAGE' });
+    }
+    const now = argValue('--now') ? new Date(argValue('--now')) : new Date();
+    if (Number.isNaN(now.getTime())) throw Object.assign(new Error('--now must be an ISO date'), { code: 'INVALID_USAGE' });
+    const data = require('../lib/recap.js').collectRecap({ projects, days, now });
+    const html = renderRecap(data, { audience, now, lang: contentLangArg() });
+    const day = (d) => d.toISOString().slice(0, 10);
+    const out = argValue('--out')
+      ? path.resolve(CWD, argValue('--out'))
+      : path.join(CWD, '.ai-engineering-loop', 'recaps', `recap-${day(data.window.from)}-${day(now)}-${audience}.html`);
+    fs.mkdirSync(path.dirname(out), { recursive: true });
+    fs.writeFileSync(out, html, { mode: 0o600 });
+    fs.chmodSync(out, 0o600);
+    if (process.argv.includes('--open')) openStudio(out);
+    const summary = { ok: true, path: out, audience, days, projects: data.projects, runs: data.metrics.runs, delivered: data.metrics.delivered };
+    if (process.argv.includes('--json')) console.log(JSON.stringify(summary, null, 2));
+    else log.success(`✓ Recap (${audience}, ${days} days, ${summary.runs} runs, ${summary.delivered} delivered): ${out}`);
+  } catch (error) {
+    log.error(`${error.code || 'RECAP_FAILED'}: ${error.message}`);
+    process.exitCode = 1;
   }
 }
 
@@ -4285,6 +4385,7 @@ Commands:
                draft --from-design <doc.md> [--file <json>] --revision <n>   prefill from a design doc, record designRef
                freeze --revision <n> --hash <sha256> [--run <id>] [--by <name>]
                freeze --latest [--run <id>] --by <name>   freeze the newest draft (CLI resolves revision/hash)
+               diagram --view state|storyboard|lanes [--run <id>] [--revision <n>] [--lang <tag>] [--open]   draw the Goal flow as HTML
   verification Summarize verification.json for compact Judge context
                summarize [--run <id>] [--json]
                record [--run <id>] [--timeout-ms <n>] [--shell] [--json] -- <executable> [args...]
@@ -4362,6 +4463,7 @@ Commands:
   calibrate    Compare recorded outcomes with each Run's Finding Ledger: DA misses, wrong dismissals, per reviewer prompt
   debt         Accepted trade-offs and L3 waivers recorded at delivery: list [--file <path>] | close <id> --by <name> [--note <text>]
   next         Next unblocked feature from .ai-engineering-loop/features.json, VCR (verified/activated), evidence audit [--json]
+  recap        Evidence-backed recap of the last N days as one HTML page [--days 7] [--for me|lead|client] [--projects <p,...>|all] [--out <file>] [--lang <tag>] [--open] [--json]
   stats        Failure causes by harness layer, false-victory rate, iterations to PASS [--last <n>] [--json]
   escalation   Compute the minimum Judge model tier from deterministic risk signals
                --run <id>  target a non-current run
@@ -4581,6 +4683,9 @@ switch (command) {
     break;
   case 'escalation':
     handleEscalation();
+    break;
+  case 'recap':
+    handleRecap();
     break;
   case 'stats':
     handleStats();

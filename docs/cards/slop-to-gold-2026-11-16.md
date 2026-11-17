@@ -127,3 +127,18 @@ Keduanya punya FIX bawaan, misalnya "pindahkan akses ke <toGlob> lewat ..."; tek
 - AC-3: Suppress dan komentar pembenaran tetap menjadi finding C-18 dan tidak dihitung dua kali.
 - AC-4: `"comments": "allow"` mematikan C-26; menurunkan severity atau `hardConvention` tanpa `dismissal.evidence` menggagalkan review gate.
 **Effort:** S.
+
+## C-27 · P2 · Diagram sebelum freeze
+
+**Sumber:** permintaan user 2026-11-17: sebelum freeze, user ingin melihat dampak ke fitur lain dan data, bukan hanya membaca AC. Desain: `docs/superpowers/specs/2026-11-17-goal-freeze-diagrams-design.md`.
+**Usulan:** `flow` Goal diperluas (`actor`, `guard`, `effects`, `hotspot`, `flowSubject`, `forbiddenTransitions`). `goal draft` menawarkan view yang direkomendasikan; `goal diagram --view state|storyboard|lanes` hanya merender view yang dipilih. Tabel transisi state × event dihitung CLI, jadi setiap `?` terlihat.
+**AC:** validasi Goal gate, rekomendasi view, file hanya dibuat saat diminta, escaping, state Run tidak berubah (tests/flow-model, flow-diagram, goal-diagram-cli).
+**Effort:** M.
+
+## C-28 · P2 · `ael recap`
+
+**Sumber:** permintaan user 2026-11-17: ringkasan per N hari berupa visualisasi fitur yang dikerjakan, untuk saya, lead, atau klien, dengan bukti. Spike dari 7 run asli dltx diterima. Desain: `docs/superpowers/specs/2026-11-17-ael-recap-design.md`.
+**Usulan:** satu halaman HTML offline dengan tiga tab; semua angka dari artefak Run; view klien dibangun dari allowlist.
+**AC:** filter jendela waktu, durasi per tahap, judul dan teks klien dari Goal, tidak ada kebocoran di view klien, perbandingan hanya jika periode lalu punya run, CLI menolak recap klien multi-project (tests/recap).
+**Effort:** M.
+

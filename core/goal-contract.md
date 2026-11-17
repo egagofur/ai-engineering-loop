@@ -162,6 +162,44 @@ For UI or multi-step work, add the flow the user should experience as transition
 
 `goal draft` returns it as a `From | Event | To` table and a Mermaid `stateDiagram-v2` (`flow.mermaid`), with warnings (a state nothing reaches, a state with no way out that is not Done/Error), so the human checks the intent before freeze. A malformed `flow` fails the Goal gate. The PR receipt shows the same diagram (GitHub renders it) and table under "Intended flow", after "Verification artifacts" and before the acceptance criteria.
 
+## Look before you freeze: diagrams (C-27)
+
+Steps may carry more than `from`, `event`, `to`, so the human can see what else a change touches before freezing:
+
+```json
+"flowSubject": "order",
+"flow": [
+  { "from": "Processing", "event": "cancel", "to": "Cancelled", "actor": "user", "guard": "not shipped",
+    "effects": [ { "text": "refund to wallet", "ac": "AC-2" }, { "text": "loyalty points revoked?" } ] },
+  { "from": "Shipped", "event": "cancel", "to": "Cancelled", "hotspot": "allowed after shipping?" }
+],
+"forbiddenTransitions": [ { "from": "Delivered", "event": "cancel" } ]
+```
+
+- `actor`: who performs the step (user, app, service, db, cron); missing means `user`.
+- `effects[]`: what else changes. An effect with `ac` is covered by that AC; one without `ac` is a **side effect** no AC covers.
+- `hotspot`: an open question (string) or `true`.
+- `flowSubject`: the entity whose status the flow describes.
+- `forbiddenTransitions`: state/event pairs the human decided are invalid.
+- `plainSummary`: one sentence for non-technical readers (used by `recap --for client`, at most 240 characters).
+
+The Goal gate rejects an `ac` that is not an AC id, more than 40 steps or 12 effects per step, and forbidden pairs naming an unknown state or event.
+
+`goal draft` returns `diagramOptions` (recommended first) and counts in `flow`: `undecided` (state × event pairs nobody decided), `hotspots` (plus conflicting transitions) and `sideEffects`. No file is written. Recommendations: `state` when `flowSubject` is set, `lanes` when steps run across a non-user actor, `storyboard` when every step is a user action. A project sets its default with `- **freeze_diagram**: auto | state | storyboard | lanes | off` in `.ai-engineering-loop/workflow.md` (`off` stops the offer; the command still works).
+
+Render only the view the human picks:
+
+```bash
+npx ai-engineering-loop goal diagram --view state|storyboard|lanes [--run <id>] [--lang <tag>] [--open]
+```
+
+It writes `runs/<id>/diagrams/<view>-r<revision>.html` (`<view>-frozen.html` after freeze): one offline page, light and dark.
+- **state**: a top-to-bottom state machine (`event [guard]`, effect counts, dashed red hotspots) and a transition table over every state × event. A cell is the target, several guarded targets, `conflict`, `invalid` (forbidden) or `?` (undecided).
+- **storyboard**: one card per state in flow order, effects under the action that causes them.
+- **lanes**: one column per actor, steps from top to bottom, so jobs and cron that run later stand out, followed by the same steps as a full-text list.
+
+Then ask the human: freeze, another view, or turn `?` cells, hotspots and side effects into AC, non-goals or `forbiddenTransitions` (a new draft revision). A diagram never freezes or changes the Run.
+
 ## Verification artifacts in the receipt (C-21)
 
 The receipt lists `--evidence AC-N=<https-url>` links first, typed as video, screenshot or diagram from the URL. An AC with `crossComponent: true` or a `rubric` is `MISSING` (❌) until it has at least one such link, because a reviewer should be able to look at the behaviour rather than read the diff.
