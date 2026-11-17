@@ -1,39 +1,31 @@
 <div align="center">
 
+<a href="https://ael.egagofur.studio"><img src="docs/images/readme-banner.png" alt="AI Engineering Loop: From idea to trusted code. npx ai-engineering-loop init" width="100%"></a>
+
 # AI Engineering Loop
 
-### From idea to trusted code—without babysitting every command.
+### Give your coding agent a goal and stop babysitting every command.
 
-Give your AI agent a goal. It plans the work, builds it, checks itself, challenges the result, and prepares a safe delivery. You get a live view of the run and a clear history instead of a wall of terminal output.
+It plans, builds, tests its own claims, lets a Devil’s Advocate attack the result, and waits for your approval before anything ships. Your project and its evidence stay on your machine.
 
-[![npm](https://img.shields.io/npm/v/ai-engineering-loop?style=flat-square&color=fc6404)](https://www.npmjs.com/package/ai-engineering-loop)
-[![GitHub release](https://img.shields.io/github/v/release/egagofur/ai-engineering-loop?style=flat-square&color=fc6404)](https://github.com/egagofur/ai-engineering-loop/releases)
+[![npm](https://img.shields.io/npm/v/ai-engineering-loop?style=flat-square&color=28AD00)](https://www.npmjs.com/package/ai-engineering-loop)
+[![GitHub release](https://img.shields.io/github/v/release/egagofur/ai-engineering-loop?style=flat-square&color=28AD00)](https://github.com/egagofur/ai-engineering-loop/releases)
 [![license](https://img.shields.io/badge/license-MIT-181c19?style=flat-square)](LICENSE)
+[![website](https://img.shields.io/badge/site-ael.egagofur.studio-fc6404?style=flat-square)](https://ael.egagofur.studio)
 
-[Get started](#get-started-in-a-minute) · [Website](https://ael.egagofur.studio) · [Workflow Studio](#meet-workflow-studio) · [Read the docs](core/)
+**[Watch a Run play out →](https://ael.egagofur.studio)** · [Get started](#get-started-in-a-minute) · [How a Run works](#how-a-run-works) · [Workflow Studio](#meet-workflow-studio) · [Docs](core/)
 
 </div>
 
-[![AI Engineering Loop quick start](docs/images/ael-hero.svg)](https://ael.egagofur.studio)
+## Fast agents lose the details
 
-```bash
-npx ai-engineering-loop init
-```
+Coding agents write a feature in minutes, then hand you the result with no trail behind it:
 
-## Software delivery that feels simple
+- **“Done” without proof.** The agent reports success. Nothing shows which command ran or what it returned.
+- **Plans that vanish.** Scope and edge cases lived in a chat you already closed.
+- **Shipping on trust.** Code reaches a pull request because the agent said it was ready.
 
-AI coding tools are fast, but important details can disappear between the prompt, the code, and the final answer. AI Engineering Loop gives every task one calm, repeatable path:
-
-| You want | The Loop handles |
-|---|---|
-| **A clear outcome** | Turns the request into an agreed Goal before code changes |
-| **Less supervision** | Guides your agent through planning, building, and checking |
-| **Honest progress** | Shows what is ready, running, blocked, or waiting for approval |
-| **Fewer surprises** | Tests happy paths, edge cases, and failure cases |
-| **A trustworthy result** | Compares every claim with real evidence before delivery |
-| **A useful history** | Keeps searchable Runs, decisions, artifacts, and proof |
-
-You stay in control of the product decisions. Your AI agent takes care of the repetitive engineering ceremony.
+AI Engineering Loop puts every task on one gated path and keeps the receipts. You stay in charge of the product decisions; your agent handles the repetitive engineering ceremony.
 
 ## Get started in a minute
 
@@ -53,50 +45,30 @@ Workflow Studio opens locally in your browser and follows the active Run live. Y
 
 On first setup, `.ai-engineering-loop/` is added to your project’s `.gitignore` so plans and Run evidence stay private by default. Want to share that context with your team? Simply remove that line from `.gitignore`.
 
-### Less artifact guesswork for your AI agent
+<a id="one-workspace-from-idea-to-delivery"></a>
 
-Agents can record test commands directly so verification evidence is tied to the current Run and gated diff:
+## How a Run works
 
-```bash
-npx ai-engineering-loop verification record --run <run-id> -- npm test
+Every Run passes the same gates, and the Judge can send work back as many times as the recipe allows:
+
+```mermaid
+flowchart LR
+  G["Goal Contract<br/>frozen before code"] --> M["Maker<br/>plan and build"]
+  M --> V["Verify<br/>real command, recorded"]
+  V --> R["Review<br/>Devil’s Advocate challenges claims"]
+  R --> J{"Judge"}
+  J -- "ITERATE" --> M
+  J -- "PASS" --> D["Deliver<br/>waits for --approve"]
 ```
 
-The command captures bounded, redacted output without invoking a shell implicitly, records failures honestly, and generates a compact test summary. For other stage artifacts, use `scaffold delivery --run <run-id>` (or `verification` / `findings`) to create a private, deliberately incomplete template. Copy or rename it to the gate's real artifact filename, fill it with observed evidence, and remove `_templateOnly`; then `validate <repository-relative-file>` reports schema and Run-binding issues without advancing a gate. Templates are never accepted as evidence. `context claimed-vs-reality --run <run-id>` creates the Goal checklist while leaving claim and evidence cells blank.
+The experience is organized into four moments:
 
-Common stage sequences also have one-call forms that gate exactly like the long forms:
+1. **Specify**: agree on what success and failure look like.
+2. **Make**: let the agent investigate, plan, and build.
+3. **Review**: verify the result and challenge unsupported claims.
+4. **Deliver**: ask for human approval before publishing.
 
-```bash
-npx ai-engineering-loop verify --run <run-id> --cmd "npm test"          # record (parallel), gate, compact, claimed-vs-reality
-npx ai-engineering-loop review-pack --run <run-id> --json               # fast-path + diff-hunk pack + escalation floor
-npx ai-engineering-loop deliver --run <run-id> --destination pr --summary "..." --approve --by <name>
-```
-
-`deliver` refuses without `--approve` in ASSISTED mode; pass it only after a human approved delivery.
-
-Contributors: the host `ael` skills are generated. Edit `skill-src/ael/`, then run `npm run build:skills` (CI checks for drift with `npm run check:skills`). `npm run measure` reports per-tier context and tool calls.
-
-### Staying up to date
-
-`run`, `status`, `init`, and `refresh` check npm in the background at most once a day; the command never waits. What happens next depends on your policy:
-
-```bash
-npx ai-engineering-loop update policy minor   # off | notify | patch | minor | all (majors are always notice-only)
-npx ai-engineering-loop projects list         # projects refreshed after an update (scan: projects scan --root ~/Development)
-npx ai-engineering-loop update rollback --yes
-```
-
-Global installs apply patch and minor releases automatically. They then re-sync host skills and refresh every registered project, keeping your edits (new templates arrive as `*.ael-new`). Project installs only show a short notice (current -> latest, a few changelog highlights, the exact `npm`/`pnpm`/`yarn`/`bun` command, how to silence it), at most once a day per project, because AEL never edits your `package.json`. Projects from versions before hash tracking are overwritten on their first update, with the old files kept in `.ai-engineering-loop/.ael-backup/` and restored by `update rollback`. Major updates run `migrate --from <old>` after install. A major release such as 2.0.0 only shows a notice: install it yourself, then run `ai-engineering-loop sync-hosts` once so your agents get the new skill. Opt out with `AEL_NO_AUTO_UPDATE=1`; CI is always off. There is no daemon, so other machines pick up an update the next time the CLI runs there.
-
-Projects with an unfinished run are skipped until that run ends. If a run was simply left behind, close it (the run is kept, marked `CANCELLED`, and `current.json` is released):
-
-```bash
-npx ai-engineering-loop run --abandon --reason "left behind after delivery" --by ega        # asks to confirm; add --yes to skip
-npx ai-engineering-loop run --abandon --run <run-id> --reason "superseded" --by ega --yes   # a non-current run
-```
-
-`status`, `state`, and `projects list` show this hint when an active run has not moved for 7 days. UNATTENDED runs need `--yes` from a human.
-
-When context packs exceed their budget, the CLI now reports the limit and a per-file size/token estimate so an agent can choose smaller files without trial and error. For a delivery gate blocked by a recipe approval node, inspect `node status --run <run-id>` and explicitly approve the READY prerequisite; the gate error points to the actionable command.
+Under the hood, these moments use eight evidence-backed stages: `Specify (stages 0-1)` → `Make (stages 2-4)` → `Review (stages 5-7)` → `Deliver (stage 8)`. The rigor is there when you need it, but it does not have to dominate the experience.
 
 ## Meet Workflow Studio
 
@@ -130,21 +102,6 @@ If the agent needs clarification, its questions can appear inside Workflow Studi
 ### Repeat only the steps that need another pass
 
 Recipes can declare independent Loop Groups with a maximum number of passes. Studio shows a separate `Iteration 2 / 3` counter for each group, and a loop that reaches its limit pauses for a human decision instead of retrying forever.
-
-> **New in v2.0.0:** real-time Studio, wiring-only canvas, `ael bench`, and personal workflows. Studio node creation and import were removed. [See the release](https://github.com/egagofur/ai-engineering-loop/releases/tag/v2.0.0).
-
-## One workspace from idea to delivery
-
-The experience is organized into four simple moments:
-
-1. **Specify** — agree on what success and failure look like.
-2. **Make** — let the agent investigate, plan, and build.
-3. **Review** — verify the result and challenge unsupported claims.
-4. **Deliver** — ask for human approval before publishing.
-
-Under the hood, these moments use eight evidence-backed stages. The rigor is there when you need it, but it does not have to dominate the experience.
-
-`Specify (stages 0-1)` → `Make (stages 2-4)` → `Review (stages 5-7)` → `Deliver (stage 8)`
 
 ## Bring your own AI agent
 
@@ -302,6 +259,49 @@ By default, smart context skips high-volume review inputs such as CSS, generated
 
 The friendly workflow sits on top of a complete local CLI. You can inspect recipes, budgets, evidence, nodes, gates, policies, and handoffs whenever you need to.
 
+### Record evidence by hand
+
+Agents can record test commands directly so verification evidence is tied to the current Run and gated diff:
+
+```bash
+npx ai-engineering-loop verification record --run <run-id> -- npm test
+```
+
+The command captures bounded, redacted output without invoking a shell implicitly, records failures honestly, and generates a compact test summary. For other stage artifacts, use `scaffold delivery --run <run-id>` (or `verification` / `findings`) to create a private, deliberately incomplete template. Copy or rename it to the gate's real artifact filename, fill it with observed evidence, and remove `_templateOnly`; then `validate <repository-relative-file>` reports schema and Run-binding issues without advancing a gate. Templates are never accepted as evidence. `context claimed-vs-reality --run <run-id>` creates the Goal checklist while leaving claim and evidence cells blank.
+
+Common stage sequences also have one-call forms that gate exactly like the long forms:
+
+```bash
+npx ai-engineering-loop verify --run <run-id> --cmd "npm test"          # record (parallel), gate, compact, claimed-vs-reality
+npx ai-engineering-loop review-pack --run <run-id> --json               # fast-path + diff-hunk pack + escalation floor
+npx ai-engineering-loop deliver --run <run-id> --destination pr --summary "..." --approve --by <name>
+```
+
+`deliver` refuses without `--approve` in ASSISTED mode; pass it only after a human approved delivery.
+
+### Staying up to date
+
+`run`, `status`, `init`, and `refresh` check npm in the background at most once a day; the command never waits. What happens next depends on your policy:
+
+```bash
+npx ai-engineering-loop update policy minor   # off | notify | patch | minor | all (majors are always notice-only)
+npx ai-engineering-loop projects list         # projects refreshed after an update (scan: projects scan --root ~/Development)
+npx ai-engineering-loop update rollback --yes
+```
+
+Global installs apply patch and minor releases automatically. They then re-sync host skills and refresh every registered project, keeping your edits (new templates arrive as `*.ael-new`). Project installs only show a short notice (current -> latest, a few changelog highlights, the exact `npm`/`pnpm`/`yarn`/`bun` command, how to silence it), at most once a day per project, because AEL never edits your `package.json`. Projects from versions before hash tracking are overwritten on their first update, with the old files kept in `.ai-engineering-loop/.ael-backup/` and restored by `update rollback`. Major updates run `migrate --from <old>` after install. A major release such as 2.0.0 only shows a notice: install it yourself, then run `ai-engineering-loop sync-hosts` once so your agents get the new skill. Opt out with `AEL_NO_AUTO_UPDATE=1`; CI is always off. There is no daemon, so other machines pick up an update the next time the CLI runs there.
+
+Projects with an unfinished run are skipped until that run ends. If a run was simply left behind, close it (the run is kept, marked `CANCELLED`, and `current.json` is released):
+
+```bash
+npx ai-engineering-loop run --abandon --reason "left behind after delivery" --by ega        # asks to confirm; add --yes to skip
+npx ai-engineering-loop run --abandon --run <run-id> --reason "superseded" --by ega --yes   # a non-current run
+```
+
+`status`, `state`, and `projects list` show this hint when an active run has not moved for 7 days. UNATTENDED runs need `--yes` from a human.
+
+When context packs exceed their budget, the CLI now reports the limit and a per-file size/token estimate so an agent can choose smaller files without trial and error. For a delivery gate blocked by a recipe approval node, inspect `node status --run <run-id>` and explicitly approve the READY prerequisite; the gate error points to the actionable command.
+
 <details>
 <summary><strong>Show common CLI commands</strong></summary>
 
@@ -379,6 +379,8 @@ No hidden cloud control plane is required. No project source is uploaded by Work
 ## Contributing
 
 Ideas, workflow recipes, bug reports, and pull requests are welcome. Start with an issue or open a focused PR with a clear explanation of the user outcome.
+
+Contributors: the host `ael` skills are generated. Edit `skill-src/ael/`, then run `npm run build:skills` (CI checks for drift with `npm run check:skills`). `npm run measure` reports per-tier context and tool calls.
 
 ```bash
 npm test
