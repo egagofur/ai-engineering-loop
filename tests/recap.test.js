@@ -76,7 +76,7 @@ test('C-28 titles and client text come from the Goal, never invented', () => {
 
 test('C-28 an empty window renders an empty state', () => {
   const html = renderRecap(collectRecap({ projects: [project()], days: 3, now: NOW }), { audience: 'me', now: NOW });
-  assert.match(html, /No runs in this period/);
+  assert.match(html, /No runs in the last 3 days\. Try a longer window: <code>ael recap --days 12<\/code>/);
 });
 
 test('C-28 the client view carries no paths, commands, logs or findings', () => {
@@ -88,7 +88,8 @@ test('C-28 the client view carries no paths, commands, logs or findings', () => 
   for (const leak of ['file://', 'npm test', 'src/other.js', 'SECRET-LOG', 'T1', 'feat/export', p]) assert.ok(!client.includes(leak), leak);
   assert.ok(client.includes('Finance can &lt;b&gt;download&lt;/b&gt; data.'));
   assert.ok(!html.includes('SECRET-LOG'));
-  assert.match(html, /aria-selected="true"[^>]*data-view="client"|data-view="client"[^>]*aria-selected="true"/);
+  assert.match(html, /data-view="client" aria-pressed="true"/);
+  assert.ok(!/role="tab/.test(html), 'plain buttons, no tab roles');
 });
 
 test('C-28 recap CLI writes the page, refuses multi-project client recaps and bad days', () => {
@@ -114,4 +115,19 @@ test('C-28 recap CLI writes the page, refuses multi-project client recaps and ba
   assert.match(bad.stdout + bad.stderr, /--days/);
   const unknown = cli('recap', '--bogus');
   assert.notStrictEqual(unknown.status, 0);
+});
+
+test('C-28 review fixes: no white heat text, technical text warned in the lead tab not the client tab, labelled evidence', () => {
+  const p = project();
+  writeRun(p, '20261116T010000Z-aaaa1111', { goal: { objective: 'Add the cancel endpoint. It refunds.' } });
+  writeRun(p, '20261116T020000Z-bbbb1111', { goal: { objective: 'Add the cancel endpoint. It refunds.' } });
+  const html = renderRecap(collectRecap({ projects: [p], days: 7, now: NOW }), { audience: 'lead', now: NOW, lang: 'id' });
+  assert.ok(!html.includes('color:#fff'));
+  assert.match(html, /--o:55%/);
+  assert.ok(!html.includes('Still technical'));
+  assert.match(html, /Before you share the client tab/);
+  assert.match(html, /<summary>Evidence<span class="sr"> for Add the cancel endpoint<\/span><\/summary>/);
+  assert.match(html, /<div lang="id">/);
+  assert.match(html, /Scroll sideways to see every day/);
+  assert.ok(!/text-overflow:ellipsis/.test(html));
 });

@@ -190,13 +190,13 @@ The Goal gate rejects an `ac` that is not an AC id, more than 40 steps or 12 eff
 Render only the view the human picks:
 
 ```bash
-npx ai-engineering-loop goal diagram --view state|storyboard|lanes [--run <id>] [--open]
+npx ai-engineering-loop goal diagram --view state|storyboard|lanes [--run <id>] [--lang <tag>] [--open]
 ```
 
 It writes `runs/<id>/diagrams/<view>-r<revision>.html` (`<view>-frozen.html` after freeze): one offline page, light and dark.
 - **state**: a top-to-bottom state machine (`event [guard]`, effect counts, dashed red hotspots) and a transition table over every state × event. A cell is the target, several guarded targets, `conflict`, `invalid` (forbidden) or `?` (undecided).
 - **storyboard**: one card per state in flow order, effects under the action that causes them.
-- **lanes**: one column per actor, steps from top to bottom, so jobs and cron that run later stand out.
+- **lanes**: one column per actor, steps from top to bottom, so jobs and cron that run later stand out, followed by the same steps as a full-text list.
 
 Then ask the human: freeze, another view, or turn `?` cells, hotspots and side effects into AC, non-goals or `forbiddenTransitions` (a new draft revision). A diagram never freezes or changes the Run.
 

@@ -3256,6 +3256,15 @@ function handleGoal() {
   }
 }
 
+function contentLangArg() {
+  const lang = argValue('--lang');
+  if (lang == null) return null;
+  if (!/^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(lang)) {
+    throw Object.assign(new Error('--lang must be a language tag such as id, en or pt-BR'), { code: 'INVALID_USAGE' });
+  }
+  return lang;
+}
+
 function renderGoalDiagram(runId) {
   const view = argValue('--view');
   const { VIEWS } = require('../lib/flow.js');
@@ -3284,7 +3293,7 @@ function renderGoalDiagram(runId) {
   if (!Array.isArray(goal.flow) || !goal.flow.length) {
     throw Object.assign(new Error('The Goal has no flow to draw. Add flow steps ({from, event, to}) to the draft, then rerun `goal draft`.'), { code: 'GOAL_FLOW_MISSING' });
   }
-  const html = require('../lib/flow-diagram.js').renderDiagram(goal, { view, revision });
+  const html = require('../lib/flow-diagram.js').renderDiagram(goal, { view, revision, lang: contentLangArg() });
   const dir = path.join(CWD, '.ai-engineering-loop', 'runs', runId, 'diagrams');
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   const file = path.join(dir, `${view}-${suffix}.html`);
@@ -3779,7 +3788,7 @@ function handleRecap() {
     const now = argValue('--now') ? new Date(argValue('--now')) : new Date();
     if (Number.isNaN(now.getTime())) throw Object.assign(new Error('--now must be an ISO date'), { code: 'INVALID_USAGE' });
     const data = require('../lib/recap.js').collectRecap({ projects, days, now });
-    const html = renderRecap(data, { audience, now });
+    const html = renderRecap(data, { audience, now, lang: contentLangArg() });
     const day = (d) => d.toISOString().slice(0, 10);
     const out = argValue('--out')
       ? path.resolve(CWD, argValue('--out'))
@@ -4376,7 +4385,7 @@ Commands:
                draft --from-design <doc.md> [--file <json>] --revision <n>   prefill from a design doc, record designRef
                freeze --revision <n> --hash <sha256> [--run <id>] [--by <name>]
                freeze --latest [--run <id>] --by <name>   freeze the newest draft (CLI resolves revision/hash)
-               diagram --view state|storyboard|lanes [--run <id>] [--revision <n>] [--open]   draw the Goal flow as HTML
+               diagram --view state|storyboard|lanes [--run <id>] [--revision <n>] [--lang <tag>] [--open]   draw the Goal flow as HTML
   verification Summarize verification.json for compact Judge context
                summarize [--run <id>] [--json]
                record [--run <id>] [--timeout-ms <n>] [--shell] [--json] -- <executable> [args...]
@@ -4454,7 +4463,7 @@ Commands:
   calibrate    Compare recorded outcomes with each Run's Finding Ledger: DA misses, wrong dismissals, per reviewer prompt
   debt         Accepted trade-offs and L3 waivers recorded at delivery: list [--file <path>] | close <id> --by <name> [--note <text>]
   next         Next unblocked feature from .ai-engineering-loop/features.json, VCR (verified/activated), evidence audit [--json]
-  recap        Evidence-backed recap of the last N days as one HTML page [--days 7] [--for me|lead|client] [--projects <p,...>|all] [--out <file>] [--open] [--json]
+  recap        Evidence-backed recap of the last N days as one HTML page [--days 7] [--for me|lead|client] [--projects <p,...>|all] [--out <file>] [--lang <tag>] [--open] [--json]
   stats        Failure causes by harness layer, false-victory rate, iterations to PASS [--last <n>] [--json]
   escalation   Compute the minimum Judge model tier from deterministic risk signals
                --run <id>  target a non-current run

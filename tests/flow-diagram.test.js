@@ -58,3 +58,14 @@ test('C-27 a one-step flow renders and an unknown view is refused', () => {
   assert.throws(() => renderDiagram(tiny, { view: 'pie', revision: 1 }), /state, storyboard or lanes/);
   assert.throws(() => renderDiagram({ objective: 'x' }, { view: 'state', revision: 1 }), /flow/);
 });
+
+test('C-27 review fixes: scroll hints, a full-text step list for lanes, content language', () => {
+  const state = renderDiagram(goal, { view: 'state', revision: 1 });
+  assert.match(state, /Scroll sideways to see the whole diagram/);
+  assert.match(state, /Scroll sideways to see the whole table/);
+  const lanes = renderDiagram(goal, { view: 'lanes', revision: 1, lang: 'id' });
+  assert.match(lanes, /<ol class="steps">/);
+  assert.ok(lanes.includes('allowed after shipping?'), 'hotspot text in full');
+  assert.match(lanes, /<h1 lang="id">/);
+  assert.match(renderDiagram(goal, { view: 'state', revision: 1 }), /<h1>/);
+});
