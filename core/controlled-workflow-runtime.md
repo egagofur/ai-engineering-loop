@@ -26,6 +26,7 @@ Additional outcomes are `FAILED`, `SKIPPED`, and `BLOCKED`.
 - Structured conditions read only allowlisted run metadata.
 - Legacy gates execute atomically under the workflow lock and mark their corresponding node passed only after existing artifact validation succeeds.
 - Judge `ITERATE` resets Maker and its descendants while preserving upstream analysis.
+- On `ITERATE` the CLI moves that iteration's `verification.json`, `verification-summary.json` and `final-verification.json` to `runs/<id>/iterations/<n>/` and clears the gated-verification marker, so `verify` records fresh evidence for the next Maker diff. Within one iteration, gated evidence stays immutable.
 - Judge `ESCALATE` blocks unfinished nodes.
 
 ## Commands
