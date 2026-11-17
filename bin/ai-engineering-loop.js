@@ -3757,6 +3757,46 @@ function handleRules() {
   }
 }
 
+function handleRecap() {
+  try {
+    const days = argValue('--days') == null ? 7 : Number(argValue('--days'));
+    if (!Number.isInteger(days) || days < 1 || days > 366) {
+      throw Object.assign(new Error('--days must be a whole number from 1 to 366'), { code: 'INVALID_USAGE' });
+    }
+    const { AUDIENCES, renderRecap } = require('../lib/recap-html.js');
+    const audience = argValue('--for') || 'me';
+    if (!AUDIENCES.includes(audience)) throw Object.assign(new Error('--for must be me, lead or client'), { code: 'INVALID_USAGE' });
+    const projectsArg = argValue('--projects');
+    const projects = !projectsArg
+      ? [CWD]
+      : projectsArg === 'all'
+        ? projectRegistry.listProjects().projects.map((project) => project.path)
+        : projectsArg.split(',').map((item) => path.resolve(CWD, item.trim())).filter(Boolean);
+    if (!projects.length) throw Object.assign(new Error('No projects to recap: register one with `ael projects` or pass --projects <path>'), { code: 'INVALID_USAGE' });
+    if (audience === 'client' && projects.length > 1) {
+      throw Object.assign(new Error('A client recap covers one project only: pass --projects <path> with a single path'), { code: 'INVALID_USAGE' });
+    }
+    const now = argValue('--now') ? new Date(argValue('--now')) : new Date();
+    if (Number.isNaN(now.getTime())) throw Object.assign(new Error('--now must be an ISO date'), { code: 'INVALID_USAGE' });
+    const data = require('../lib/recap.js').collectRecap({ projects, days, now });
+    const html = renderRecap(data, { audience, now });
+    const day = (d) => d.toISOString().slice(0, 10);
+    const out = argValue('--out')
+      ? path.resolve(CWD, argValue('--out'))
+      : path.join(CWD, '.ai-engineering-loop', 'recaps', `recap-${day(data.window.from)}-${day(now)}-${audience}.html`);
+    fs.mkdirSync(path.dirname(out), { recursive: true });
+    fs.writeFileSync(out, html, { mode: 0o600 });
+    fs.chmodSync(out, 0o600);
+    if (process.argv.includes('--open')) openStudio(out);
+    const summary = { ok: true, path: out, audience, days, projects: data.projects, runs: data.metrics.runs, delivered: data.metrics.delivered };
+    if (process.argv.includes('--json')) console.log(JSON.stringify(summary, null, 2));
+    else log.success(`✓ Recap (${audience}, ${days} days, ${summary.runs} runs, ${summary.delivered} delivered): ${out}`);
+  } catch (error) {
+    log.error(`${error.code || 'RECAP_FAILED'}: ${error.message}`);
+    process.exitCode = 1;
+  }
+}
+
 function handleStats() {
   const json = process.argv.includes('--json');
   try {
@@ -4414,6 +4454,7 @@ Commands:
   calibrate    Compare recorded outcomes with each Run's Finding Ledger: DA misses, wrong dismissals, per reviewer prompt
   debt         Accepted trade-offs and L3 waivers recorded at delivery: list [--file <path>] | close <id> --by <name> [--note <text>]
   next         Next unblocked feature from .ai-engineering-loop/features.json, VCR (verified/activated), evidence audit [--json]
+  recap        Evidence-backed recap of the last N days as one HTML page [--days 7] [--for me|lead|client] [--projects <p,...>|all] [--out <file>] [--open] [--json]
   stats        Failure causes by harness layer, false-victory rate, iterations to PASS [--last <n>] [--json]
   escalation   Compute the minimum Judge model tier from deterministic risk signals
                --run <id>  target a non-current run
@@ -4633,6 +4674,9 @@ switch (command) {
     break;
   case 'escalation':
     handleEscalation();
+    break;
+  case 'recap':
+    handleRecap();
     break;
   case 'stats':
     handleStats();
