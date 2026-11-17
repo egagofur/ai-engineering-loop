@@ -20,8 +20,6 @@ Give your AI agent a goal. It plans the work, builds it, checks itself, challeng
 npx ai-engineering-loop init
 ```
 
-[![AI Engineering Loop Workflow Studio](docs/images/studio-hero-orange.svg)](docs/images/studio-hero-orange.svg)
-
 ## Software delivery that feels simple
 
 AI coding tools are fast, but important details can disappear between the prompt, the code, and the final answer. AI Engineering Loop gives every task one calm, repeatable path:
