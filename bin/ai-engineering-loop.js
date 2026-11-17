@@ -1930,7 +1930,7 @@ function closeFreezeQuestions(runId, actor) {
 function impactPreview(runId, goal) {
   try {
     const map = impactMap.buildImpactMap(CWD, { run: loadRun(CWD, runId), goal });
-    return { files: (map.files || []).map((file) => file.path), tests: (map.tests || []).map((t) => t.path || t).slice(0, 10) };
+    return { files: (map.files || []).map((file) => file.path), tests: (map.tests || []).map((t) => t.path || t) };
   } catch (err) {
     return { error: err.message };
   }
@@ -3163,10 +3163,13 @@ function handleGoal() {
         expectedRevision: requiredIntegerArg('--revision')
       });
       extra.impactPreview = impactPreview(runId, draftGoal);
-      // C-21: show the intended user flow as a transition table before freeze.
       if (draftGoal && draftGoal.flow != null) {
         const flowLib = require('../lib/flow.js');
-        extra.flow = { table: flowLib.renderFlow(draftGoal.flow), mermaid: flowLib.renderMermaid(draftGoal.flow), problems: flowLib.flowProblems(draftGoal.flow), warnings: flowLib.flowWarnings(draftGoal.flow) };
+        extra.flow = { table: flowLib.renderFlow(draftGoal.flow), mermaid: flowLib.renderMermaid(draftGoal.flow), problems: flowLib.flowProblems(draftGoal.flow), warnings: flowLib.flowWarnings(draftGoal.flow), ...flowLib.flowCounts(draftGoal) };
+        const preference = require('../lib/generate-workflow.js').readFreezeDiagram(CWD);
+        extra.diagramOptions = flowLib.diagramOptions(draftGoal, { preference });
+        if (preference === 'off') extra.diagramsOff = true;
+        else extra.diagramHint = `Offer the recommended view or freeze; render one with \`goal diagram --run ${runId} --view <state|storyboard|lanes>\`.`;
       }
       appendRunLifecycle(CWD, runId, {
         type: 'GOAL_DRAFT_UPDATED',
@@ -3239,8 +3242,10 @@ function handleGoal() {
         const confirmed = impactMap.confirmImpactMap(CWD, { runId, by: argValue('--by') || 'human' });
         extra.impact = { status: confirmed.map ? confirmed.map.status : 'CONFIRMED' };
       }
+    } else if (action === 'diagram') {
+      Object.assign(extra, renderGoalDiagram(runId));
     } else {
-      const error = new Error('goal must be show, draft, or freeze');
+      const error = new Error('goal must be show, draft, freeze, or diagram');
       error.code = 'INVALID_USAGE';
       throw error;
     }
@@ -3249,6 +3254,52 @@ function handleGoal() {
     log.error(`${error.code || 'GOAL_FAILED'}: ${error.message}`);
     process.exitCode = 1;
   }
+}
+
+function renderGoalDiagram(runId) {
+  const view = argValue('--view');
+  const { VIEWS } = require('../lib/flow.js');
+  if (!VIEWS.includes(view)) {
+    throw Object.assign(new Error('goal diagram needs --view state|storyboard|lanes'), { code: 'INVALID_USAGE' });
+  }
+  const run = loadRun(CWD, runId);
+  let goal;
+  let revision;
+  let suffix;
+  if (run.goal?.frozen) {
+    goal = JSON.parse(fs.readFileSync(path.join(CWD, '.ai-engineering-loop', 'runs', runId, 'goal-contract.json'), 'utf8'));
+    revision = null;
+    suffix = 'frozen';
+  } else {
+    const draft = loadGoalDraft(CWD, runId);
+    if (!draft) throw Object.assign(new Error('No Goal draft yet: run `goal draft` first'), { code: 'GOAL_DRAFT_MISSING' });
+    revision = draft.metadata.revision;
+    const requested = argValue('--revision');
+    if (requested != null && Number(requested) !== revision) {
+      throw Object.assign(new Error(`Only the latest draft is kept: it is revision ${revision}. Rerun with --revision ${revision} or without --revision.`), { code: 'GOAL_REVISION_MISMATCH' });
+    }
+    goal = draft.contract;
+    suffix = `r${revision}`;
+  }
+  if (!Array.isArray(goal.flow) || !goal.flow.length) {
+    throw Object.assign(new Error('The Goal has no flow to draw. Add flow steps ({from, event, to}) to the draft, then rerun `goal draft`.'), { code: 'GOAL_FLOW_MISSING' });
+  }
+  const html = require('../lib/flow-diagram.js').renderDiagram(goal, { view, revision });
+  const dir = path.join(CWD, '.ai-engineering-loop', 'runs', runId, 'diagrams');
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const file = path.join(dir, `${view}-${suffix}.html`);
+  fs.writeFileSync(file, html, { mode: 0o600 });
+  fs.chmodSync(file, 0o600);
+  if (process.argv.includes('--open')) openStudio(file);
+  const counts = require('../lib/flow.js').flowCounts(goal);
+  return {
+    view,
+    path: file,
+    counts,
+    next: counts.undecided || counts.hotspots || counts.sideEffects
+      ? 'Ask the human: freeze, another view, or turn the ? cells, hotspots and side effects into AC, non-goals or forbiddenTransitions (new draft revision).'
+      : 'Ask the human: freeze or another view.'
+  };
 }
 
 function handleActivity() {
@@ -4285,6 +4336,7 @@ Commands:
                draft --from-design <doc.md> [--file <json>] --revision <n>   prefill from a design doc, record designRef
                freeze --revision <n> --hash <sha256> [--run <id>] [--by <name>]
                freeze --latest [--run <id>] --by <name>   freeze the newest draft (CLI resolves revision/hash)
+               diagram --view state|storyboard|lanes [--run <id>] [--revision <n>] [--open]   draw the Goal flow as HTML
   verification Summarize verification.json for compact Judge context
                summarize [--run <id>] [--json]
                record [--run <id>] [--timeout-ms <n>] [--shell] [--json] -- <executable> [args...]

@@ -136,18 +136,58 @@
       "additionalProperties": false
     },
     "flow": {
-      "description": "Optional (C-21): the intended user flow as transitions. goal draft renders it as a From | Event | To table for the human to check before freeze; the receipt shows it next to the verification artifacts.",
+      "description": "Optional (C-21, C-27): the intended flow as transitions. goal draft renders it as a From | Event | To table; goal diagram renders it as a state machine, storyboard or actor lanes before freeze; the receipt shows it next to the verification artifacts.",
       "type": "array",
       "minItems": 1,
+      "maxItems": 40,
       "items": {
         "type": "object",
         "required": ["from", "event", "to"],
         "properties": {
           "from": { "type": "string", "minLength": 1 },
           "event": { "type": "string", "minLength": 1 },
-          "to": { "type": "string", "minLength": 1 }
+          "to": { "type": "string", "minLength": 1 },
+          "actor": { "type": "string", "minLength": 1, "description": "Who performs the step (user, app, service, db, cron). Missing means user." },
+          "guard": { "type": "string", "minLength": 1 },
+          "effects": {
+            "type": "array",
+            "maxItems": 12,
+            "items": {
+              "type": "object",
+              "required": ["text"],
+              "properties": {
+                "text": { "type": "string", "minLength": 1 },
+                "ac": { "type": "string", "minLength": 1, "description": "Acceptance criterion that covers this effect. Missing means a side effect no AC covers." }
+              }
+            }
+          },
+          "hotspot": { "description": "An open question about this transition, or true.", "oneOf": [{ "type": "string", "minLength": 1 }, { "const": true }] }
         }
       }
+    },
+    "flowSubject": {
+      "description": "Optional (C-27): the entity whose status the flow describes; makes the state view the recommended one.",
+      "type": "string",
+      "minLength": 1
+    },
+    "forbiddenTransitions": {
+      "description": "Optional (C-27): state/event pairs the human decided are invalid; the transition table shows them as invalid instead of undecided.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["from", "event"],
+        "properties": {
+          "from": { "type": "string", "minLength": 1 },
+          "event": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "plainSummary": {
+      "description": "Optional (C-28): one sentence for non-technical readers, used by `recap --for client`.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240
     },
     "featureId": {
       "description": "Optional (C-15): id of the feature in .ai-engineering-loop/features.json this Goal delivers. Goal freeze marks it active; delivery marks it passing with this Run as evidence.",
