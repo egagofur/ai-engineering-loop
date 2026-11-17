@@ -75,12 +75,12 @@
     <circle cx="1206" cy="396" r="11" fill="none" stroke="#fc6404" stroke-opacity=".35" stroke-width="2"/>
     <text class="ui tiny" x="1224" y="400">live: watch · heartbeat 3s ago</text>
 
-    <rect x="222" y="444" width="1220" height="50" rx="12" fill="#2a1708" stroke="#833301"/>
+    <rect x="222" y="444" width="1220" height="50" rx="12" fill="#1a2418" stroke="#2f5a22"/>
     <rect x="222" y="444" width="6" height="50" rx="3" fill="#fcaa72"/>
     <text class="ui" x="248" y="474" font-size="13" font-weight="800" letter-spacing="1.4" fill="#fcaa72">QUESTION</text>
     <text class="ui" x="340" y="474" font-size="15" fill="#e4e8e5">Should an empty cart show the “Continue shopping” link?</text>
-    <rect x="1316" y="456" width="110" height="26" rx="7" fill="#1d221e" stroke="#a8480a"/>
-    <text class="ui" x="1371" y="474" text-anchor="middle" font-size="12" font-weight="750" fill="#fde3cf">Answer</text>
+    <rect x="1316" y="456" width="110" height="26" rx="7" fill="#1d221e" stroke="#3b6b2c"/>
+    <text class="ui" x="1371" y="474" text-anchor="middle" font-size="12" font-weight="750" fill="#c9f0bd">Answer</text>
 
     <line x1="300" y1="560" x2="1365" y2="560" stroke="#343a35" stroke-width="4" stroke-linecap="round"/>
     <line x1="300" y1="560" x2="939" y2="560" stroke="#fc6404" stroke-width="4" stroke-linecap="round"/>
@@ -105,12 +105,12 @@
 
     <rect x="222" y="652" width="600" height="62" rx="12" fill="#191d1a" stroke="#2b312c"/>
     <text class="ui eyebrow" x="246" y="688" font-size="12">COMPLIANCE</text>
-    <rect x="384" y="667" width="134" height="32" rx="16" fill="#2a1708" stroke="#833301"/>
+    <rect x="384" y="667" width="134" height="32" rx="16" fill="#1c2a18" stroke="#2f5a22"/>
     <circle cx="402" cy="683" r="5" fill="#fc6404"/>
-    <text class="ui" x="414" y="688" font-size="13" fill="#fde3cf">Guard 0 blocks</text>
-    <rect x="526" y="667" width="120" height="32" rx="16" fill="#2a1708" stroke="#833301"/>
+    <text class="ui" x="414" y="688" font-size="13" fill="#c9f0bd">Guard 0 blocks</text>
+    <rect x="526" y="667" width="120" height="32" rx="16" fill="#1c2a18" stroke="#2f5a22"/>
     <circle cx="543" cy="683" r="5" fill="#fc6404"/>
-    <text class="ui" x="555" y="688" font-size="13" fill="#fde3cf">Scope in map</text>
+    <text class="ui" x="555" y="688" font-size="13" fill="#c9f0bd">Scope in map</text>
     <rect x="654" y="667" width="148" height="32" rx="16" fill="#1d221e" stroke="#343a35"/>
     <circle cx="671" cy="683" r="5" fill="#707873"/>
     <text class="ui" x="683" y="688" font-size="13" fill="#9da49f">Receipt pending</text>
