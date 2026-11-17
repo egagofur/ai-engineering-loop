@@ -7,6 +7,7 @@
 - Boundary-crossing AC (UI-API, service-DB, queue, IPC): `crossComponent: true`; needs L3.
 - Optional per AC: `verify.command` (Judge PASS needs it green), `rubric` for subjective ACs; Goal `featureId` links `features.json`; Goal `flow` (from/event/to) for UI work: show its table with the draft (`docs goal-contract`).
 - Write the contract JSON to a repository-local file, then `npx ai-engineering-loop goal draft --run <runId> --file <file> --revision <currentRevision>` (publishes the draft and the freeze question to Studio). Show the human the draft and its `impactPreview` in one message.
+- If `goal draft` returns `diagramOptions`, offer the recommended view or freeze; render only the pick (`goal diagram --view <v>`), then ask: freeze, another view, or add AC for `?`/side effects.
 - Wait for the explicit human freeze, then `npx ai-engineering-loop goal freeze --latest --run <runId> --by <name>` (or `--revision <r> --hash <h>`). Add `--confirm-impact` when that answer also accepts the blast radius. T0: `quick start`.
 - Otherwise the freeze writes a DRAFT blast-radius map: `impact show --run <runId>`. ASSISTED: the human confirms or edits it (`impact confirm --by <name> [--allow <glob>] [--remove <path>]`); copy/CSS/comment-only goals: `impact skip --by <name> --reason <text>` (`docs blast-radius-map`).
 - Do not edit production code until the Goal gate passes.
