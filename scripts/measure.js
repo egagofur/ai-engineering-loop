@@ -180,6 +180,7 @@ function measureScenario(scenario) {
     spawn('judge', ['run-summary.md', 'verification-summary.json', 'findings.json'].reduce((n, f) => n + size(path.join(repo, runDir, f)), 0));
     cli('budget record', 'budget', 'record', '--unavailable', '--run', run.runId);
     write('verdict.json', path.join(runDir, 'verdict.json'), JSON.stringify({ schemaVersion: 1, runId: run.runId, verdict: 'PASS', reason: 'no open findings', action: 'deliver', modelTier: 'STRONG_MODEL' }));
+    if (tier() === 'T2') cli('safety record', 'safety', 'record', '--run', run.runId, '--fact', 'the change only adds a guarded code path', '--cmd', 'node --version');
   }
   if (state().state !== 'JUDGED_PASS') cli('gate judge', 'gate', 'judge');
 

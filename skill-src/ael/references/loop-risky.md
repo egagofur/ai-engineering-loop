@@ -6,5 +6,6 @@ Applies to HIGH_RISK_PATH changes (auth, payments, migrations, secrets, infra), 
 - Business-logic changes need a blast radius: lifecycle sketch of what reads and writes the changed state; on `adapter_type: dot` load `task-impact-inquiry`. Skip it for docs, config, or UI-copy changes.
 - Full DA (not the T1 lean shortcut) and Judge on STRONG_MODEL resolved through the host model catalog; if unavailable, escalate to the user. Never run the deterministic Judge for T2.
 - UNATTENDED: sandbox worktree only, and `budget pause` is the kill switch (`docs runtime-safety`).
+- Before Judge: `safety record --fact "<the one fact it is safe because of>" --cmd "<proof that passes only if it holds>"` (PASS needs level 4+).
 - The tier never falls back once raised.
 - New feature or architecture: suggest a reviewed design first (`docs spec-pack`), then `goal draft --from-design <doc>`.

@@ -32,3 +32,11 @@
 | C-26 P1: no comments in product code (blocking `no-comments` findings) | Engineer Bot | Done | [#119](https://github.com/egagofur/ai-engineering-loop/pull/119) | Claude | 7bb7abf (merged 2026-11-16, v2.9.0) |
 | C-27 P2: goal freeze diagrams (state machine, storyboard, actor lanes) | Engineer Bot | Done | [#122](https://github.com/egagofur/ai-engineering-loop/pull/122) | Claude | 52f8dcd (merged 2026-11-17, v2.10.0) |
 | C-28 P2: `ael recap` evidence-backed recap for me / lead / client | Engineer Bot | Done | [#122](https://github.com/egagofur/ai-engineering-loop/pull/122) | Claude | 52f8dcd (merged 2026-11-17, v2.10.0) |
+| C-29 P1: findings survive only when a proof run reproduces them | Engineer Bot | In Review | branch `feat/proof-not-prose` | Claude | not merged |
+| C-30 P1: one safety fact with a proof level (T2 PASS needs 4+) | Engineer Bot | In Review | branch `feat/proof-not-prose` | Claude | not merged |
+| C-31 P2: `learn promote --prove <commit>` | Engineer Bot | In Review | branch `feat/proof-not-prose` | Claude | not merged |
+| C-32 P2: premise required when an ITERATE cause repeats | Engineer Bot | In Review | branch `feat/proof-not-prose` | Claude | not merged |
+| C-33 P2: explain the number for `measure: true` ACs | Engineer Bot | In Review | branch `feat/proof-not-prose` | Claude | not merged |
+| C-34 P3: feature-map drift in doctor --harness | Engineer Bot | In Review | branch `feat/proof-not-prose` | Claude | not merged |
+| C-35 P3: `formal_covers` adds formal to default verify | Engineer Bot | In Review | branch `feat/proof-not-prose` | Claude | not merged |
+| C-36 P2: human interventions per Run in stats and recap | Engineer Bot | In Review | branch `feat/proof-not-prose` | Claude | not merged |

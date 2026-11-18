@@ -3530,6 +3530,10 @@ async function handleVerify() {
       if (smokeText && !baselineMode && lanes.startupRiskFiles(CWD, loadRun(CWD, runId)).length) {
         plan.push({ key: 'smoke', layer: 'L2', text: smokeText });
       }
+      const formalText = lanes.verificationCommands(CWD).formal;
+      if (formalText && !baselineMode && !plan.some((step) => step.key === 'formal') && lanes.formalCoveredFiles(CWD, loadRun(CWD, runId)).length) {
+        plan.push({ key: 'formal', layer: 'LF', text: formalText });
+      }
       if (!plan.length) throw Object.assign(new Error('No --cmd given and no build/typecheck/lint/test_unit command in .ai-engineering-loop/verification.md. FIX: add them to verification.md or pass --cmd.'), { code: 'INVALID_COMMAND' });
       commandsToRun = plan.map((step) => ({ ...splitCommand(step.text, shell || Boolean(step.shell)), key: step.key, layer: step.layer, ...(step.env ? { env: step.env } : {}) }));
       defaultPlan = true;
@@ -3763,6 +3767,43 @@ function handleRules() {
     if (violations.length) process.exitCode = 1;
   } catch (err) {
     stageJsonError(err, json, 'RULES_FAILED');
+  }
+}
+
+function handleSafety() {
+  try {
+    if (args[1] !== 'record') throw Object.assign(new Error('Use: safety record --run <id> --fact <text> [--cmd <command>] [--live] [--level 1-3]'), { code: 'INVALID_USAGE' });
+    const runId = requiredRunId('safety record');
+    const value = require('../lib/safety-fact.js').recordSafetyFact(CWD, runId, {
+      fact: argValue('--fact'),
+      command: argValue('--cmd'),
+      live: process.argv.includes('--live'),
+      level: argValue('--level')
+    });
+    if (process.argv.includes('--json')) console.log(JSON.stringify({ ok: true, runId, safetyFact: value }, null, 2));
+    else log.success(`✓ Safety fact recorded at level ${value.level} (${value.levelName}): ${value.fact}`);
+  } catch (error) {
+    log.error(`${error.code || 'SAFETY_FAILED'}: ${error.message}`);
+    process.exitCode = 1;
+  }
+}
+
+function handleMeasurement() {
+  try {
+    if (args[1] !== 'record') throw Object.assign(new Error('Use: measurement record --run <id> --ac <AC-n> --runs <n> --spread <pct> --effect <pct> --limiter <text>'), { code: 'INVALID_USAGE' });
+    const runId = requiredRunId('measurement record');
+    const value = require('../lib/measurements.js').recordMeasurement(CWD, runId, {
+      ac: argValue('--ac'),
+      runs: argValue('--runs'),
+      spread: argValue('--spread'),
+      effect: argValue('--effect'),
+      limiter: argValue('--limiter')
+    });
+    if (process.argv.includes('--json')) console.log(JSON.stringify({ ok: true, runId, measurement: value }, null, 2));
+    else log.success(`✓ ${value.ac}: ${value.runs} runs, spread ${value.spread}%, effect ${value.effect}%, limited by ${value.limiter}`);
+  } catch (error) {
+    log.error(`${error.code || 'MEASUREMENT_FAILED'}: ${error.message}`);
+    process.exitCode = 1;
   }
 }
 
@@ -4291,6 +4332,7 @@ function handleLearn() {
         forbidImport: argValue('--forbid-import'),
         forbidApi: argValue('--forbid-api'),
         except: argValue('--except'),
+        prove: argValue('--prove'),
         shell: !process.argv.includes('--no-shell')
       });
       if (json) console.log(JSON.stringify({ ok: true, rule }));
@@ -4463,6 +4505,8 @@ Commands:
   calibrate    Compare recorded outcomes with each Run's Finding Ledger: DA misses, wrong dismissals, per reviewer prompt
   debt         Accepted trade-offs and L3 waivers recorded at delivery: list [--file <path>] | close <id> --by <name> [--note <text>]
   next         Next unblocked feature from .ai-engineering-loop/features.json, VCR (verified/activated), evidence audit [--json]
+  safety       Record the one fact a change is safe because of [record --fact <text> --cmd <proof>] (T2 Judge PASS needs level 4+)
+  measurement  Record how a performance number was measured [record --ac <id> --runs <n> --spread <pct> --effect <pct> --limiter <text>]
   recap        Evidence-backed recap of the last N days as one HTML page [--days 7] [--for me|lead|client] [--projects <p,...>|all] [--out <file>] [--lang <tag>] [--open] [--json]
   stats        Failure causes by harness layer, false-victory rate, iterations to PASS [--last <n>] [--json]
   escalation   Compute the minimum Judge model tier from deterministic risk signals
@@ -4686,6 +4730,12 @@ switch (command) {
     break;
   case 'recap':
     handleRecap();
+    break;
+  case 'safety':
+    handleSafety();
+    break;
+  case 'measurement':
+    handleMeasurement();
     break;
   case 'stats':
     handleStats();

@@ -162,6 +162,10 @@ For UI or multi-step work, add the flow the user should experience as transition
 
 `goal draft` returns it as a `From | Event | To` table and a Mermaid `stateDiagram-v2` (`flow.mermaid`), with warnings (a state nothing reaches, a state with no way out that is not Done/Error), so the human checks the intent before freeze. A malformed `flow` fails the Goal gate. The PR receipt shows the same diagram (GitHub renders it) and table under "Intended flow", after "Verification artifacts" and before the acceptance criteria.
 
+## Performance ACs (C-33)
+
+Mark an AC that claims a number (faster, smaller, more throughput) with `"measure": true`. Judge PASS then needs `measurement record` for it with at least 3 runs, a limiter and spread below the effect (`docs verification-loop`, section 3e).
+
 ## Look before you freeze: diagrams (C-27)
 
 Steps may carry more than `from`, `event`, `to`, so the human can see what else a change touches before freezing:

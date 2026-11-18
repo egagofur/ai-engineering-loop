@@ -11,6 +11,7 @@
 
 Run these when the user asks how the loop is doing, before planning work, or when a gate points at them. All read local Run files; none starts a Run.
 - `stats [--last <n>] [--json]`: failure causes by harness layer (`task_spec`, `context`, `environment`, `verification`, `state`, `model`), false-victory rate per tier, iterations to PASS, revert rate of delivered Runs (from git) and the verification share of tokens. Fix the bottleneck layer first.
+- `learn promote ... --prove <commit>`: the check must fail on the commit that introduced the mistake. `measurement record --ac <id> --runs <n> --spread <pct> --effect <pct> --limiter <text>` for `measure: true` ACs (`docs verification-loop` 3e).
 - `recap [--days N] [--for me|lead|client] [--projects <p,...>|all]`: one HTML page of what shipped, with evidence (`docs recap`). Client recaps take one project.
 - `outcome record --run <id> --source mr-comment|revert|bug|incident --location <file[:line]> --summary <text> --by <name>`: a problem people found after delivery. Only record what the human reported; never invent one. Then `calibrate` lists DA misses and wrong dismissals per reviewer prompt version.
 - `debt [--file <path>]` lists trade-offs the Judge accepted and L3 waivers; `debt close <id> --by <name>` only on the human's word.

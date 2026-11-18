@@ -67,6 +67,7 @@ Return a Finding Ledger as a fenced JSON block and stop:
       "acceptanceCriteria": "AC-1",
       "failureScenario": "Concrete failing case",
       "reproduction": "Steps to reproduce",
+      "proof": { "command": "node --test test/cancel.test.js" },
       "evidence": "Hunk or line you read",
       "concreteAlternativeDiff": "diff snippet"
     }
@@ -74,7 +75,7 @@ Return a Finding Ledger as a fenced JSON block and stop:
 }
 ```
 
-Rules: axis is spec or standards (default spec). hardConvention is boolean, default false. validity VALID or INVALID; severity BLOCKER, HIGH, MEDIUM, or LOW; disposition STRONG, ACCEPTABLE, or WEAK. VALID BLOCKER or HIGH must include concreteAlternativeDiff. Empty findings is allowed.
+Rules: axis is spec or standards (default spec). hardConvention is boolean, default false. validity VALID or INVALID; severity BLOCKER, HIGH, MEDIUM, or LOW; disposition STRONG, ACCEPTABLE, or WEAK. VALID BLOCKER or HIGH must include concreteAlternativeDiff. For VALID BLOCKER or HIGH, add `proof.command` when a run can show the bug: a test or script that exits non-zero while the bug is present. The CLI runs it at `gate review`; a proof that exits 0 marks the finding `not_reproduced` and it stops blocking, so only claim what a run shows. Never use a destructive command. Empty findings is allowed.
 
 Lean output caps:
 

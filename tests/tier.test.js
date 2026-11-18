@@ -190,6 +190,8 @@ test('T1 diff that touches auth rises to T2; T2 PASS needs STRONG_MODEL', () => 
   writeArtifact(root, 'verdict.json', { schemaVersion: 1, runId: 'run-001', verdict: 'PASS', reason: 'ok', action: 'deliver', modelTier: 'CHEAP_MODEL' });
   assert.throws(() => applyGate(root, 'judge'), /STRONG_MODEL/);
   writeArtifact(root, 'verdict.json', { schemaVersion: 1, runId: 'run-001', verdict: 'PASS', reason: 'ok', action: 'deliver', modelTier: 'STRONG_MODEL' });
+  assert.throws(() => applyGate(root, 'judge'), /SAFETY_FACT_UNPROVEN/);
+  require('../lib/safety-fact.js').recordSafetyFact(root, 'run-001', { fact: 'auth tokens are only read, never written', command: `${JSON.stringify(process.execPath)} -e "process.exit(0)"` });
   assert.strictEqual(applyGate(root, 'judge').state, RUN_STATES.JUDGED_PASS);
 });
 
