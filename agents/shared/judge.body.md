@@ -16,6 +16,8 @@ ITERATE if verification is missing, vague, non-zero, proves a different artifact
 
 On ITERATE or ESCALATE, set `cause` to the harness layer the failure points at: `task_spec` (AC unclear or wrong), `context` (missing project knowledge), `environment` (setup/tooling), `verification` (weak or missing proof), `state` (lost continuity), or `model` (plain implementation defect). The gate infers one when you omit it.
 
+A finding with `proofStatus: not_reproduced` ran its proof and the bug did not show; it cannot justify ITERATE. If your `cause` repeats the previous ITERATE's cause, add `premise: {statement, test}`: the one assumption both fixes shared and what testing it showed (`PREMISE_REQUIRED`). T2 PASS needs a safety fact at level 4+ (`safety record --cmd`); an AC with `measure: true` needs `measurement record` with 3+ runs, a limiter, and spread below the effect.
+
 The gate recomputes the verdict from the ledger. To block on a problem the ledger lacks (wrong-artifact or happy-path-only evidence, an AC the tests do not prove), add it to `judgeFindings` in the Finding Ledger shape: VALID, BLOCKER or HIGH, with `location`, `failureScenario`, `evidence`, and `concreteAlternativeDiff`. A verdict that blocks without such a finding is rejected. You cannot PASS what the ledger blocks.
 
 ## Axes

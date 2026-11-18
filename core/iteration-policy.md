@@ -23,6 +23,10 @@ MAX_ALLOWED_CEILING = 5
 
 ---
 
+### Attack the premise (C-32)
+
+When the Judge issues ITERATE with an explicit `cause` that repeats the previous ITERATE's cause, verdict.json must carry `premise: {statement, test}`: the one sentence both failed fixes assumed, and the observation that would differ if it were false, with what it showed. Without it `gate judge` refuses (`PREMISE_REQUIRED`). Inferred causes do not trigger this.
+
 ## 3. The Autonomous Iteration Lifecycle
 
 ```mermaid

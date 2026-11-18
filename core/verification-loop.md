@@ -116,6 +116,31 @@ Detection follows the file's comment syntax: `//`, `/* */` and `*` lines in C-fa
 
 A reviewer can downgrade a finding (for example public API docs that a doc generator reads) only with `dismissal: {by, evidence}`. A project that needs comments (a library shipping JSDoc, for example) opts out for every Run by having a human add `"comments": "allow"` to `.ai-engineering-loop/rules.json`; C-18 findings still apply.
 
+## 3e. Proof, Not Prose (C-29 to C-35)
+
+Adapted from pstack (`interrogate`, `blast-radius`, `correct`, `principle-explain-the-number`; MIT, poteto). Each check moves a claim from the agent's word to something the CLI runs. No extra subagents: agents write the command, the CLI runs it.
+
+**Findings must reproduce (C-29).** A VALID BLOCKER or HIGH finding may carry `proof: {command}`: a test or script that exits non-zero while the bug is present. At `gate review` the CLI runs every such proof in the repository (120 s timeout; destructive commands are refused by the guard) and sets `proofStatus`:
+
+| proofStatus | Meaning | Blocks? |
+|---|---|---|
+| `reproduced` | the command failed: the bug shows | yes |
+| `not_reproduced` | the command passed: the bug did not show | **no** |
+| `refused` | empty or destructive command | yes |
+| `timed_out` | no answer within the timeout | yes |
+
+Results go to `runs/<id>/proofs.json`. Only the CLI writes `proofStatus`; a value written by hand is cleared. A finding without `proof` behaves as before.
+
+**One safety fact (C-30).** A risky change is usually safe because of one fact. Record it with `ael safety record --run <id> --fact "<fact>" --cmd "<script or test that passes only if the fact holds>"`. A passing command records level 4 (5 with `--live`, when it ran against the running app); without `--cmd`, `--level 1|2|3` records stated, pointed at the line, or walked the failure path. A T2 Judge PASS needs level 4 or more (`SAFETY_FACT_UNPROVEN`).
+
+**Rules must catch a real past mistake (C-31).** `learn promote ... --prove <commit>` runs the new check against the commit that introduced the mistake (its added lines for `--scope diff` and forbid rules; its whole tree, in a temporary worktree, for repo rules). The check must fail there, or the promotion is refused (`RULE_NOT_PROVEN`). The rule records `provenBy`; `doctor --harness` lists rules without it.
+
+**Explain the number (C-33).** An AC with `"measure": true` (a speedup, a latency, a throughput) needs `ael measurement record --run <id> --ac AC-n --runs <n> --spread <pct> --effect <pct> --limiter "<what bounds the result>"`. Judge PASS needs at least 3 runs, a limiter, and run-to-run spread smaller than the effect (`MEASUREMENT_UNEXPLAINED`).
+
+**Drift (C-34, C-35).** `doctor --harness` warns when a feature-map path matches no tracked file. `- **formal_covers**: src/payments/**` in `verification.md` makes default `verify` add the `formal` key whenever the gated diff touches covered files.
+
+**Measure it (C-36).** `stats` reports human interventions per Run (answered questions, escalations, problems recorded after delivery) and how many finding proofs reproduced; `recap` shows interventions per Run for me and the lead.
+
 ## 4. The 4 Verification Gates
 
 1. **Gate 1: Unit & Integration Tests**: All unit and edge-case tests must pass with 0 failures.

@@ -53,6 +53,10 @@
               "minLength": 1
             }
           },
+          "measure": {
+            "description": "Optional (C-33) for performance ACs: Judge PASS needs `measurement record` with at least 3 runs, a limiter, and spread smaller than the effect.",
+            "type": "boolean"
+          },
           "rubric": {
             "description": "Optional (C-09) for subjective ACs: criteria the Devil's Advocate scores with evidence in ledger.rubricScores. Judge PASS needs every criterion scored pass:true.",
             "type": "array",
