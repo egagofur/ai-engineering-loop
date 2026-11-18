@@ -1,6 +1,6 @@
 {
   "name": "ai-engineering-loop",
-  "version": "2.10.1",
+  "version": "2.11.0",
   "description": "A visual workspace that helps AI coding agents plan, build, review, and ship reliable software.",
   "main": "bin/ai-engineering-loop.js",
   "bin": {
