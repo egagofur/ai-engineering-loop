@@ -4,6 +4,10 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+_No changes yet._
+
+## 2.11.0 - 2026-11-18
+
 From pstack (cards C-29..C-36 in `docs/cards/proof-not-prose-2026-11-18.md`): less human re-checking, because the CLI runs the proof instead of trusting prose.
 
 - **Added:** finding proofs (C-29): a VALID BLOCKER/HIGH finding may carry `proof.command`; `gate review` runs it and records `proofStatus`. A proof that passes (`not_reproduced`) stops the finding from blocking; destructive or timed-out proofs keep it blocking. Results in `runs/<id>/proofs.json`; ablation component `proofs`.
