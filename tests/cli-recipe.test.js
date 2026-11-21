@@ -62,6 +62,8 @@ test('CLI explains, graphs, and simulates without executing workflow nodes', () 
 test('CLI run binds a recipe snapshot and node status reads its scheduler state', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-cli-recipe-run-'));
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-cli-home-'));
+  execFileSync('git', ['init', '-q'], { cwd: root });
+  execFileSync('git', ['-c', 'user.email=a@b.c', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'init'], { cwd: root });
   runCli(root, ['init'], { AEL_HOME: home });
   const output = runCli(root, ['run', '--recipe', 'audit', 'audit this repository'], { AEL_HOME: home });
   assert.match(output, /Recipe: audit/);
@@ -77,6 +79,8 @@ test('CLI run binds a recipe snapshot and node status reads its scheduler state'
 test('CLI run automatically binds a Studio-visible workflow when no recipe is specified', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-cli-default-run-'));
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-cli-home-'));
+  execFileSync('git', ['init', '-q'], { cwd: root });
+  execFileSync('git', ['-c', 'user.email=a@b.c', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'init'], { cwd: root });
   runCli(root, ['init'], { AEL_HOME: home });
 
   const assisted = runCli(root, ['run', 'build a searchable settings page'], { AEL_HOME: home });
@@ -85,6 +89,8 @@ test('CLI run automatically binds a Studio-visible workflow when no recipe is sp
   assert.equal(status.recipe.id, 'default');
 
   const reportRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-cli-report-run-'));
+  execFileSync('git', ['init', '-q'], { cwd: reportRoot });
+  execFileSync('git', ['-c', 'user.email=a@b.c', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'init'], { cwd: reportRoot });
   runCli(reportRoot, ['init'], { AEL_HOME: home });
   const report = runCli(reportRoot, [
     'run',

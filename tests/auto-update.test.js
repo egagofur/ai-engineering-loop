@@ -29,6 +29,7 @@ function project(home, name = 'p') {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), `ael-au-${name}-`));
   fs.writeFileSync(path.join(dir, 'package.json'), `{"name":"${name}"}\n`);
   execFileSync('git', ['init', '-q'], { cwd: dir });
+  execFileSync('git', ['-c', 'user.email=a@b.c', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'init'], { cwd: dir });
   return dir;
 }
 

@@ -39,6 +39,7 @@ function repo(box) {
   box.dirs.push(dir);
   fs.writeFileSync(path.join(dir, 'package.json'), '{"name":"p"}\n');
   execFileSync('git', ['init', '-q'], { cwd: dir });
+  execFileSync('git', ['-c', 'user.email=a@b.c', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'init'], { cwd: dir });
   const result = cli(box, dir, ['init']);
   assert.equal(result.status, 0, result.stderr);
   return dir;

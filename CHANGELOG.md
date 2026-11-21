@@ -4,6 +4,21 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+Newcomer UX from a clean Docker sandbox (cards C-47..C-56 in `docs/cards/novice-ux-2026-11-21.md`; rerun with `scripts/sandbox-e2e.sh`) and "dig first" (C-45, C-46 in `docs/cards/dig-first-2026-11-21.md`).
+
+- **Changed:** `deliver` refuses while the reviewed change is not committed, and names the files and the `git add … && git commit` to run (C-47). Commit before `deliver`, as Stage 8 already said.
+- **Changed:** `run` and `quick start` check git first (installed, inside a repo, at least one commit) and stop with WHY/FIX before creating a Run; `status` shows `Git: NOT READY` instead of claiming the context is current, and warns when git identity is missing (C-48).
+- **Changed:** `quick start` on a different task while a Run is unfinished returns `RUN_CONFLICT` (exit 3) with the same options as `run` (C-54).
+- **Added:** README Get Started is three commands (`npm i -g`, `ael setup`, `ael init`); `init`, `status` and `run` say `NOT INSTALLED` and point at `ael setup` when no agent has the skill (C-49).
+- **Added:** `scaffold goal` writes a Goal Contract JSON template to `.ai-engineering-loop/drafts/goal.json`; `goal draft` refuses an unfilled template, explains itself when `--file` is missing, and warns when the draft lives outside `.ai-engineering-loop/`. `docs <name> --section` lists the sections when the name is wrong (C-50, C-55).
+- **Changed:** `doctor` checks your machine (Node, git, git identity, agent skill, adapter CLI and login), and every problem names its FIX; warnings alone print `READY (warnings)`. The release checks moved to `doctor --package` (`npm run doctor`) (C-51).
+- **Changed:** CLI basics (C-52): an unknown command exits 2 with "Did you mean …?" instead of the full help; `ael help [command]` and a short `--help` (`help --all` for everything); bare `ael` in a new folder shows a three-option menu and writes nothing (in an initialised project it shows `status`); `run` with no task and no Run, and `gate` with no name, explain themselves.
+- **Changed:** review handoff (C-53): stage-order errors (`Node X is PENDING, not READY`) carry WHY/FIX naming the next ready stage; `gate judge` after a pass is a no-op that names the next command; `review ingest` on prose shows the minimal ledger.
+- **Changed:** `init` no longer pretends an empty folder is a backend API, warns on an old Node, and tells you to commit the `.gitignore` it created; an untracked `.gitignore` that only ignores AEL stays out of the Maker diff. No colour codes when output is not a terminal or `NO_COLOR` is set; `goal draft`/`goal freeze` print a short summary in a terminal (JSON otherwise, or with `--json`) (C-55, C-56).
+- **Changed:** the skill asks every human decision (freeze, RUN_CONFLICT, fix findings or deliver, approval) through the host's option buttons when it has them (Claude Code `AskUserQuestion`, Antigravity and others' native options), with a numbered fallback (`loop-hosts`, "Asking the human").
+- **Added:** `.ai-engineering-loop/sources.md` (from `init`, `refresh`, `sources refresh`) lists the read-only sources on this machine (code, gh, glab, a Mattermost MCP, AEL history) and keeps your Scope section. `sources hint` / `sources record` with a per-tier gather budget (T0 0, T1 4, T2 8) cached in `runs/<id>/sources.json`; `budget record --role gather` (C-45).
+- **Added:** Goal `statements` labelled fact / decision / assumption. The goal gate checks each fact's source (`path:line`, commit, recorded URL or `S-n`) and downgrades the rest to assumptions, which `status`, the receipt and the review pack show without blocking (C-46).
+
 From poteto's live with Matt Pocock (cards C-43 and C-44 in `docs/cards/poteto-live-2026-11-21.md`).
 
 - **Added:** `learn --transcripts` (C-44): reads local Claude Code, Cursor and Codex transcripts for this repository, finds corrections the human repeated across sessions, and saves them as candidate lessons (`L-T…`, redacted example only) with a suggested fix level and, for code tokens, a ready `learn promote --forbid-api … --prove <commit>`. `stats` lists the top repeated corrections.

@@ -369,13 +369,15 @@ function ignoreProjectContextOnFirstInit(rootDir) {
 /**
  * Colorized console helpers
  */
+const COLOR = Boolean(process.stdout.isTTY) && !process.env.NO_COLOR;
+const paint = (code) => (msg) => (COLOR ? console.log(`\x1b[${code}m%s\x1b[0m`, msg) : console.log(msg));
 const log = {
-  info: (msg) => console.log('\x1b[36m%s\x1b[0m', msg),
-  success: (msg) => console.log('\x1b[32m%s\x1b[0m', msg),
-  warn: (msg) => console.log('\x1b[33m%s\x1b[0m', msg),
-  error: (msg) => console.log('\x1b[31m%s\x1b[0m', msg),
-  bold: (msg) => console.log('\x1b[1m%s\x1b[0m', msg),
-  dim: (msg) => console.log('\x1b[2m%s\x1b[0m', msg)
+  info: paint(36),
+  success: paint(32),
+  warn: paint(33),
+  error: paint(31),
+  bold: paint(1),
+  dim: paint(2)
 };
 
 /**
@@ -745,6 +747,11 @@ What becomes easier, harder, or forbidden.
     PRIVATE_RUNTIME_GITIGNORE,
     { overwrite: false }
   );
+  try {
+    require('../lib/sources.js').writeSourcesFile(rootDir);
+  } catch {
+    log.dim('sources.md was not written; run `ai-engineering-loop sources refresh` later.');
+  }
 }
 
 /**
@@ -880,12 +887,20 @@ function handleInit() {
   log.info('Analyzing repository topology and manifests...');
   const discovery = analyzeRepository(CWD);
 
-  log.dim(`> Profile Bound: ${discovery.profile}`);
-  log.dim(`> Languages: ${discovery.languages.join(', ') || 'Unspecified'}`);
-  log.dim(`> Package Manager: ${discovery.packageManager}`);
-  log.dim(`> Unit Test Command: ${discovery.scripts.testUnit}`);
+  if (!Object.keys(discovery.manifestChecksums || {}).length && !discovery.languages.length) {
+    log.warn('> No manifest found (package.json, go.mod, pyproject.toml, ...): profile unknown, no test command. Edit .ai-engineering-loop/verification.md once the project has one.');
+  } else {
+    log.dim(`> Profile Bound: ${discovery.profile}`);
+    log.dim(`> Languages: ${discovery.languages.join(', ') || 'Unspecified'}`);
+    log.dim(`> Package Manager: ${discovery.packageManager}`);
+    log.dim(`> Unit Test Command: ${discovery.scripts.testUnit}`);
+  }
+  const wantedNode = Number(String(require('../package.json').engines?.node || '>=18').match(/\d+/)?.[0] || 18);
+  if (Number(process.versions.node.split('.')[0]) < wantedNode) log.warn(`! Node ${process.versions.node} is older than the supported ${wantedNode}; some commands may fail. FIX: install Node ${wantedNode}+.`);
 
-  if (firstInitialization) ignoreProjectContextOnFirstInit(CWD);
+  if (firstInitialization && ignoreProjectContextOnFirstInit(CWD)) {
+    log.dim('> .gitignore now ignores .ai-engineering-loop/. Commit it on its own so it stays out of your next change: git add .gitignore && git commit -m "Ignore AEL context"');
+  }
   generateContextFiles(CWD, discovery, trigger, impact, { overwriteCore });
 
   const validation = validateContext(CONTEXT_DIR);
@@ -893,6 +908,7 @@ function handleInit() {
     log.success('\n✓ Successfully initialized .ai-engineering-loop/ with:');
     REQUIRED_FILES.forEach((f) => console.log(`  - .ai-engineering-loop/${f}`));
     log.dim('\nProject context is private by default. Remove .ai-engineering-loop/ from .gitignore if you want to share it.');
+    if (!agentSkillState().installed) log.warn(SETUP_HINT);
   } else {
     log.error(`\n✗ Initialization validation failed: ${validation.reason}`);
     process.exit(1);
@@ -936,6 +952,17 @@ function statusJson() {
   return result;
 }
 
+function agentSkillState() {
+  try {
+    const hosts = hostSkillStatus({ home: homeDir(), version: VERSION });
+    return { hosts, installed: hosts.managedFiles > 0 || Boolean(hosts.installedVersion) };
+  } catch {
+    return { hosts: null, installed: true };
+  }
+}
+
+const SETUP_HINT = 'Next: `ael setup` installs the ael skill into the coding agents on this machine (Claude Code, Codex, Cursor, ...); then start a new agent session. No agent yet? See README "Bring your own AI agent".';
+
 function handleStatus() {
   if (command === 'status' && process.argv.includes('--json')) {
     const result = statusJson();
@@ -968,21 +995,36 @@ function handleStatus() {
   log.success('Status: READY & VALID');
   console.log(`- Project Name: ${path.basename(CWD)}`);
   console.log(`- Project Profile: ${metadata.projectProfile || 'unspecified'}`);
-  console.log(`- Context Baseline Git: ${metadata.repositoryRevision ? metadata.repositoryRevision.slice(0, 8) : 'unknown'}`);
-  console.log(`- Living Freshness: \x1b[32m${drift.status}\x1b[0m (${drift.reason})`);
+  const gitState = require('../lib/git-readiness.js').gitReadiness(CWD);
+  const baseline = metadata.repositoryRevision && /^[0-9a-f]{7,}$/.test(metadata.repositoryRevision) ? metadata.repositoryRevision.slice(0, 8) : 'none';
+  console.log(`- Context Baseline Git: ${baseline}`);
+  if (gitState.ok) console.log(`- Living Freshness: ${COLOR ? `\x1b[32m${drift.status}\x1b[0m` : drift.status} (${drift.reason})`);
+  else {
+    log.warn(`- Git: NOT READY (${gitState.message}); a Run cannot start.`);
+    log.dim(`  FIX: ${gitState.fix}`);
+  }
+  for (const warning of gitState.warnings || []) log.warn(`- Git: ${warning}`);
   console.log(`- Context Files: ${REQUIRED_FILES.length}/${REQUIRED_FILES.length} verified (including metadata.json, glossary.md, adrs/)`);
 
   const activeRun = currentRunSafe(CWD);
   if (activeRun && !TERMINAL_STATES.has(activeRun.state)) {
     console.log(`- Active run: ${activeRun.runId} (${activeRun.state})`);
+    const provenance = require('../lib/provenance.js').loadProvenance(CWD, activeRun.runId);
+    if (provenance && provenance.unconfirmed.length) {
+      log.warn(`- Unconfirmed: ${provenance.unconfirmed.length} assumption(s) in the Goal (not blocking)`);
+      for (const text of provenance.unconfirmed.slice(0, 5)) log.dim(`  - ${text}`);
+    }
     const hint = staleRunHint(activeRun);
     if (hint) log.warn(`  ${hint}`);
   }
   const worktreeHint = require('../lib/run-isolation.js').pruneHint(CWD);
   if (worktreeHint) log.warn(`- ${worktreeHint}`);
 
-  const hosts = hostSkillStatus({ home: homeDir(), version: VERSION });
-  if (hosts.stale) {
+  const { hosts, installed } = agentSkillState();
+  if (!installed) {
+    log.warn('- Host skills: NOT INSTALLED (no agent on this machine has the ael skill yet)');
+    log.dim(`  ${SETUP_HINT}`);
+  } else if (hosts.stale) {
     log.warn(`- Host skills: STALE (${hosts.staleFiles} file(s) behind package v${VERSION}${hosts.installedVersion ? `, installed v${hosts.installedVersion}` : ''})`);
     log.dim('  Run "npx ai-engineering-loop sync-hosts" (or "update apply --yes" after a package upgrade), then start a new session.');
   } else {
@@ -1462,6 +1504,16 @@ function currentRunSafe(dir) {
 function handleRun() {
   if (process.argv.includes('--abandon')) return handleRunAbandon();
   const runJson = process.argv.includes('--json');
+  const gitState = require('../lib/git-readiness.js').gitReadiness(CWD);
+  if (!gitState.ok) {
+    if (runJson) console.log(JSON.stringify({ ok: false, code: gitState.code, error: `Cannot start a Run: ${gitState.message}.`, why: gitState.why, fix: gitState.fix }));
+    else {
+      log.error(`Cannot start a Run: ${gitState.message}.`);
+      console.error(`WHY: ${gitState.why}`);
+      console.error(`FIX: ${gitState.fix}`);
+    }
+    process.exit(1);
+  }
   const realLog = console.log;
   if (runJson) console.log = () => {};
   log.info('AI Engineering Loop — Task Execution Entrypoint (run)');
@@ -1493,6 +1545,9 @@ function handleRun() {
   let runResult;
   try {
     const current = getCurrentRun(CWD);
+    if (!task && (forceNew || !current || TERMINAL_STATES.has(current.state))) {
+      throw Object.assign(new Error('run needs a task when no Run is in progress'), { code: 'INVALID_USAGE', why: 'A Run is bound to one task; an empty task cannot be tiered, gated or delivered.', fix: 'ai-engineering-loop run "Add CSV export to the report page"' });
+    }
     if (!forceNew) {
       const conflict = require('../lib/run-isolation.js').runConflict(CWD, current, task);
       if (conflict) {
@@ -1561,10 +1616,12 @@ function handleRun() {
   } catch (err) {
     console.log = realLog;
     if (runJson) {
-      realLog(JSON.stringify({ ok: false, code: err.code || 'RUN_FAILED', error: err.message, ...(err.conflict ? { conflict: err.conflict } : {}) }));
+      realLog(JSON.stringify({ ok: false, code: err.code || 'RUN_FAILED', error: err.message, ...(err.why ? { why: err.why } : {}), ...(err.fix ? { fix: err.fix } : {}), ...(err.conflict ? { conflict: err.conflict } : {}) }));
       process.exit(err.code === 'RUN_CONFLICT' ? 3 : 1);
     }
     log.error(err.message);
+    if (err.why) console.error(`WHY: ${err.why}`);
+    if (err.fix) console.error(`FIX: ${err.fix}`);
     if (err.conflict) {
       for (const option of err.conflict.options) console.log(`- ${option.id === err.conflict.recommended ? '(recommended) ' : ''}${option.label}: ${option.command}`);
       process.exit(3);
@@ -1635,7 +1692,11 @@ function handleRun() {
   const grok = detectGrokHost();
 
   console.log('\n------------------------------------------------------------');
-  log.bold('AI Agent Ready:');
+  if (!agentSkillState().installed) {
+    log.warn('No agent has the ael skill yet, so nothing will pick up this Run on its own.');
+    log.dim(SETUP_HINT);
+  }
+  log.bold('Agent checklist:');
   console.log('1. Grill if needed (docs grill-policy), then freeze a failure-table Goal Contract');
   if (runResult.run.mode === RUN_MODES.REPORT_ONLY) {
     console.log('2. Analyze evidence without changing repository files');
@@ -1950,6 +2011,16 @@ function handleArtifactTool(action) {
   try {
     if (action === 'scaffold') {
       const type = process.argv[3];
+      if (type === 'goal') {
+        const goal = require('../lib/agent-artifacts.js').scaffoldGoal(CWD, { runId: argValue('--run') });
+        if (json) console.log(JSON.stringify({ ok: true, ...goal, templateOnly: true }));
+        else {
+          log.success('✓ Goal Contract template created');
+          console.log(`- Path: ${goal.path}`);
+          console.log(`- Next: fill in every <...>, delete _templateOnly, then \`${goal.nextCommand}\`.`);
+        }
+        return;
+      }
       const result = scaffoldArtifact(CWD, { type, runId: argValue('--run') });
       if (json) console.log(JSON.stringify({ ok: true, ...result, templateOnly: true }));
       else {
@@ -1973,7 +2044,7 @@ function handleArtifactTool(action) {
       if (!result.valid) process.exitCode = 1;
       return;
     }
-    throw new Error('Use scaffold <verification|findings|delivery> or validate <file>');
+    throw new Error('Use scaffold <goal|verification|findings|delivery> or validate <file>');
   } catch (err) {
     if (json) console.log(JSON.stringify({ ok: false, code: err.code || 'ARTIFACT_TOOL_FAILED', error: err.message }));
     else log.error(err.message);
@@ -2082,6 +2153,7 @@ function recordImpactDrift(runId) {
 // UNATTENDED diffs come from `sandbox capture`.
 function captureMakerDiff(run) {
   if (run.mode === 'UNATTENDED') throw new Error('--from-git is not allowed in UNATTENDED; use `sandbox capture`.');
+  require('../lib/git-readiness.js').assertGitReady(CWD);
   const { execFileSync } = require('child_process');
   const exclude = ':(exclude).ai-engineering-loop';
   const git = (args, allowExit1 = false) => {
@@ -2093,7 +2165,8 @@ function captureMakerDiff(run) {
     }
   };
   let diff = git(['diff', '--binary', 'HEAD', '--', '.', exclude]);
-  const untracked = git(['ls-files', '--others', '--exclude-standard', '-z', '--', '.', exclude]).split('\0').filter(Boolean);
+  const aelOnlyIgnore = (file) => file === '.gitignore' && (readFileSafe(path.join(CWD, file)) || '').trim().replace(/\/+$/, '') === '.ai-engineering-loop';
+  const untracked = git(['ls-files', '--others', '--exclude-standard', '-z', '--', '.', exclude]).split('\0').filter(Boolean).filter((file) => !aelOnlyIgnore(file));
   for (const file of untracked) diff += git(['diff', '--binary', '--no-index', '--', '/dev/null', file], true);
   if (!diff.trim()) throw new Error('--from-git found no changes against HEAD.');
   const target = path.join(CWD, '.ai-engineering-loop', 'runs', run.runId, 'diff.patch');
@@ -2114,11 +2187,20 @@ function handleGate() {
   const gate = process.argv[3];
   const runId = argValue('--run');
   const json = process.argv.includes('--json');
+  if (!gate || gate.startsWith('-')) {
+    stageJsonError(Object.assign(new Error('gate needs a name: goal, maker, review, judge, delivery or report'), { code: 'INVALID_USAGE', why: 'Each gate checks one stage of the Run.', fix: '`ai-engineering-loop status` shows the current stage; then e.g. `ai-engineering-loop gate goal --run <id>`.' }), json, 'INVALID_USAGE');
+  }
   let targetRunId = runId;
   try {
     const target = runId ? loadRun(CWD, runId) : getCurrentRun(CWD);
     if (!target) throw new Error('No current run. Start one with `ai-engineering-loop run`.');
     targetRunId = target.runId;
+    if (gate === 'judge' && ['JUDGED_PASS', 'DELIVERED'].includes(target.state)) {
+      const next = target.state === 'DELIVERED' ? 'nothing; the Run is delivered' : `deliver --run ${target.runId} --approve --by <name>`;
+      if (json) console.log(JSON.stringify({ ok: true, runId: target.runId, state: target.state, gate, alreadyPassed: true, next }));
+      else console.log(`✓ judge already PASS for ${target.runId}. Next: ${next}`);
+      return;
+    }
     if (process.argv.includes('--from-git')) {
       if (gate !== 'maker') throw new Error('--from-git only applies to `gate maker`.');
       captureMakerDiff(target);
@@ -2517,10 +2599,15 @@ function handleDoctor() {
     }
     return;
   }
-  const result = runDoctor(path.join(__dirname, '..'), { projectDir: CWD });
-  if (json) console.log(JSON.stringify(result));
+  const packageScope = process.argv.includes('--package');
+  const skill = agentSkillState();
+  const result = packageScope
+    ? runDoctor(path.join(__dirname, '..'), { projectDir: CWD })
+    : require('../lib/doctor.js').machineChecks(path.join(__dirname, '..'), { projectDir: CWD, hostSkills: skill.hosts ? { installed: skill.installed, stale: skill.hosts.stale, staleFiles: skill.hosts.staleFiles } : null });
+  if (json) console.log(JSON.stringify({ ...result, scope: packageScope ? 'package' : 'machine' }));
   else {
-    console.log(`AI Engineering Loop doctor: ${result.ok ? 'READY' : 'NOT READY'}`);
+    const warned = result.checks.some((check) => !check.passed && check.level === 'warn');
+    console.log(`AI Engineering Loop doctor${packageScope ? ' (package)' : ''}: ${result.ok ? (warned ? 'READY (warnings)' : 'READY') : 'NOT READY'}`);
     for (const check of result.checks) {
       console.log(`${check.passed ? '✓' : check.level === 'warn' ? '!' : '✗'} ${check.id}: ${check.detail}`);
     }
@@ -3204,6 +3291,8 @@ function readBoundedJsonInput(fileName) {
   if (!fileName) {
     const error = new Error('goal draft requires --file <json> or --from-design <doc.md>');
     error.code = 'INVALID_USAGE';
+    error.why = 'The Goal Contract is a JSON file: objective, acceptance criteria with evidence and failure cases.';
+    error.fix = '`ai-engineering-loop scaffold goal` writes a template to .ai-engineering-loop/drafts/goal.json; fill it in, then `goal draft --file .ai-engineering-loop/drafts/goal.json --revision 0`.';
     throw error;
   }
   const file = path.resolve(CWD, fileName);
@@ -3272,6 +3361,14 @@ function handleGoal() {
         };
       } else {
         draftGoal = readBoundedJsonInput(argValue('--file'));
+      }
+      if (draftGoal && draftGoal._templateOnly === true) {
+        throw Object.assign(new Error(`${argValue('--file')} is still the scaffold template`), { code: 'TEMPLATE_ONLY', why: 'A template with <...> placeholders would freeze a Goal nobody wrote.', fix: 'Replace every <...> with the real goal, delete `_templateOnly` and `_howTo`, then rerun `goal draft`.' });
+      }
+      const draftFile = argValue('--file');
+      if (draftFile && !path.resolve(CWD, draftFile).startsWith(path.join(CWD, '.ai-engineering-loop') + path.sep)) {
+        extra.warning = `Goal draft file ${draftFile} is outside .ai-engineering-loop/, so it will show up in the Maker diff. Keep drafts in .ai-engineering-loop/drafts/.`;
+        console.error(`! ${extra.warning}`);
       }
       result = saveGoalDraft(CWD, runId, draftGoal, {
         actor: argValue('--by') || 'agent',
@@ -3364,10 +3461,24 @@ function handleGoal() {
       error.code = 'INVALID_USAGE';
       throw error;
     }
+    if (process.stdout.isTTY && !process.argv.includes('--json') && ['draft', 'freeze'].includes(action)) {
+      const meta = result?.metadata || {};
+      log.success(`✓ goal ${action}: Run ${runId}${meta.revision != null ? `, revision ${meta.revision}` : ''}${meta.contentHash ? ` (${String(meta.contentHash).slice(0, 12)})` : ''}`);
+      if (extra.impactPreview) console.log(`- Impact preview: ${JSON.stringify(extra.impactPreview).slice(0, 200)}`);
+      if (extra.warning) console.log(`! ${extra.warning}`);
+      console.log(action === 'draft' ? `- Next: show the human the draft, then \`goal freeze --latest --run ${runId} --by <name>\`. Full output: --json.` : '- Next: Maker (implement), then `gate maker --from-git`. Full output: --json.');
+      return;
+    }
     console.log(JSON.stringify({ ok: true, runId, [action === 'show' ? 'draft' : 'result']: result, ...extra }, null, 2));
   } catch (error) {
-    log.error(`${error.code || 'GOAL_FAILED'}: ${error.message}`);
     process.exitCode = 1;
+    if (process.argv.includes('--json')) {
+      console.log(JSON.stringify({ ok: false, code: error.code || 'GOAL_FAILED', error: error.message, ...(error.why ? { why: error.why } : {}), ...(error.fix ? { fix: error.fix } : {}) }));
+      return;
+    }
+    log.error(`${error.code || 'GOAL_FAILED'}: ${error.message}`);
+    if (error.why) console.error(`WHY: ${error.why}`);
+    if (error.fix) console.error(`FIX: ${error.fix}`);
   }
 }
 
@@ -3572,14 +3683,15 @@ function splitCommand(text, shell) {
 
 function stageJsonError(err, json, code) {
   if (json) {
-    console.log(JSON.stringify({ ok: false, code: err.code || code, error: err.message, ...(err.why ? { why: err.why } : {}), ...(err.fix ? { fix: err.fix } : {}), details: err.details || [] }));
+    console.log(JSON.stringify({ ok: false, code: err.code || code, error: err.message, ...(err.why ? { why: err.why } : {}), ...(err.fix ? { fix: err.fix } : {}), details: err.details || [], ...(err.conflict ? { conflict: err.conflict } : {}) }));
   } else {
     log.error(err.message);
     if (err.why) console.error(`WHY: ${err.why}`);
-    if (err.fix) console.error(`FIX: ${err.fix}`);
+    if (err.fix && !err.conflict) console.error(`FIX: ${err.fix}`);
+    for (const option of err.conflict ? err.conflict.options : []) console.error(`- ${option.id === err.conflict.recommended ? '(recommended) ' : ''}${option.label}: ${option.command}`);
     for (const detail of err.details || []) console.error(`- ${detail}`);
   }
-  process.exit(1);
+  process.exit(err.code === 'RUN_CONFLICT' ? 3 : 1);
 }
 
 function repeatedArg(name) {
@@ -4134,6 +4246,8 @@ function handleReviewPack() {
       const featureMap = require('../lib/feature-map.js');
       touchedFeatures = featureMap.featuresForFiles(CWD, changed);
       if (touchedFeatures.length && pack.path) fs.appendFileSync(path.join(CWD, pack.path), `${featureMap.renderForPack(touchedFeatures)}\n`);
+      const unconfirmed = require('../lib/provenance.js').renderUnconfirmed(require('../lib/provenance.js').loadProvenance(CWD, runId), '## Unconfirmed assumptions in the Goal (raise a finding if the code relies on one)');
+      if (unconfirmed.length && pack.path) fs.appendFileSync(path.join(CWD, pack.path), `\n${unconfirmed.join('\n')}\n`);
     } catch {
       openDebt = [];
     }
@@ -4188,7 +4302,11 @@ function handleDeliver() {
       throw Object.assign(new Error('REPORT_ONLY runs finish with gate report, not deliver.'), { code: 'INVALID_USAGE' });
     }
     if (mode === RUN_MODES.ASSISTED && !approve) {
-      console.error('ASSISTED delivery needs the human\'s explicit approval: deliver --approve --by <name>. Nothing was written.');
+      if (!['JUDGED_PASS', 'DELIVERED'].includes(run.state)) {
+        console.error(`Run ${run.runId} is ${run.state}; deliver comes after the Judge passes. Next: \`ai-engineering-loop status\` shows the stage to finish. Nothing was written.`);
+      } else {
+        console.error('ASSISTED delivery needs the human\'s explicit approval: deliver --approve --by <name>. Nothing was written.');
+      }
       process.exit(2);
     }
     if (approve && !by) {
@@ -4445,6 +4563,45 @@ function handleQuick() {
   }
 }
 
+function handleSources() {
+  const json = process.argv.includes('--json');
+  const action = args[1] || 'show';
+  const sources = require('../lib/sources.js');
+  try {
+    if (action === 'refresh' || action === 'show') {
+      const result = action === 'refresh' ? sources.writeSourcesFile(CWD) : { path: sources.SOURCES_FILE, sources: sources.detectSources(CWD) };
+      if (json) {
+        console.log(JSON.stringify({ ok: true, ...result }, null, 2));
+        return;
+      }
+      for (const item of result.sources) console.log(`${item.available ? '✓' : '-'} ${item.id}: ${item.detail}`);
+      if (action === 'refresh') console.log(`Wrote ${result.path}; edit its Scope section to limit channels and labels.`);
+      return;
+    }
+    const runId = action === 'record' ? requiredRunId('sources record') : (argValue('--run') || currentRunSafe(CWD)?.runId);
+    const run = runId ? loadRun(CWD, runId) : null;
+    if (action === 'hint') {
+      const result = sources.gatherHints(CWD, run);
+      if (json) {
+        console.log(JSON.stringify({ ok: true, ...result }, null, 2));
+        return;
+      }
+      console.log(`Gather budget ${result.tier}: ${result.used}/${result.budget} used. Stop once every Goal statement has a source.`);
+      for (const item of result.hints) console.log(`- ${item.source}: ${item.try}`);
+      return;
+    }
+    if (action === 'record') {
+      const result = sources.recordGather(CWD, run, { source: argValue('--source'), ref: argValue('--ref'), line: argValue('--line') });
+      if (json) console.log(JSON.stringify({ ok: true, ...result }, null, 2));
+      else console.log(`✓ ${result.entry.id} recorded (${result.used}/${result.budget}). Cite it as source "${result.entry.id}" on a Goal fact.`);
+      return;
+    }
+    throw Object.assign(new Error('Use: sources [show|refresh|hint|record] [--run <id>] [--source <id> --ref <ref> --line <text>] [--json]'), { code: 'INVALID_USAGE' });
+  } catch (err) {
+    stageJsonError(err, json, 'SOURCES_FAILED');
+  }
+}
+
 function handleDriver() {
   const json = process.argv.includes('--json');
   try {
@@ -4616,7 +4773,7 @@ Commands:
                  Captures bounded, redacted output; updates verification.json and its summary
                  --shell opts into a shell; pass one quoted command string, e.g. -- "npm test"
   scaffold     Create a private, deliberately incomplete stage-artifact template
-               verification | findings | delivery [--run <id>] [--json]
+               goal | verification | findings | delivery [--run <id>] [--json]
   validate     Check a verification, findings, or delivery JSON file without advancing a gate
                <repository-relative-file> [--type verification|findings|delivery] [--json]
   activity     Publish safe Run lifecycle summaries for Studio
@@ -4689,6 +4846,7 @@ Commands:
   next         Next unblocked feature from .ai-engineering-loop/features.json, VCR (verified/activated), evidence audit [--json]
   worktree     Clean up AEL worktrees: prune [--audit] [--include-scratch] [--yes] [--json] (never removes changed tracked files, open PRs or foreign worktrees)
   pr           One read-only PR snapshot via gh: status [--run <id> | --branch <name> | --pr <n>] [--json]; records merge.json when merged
+  sources      Where the agent digs before asking (read-only): show | refresh | hint | record --source <id> --ref <ref> --line <text>
   driver       Scaffold a reusable verification driver per feature-map row: scaffold [--feature <id>] [--surface web|api|cli|launch]
   safety       Record the one fact a change is safe because of [record --fact <text> --cmd <proof>] (T2 Judge PASS needs level 4+)
   measurement  Record how a performance number was measured [record --ac <id> --runs <n> --spread <pct> --effect <pct> --limiter <text>]
@@ -4748,7 +4906,8 @@ Commands:
   docs         Print a packaged spec without needing the package source tree
                list [--json]
                <name> [--section <heading>] [--json]   e.g. docs grill-policy --section "When to grill"
-  doctor       Check runtime, schemas, host assets, package contents, and eval catalog
+  doctor       Check this machine: Node, git, git identity, agent skill, adapter CLI and login (every problem names its FIX)
+               --package   release checks instead: schemas, host assets, package contents, eval catalog (npm run doctor)
                --harness   audit harness debt instead: entry-file size/structure, stale learnings, rule provenance, skill budget
                --json      print machine-readable diagnostics
   update       Check or apply the package update workflow
@@ -4817,9 +4976,88 @@ function printHelp() {
   console.log(helpText());
 }
 
+function commandNames() {
+  return [...new Set(helpText().split('\n').map((line) => (line.match(/^  ([a-z][\w-]*)(?: \[task\])?\s+(?=[A-Z])/) || [])[1]).filter(Boolean))];
+}
+
+function shortHelp() {
+  return `AI Engineering Loop v${VERSION}: a gated engineering loop for your coding agent.
+
+Start here:
+  npm i -g ai-engineering-loop   Node 18+ and git required
+  ael setup                      install the ael skill into your coding agents
+  ael init                       write .ai-engineering-loop/ for this project
+  Then tell your agent: "Use AI Engineering Loop to build <your feature>"
+
+Everyday:
+  ael status                     is this project ready, and what is running?
+  ael run "<task>"               start or resume a Run; the agent drives the rest
+  ael quick start "<task>"       a tiny change in two calls (T0)
+  ael studio                     watch the Run in your browser
+  ael doctor                     check this machine (git, agent skill, gh/glab)
+
+Help:
+  ael help <command>             usage for one command
+  ael help --all                 every command and flag
+  ael docs list                  specs and policies
+
+All commands: ${commandNames().join(', ')}`;
+}
+
+function editDistance(a, b) {
+  const row = Array.from({ length: b.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= a.length; i += 1) {
+    let previous = row[0];
+    row[0] = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      const saved = row[j];
+      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, previous + (a[i - 1] === b[j - 1] ? 0 : 1));
+      previous = saved;
+    }
+  }
+  return row[b.length];
+}
+
+function startMenu() {
+  return `AI Engineering Loop v${VERSION}
+No .ai-engineering-loop/ in this folder yet. Pick one:
+  1. Build my workflow    ael init    (then \`ael setup\` if your agent does not have the skill yet)
+  2. Start a task         ael run "<task>"
+  3. Check this project   ael status
+Help: ael help. Nothing was written.`;
+}
+
 // CLI Router
 const args = process.argv.slice(2);
-const command = args[0] || 'init';
+const printNow = (text) => {
+  const buffer = Buffer.from(`${text}\n`);
+  let offset = 0;
+  while (offset < buffer.length) {
+    try {
+      offset += fs.writeSync(1, buffer, offset);
+    } catch (err) {
+      if (err.code !== 'EAGAIN') throw err;
+    }
+  }
+};
+if (!args.length && !fs.existsSync(CONTEXT_DIR)) {
+  printNow(startMenu());
+  process.exit(0);
+}
+const command = args[0] || 'status';
+if (command === 'help' || ((command === '-h' || command === '--help') && args.length === 1) || ((command === '-h' || command === '--help') && args[1] === '--all')) {
+  const topic = command === 'help' ? args[1] : null;
+  if (topic === '--all' || args.includes('--all')) printNow(helpText());
+  else if (topic) {
+    const block = commandHelp(helpText(), topic);
+    if (!block) {
+      log.error(`No help for "${topic}". Commands: ${commandNames().join(', ')}`);
+      process.exit(2);
+    }
+    printNow(`Usage: npx ai-engineering-loop ${block.trim()}`);
+  } else printNow(shortHelp());
+  process.exit(0);
+}
 
 // Side-effect guard (issue #25): help never executes a command, and writer
 // commands reject unknown flags before touching any file.
@@ -4917,6 +5155,9 @@ switch (command) {
     break;
   case 'recap':
     handleRecap();
+    break;
+  case 'sources':
+    handleSources();
     break;
   case 'pr':
     handlePr();
@@ -5026,10 +5267,12 @@ switch (command) {
     break;
   case '-h':
   case '--help':
-  default:
-    if (command && command !== '-h' && command !== '--help') {
-      log.error(`Unknown command: ${command}`);
-    }
-    printHelp();
+    console.log(shortHelp());
     break;
+  default: {
+    const best = commandNames().map((name) => ({ name, distance: editDistance(command, name) })).sort((a, b) => a.distance - b.distance)[0];
+    log.error(`Unknown command: ${command}.${best && best.distance <= 2 ? ` Did you mean \`${best.name}\`?` : ''}`);
+    console.error('Run `ael help` for the common commands, or `ael help --all`.');
+    process.exit(2);
+  }
 }

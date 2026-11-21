@@ -24,6 +24,7 @@ function setup() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-ab-'));
   fs.writeFileSync(path.join(dir, 'package.json'), '{"name":"p"}\n');
   execFileSync('git', ['init', '-q'], { cwd: dir });
+  execFileSync('git', ['-c', 'user.email=a@b.c', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'init'], { cwd: dir });
   const cli = (...args) => spawnSync(process.execPath, [CLI, ...args], { cwd: dir, env, encoding: 'utf8', input: '' });
   assert.strictEqual(cli('init').status, 0);
   return { home, env, dir, cli };

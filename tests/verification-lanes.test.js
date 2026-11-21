@@ -12,6 +12,11 @@ const { spawnSync, execFileSync } = require('child_process');
 
 const CLI = path.join(__dirname, '..', 'bin', 'ai-engineering-loop.js');
 
+const commitWork = (cwd) => {
+  execFileSync('git', ['add', '-A'], { cwd, stdio: 'pipe' });
+  execFileSync('git', ['-c', 'user.email=a@b.c', '-c', 'user.name=t', 'commit', '-qm', 'work', '--allow-empty'], { cwd, stdio: 'pipe' });
+};
+
 function setupRepo() {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-lanes-home-'));
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-lanes-'));
@@ -89,6 +94,7 @@ test('related-only verification needs verify --final before delivery', () => {
   assert.ok(fs.existsSync(path.join(target.runDir, 'final-verification.json')));
   const again = JSON.parse(ok(ctx.cli('verify', '--final', '--run', target.runId, '--cmd', 'node --version', '--json'), 'verify --final again').stdout);
   assert.strictEqual(again.final.reused, true, 'a passing final run for the same diff is not repeated');
+  commitWork(ctx.repo);
   ok(ctx.cli('deliver', '--run', target.runId, '--destination', 'pr', '--summary', 's', '--approve', '--by', 'human', '--json'), 'deliver');
 });
 
@@ -100,6 +106,7 @@ test('full verification needs no final run', () => {
   const final = JSON.parse(ok(ctx.cli('verify', '--final', '--run', target.runId, '--json'), 'verify --final').stdout);
   assert.strictEqual(final.final.reused, true);
   assert.ok(!fs.existsSync(path.join(target.runDir, 'final-verification.json')));
+  commitWork(ctx.repo);
   ok(ctx.cli('deliver', '--run', target.runId, '--destination', 'pr', '--summary', 's', '--approve', '--by', 'human', '--json'), 'deliver');
 });
 

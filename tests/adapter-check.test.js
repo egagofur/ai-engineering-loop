@@ -114,10 +114,10 @@ const cliIn = (dir, env, ...args) => spawnSync(process.execPath, [CLI, ...args],
 
 test('CLI doctor prints adapter warnings with ! and errors with ✗', { skip: process.platform === 'win32' }, () => {
   const env = stubEnv();
-  const warn = cliIn(project({ remote: 'git@github.com:a/b.git', type: 'github' }), env, 'doctor');
+  const warn = cliIn(project({ remote: 'git@github.com:a/b.git', type: 'github' }), env, 'doctor', '--package');
   assert.strictEqual(warn.status, 0, warn.stdout);
   assert.match(warn.stdout, /! adapter-auth: gh not logged in/);
-  const bad = cliIn(project({ body: '- **adapter_type**: "gitlb"\n' }), env, 'doctor');
+  const bad = cliIn(project({ body: '- **adapter_type**: "gitlb"\n' }), env, 'doctor', '--package');
   assert.strictEqual(bad.status, 1);
   assert.match(bad.stdout, /✗ adapter-type: unknown adapter_type "gitlb"/);
 });

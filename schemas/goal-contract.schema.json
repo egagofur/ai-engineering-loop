@@ -198,6 +198,20 @@
       "type": "string",
       "minLength": 1
     },
+    "statements": {
+      "description": "Optional (C-46): what the Goal rests on, labelled. A fact needs a source the CLI can check (path:line, commit SHA, a URL or S-n recorded with `sources record`); otherwise the goal gate downgrades it to assumption. Assumptions are shown, never blocking.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["text", "kind"],
+        "properties": {
+          "text": { "type": "string", "minLength": 1 },
+          "kind": { "enum": ["fact", "decision", "assumption"] },
+          "source": { "type": "string" },
+          "by": { "type": "string" }
+        }
+      }
+    },
     "outOfScope": {
       "description": "Optional list of things this Goal must not change.",
       "type": "array",

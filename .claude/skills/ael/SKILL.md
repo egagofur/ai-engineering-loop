@@ -25,7 +25,7 @@ Same skill on every host. Before the first DA or Judge spawn, read your host's s
 Map (not a second OS) of the 8-stage loop: Specify (stages 0-1), Make (stages 2-4), Review (stages 5-7), Deliver (stage 8). Parent = Maker + orchestrator; Devil's Advocate (DA) and Judge are fresh **siblings**, never nested or resumed. Gate failures override prose. Never edit `state.json`/`current.json`.
 
 Tier (from `run --json`; it only rises). Do not skip Goal Contract, verification, Devil's Advocate, or Judge gates; the tier only decides who fills them.
-- **T0** trivial (docs, typo, lint): `quick start "<task>"` (run + `gate goal`), edit, `quick finish`; no subagents.
+- **T0** trivial (docs/typo/lint): `quick start "<task>"` (run + `gate goal`), edit, `quick finish`; no subagents.
 - **T1** normal: frozen Goal, red test, `verify --related`, lean DA, `review ingest`; Judge only on `judgeRequired`.
 - **T2** risky (HIGH_RISK_PATH, DOT business logic, >10 files): add `loop-risky` (blast radius, Judge on STRONG_MODEL). Unseen risk: `run --new --tier T2 --tier-reason <why>`.
 
@@ -37,7 +37,7 @@ Invariants (every tier):
 - One red test per AC row (bugs: red repro) before the fix.
 - Write claimed-vs-reality.md after `gate verification` passes. Do not spawn Devil's Advocate if the file is missing or any Claimed row lacks Reality.
 - ITERATE to iteration 3 (or the recipe cap), each with a **new** DA.
-- Never infer human approval.
+- Never infer human approval; ask with host buttons (`loop-hosts`).
 - After each child `budget record` real usage or `--unavailable`; never invent counts.
 - No secrets or hidden reasoning in activity messages.
 

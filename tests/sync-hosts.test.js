@@ -495,6 +495,8 @@ test('run does not sync hosts; status --json reports host freshness without writ
   fs.mkdirSync(path.join(home, '.claude'));
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-repo-'));
   fs.writeFileSync(path.join(repo, 'package.json'), '{"name":"demo","scripts":{"test":"node -e 0"}}\n');
+  execFileSync('git', ['init', '-q'], { cwd: repo });
+  execFileSync('git', ['-c', 'user.email=a@b.c', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'init'], { cwd: repo });
   assert.strictEqual(runCli(['init'], { home, cwd: repo }).status, 0);
   const before = snapshot(home);
   const run = runCli(['run', 'demo task'], { home, cwd: repo });
