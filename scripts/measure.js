@@ -181,6 +181,7 @@ function measureScenario(scenario) {
     ? JSON.parse(cli('review ingest', 'review', 'ingest', '--run', run.runId, '--child-id', 'da-measure', '--file', '.ai-engineering-loop/da-output.md', '--json'))
     : JSON.parse(cli('gate review', 'gate', 'review', '--json'));
   if (review.judgeRequired) {
+    readRef('loop-judge');
     cli('escalation', 'escalation', '--run', run.runId, '--json');
     spawn('judge', ['run-summary.md', 'verification-summary.json', 'findings.json'].reduce((n, f) => n + size(path.join(repo, runDir, f)), 0));
     cli('budget record', 'budget', 'record', '--unavailable', '--run', run.runId);

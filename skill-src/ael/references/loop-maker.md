@@ -1,8 +1,7 @@
 # Stages 2-4: Maker
 
 - T1/T2: read `docs tdd-policy` before Maker. Use `npx ai-engineering-loop context query <term>` and `context related <file>` before opening broad source files.
-- Branch on mode. REPORT_ONLY: never edit repository files; write `RUN_DIR/report.json` with summary and recommendations, then the report review (`loop-report`), run `gate report`, and stop. ASSISTED: the parent (or intern) is Maker; delivery later needs human approval. UNATTENDED: `sandbox create --run <runId>`, Maker works only in the returned worktreePath, never the parent checkout, then `sandbox capture --run <runId>`.
-- Maker intern: read `maker_intern` from workflow.md (missing or `none` = parent is Maker). Confirm it through the host model catalog; otherwise the parent is Maker and you report INVOCATION_UNAVAILABLE. The intern cannot skip later gates or spawn DA/Judge.
+- ASSISTED (default): the parent (or intern) is Maker; delivery needs human approval. REPORT_ONLY, UNATTENDED, `maker_intern`: `loop-modes`.
 - Guardrails: Claude Code enforces them after `hooks install`. Elsewhere, before an out-of-scope edit or a destructive command (`rm -rf`, `DROP TABLE`, `git push --force`, `git reset --hard`, `git clean -fd`) run `guard check --tool edit --path <file>` or `--tool bash --command "<cmd>"`: `warn` = ask the human, `block` = do not run it.
 - No code comments in product code (C-26): put intent in names, types, tests; rationale in the commit.
 - Bugs: red repro first. Features: one red test per AC row, then green.

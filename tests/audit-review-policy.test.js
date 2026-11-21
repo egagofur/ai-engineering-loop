@@ -15,7 +15,7 @@ test('audit policy is documented once for every host and reaches every installed
   for (const rel of ['.claude/skills/ael', '.agents/skills/ael']) {
     // The review lives in its own reference, loaded only in REPORT_ONLY mode,
     // so normal T1 runs do not pay its context cost.
-    assert.match(read(`${rel}/references/loop-maker.md`), /the report review \(`loop-report`\)/);
+    assert.match(read(`${rel}/references/loop-modes.md`), /the report review \(`loop-report`\)/);
     const maker = read(`${rel}/references/loop-report.md`);
     assert.match(maker, /## REPORT_ONLY report review \(recipe `audit`\)/);
     assert.match(maker, /ONE fresh `devil-advocate`/);

@@ -9,3 +9,23 @@
 - Commit before `deliver` (its receipt binds `HEAD`; videos/screenshots: `--evidence AC-N=<https-url>`, required for `crossComponent` and rubric ACs). Paste `RUN_DIR/receipt.md` into the PR/MR Receipt section unchanged; ❌ stays ❌ (`docs pr-receipt`).
 - Only the delivery gate completes the run. It also mines lessons for the next Run.
 - Worktree Run: after `deliver`, continue in `cleanup.mainCheckout` (Stage 9).
+
+## Report header (execution mode)
+
+When a subagent returned its own result (Grok: its own `subagent_id`):
+
+```
+Execution Mode: TRUE_INDEPENDENT_AGENT
+Independent LLM Execution: PROVEN
+Native Subagent Invocation: AVAILABLE
+Review Method: True Independent Agent
+```
+
+When no subagent ran (tool AVAILABLE: mode adds `(reason: <why>)`):
+
+```
+Execution Mode: CONTEXT_ISOLATION_ONLY
+Independent LLM Execution: NOT PROVEN
+Native Subagent Invocation: UNAVAILABLE
+Review Method: Clean-Slate Artifact Isolation Barrier
+```

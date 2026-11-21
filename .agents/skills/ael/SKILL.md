@@ -43,20 +43,4 @@ Invariants (every tier):
 
 ## Report header
 
-When a subagent returned its own result (Grok: its own `subagent_id`):
-
-```
-Execution Mode: TRUE_INDEPENDENT_AGENT
-Independent LLM Execution: PROVEN
-Native Subagent Invocation: AVAILABLE
-Review Method: True Independent Agent
-```
-
-When no subagent ran (tool AVAILABLE: mode adds `(reason: <why>)`):
-
-```
-Execution Mode: CONTEXT_ISOLATION_ONLY
-Independent LLM Execution: NOT PROVEN
-Native Subagent Invocation: UNAVAILABLE
-Review Method: Clean-Slate Artifact Isolation Barrier
-```
+The final report starts with the execution-mode block in `loop-deliver` (TRUE_INDEPENDENT_AGENT or CONTEXT_ISOLATION_ONLY); never claim independent execution without a subagent result. Tool AVAILABLE but unused: add `(reason: <why>)`.
