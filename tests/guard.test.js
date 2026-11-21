@@ -48,8 +48,8 @@ function frozenRun({ repo, cli }, { mode = 'assisted', scope } = {}) {
     acceptanceCriteria: [{ id: 'AC-1', statement: 'returns page 2', evidenceRequired: 'tests', failureCases: ['page beyond end'] }],
     ...(scope ? { scope } : {})
   }));
-  ok(cli(['goal', 'draft', '--run', run.runId, '--file', '.ai-engineering-loop/goal-draft.json', '--revision', '0']), 'draft');
-  ok(cli(['goal', 'freeze', '--latest', '--run', run.runId, '--by', 'human']), 'freeze');
+  ok(cli(['goal', 'draft', '--json', '--run', run.runId, '--file', '.ai-engineering-loop/goal-draft.json', '--revision', '0']), 'draft');
+  ok(cli(['goal', 'freeze', '--json', '--latest', '--run', run.runId, '--by', 'human']), 'freeze');
   return run.runId;
 }
 

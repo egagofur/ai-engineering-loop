@@ -154,6 +154,7 @@ test('CLI publishes revision-bound Goal drafts and lifecycle activity for Studio
   const result = JSON.parse(runCli(root, [
     'goal',
     'draft',
+    '--json',
     '--run',
     'run-001',
     '--file',

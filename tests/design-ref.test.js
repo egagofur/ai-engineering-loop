@@ -97,14 +97,14 @@ test('validateDesignRef rejects malformed references', () => {
 
 test('CLI: --from-design drafts, freeze refuses placeholders, and show reports a changed design', () => {
   const { repo, cli, runId } = setupRepo();
-  const drafted = cli('goal', 'draft', '--run', runId, '--from-design', 'docs/designs/webhooks.md', '--revision', '0');
+  const drafted = cli('goal', 'draft', '--json', '--run', runId, '--from-design', 'docs/designs/webhooks.md', '--revision', '0');
   assert.strictEqual(drafted.status, 0, drafted.stderr);
   const out = JSON.parse(drafted.stdout);
   assert.strictEqual(out.design.path, 'docs/designs/webhooks.md');
   assert.deepStrictEqual(out.design.placeholders, ['AC-1', 'AC-2']);
   assert.strictEqual(out.result.contract.designRef.targetFiles.length, 3);
 
-  const frozen = cli('goal', 'freeze', '--run', runId, '--latest', '--by', 'alice');
+  const frozen = cli('goal', 'freeze', '--json', '--run', runId, '--latest', '--by', 'alice');
   assert.notStrictEqual(frozen.status, 0);
   assert.match(frozen.stdout + frozen.stderr, /GOAL_PLACEHOLDERS/);
 
@@ -120,12 +120,12 @@ test('CLI: --from-design drafts, freeze refuses placeholders, and show reports a
     acceptanceCriteria: [{ id: 'AC-1', statement: 'Delivers once on 200', evidenceRequired: 'test/deliver.test.js', failureCases: ['double delivery'] }]
   };
   fs.writeFileSync(path.join(repo, 'goal.json'), JSON.stringify(filled));
-  const withFile = cli('goal', 'draft', '--run', runId, '--from-design', 'docs/designs/webhooks.md', '--file', 'goal.json', '--revision', '1');
+  const withFile = cli('goal', 'draft', '--json', '--run', runId, '--from-design', 'docs/designs/webhooks.md', '--file', 'goal.json', '--revision', '1');
   assert.strictEqual(withFile.status, 0, withFile.stderr);
   const contract = JSON.parse(withFile.stdout).result.contract;
   assert.strictEqual(contract.acceptanceCriteria.length, 1);
   assert.strictEqual(contract.designRef.path, 'docs/designs/webhooks.md');
-  const ok = cli('goal', 'freeze', '--run', runId, '--latest', '--by', 'alice');
+  const ok = cli('goal', 'freeze', '--json', '--run', runId, '--latest', '--by', 'alice');
   assert.strictEqual(ok.status, 0, ok.stderr);
 });
 
@@ -140,7 +140,7 @@ test('CLI: unsafe or missing design documents fail without writing a draft', () 
     cases.push(['link.md', /INVALID_DESIGN_DOC/]);
   }
   for (const [file, code] of cases) {
-    const result = cli('goal', 'draft', '--run', runId, '--from-design', file, '--revision', '0');
+    const result = cli('goal', 'draft', '--json', '--run', runId, '--from-design', file, '--revision', '0');
     assert.notStrictEqual(result.status, 0, file);
     assert.match(result.stdout + result.stderr, code, file);
   }

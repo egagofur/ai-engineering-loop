@@ -155,9 +155,9 @@ function measureScenario(scenario) {
   };
   {
     write('goal draft file', '.ai-engineering-loop/goal-draft.json', JSON.stringify(goal));
-    cli('goal draft', 'goal', 'draft', '--run', run.runId, '--file', '.ai-engineering-loop/goal-draft.json', '--revision', '0');
+    cli('goal draft', 'goal', 'draft', '--json', '--run', run.runId, '--file', '.ai-engineering-loop/goal-draft.json', '--revision', '0');
     calls.push('human:freeze');
-    cli('goal freeze --latest --confirm-impact', 'goal', 'freeze', '--latest', '--run', run.runId, '--by', 'human', '--confirm-impact');
+    cli('goal freeze --latest --confirm-impact', 'goal', 'freeze', '--json', '--latest', '--run', run.runId, '--by', 'human', '--confirm-impact');
   }
 
   // The code edit itself is task work, not orchestration.

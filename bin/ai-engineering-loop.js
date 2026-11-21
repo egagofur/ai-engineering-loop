@@ -3471,13 +3471,17 @@ function handleGoal() {
       error.code = 'INVALID_USAGE';
       throw error;
     }
-    if (process.stdout.isTTY && !process.argv.includes('--json') && ['draft', 'freeze'].includes(action)) {
+    if (!process.argv.includes('--json') && ['draft', 'freeze'].includes(action)) {
       const meta = result?.metadata || {};
       log.success(`✓ goal ${action}: Run ${runId}${meta.revision != null ? `, revision ${meta.revision}` : ''}${meta.contentHash ? ` (${String(meta.contentHash).slice(0, 12)})` : ''}`);
+      if (action === 'draft' && extra.human) {
+        console.log('');
+        process.stdout.write(fs.readFileSync(path.join(CWD, extra.human.path), 'utf8'));
+        console.log('');
+      }
       if (extra.impactPreview) console.log(`- Impact preview: ${JSON.stringify(extra.impactPreview).slice(0, 200)}`);
-      if (extra.human) console.log(`- For people: ${extra.human.path} (${(extra.readability || []).length} writing check(s))`);
       if (extra.warning) console.log(`! ${extra.warning}`);
-      console.log(action === 'draft' ? `- Next: show the human the draft, then \`goal freeze --latest --run ${runId} --by <name>\`. Full output: --json.` : '- Next: Maker (implement), then `gate maker --from-git`. Full output: --json.');
+      console.log(action === 'draft' ? `- Next: the human reads this and says freeze; then \`goal freeze --latest --run ${runId} --by <name>\`. Agents: add --json.` : '- Next: Maker (implement), then `gate maker --from-git`. Agents: add --json.');
       return;
     }
     console.log(JSON.stringify({ ok: true, runId, [action === 'show' ? 'draft' : 'result']: result, ...extra }, null, 2));
