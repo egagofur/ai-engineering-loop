@@ -968,8 +968,15 @@ function handleStatus() {
   log.success('Status: READY & VALID');
   console.log(`- Project Name: ${path.basename(CWD)}`);
   console.log(`- Project Profile: ${metadata.projectProfile || 'unspecified'}`);
-  console.log(`- Context Baseline Git: ${metadata.repositoryRevision ? metadata.repositoryRevision.slice(0, 8) : 'unknown'}`);
-  console.log(`- Living Freshness: \x1b[32m${drift.status}\x1b[0m (${drift.reason})`);
+  const gitState = require('../lib/git-readiness.js').gitReadiness(CWD);
+  const baseline = metadata.repositoryRevision && /^[0-9a-f]{7,}$/.test(metadata.repositoryRevision) ? metadata.repositoryRevision.slice(0, 8) : 'none';
+  console.log(`- Context Baseline Git: ${baseline}`);
+  if (gitState.ok) console.log(`- Living Freshness: \x1b[32m${drift.status}\x1b[0m (${drift.reason})`);
+  else {
+    log.warn(`- Git: NOT READY (${gitState.message}); a Run cannot start.`);
+    log.dim(`  FIX: ${gitState.fix}`);
+  }
+  for (const warning of gitState.warnings || []) log.warn(`- Git: ${warning}`);
   console.log(`- Context Files: ${REQUIRED_FILES.length}/${REQUIRED_FILES.length} verified (including metadata.json, glossary.md, adrs/)`);
 
   const activeRun = currentRunSafe(CWD);
@@ -1429,6 +1436,16 @@ function currentRunSafe(dir) {
 function handleRun() {
   if (process.argv.includes('--abandon')) return handleRunAbandon();
   const runJson = process.argv.includes('--json');
+  const gitState = require('../lib/git-readiness.js').gitReadiness(CWD);
+  if (!gitState.ok) {
+    if (runJson) console.log(JSON.stringify({ ok: false, code: gitState.code, error: `Cannot start a Run: ${gitState.message}.`, why: gitState.why, fix: gitState.fix }));
+    else {
+      log.error(`Cannot start a Run: ${gitState.message}.`);
+      console.error(`WHY: ${gitState.why}`);
+      console.error(`FIX: ${gitState.fix}`);
+    }
+    process.exit(1);
+  }
   const realLog = console.log;
   if (runJson) console.log = () => {};
   log.info('AI Engineering Loop — Task Execution Entrypoint (run)');
@@ -1528,10 +1545,12 @@ function handleRun() {
   } catch (err) {
     console.log = realLog;
     if (runJson) {
-      realLog(JSON.stringify({ ok: false, code: err.code || 'RUN_FAILED', error: err.message, ...(err.conflict ? { conflict: err.conflict } : {}) }));
+      realLog(JSON.stringify({ ok: false, code: err.code || 'RUN_FAILED', error: err.message, ...(err.why ? { why: err.why } : {}), ...(err.fix ? { fix: err.fix } : {}), ...(err.conflict ? { conflict: err.conflict } : {}) }));
       process.exit(err.code === 'RUN_CONFLICT' ? 3 : 1);
     }
     log.error(err.message);
+    if (err.why) console.error(`WHY: ${err.why}`);
+    if (err.fix) console.error(`FIX: ${err.fix}`);
     if (err.conflict) {
       for (const option of err.conflict.options) console.log(`- ${option.id === err.conflict.recommended ? '(recommended) ' : ''}${option.label}: ${option.command}`);
       process.exit(3);
@@ -3539,14 +3558,15 @@ function splitCommand(text, shell) {
 
 function stageJsonError(err, json, code) {
   if (json) {
-    console.log(JSON.stringify({ ok: false, code: err.code || code, error: err.message, ...(err.why ? { why: err.why } : {}), ...(err.fix ? { fix: err.fix } : {}), details: err.details || [] }));
+    console.log(JSON.stringify({ ok: false, code: err.code || code, error: err.message, ...(err.why ? { why: err.why } : {}), ...(err.fix ? { fix: err.fix } : {}), details: err.details || [], ...(err.conflict ? { conflict: err.conflict } : {}) }));
   } else {
     log.error(err.message);
     if (err.why) console.error(`WHY: ${err.why}`);
-    if (err.fix) console.error(`FIX: ${err.fix}`);
+    if (err.fix && !err.conflict) console.error(`FIX: ${err.fix}`);
+    for (const option of err.conflict ? err.conflict.options : []) console.error(`- ${option.id === err.conflict.recommended ? '(recommended) ' : ''}${option.label}: ${option.command}`);
     for (const detail of err.details || []) console.error(`- ${detail}`);
   }
-  process.exit(1);
+  process.exit(err.code === 'RUN_CONFLICT' ? 3 : 1);
 }
 
 function repeatedArg(name) {

@@ -54,6 +54,10 @@ function measureScenario(scenario) {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-measure-'));
   const env = { ...process.env, HOME: home, USERPROFILE: home, AEL_HOME: home, AEL_NO_AUTO_UPDATE: '1' };
   const git = (...args) => execFileSync('git', args, { cwd: repo, stdio: 'pipe', encoding: 'utf8' });
+  const commitWork = () => {
+    git('add', '-A');
+    git('-c', 'user.email=m@e.t', '-c', 'user.name=m', 'commit', '-qm', 'work', '--allow-empty');
+  };
   const calls = [];
   let parentChars = 0;
   let projectChars = 0;
@@ -133,6 +137,7 @@ function measureScenario(scenario) {
     cli('quick finish', 'quick', 'finish', '--run', run.runId, '--cmd', 'node --version', '--json');
     readRef('loop-deliver');
     calls.push('human:approve delivery');
+    commitWork();
     cli('deliver', 'deliver', '--run', run.runId, '--destination', 'pr', '--summary', scenario.task, '--approve', '--by', 'human', '--json');
     return result();
   }
@@ -187,6 +192,7 @@ function measureScenario(scenario) {
   readRef('loop-deliver');
   cli('verify --final', 'verify', '--final', '--run', run.runId, '--cmd', 'node --version', '--json');
   calls.push('human:approve delivery');
+  commitWork();
   cli('deliver', 'deliver', '--run', run.runId, '--destination', 'pr', '--summary', scenario.task, '--approve', '--by', 'human', '--json');
 
   return result();

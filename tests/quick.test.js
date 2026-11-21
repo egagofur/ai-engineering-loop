@@ -11,6 +11,11 @@ const { spawnSync, execFileSync } = require('child_process');
 
 const CLI = path.join(__dirname, '..', 'bin', 'ai-engineering-loop.js');
 
+const commitWork = (cwd) => {
+  execFileSync('git', ['add', '-A'], { cwd, stdio: 'pipe' });
+  execFileSync('git', ['-c', 'user.email=a@b.c', '-c', 'user.name=t', 'commit', '-qm', 'work', '--allow-empty'], { cwd, stdio: 'pipe' });
+};
+
 function setupRepo() {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-quick-home-'));
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-quick-'));
@@ -47,6 +52,7 @@ test('quick start + finish take a T0 docs fix to JUDGED_PASS, then deliver', () 
   assert.deepStrictEqual(finish.changedPaths, ['README.md']);
   const claimed = fs.readFileSync(path.join(repo, finish.claimedVsReality), 'utf8');
   assert.match(claimed, /\| AC-1 \| Changed 1 file\(s\): README\.md \| `node --version` exit 0/);
+  commitWork(repo);
   const deliver = json(cli('deliver', '--run', start.runId, '--destination', 'pr', '--summary', 'typo', '--approve', '--by', 'human', '--json'), 'deliver');
   assert.strictEqual(deliver.ok, true);
   const state = JSON.parse(fs.readFileSync(path.join(repo, '.ai-engineering-loop/runs', start.runId, 'state.json'), 'utf8'));

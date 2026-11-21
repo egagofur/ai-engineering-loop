@@ -48,6 +48,8 @@ test('AC-1 untracked files outside the reviewed change warn in ASSISTED and bloc
   const { root, run } = repoWithDiff(added('src/a.js', ['x'], true));
   fs.mkdirSync(path.join(root, 'src'));
   fs.writeFileSync(path.join(root, 'src/a.js'), 'x\n');
+  execFileSync('git', ['add', 'src/a.js'], { cwd: root });
+  execFileSync('git', ['-c', 'user.email=a@b.c', '-c', 'user.name=t', 'commit', '-qm', 'a'], { cwd: root });
   fs.writeFileSync(path.join(root, 'debug-output.log'), 'noise\n');
   const assisted = checkCleanState(root, run, { mode: 'ASSISTED' });
   assert.strictEqual(assisted.errors.length, 0);
@@ -55,4 +57,17 @@ test('AC-1 untracked files outside the reviewed change warn in ASSISTED and bloc
   assert.doesNotMatch(assisted.warnings[0], /src\/a\.js/);
   const unattended = checkCleanState(root, run, { mode: 'UNATTENDED' });
   assert.match(unattended.errors[0], /untracked file\(s\) not part of the reviewed change.*FIX:/);
+});
+
+test('C-47 a reviewed change that is not committed blocks delivery and names the files', () => {
+  const { root, run } = repoWithDiff(added('src/a.js', ['x'], true));
+  fs.mkdirSync(path.join(root, 'src'));
+  fs.writeFileSync(path.join(root, 'src/a.js'), 'x\n');
+  const pending = checkCleanState(root, run);
+  assert.match(pending.errors[0], /not committed \(1 file\(s\): src\/a\.js\).*FIX: `git add src\/a\.js && git commit/);
+  execFileSync('git', ['add', 'src/a.js'], { cwd: root });
+  execFileSync('git', ['-c', 'user.email=a@b.c', '-c', 'user.name=t', 'commit', '-qm', 'a'], { cwd: root });
+  assert.deepStrictEqual(checkCleanState(root, run).errors, []);
+  fs.writeFileSync(path.join(root, 'src/a.js'), 'y\n');
+  assert.match(checkCleanState(root, run).errors[0], /not committed/);
 });

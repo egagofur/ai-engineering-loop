@@ -13,6 +13,11 @@ const ROOT = path.join(__dirname, '..');
 const CLI = path.join(ROOT, 'bin', 'ai-engineering-loop.js');
 const { listRunLifecycle } = require('../lib/run-lifecycle.js');
 
+const commitWork = (cwd) => {
+  execFileSync('git', ['add', '-A'], { cwd, stdio: 'pipe' });
+  execFileSync('git', ['-c', 'user.email=a@b.c', '-c', 'user.name=t', 'commit', '-qm', 'work', '--allow-empty'], { cwd, stdio: 'pipe' });
+};
+
 function setupRepo() {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-stage-home-'));
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-stage-'));
@@ -91,6 +96,7 @@ function drive({ repo, cli }, combined) {
   const review = JSON.parse(ok(cli('gate', 'review', '--run', run.runId, '--json'), 'gate review').stdout);
   assert.strictEqual(review.judgeRequired, false);
   ok(cli('gate', 'judge', '--run', run.runId), 'gate judge');
+  commitWork(repo);
   if (combined) {
     ok(cli('deliver', '--run', run.runId, '--destination', 'pr', '--summary', 'paginate', '--approve', '--by', 'human', '--json'), 'deliver');
   } else {
