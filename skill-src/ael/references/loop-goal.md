@@ -1,5 +1,6 @@
 # Stage 1: Goal Contract
 
+- `run` said `RUN_CONFLICT`: the human picks an `option`.
 - If the user asks for ideas, list a short menu and wait; do not implement.
 - Ambiguous task the user can answer: grill first (`docs grill-policy`): design tree, recommended answers, never ask look-up facts. T2 adds `loop-risky`.
 - If the user prompt has no numbered AC, draft the contract (`docs goal-contract` if needed), list it, and wait. Chat agreement is not freeze.
