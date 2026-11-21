@@ -129,7 +129,7 @@ happy)
   RUNID=$(printf '%s' "$OUT" | json runId)
   write_goal "$RUNID"
   c ael goal draft --file .ai-engineering-loop/drafts/goal.json --revision 0; expect_rc goal-draft 0
-  ux goal-draft-json-without-flag "goal draft/freeze print JSON without --json" 'printf "%s" "$OUT" | head -1 | grep -q "^{"'
+  ux goal-draft-json-without-flag "goal draft/freeze print JSON without --json" 'printf "%s" "$OUT" | grep -q "^{"'
   c ael goal freeze --latest --by newbie; expect_rc goal-freeze 0
   MAX_LINES=8 c ael impact show; expect_rc impact-show 0
   c ael impact confirm --by newbie; expect_rc impact-confirm 0

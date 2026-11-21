@@ -54,7 +54,7 @@ test('goal draft writes goal.md and readability warnings; goal show --human prin
     schemaVersion: 1, runId, objective: 'The export should be fast and work properly.',
     acceptanceCriteria: [{ id: 'AC-1', statement: 'The filtered rows are exported by the button.', evidenceRequired: 'unit test', failureCases: ['CSV ignores the filter'] }]
   }));
-  const draft = cli('goal', 'draft', '--run', runId, '--file', '.ai-engineering-loop/drafts/goal.json', '--revision', '0');
+  const draft = cli('goal', 'draft', '--json', '--run', runId, '--file', '.ai-engineering-loop/drafts/goal.json', '--revision', '0');
   assert.strictEqual(draft.status, 0, draft.stdout + draft.stderr);
   const body = JSON.parse(draft.stdout);
   assert.ok(body.result.contract.acceptanceCriteria, 'agent JSON still carries the contract');
@@ -62,6 +62,11 @@ test('goal draft writes goal.md and readability warnings; goal show --human prin
   const rules = body.readability.map((item) => `${item.field}:${item.rule}`);
   assert.ok(rules.includes('objective:precise-words'));
   assert.ok(rules.includes('AC-1.statement:active-voice'));
+  const plain = cli('goal', 'draft', '--run', runId, '--file', '.ai-engineering-loop/drafts/goal.json', '--revision', '1');
+  assert.strictEqual(plain.status, 0, plain.stdout + plain.stderr);
+  assert.doesNotMatch(plain.stdout, /^\{/m, 'people get text by default, not JSON');
+  assert.match(plain.stdout, /## Done when/);
+  assert.match(plain.stdout, /Agents: add --json/);
   const human = cli('goal', 'show', '--run', runId, '--human');
   assert.strictEqual(human.status, 0);
   assert.match(human.stdout, /## Done when/);

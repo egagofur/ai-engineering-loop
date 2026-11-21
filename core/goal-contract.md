@@ -244,7 +244,7 @@ The Goal JSON is for the tools; people read `RUN_DIR/goal.md` (`goal show --huma
 | Same word for the same thing | Use the glossary term every time | Switching between "invoice", "bill" and "receipt" |
 | Start with the subject or the verb | "The filter keeps the last value." | "Keeping the last value, the filter..." |
 
-`goal draft` returns `readability`: warnings for long sentences, passive voice, vague words, several actions in one sentence and sentences that start with an -ing word. They never block the gate; fix them before you ask for the freeze. AEL checks these general writing rules only; it does not ship the ASD-STE100 dictionary.
+`goal draft` prints `goal.md` and the next step by default; agents and scripts pass `--json` for the full JSON. With `--json` it returns `readability`: warnings for long sentences, passive voice, vague words, several actions in one sentence and sentences that start with an -ing word. They never block the gate; fix them before you ask for the freeze. AEL checks these general writing rules only; it does not ship the ASD-STE100 dictionary.
 
 `goal.md` has these sections: What changes, Done when (each AC with its proof and "Fail if" lines), Not in this change, Not confirmed yet (assumptions from `statements`), and the writing checks.
 

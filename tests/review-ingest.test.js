@@ -65,9 +65,9 @@ function toVerified({ repo, cli }) {
     objective: 'Paginate the list',
     acceptanceCriteria: [{ id: 'AC-1', statement: 'returns page 2', evidenceRequired: 'tests exit 0', failureCases: ['page beyond end returns empty'] }]
   }));
-  const draft = JSON.parse(ok(cli('goal', 'draft', '--run', run.runId, '--file', '.ai-engineering-loop/goal-draft.json', '--revision', '0'), 'goal draft').stdout);
+  const draft = JSON.parse(ok(cli('goal', 'draft', '--json', '--run', run.runId, '--file', '.ai-engineering-loop/goal-draft.json', '--revision', '0'), 'goal draft').stdout);
   assert.ok(draft.impactPreview, 'the draft carries an impact preview for the human');
-  const freeze = JSON.parse(ok(cli('goal', 'freeze', '--latest', '--run', run.runId, '--by', 'human', '--confirm-impact'), 'goal freeze').stdout);
+  const freeze = JSON.parse(ok(cli('goal', 'freeze', '--json', '--latest', '--run', run.runId, '--by', 'human', '--confirm-impact'), 'goal freeze').stdout);
   assert.strictEqual(freeze.impact.status, 'CONFIRMED');
   const { listRunInteractions } = require('../lib/run-interactions.js');
   assert.strictEqual(listRunInteractions(repo, run.runId).pending.length, 0, 'freezing answers the freeze question');

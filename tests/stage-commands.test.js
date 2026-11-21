@@ -57,12 +57,12 @@ function drive({ repo, cli }, combined) {
   const runDir = path.join(repo, '.ai-engineering-loop/runs', run.runId);
   const goalFile = path.join(repo, '.ai-engineering-loop', 'goal-draft.json');
   fs.writeFileSync(goalFile, JSON.stringify(goalFor(run.runId)));
-  ok(cli('goal', 'draft', '--run', run.runId, '--file', '.ai-engineering-loop/goal-draft.json', '--revision', '0'), 'goal draft');
+  ok(cli('goal', 'draft', '--json', '--run', run.runId, '--file', '.ai-engineering-loop/goal-draft.json', '--revision', '0'), 'goal draft');
   if (combined) {
-    ok(cli('goal', 'freeze', '--latest', '--run', run.runId, '--by', 'human'), 'goal freeze --latest');
+    ok(cli('goal', 'freeze', '--json', '--latest', '--run', run.runId, '--by', 'human'), 'goal freeze --latest');
   } else {
     const draft = JSON.parse(ok(cli('goal', 'show', '--run', run.runId), 'goal show').stdout).draft;
-    ok(cli('goal', 'freeze', '--run', run.runId, '--revision', String(draft.metadata.revision), '--hash', draft.metadata.contentHash, '--by', 'human'), 'goal freeze');
+    ok(cli('goal', 'freeze', '--json', '--run', run.runId, '--revision', String(draft.metadata.revision), '--hash', draft.metadata.contentHash, '--by', 'human'), 'goal freeze');
   }
   fs.writeFileSync(path.join(repo, 'src/list.js'), 'module.exports = (items, page = 1) => items.slice((page - 1) * 10, page * 10);\n');
   fs.writeFileSync(path.join(runDir, 'diff.patch'), execFileSync('git', ['diff'], { cwd: repo, encoding: 'utf8' }));
