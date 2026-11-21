@@ -4,6 +4,10 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+_No changes yet._
+
+## 2.12.0 - 2026-11-21
+
 Run isolation (cards C-37..C-40 in `docs/cards/run-isolation-2026-11-21.md`, issue #130; `docs run-isolation`).
 
 - **Added:** `run "<task>"` with an unfinished Run on a different task returns `RUN_CONFLICT` (exit 3) with `live`, `idleMinutes`, `changedFiles`, a recommendation and exact commands to resume, start in a worktree, or abandon. A current Run with no task no longer resumes silently under a new task.
