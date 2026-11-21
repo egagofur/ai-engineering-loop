@@ -4,6 +4,10 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+_No changes yet._
+
+## 2.13.0 - 2026-11-21
+
 Newcomer UX from a clean Docker sandbox (cards C-47..C-56 in `docs/cards/novice-ux-2026-11-21.md`; rerun with `scripts/sandbox-e2e.sh`) and "dig first" (C-45, C-46 in `docs/cards/dig-first-2026-11-21.md`).
 
 - **Changed:** `deliver` refuses while the reviewed change is not committed, and names the files and the `git add … && git commit` to run (C-47). Commit before `deliver`, as Stage 8 already said.
