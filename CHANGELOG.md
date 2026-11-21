@@ -4,6 +4,16 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+Newcomer UX from a clean Docker sandbox (cards C-47..C-56 in `docs/cards/novice-ux-2026-11-21.md`; rerun with `scripts/sandbox-e2e.sh`) and "dig first" (C-45, C-46 in `docs/cards/dig-first-2026-11-21.md`).
+
+- **Changed:** `deliver` refuses while the reviewed change is not committed, and names the files and the `git add … && git commit` to run (C-47). Commit before `deliver`, as Stage 8 already said.
+- **Changed:** `run` and `quick start` check git first (installed, inside a repo, at least one commit) and stop with WHY/FIX before creating a Run; `status` shows `Git: NOT READY` instead of claiming the context is current, and warns when git identity is missing (C-48).
+- **Changed:** `quick start` on a different task while a Run is unfinished returns `RUN_CONFLICT` (exit 3) with the same options as `run` (C-54).
+- **Added:** README Get Started is three commands (`npm i -g`, `ael setup`, `ael init`); `init`, `status` and `run` say `NOT INSTALLED` and point at `ael setup` when no agent has the skill (C-49).
+- **Added:** `scaffold goal` writes a Goal Contract JSON template to `.ai-engineering-loop/drafts/goal.json`; `goal draft` refuses an unfilled template, explains itself when `--file` is missing, and warns when the draft lives outside `.ai-engineering-loop/`. `docs <name> --section` lists the sections when the name is wrong (C-50, C-55).
+- **Added:** `.ai-engineering-loop/sources.md` (from `init`, `refresh`, `sources refresh`) lists the read-only sources on this machine (code, gh, glab, a Mattermost MCP, AEL history) and keeps your Scope section. `sources hint` / `sources record` with a per-tier gather budget (T0 0, T1 4, T2 8) cached in `runs/<id>/sources.json`; `budget record --role gather` (C-45).
+- **Added:** Goal `statements` labelled fact / decision / assumption. The goal gate checks each fact's source (`path:line`, commit, recorded URL or `S-n`) and downgrades the rest to assumptions, which `status`, the receipt and the review pack show without blocking (C-46).
+
 From poteto's live with Matt Pocock (cards C-43 and C-44 in `docs/cards/poteto-live-2026-11-21.md`).
 
 - **Added:** `learn --transcripts` (C-44): reads local Claude Code, Cursor and Codex transcripts for this repository, finds corrections the human repeated across sessions, and saves them as candidate lessons (`L-T…`, redacted example only) with a suggested fix level and, for code tokens, a ready `learn promote --forbid-api … --prove <commit>`. `stats` lists the top repeated corrections.

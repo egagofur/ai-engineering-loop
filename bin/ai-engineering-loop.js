@@ -745,6 +745,11 @@ What becomes easier, harder, or forbidden.
     PRIVATE_RUNTIME_GITIGNORE,
     { overwrite: false }
   );
+  try {
+    require('../lib/sources.js').writeSourcesFile(rootDir);
+  } catch {
+    log.dim('sources.md was not written; run `ai-engineering-loop sources refresh` later.');
+  }
 }
 
 /**
@@ -994,6 +999,11 @@ function handleStatus() {
   const activeRun = currentRunSafe(CWD);
   if (activeRun && !TERMINAL_STATES.has(activeRun.state)) {
     console.log(`- Active run: ${activeRun.runId} (${activeRun.state})`);
+    const provenance = require('../lib/provenance.js').loadProvenance(CWD, activeRun.runId);
+    if (provenance && provenance.unconfirmed.length) {
+      log.warn(`- Unconfirmed: ${provenance.unconfirmed.length} assumption(s) in the Goal (not blocking)`);
+      for (const text of provenance.unconfirmed.slice(0, 5)) log.dim(`  - ${text}`);
+    }
     const hint = staleRunHint(activeRun);
     if (hint) log.warn(`  ${hint}`);
   }
@@ -4166,6 +4176,8 @@ function handleReviewPack() {
       const featureMap = require('../lib/feature-map.js');
       touchedFeatures = featureMap.featuresForFiles(CWD, changed);
       if (touchedFeatures.length && pack.path) fs.appendFileSync(path.join(CWD, pack.path), `${featureMap.renderForPack(touchedFeatures)}\n`);
+      const unconfirmed = require('../lib/provenance.js').renderUnconfirmed(require('../lib/provenance.js').loadProvenance(CWD, runId), '## Unconfirmed assumptions in the Goal (raise a finding if the code relies on one)');
+      if (unconfirmed.length && pack.path) fs.appendFileSync(path.join(CWD, pack.path), `\n${unconfirmed.join('\n')}\n`);
     } catch {
       openDebt = [];
     }
@@ -4477,6 +4489,45 @@ function handleQuick() {
   }
 }
 
+function handleSources() {
+  const json = process.argv.includes('--json');
+  const action = args[1] || 'show';
+  const sources = require('../lib/sources.js');
+  try {
+    if (action === 'refresh' || action === 'show') {
+      const result = action === 'refresh' ? sources.writeSourcesFile(CWD) : { path: sources.SOURCES_FILE, sources: sources.detectSources(CWD) };
+      if (json) {
+        console.log(JSON.stringify({ ok: true, ...result }, null, 2));
+        return;
+      }
+      for (const item of result.sources) console.log(`${item.available ? '✓' : '-'} ${item.id}: ${item.detail}`);
+      if (action === 'refresh') console.log(`Wrote ${result.path}; edit its Scope section to limit channels and labels.`);
+      return;
+    }
+    const runId = action === 'record' ? requiredRunId('sources record') : (argValue('--run') || currentRunSafe(CWD)?.runId);
+    const run = runId ? loadRun(CWD, runId) : null;
+    if (action === 'hint') {
+      const result = sources.gatherHints(CWD, run);
+      if (json) {
+        console.log(JSON.stringify({ ok: true, ...result }, null, 2));
+        return;
+      }
+      console.log(`Gather budget ${result.tier}: ${result.used}/${result.budget} used. Stop once every Goal statement has a source.`);
+      for (const item of result.hints) console.log(`- ${item.source}: ${item.try}`);
+      return;
+    }
+    if (action === 'record') {
+      const result = sources.recordGather(CWD, run, { source: argValue('--source'), ref: argValue('--ref'), line: argValue('--line') });
+      if (json) console.log(JSON.stringify({ ok: true, ...result }, null, 2));
+      else console.log(`✓ ${result.entry.id} recorded (${result.used}/${result.budget}). Cite it as source "${result.entry.id}" on a Goal fact.`);
+      return;
+    }
+    throw Object.assign(new Error('Use: sources [show|refresh|hint|record] [--run <id>] [--source <id> --ref <ref> --line <text>] [--json]'), { code: 'INVALID_USAGE' });
+  } catch (err) {
+    stageJsonError(err, json, 'SOURCES_FAILED');
+  }
+}
+
 function handleDriver() {
   const json = process.argv.includes('--json');
   try {
@@ -4720,6 +4771,7 @@ Commands:
   debt         Accepted trade-offs and L3 waivers recorded at delivery: list [--file <path>] | close <id> --by <name> [--note <text>]
   next         Next unblocked feature from .ai-engineering-loop/features.json, VCR (verified/activated), evidence audit [--json]
   worktree     Clean up AEL worktrees: prune [--yes] [--json] (never removes uncommitted or unmerged work)
+  sources      Where the agent digs before asking (read-only): show | refresh | hint | record --source <id> --ref <ref> --line <text>
   driver       Scaffold a reusable verification driver per feature-map row: scaffold [--feature <id>] [--surface web|api|cli|launch]
   safety       Record the one fact a change is safe because of [record --fact <text> --cmd <proof>] (T2 Judge PASS needs level 4+)
   measurement  Record how a performance number was measured [record --ac <id> --runs <n> --spread <pct> --effect <pct> --limiter <text>]
@@ -4948,6 +5000,9 @@ switch (command) {
     break;
   case 'recap':
     handleRecap();
+    break;
+  case 'sources':
+    handleSources();
     break;
   case 'driver':
     handleDriver();
