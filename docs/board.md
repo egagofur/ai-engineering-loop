@@ -40,7 +40,7 @@
 | C-34 P3: feature-map drift in doctor --harness | Engineer Bot | Done | [#128](https://github.com/egagofur/ai-engineering-loop/pull/128) | Claude | e317400 (merged 2026-11-18, v2.11.0) |
 | C-35 P3: `formal_covers` adds formal to default verify | Engineer Bot | Done | [#128](https://github.com/egagofur/ai-engineering-loop/pull/128) | Claude | e317400 (merged 2026-11-18, v2.11.0) |
 | C-36 P2: human interventions per Run in stats and recap | Engineer Bot | Done | [#128](https://github.com/egagofur/ai-engineering-loop/pull/128) | Claude | e317400 (merged 2026-11-18, v2.11.0) |
-| C-37 P1: RUN_CONFLICT instead of resuming another task's Run | Engineer Bot | In Review | branch `feat/run-isolation` ([#130](https://github.com/egagofur/ai-engineering-loop/issues/130)) | Claude | not merged |
-| C-38 P1: `run --worktree "<task>"` | Engineer Bot | In Review | branch `feat/run-isolation` ([#130](https://github.com/egagofur/ai-engineering-loop/issues/130)) | Claude | not merged |
-| C-39 P1: Stage 9 cleanup after deliver | Engineer Bot | In Review | branch `feat/run-isolation` ([#130](https://github.com/egagofur/ai-engineering-loop/issues/130)) | Claude | not merged |
-| C-40 P2: `worktree prune` and status hint | Engineer Bot | In Review | branch `feat/run-isolation` ([#130](https://github.com/egagofur/ai-engineering-loop/issues/130)) | Claude | not merged |
+| C-37 P1: RUN_CONFLICT instead of resuming another task's Run | Engineer Bot | Done | [#131](https://github.com/egagofur/ai-engineering-loop/pull/131) | Claude | f9a9715 (merged 2026-11-21, v2.12.0) |
+| C-38 P1: `run --worktree "<task>"` | Engineer Bot | Done | [#131](https://github.com/egagofur/ai-engineering-loop/pull/131) | Claude | f9a9715 (merged 2026-11-21, v2.12.0) |
+| C-39 P1: Stage 9 cleanup after deliver | Engineer Bot | Done | [#131](https://github.com/egagofur/ai-engineering-loop/pull/131) | Claude | f9a9715 (merged 2026-11-21, v2.12.0) |
+| C-40 P2: `worktree prune` and status hint | Engineer Bot | Done | [#131](https://github.com/egagofur/ai-engineering-loop/pull/131) | Claude | f9a9715 (merged 2026-11-21, v2.12.0) |
