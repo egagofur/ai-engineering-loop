@@ -3336,6 +3336,11 @@ function handleGoal() {
     const extra = {};
     if (action === 'show') {
       result = loadGoalDraft(CWD, runId);
+      if (process.argv.includes('--human')) {
+        if (!result) throw Object.assign(new Error('No Goal draft yet'), { code: 'GOAL_DRAFT_MISSING', fix: '`scaffold goal`, fill it in, then `goal draft --file .ai-engineering-loop/drafts/goal.json --revision 0`.' });
+        process.stdout.write(require('../lib/ste.js').renderHumanGoal(result.contract, { runId, revision: result.metadata?.revision }));
+        return;
+      }
       if (result?.contract?.designRef) extra.design = require('../lib/design-ref.js').designStatus(CWD, result.contract.designRef);
     } else if (action === 'draft') {
       appendRunLifecycle(CWD, runId, {
@@ -3375,6 +3380,11 @@ function handleGoal() {
         expectedRevision: requiredIntegerArg('--revision')
       });
       extra.impactPreview = impactPreview(runId, draftGoal);
+      const ste = require('../lib/ste.js');
+      const humanPath = path.join(runsDir(CWD), runId, 'goal.md');
+      fs.writeFileSync(humanPath, ste.renderHumanGoal(draftGoal, { runId, revision: result.metadata?.revision }), { mode: 0o600 });
+      extra.human = { path: path.relative(CWD, humanPath).split(path.sep).join('/'), show: `goal show --run ${runId} --human` };
+      extra.readability = ste.goalReadability(draftGoal);
       if (draftGoal && draftGoal.flow != null) {
         const flowLib = require('../lib/flow.js');
         extra.flow = { table: flowLib.renderFlow(draftGoal.flow), mermaid: flowLib.renderMermaid(draftGoal.flow), problems: flowLib.flowProblems(draftGoal.flow), warnings: flowLib.flowWarnings(draftGoal.flow), ...flowLib.flowCounts(draftGoal) };
@@ -3465,6 +3475,7 @@ function handleGoal() {
       const meta = result?.metadata || {};
       log.success(`✓ goal ${action}: Run ${runId}${meta.revision != null ? `, revision ${meta.revision}` : ''}${meta.contentHash ? ` (${String(meta.contentHash).slice(0, 12)})` : ''}`);
       if (extra.impactPreview) console.log(`- Impact preview: ${JSON.stringify(extra.impactPreview).slice(0, 200)}`);
+      if (extra.human) console.log(`- For people: ${extra.human.path} (${(extra.readability || []).length} writing check(s))`);
       if (extra.warning) console.log(`! ${extra.warning}`);
       console.log(action === 'draft' ? `- Next: show the human the draft, then \`goal freeze --latest --run ${runId} --by <name>\`. Full output: --json.` : '- Next: Maker (implement), then `gate maker --from-git`. Full output: --json.');
       return;
@@ -4765,6 +4776,7 @@ Commands:
                draft --file <json> --revision <n> [--run <id>] [--by <agent>]
                draft --from-design <doc.md> [--file <json>] --revision <n>   prefill from a design doc, record designRef
                freeze --revision <n> --hash <sha256> [--run <id>] [--by <name>]
+               show --human [--run <id>]   the Goal as plain Markdown for people (STE style: short active sentences)
                freeze --latest [--run <id>] --by <name>   freeze the newest draft (CLI resolves revision/hash)
                diagram --view state|storyboard|lanes [--run <id>] [--revision <n>] [--lang <tag>] [--open]   draw the Goal flow as HTML
   verification Summarize verification.json for compact Judge context

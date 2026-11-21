@@ -230,3 +230,21 @@ The receipt lists `--evidence AC-N=<https-url>` links first, typed as video, scr
 ```
 
 Then: `goal draft --run <runId> --file .ai-engineering-loop/drafts/goal.json --revision 0`, show the draft to the human, and `goal freeze`.
+
+## Writing for people: STE style (ASD-STE100)
+
+The Goal JSON is for the tools; people read `RUN_DIR/goal.md` (`goal show --human`), written on every `goal draft`. Write the text fields in the style of ASD-STE100 Simplified Technical English (https://www.asd-ste100.org), so a reviewer, a client or a non-native reader understands each line on the first read:
+
+| Rule | Do | Not |
+|---|---|---|
+| One fact or one action per sentence | "Export saves a CSV file." | "Export saves a CSV and then emails it and logs it." |
+| Active voice: say who does what | "The API rejects an empty name." | "An empty name is rejected." |
+| Short sentences | Instructions 20 words or fewer, descriptions 25 or fewer | Long sentences with many clauses |
+| Words a test can check | "The page loads in 2 seconds or less." | "fast", "robust", "properly", "should", "etc." |
+| Same word for the same thing | Use the glossary term every time | Switching between "invoice", "bill" and "receipt" |
+| Start with the subject or the verb | "The filter keeps the last value." | "Keeping the last value, the filter..." |
+
+`goal draft` returns `readability`: warnings for long sentences, passive voice, vague words, several actions in one sentence and sentences that start with an -ing word. They never block the gate; fix them before you ask for the freeze. AEL checks these general writing rules only; it does not ship the ASD-STE100 dictionary.
+
+`goal.md` has these sections: What changes, Done when (each AC with its proof and "Fail if" lines), Not in this change, Not confirmed yet (assumptions from `statements`), and the writing checks.
+
