@@ -4,7 +4,10 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
-_No changes yet._
+From pstack's scripts (cards C-41, C-42 in `docs/cards/pstack-scripts-2026-11-21.md`).
+
+- **Added:** `worktree prune` buckets (C-41): `hold-wip`, `hold-live-run`, `hold-open-pr`, `review`, `scratch`, `safe`, plus size and age per worktree, biggest first. Worktrees with only untracked files are `scratch` and removed only with `--include-scratch`; an open PR holds a worktree; `--audit` lists every git worktree (others as `foreign`, never removed).
+- **Added:** `pr status [--run|--branch|--pr] [--json]` (C-42): one `gh` snapshot with verdict `merged|closed|blocker|waiting|ready` and named blockers; a merged PR writes `runs/<id>/merge.json` once. `worktree prune` uses it to delete squash-merged branches without `gh`; `stats` and `recap` report merged Runs and delivery-to-merge time.
 
 ## 2.12.0 - 2026-11-21
 

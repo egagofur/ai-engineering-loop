@@ -53,3 +53,27 @@ A dirty worktree is kept, with the reason in `cleanup.keptReason`.
 | Folder already deleted by hand | `git worktree prune`, entry closed |
 
 Uncommitted or unmerged work is never removed. `status` and `run` print one line when something can be cleaned up.
+
+### Buckets (C-41, from pstack `worktree-audit`)
+
+`worktree prune` prints `SIZE  AGE  BUCKET  RUN  WORKTREE`, biggest first:
+
+| Bucket | Meaning | Removed? |
+|---|---|---|
+| `hold-wip` | changed or staged tracked files | never, by any flag |
+| `hold-live-run` | its AEL Run was active in the last 15 minutes | no |
+| `hold-open-pr` | the branch has an open pull request (`gh pr list`) | no |
+| `review` | Run still unfinished but quiet | no; idle 7+ days is reported |
+| `scratch` | Run finished, only untracked files left (build output, logs) | with `--include-scratch` |
+| `safe` | Run finished, clean | yes |
+| `foreign` | not created by AEL (`--audit` only) | never |
+
+`--audit` adds every other git worktree of the repository as `foreign`, so you can see what fills the disk; prune still only touches registered worktrees.
+
+## `pr status` (C-42, from pstack `watch-pr`)
+
+`ai-engineering-loop pr status [--run <id> | --branch <name> | --pr <n>] [--json]` reads the pull request once through `gh pr view` (no polling) and returns `merged`, `closed`, `blocker`, `waiting` or `ready`. Blockers are named: `draft`, `merge-conflicts`, `failing-checks: <names>`, `changes-requested`. `waiting` lists pending checks or `review`. With `--run`, the branch comes from the worktree registry or `delivery.json`.
+
+When the PR is merged, the Run gets `runs/<id>/merge.json` (PR number, URL, merged at, merge commit), written once. `worktree prune` then deletes a squash-merged branch on that evidence without calling `gh`; `stats` counts merged Runs and `recap` shows "merged N after delivery" per Run and a "Merged into main" metric for the lead.
+
+Without `gh`, or with `gh` signed out, the command stops with `GH_UNAVAILABLE` and the command to fix it. Set `AEL_GH_BIN` to use another `gh` binary.
