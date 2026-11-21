@@ -4,6 +4,7 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+- **Added:** a Goal for people. Every `goal draft` writes `RUN_DIR/goal.md` (What changes, Done when with proof and "Fail if" lines, Not in this change, Not confirmed yet), and `goal show --human` prints it. `goal draft` returns `readability` warnings in the style of ASD-STE100 Simplified Technical English (long or passive sentences, vague words, several actions in one sentence); they never block. The JSON for agents is unchanged (`docs goal-contract`, "Writing for people").
 - **Changed:** skill headroom. The Judge and ITERATE steps moved to `loop-judge` (read only when `judgeRequired`, on T2 or on ITERATE), REPORT_ONLY / UNATTENDED / Maker intern to `loop-modes`, and the report header block to `loop-deliver`. SKILL.md 4000 -> 3757 of 4000 chars; T1 context 17853 -> 16626 of 17859. No rule was dropped.
 
 ## 2.13.0 - 2026-11-21
