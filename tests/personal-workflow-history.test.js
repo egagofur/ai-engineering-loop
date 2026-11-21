@@ -193,7 +193,7 @@ test('AC 6: a full run plus suggest never changes recipes; only workflow accept 
     const recipesBefore = hashTree(path.join(dir, '.ai-engineering-loop', 'recipes'));
     const builtinsBefore = hashTree(path.join(ROOT, 'recipes'));
     const run = startRun(box, dir);
-    ok(cli(box, dir, ['run', '--abandon', '--run', run.runId, '--reason', 'test', '--by', 'ada', '--yes', '--json']), 'abandon');
+    ok(cli(box, dir, ['run', '--abandon', '--run', run.runId, '--reason', 'test', '--by', 'ada', '--yes', '--force-live', '--json']), 'abandon');
     seedHistory(box, t1Rows('c', 4, 6));
     ok(cli(box, dir, ['workflow', 'suggest', '--json']), 'suggest');
     assert.deepEqual(hashTree(path.join(stateDir(box), 'workflow')), personalBefore);
@@ -214,7 +214,7 @@ test('AC 7: run resolves project-required > personal > built-in and reports work
     const resolve = (label, dir, extra) => {
       const body = startRun(box, dir, extra);
       rows.push(label);
-      ok(cli(box, dir, ['run', '--abandon', '--run', body.runId, '--reason', 'test', '--by', 'ada', '--yes', '--json']), `abandon ${label}`);
+      ok(cli(box, dir, ['run', '--abandon', '--run', body.runId, '--reason', 'test', '--by', 'ada', '--yes', '--force-live', '--json']), `abandon ${label}`);
       return body;
     };
 
@@ -259,7 +259,7 @@ test('AC 8: workflow-history.jsonl summaries hold counts and a repo hash, never 
     const run = ok(cli(box, dir, [
       'run', '--json', '--new', `Rotate ${canary} used by ${pathCanary}`
     ]), 'run with canary');
-    ok(cli(box, dir, ['run', '--abandon', '--run', run.runId, '--reason', `cleanup ${canary}`, '--by', 'ada', '--yes', '--json']), 'abandon');
+    ok(cli(box, dir, ['run', '--abandon', '--run', run.runId, '--reason', `cleanup ${canary}`, '--by', 'ada', '--yes', '--force-live', '--json']), 'abandon');
     const text = fs.readFileSync(historyPath(box), 'utf8');
     const lines = text.trim().split('\n').map((line) => JSON.parse(line));
     assert.equal(lines.length, 1);

@@ -4,7 +4,14 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
-_No changes yet._
+Run isolation (cards C-37..C-40 in `docs/cards/run-isolation-2026-11-21.md`, issue #130; `docs run-isolation`).
+
+- **Added:** `run "<task>"` with an unfinished Run on a different task returns `RUN_CONFLICT` (exit 3) with `live`, `idleMinutes`, `changedFiles`, a recommendation and exact commands to resume, start in a worktree, or abandon. A current Run with no task no longer resumes silently under a new task.
+- **Added:** `run --worktree "<task>"` starts the task in a new git worktree (`ael/<slug>-<id>`) from HEAD and records it in `.ai-engineering-loop/worktrees.json`.
+- **Added:** Stage 9 cleanup: after `deliver` in a worktree, run evidence is copied to the main checkout and a clean worktree is removed (branch kept until merged).
+- **Added:** `worktree prune [--yes]` removes finished, clean worktrees and merged branches; `status` and `run` show a one-line hint. Uncommitted or unmerged work is never removed.
+- **Changed:** `run --abandon` on a Run active in the last 15 minutes needs `--force-live`.
+- **Changed:** task comparison for an unfinished Run ignores case and spacing.
 
 ## 2.11.0 - 2026-11-18
 

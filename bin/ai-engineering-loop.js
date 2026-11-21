@@ -14,7 +14,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { readJsonOptional, sha256: sha256Text } = require('../lib/fsutil.js');
-const { execSync, spawn } = require('child_process');
+const { execSync, spawn, spawnSync } = require('child_process');
 
 // Command modules load on first use, so a hot path such as
 // `guard check --hook` (run before every tool call) loads only what it
@@ -929,6 +929,8 @@ function statusJson() {
         result.activeRun = { runId: activeRun.runId, state: activeRun.state, updatedAt: activeRun.updatedAt || null, stale: info.stale, idleDays: info.idleDays };
         if (info.stale) result.activeRun.hint = require('../lib/run-abandon.js').abandonCommand(activeRun.runId);
       }
+      const worktreeHint = require('../lib/run-isolation.js').pruneHint(CWD);
+      if (worktreeHint) result.worktreeHint = worktreeHint;
     }
   }
   return result;
@@ -976,6 +978,8 @@ function handleStatus() {
     const hint = staleRunHint(activeRun);
     if (hint) log.warn(`  ${hint}`);
   }
+  const worktreeHint = require('../lib/run-isolation.js').pruneHint(CWD);
+  if (worktreeHint) log.warn(`- ${worktreeHint}`);
 
   const hosts = hostSkillStatus({ home: homeDir(), version: VERSION });
   if (hosts.stale) {
@@ -1298,6 +1302,65 @@ function workingTreePaths(rootDir) {
 // `run --abandon [--run <id>] --reason <text> --by <name> [--yes] [--json]`
 // (issue #46). ASSISTED asks for confirmation (or --yes); UNATTENDED runs are
 // refused unless a human passes --yes. Terminal runs exit 2.
+function startWorktreeRun(task, runArgs, runJson, realLog) {
+  const isolation = require('../lib/run-isolation.js');
+  try {
+    const worktree = isolation.createWorktree(CWD, { task });
+    const passthrough = [];
+    for (const flag of ['--mode', '--recipe', '--tier', '--tier-reason']) {
+      const value = argValue(flag);
+      if (value != null) passthrough.push(flag, value);
+    }
+    const child = spawnSync(process.execPath, [process.argv[1], 'run', '--json', ...passthrough, task], { cwd: worktree.path, encoding: 'utf8', env: process.env });
+    let started;
+    try {
+      started = JSON.parse(String(child.stdout || '').slice(String(child.stdout || '').indexOf('{')));
+    } catch {
+      started = { ok: false, error: (child.stderr || child.stdout || 'run did not start').trim() };
+    }
+    if (!started.ok) throw Object.assign(new Error(`Worktree created at ${worktree.path}, but the Run did not start: ${started.error}`), { code: started.code || 'RUN_FAILED' });
+    isolation.registerWorktree(worktree.mainRoot, { runId: started.runId, path: worktree.path, branch: worktree.branch, base: worktree.base, task, state: 'active', createdAt: new Date().toISOString() });
+    const result = { ...started, worktree: { path: worktree.path, branch: worktree.branch, mainCheckout: worktree.mainRoot }, next: `Work only in ${worktree.path} for this Run.` };
+    if (runJson) realLog(JSON.stringify(result, null, 2));
+    else {
+      console.log = realLog;
+      log.success(`✓ Run ${started.runId} started in a new worktree`);
+      console.log(`- Path: ${worktree.path}`);
+      console.log(`- Branch: ${worktree.branch} (from ${worktree.base.slice(0, 12)})`);
+      console.log(`- Work only in that folder for this Run. After deliver, Stage 9 removes the worktree when it is clean.`);
+    }
+  } catch (err) {
+    console.log = realLog;
+    if (runJson) realLog(JSON.stringify({ ok: false, code: err.code || 'RUN_FAILED', error: err.message }));
+    else log.error(err.message);
+    process.exit(1);
+  }
+}
+
+function handleWorktree() {
+  const json = process.argv.includes('--json');
+  const isolation = require('../lib/run-isolation.js');
+  try {
+    if (args[1] !== 'prune') throw Object.assign(new Error('Use: worktree prune [--yes] [--json]'), { code: 'INVALID_USAGE' });
+    if (!process.argv.includes('--yes')) {
+      const { plan } = isolation.planPrune(CWD);
+      if (json) console.log(JSON.stringify({ ok: true, applied: false, plan }, null, 2));
+      else if (!plan.length) log.success('✓ No AEL worktree needs cleanup');
+      else {
+        for (const row of plan) console.log(`- ${row.path} [${row.runState || 'unknown'}]: ${[...row.actions, ...row.notes].join('; ')}`);
+        console.log('Apply with: ai-engineering-loop worktree prune --yes (uncommitted or unmerged work is never removed)');
+      }
+      return;
+    }
+    const result = isolation.applyPrune(CWD);
+    if (json) console.log(JSON.stringify({ ok: true, applied: true, ...result }, null, 2));
+    else if (!result.done.length) log.success('✓ Nothing to clean up');
+    else for (const item of result.done) console.log(`✓ ${item.action}: ${item.path}`);
+  } catch (err) {
+    stageJsonError(err, json, 'WORKTREE_FAILED');
+  }
+}
+
 function handleRunAbandon() {
   const json = process.argv.includes('--json');
   const yes = process.argv.includes('--yes');
@@ -1310,6 +1373,10 @@ function handleRunAbandon() {
   try {
     const plan = runAbandon.planAbandon(CWD, { runId: argValue('--run'), reason: argValue('--reason'), by: argValue('--by') });
     const { run } = plan;
+    const activity = require('../lib/run-isolation.js').runActivity(CWD, run);
+    if (activity.live && !process.argv.includes('--force-live')) {
+      throw Object.assign(new Error(`Run ${run.runId} was active ${activity.idleMinutes} minute(s) ago; another session may still be working on it. Add --force-live only if you are sure, or start this task in a worktree: run --worktree "<task>".`), { code: 'RUN_LIVE' });
+    }
     if (run.mode === 'UNATTENDED' && !yes) {
       throw Object.assign(new Error(`Run ${run.runId} is UNATTENDED. Agents must not abandon it; a human can re-run with --yes.`), { code: 'UNATTENDED_REQUIRES_HUMAN', exitCode: 2 });
     }
@@ -1381,7 +1448,7 @@ function handleRun() {
   const tierReasonArg = argValue('--tier-reason');
   const taskParts = [];
   for (let index = 0; index < runArgs.length; index++) {
-    if (runArgs[index] === '--new' || runArgs[index] === '--json') continue;
+    if (['--new', '--json', '--worktree'].includes(runArgs[index])) continue;
     if (['--mode', '--recipe', '--tier', '--tier-reason'].includes(runArgs[index])) {
       index += 1;
       continue;
@@ -1389,9 +1456,16 @@ function handleRun() {
     taskParts.push(runArgs[index]);
   }
   const task = taskParts.join(' ').trim();
+  if (runArgs.includes('--worktree')) return startWorktreeRun(task, runArgs, runJson, realLog);
   let runResult;
   try {
     const current = getCurrentRun(CWD);
+    if (!forceNew) {
+      const conflict = require('../lib/run-isolation.js').runConflict(CWD, current, task);
+      if (conflict) {
+        throw Object.assign(new Error(`Run ${conflict.runId} (${conflict.state}) is unfinished and works on a different task${conflict.live ? `; it was active ${conflict.idleMinutes} minute(s) ago` : ''}. Ask the human which option to take; do not pick one yourself.`), { code: 'RUN_CONFLICT', conflict });
+      }
+    }
     const policy = loadPolicy(CWD);
     const startsNewRun = forceNew || !current || TERMINAL_STATES.has(current.state);
     if (forceNew && current && !TERMINAL_STATES.has(current.state)) {
@@ -1454,10 +1528,14 @@ function handleRun() {
   } catch (err) {
     console.log = realLog;
     if (runJson) {
-      realLog(JSON.stringify({ ok: false, code: err.code || 'RUN_FAILED', error: err.message }));
-      process.exit(1);
+      realLog(JSON.stringify({ ok: false, code: err.code || 'RUN_FAILED', error: err.message, ...(err.conflict ? { conflict: err.conflict } : {}) }));
+      process.exit(err.code === 'RUN_CONFLICT' ? 3 : 1);
     }
     log.error(err.message);
+    if (err.conflict) {
+      for (const option of err.conflict.options) console.log(`- ${option.id === err.conflict.recommended ? '(recommended) ' : ''}${option.label}: ${option.command}`);
+      process.exit(3);
+    }
     process.exit(1);
   }
   if (runJson) {
@@ -1490,6 +1568,10 @@ function handleRun() {
         return { stale: h.stale, staleFiles: h.staleFiles, installedVersion: h.installedVersion, packageVersion: VERSION };
       })(),
       learnings: runLearnings(),
+      ...(() => {
+        const hint = require('../lib/run-isolation.js').pruneHint(CWD);
+        return hint ? { worktreeHint: hint } : {};
+      })(),
       ...specHintField(runResult),
       studioUrl: readStudioUrl(CWD)
     }, null, 2));
@@ -4145,6 +4227,14 @@ function handleDeliver() {
       humanApproved: delivery.humanApproved === true,
       receipt: receipt && { path: receipt.path, markdown: receipt.markdownPath, digest: receipt.receipt.digest, missingEvidence: receipt.missing }
     };
+    if (next.state === 'DELIVERED') {
+      try {
+        const cleanup = require('../lib/run-isolation.js').cleanupAfterDeliver(CWD, runId);
+        if (cleanup) result.cleanup = cleanup;
+      } catch (cause) {
+        result.cleanup = { error: cause.message };
+      }
+    }
     if (json) console.log(JSON.stringify(result));
     else {
       log.success('✓ delivery gate passed');
@@ -4152,6 +4242,9 @@ function handleDeliver() {
       if (approved.length) console.log(`- Approved: ${approved.join(', ')} by ${by}`);
       if (receipt) console.log(`- Receipt: ${receipt.path} (digest ${receipt.receipt.digest.slice(0, 12)}); paste ${receipt.markdownPath} into the PR/MR body`);
       if (receipt?.missing.length) console.log(`! Missing AC evidence (❌ in the receipt): ${receipt.missing.join(', ')}`);
+      if (result.cleanup?.removed) console.log(`- Stage 9: worktree removed, evidence copied to ${result.cleanup.mainCheckout}; branch ${result.cleanup.branch} kept until merged. Continue in ${result.cleanup.mainCheckout}.`);
+      else if (result.cleanup?.keptReason) console.log(`! Stage 9: worktree kept (${result.cleanup.keptReason}); evidence copied to ${result.cleanup.mainCheckout}.`);
+      else if (result.cleanup?.error) console.log(`! Stage 9 cleanup failed: ${result.cleanup.error}`);
     }
   } catch (err) {
     stageJsonError(err, json, 'DELIVER_FAILED');
@@ -4407,11 +4500,12 @@ Commands:
   refresh      Reconcile drifted context against repository non-destructively
   run [task]   Start or resume a stateful engineering run and instruct the agent (never writes to home)
                --new  start a new run even when another run is active
+               --worktree  start this task in a new git worktree (use when another run is unfinished)
                --mode report-only|assisted|unattended
                --recipe <id>  bind an immutable compiled workflow plan
                --tier T0|T1|T2 --tier-reason <text>  override the automatic tier (recorded)
                --json  print runId, tier, tier reasons, subagent count, recipe, workflowSource, and studioUrl (tokenless; browser session comes from ael studio)
-               --abandon [--run <id>] --reason <text> --by <name> [--yes] [--json]
+               --abandon [--run <id>] --reason <text> --by <name> [--yes] [--force-live] [--json]
                       close a stale run as CANCELLED (kept on disk) and release current.json;
                       ASSISTED asks to confirm, UNATTENDED needs --yes from a human
   state        Inspect the current run ledger
@@ -4505,6 +4599,7 @@ Commands:
   calibrate    Compare recorded outcomes with each Run's Finding Ledger: DA misses, wrong dismissals, per reviewer prompt
   debt         Accepted trade-offs and L3 waivers recorded at delivery: list [--file <path>] | close <id> --by <name> [--note <text>]
   next         Next unblocked feature from .ai-engineering-loop/features.json, VCR (verified/activated), evidence audit [--json]
+  worktree     Clean up AEL worktrees: prune [--yes] [--json] (never removes uncommitted or unmerged work)
   safety       Record the one fact a change is safe because of [record --fact <text> --cmd <proof>] (T2 Judge PASS needs level 4+)
   measurement  Record how a performance number was measured [record --ac <id> --runs <n> --spread <pct> --effect <pct> --limiter <text>]
   recap        Evidence-backed recap of the last N days as one HTML page [--days 7] [--for me|lead|client] [--projects <p,...>|all] [--out <file>] [--lang <tag>] [--open] [--json]
@@ -4730,6 +4825,9 @@ switch (command) {
     break;
   case 'recap':
     handleRecap();
+    break;
+  case 'worktree':
+    handleWorktree();
     break;
   case 'safety':
     handleSafety();

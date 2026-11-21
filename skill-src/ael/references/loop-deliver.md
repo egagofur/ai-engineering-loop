@@ -8,3 +8,4 @@
 - Long form: `node status --run <runId>`, `node approve delivery-approval --yes --by <name> --run <runId>` for each READY approval node, write `RUN_DIR/delivery.json`, then `gate delivery`. If the gate says a node is not READY, follow its prerequisite hint; never bypass approval.
 - Commit before `deliver` (its receipt binds `HEAD`; videos/screenshots: `--evidence AC-N=<https-url>`, required for `crossComponent` and rubric ACs). Paste `RUN_DIR/receipt.md` into the PR/MR Receipt section unchanged; ❌ stays ❌ (`docs pr-receipt`).
 - Only the delivery gate completes the run. It also mines lessons for the next Run.
+- Worktree Run: after `deliver`, continue in `cleanup.mainCheckout` (Stage 9).

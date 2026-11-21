@@ -217,7 +217,7 @@ test('recipe-bound runs record RUN_CANCELLED with actor and reason in events.jso
   const started = cli('run', '--json', '--recipe', 'default', 'Workflow task');
   assert.strictEqual(started.status, 0, started.stdout + started.stderr);
   const { runId } = JSON.parse(started.stdout);
-  const r = cli('run', '--abandon', '--reason', 'gave up', '--by', 'ega', '--yes', '--json');
+  const r = cli('run', '--abandon', '--reason', 'gave up', '--by', 'ega', '--yes', '--force-live', '--json');
   assert.strictEqual(r.status, 0, r.stdout);
   assert.strictEqual(loadRun(dir, runId).state, 'CANCELLED');
   const events = fs.readFileSync(path.join(dir, '.ai-engineering-loop/runs', runId, 'events.jsonl'), 'utf8');
