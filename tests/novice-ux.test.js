@@ -139,7 +139,7 @@ test('C-53 review ingest on prose explains the ledger it needs', () => {
   const { extractLedger } = require('../lib/review-ingest.js');
   assert.strictEqual(extractLedger('Looks fine to me, no issues.'), null);
   const source = fs.readFileSync(path.join(__dirname, '..', 'lib', 'review-ingest.js'), 'utf8');
-  assert.match(source, /NO_LEDGER_IN_OUTPUT'\), \{\n\s+why:/);
+  assert.match(source, /NO_LEDGER_IN_OUTPUT'\), \{\r?\n\s+why:/);
 });
 
 test('C-52 CLI basics: unknown command, help, bare ael, empty run, gate without a name', () => {
@@ -171,7 +171,7 @@ test('C-51 doctor is about the machine: git, identity, agent skill, gh login, ea
   const { home, dir, cli } = box();
   execFileSync('git', ['remote', 'add', 'origin', 'git@github.com:a/b.git'], { cwd: dir });
   assert.strictEqual(cli('init').status, 0);
-  const env = { ...process.env, HOME: home, USERPROFILE: home, AEL_HOME: home, AEL_NO_SETUP_HINT: '1', AEL_NO_AUTO_UPDATE: '1', GIT_CONFIG_GLOBAL: path.join(home, 'none'), GIT_CONFIG_NOSYSTEM: '1', PATH: path.dirname(process.execPath) + path.delimiter + '/usr/bin:/bin' };
+  const env = { ...process.env, HOME: home, USERPROFILE: home, AEL_HOME: home, AEL_NO_SETUP_HINT: '1', AEL_NO_AUTO_UPDATE: '1', GIT_CONFIG_GLOBAL: path.join(home, 'none'), GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: '', GIT_AUTHOR_EMAIL: '' };
   const doctor = spawnSync(process.execPath, [CLI, 'doctor', '--json'], { cwd: dir, env, encoding: 'utf8' });
   const result = JSON.parse(doctor.stdout);
   assert.strictEqual(result.scope, 'machine');

@@ -4995,22 +4995,23 @@ Help: ael help. Nothing was written.`;
 
 // CLI Router
 const args = process.argv.slice(2);
+const printNow = (text) => fs.writeSync(1, `${text}\n`);
 if (!args.length && !fs.existsSync(CONTEXT_DIR)) {
-  console.log(startMenu());
+  printNow(startMenu());
   process.exit(0);
 }
 const command = args[0] || 'status';
 if (command === 'help' || ((command === '-h' || command === '--help') && args.length === 1) || ((command === '-h' || command === '--help') && args[1] === '--all')) {
   const topic = command === 'help' ? args[1] : null;
-  if (topic === '--all' || args.includes('--all')) console.log(helpText());
+  if (topic === '--all' || args.includes('--all')) printNow(helpText());
   else if (topic) {
     const block = commandHelp(helpText(), topic);
     if (!block) {
       log.error(`No help for "${topic}". Commands: ${commandNames().join(', ')}`);
       process.exit(2);
     }
-    console.log(`Usage: npx ai-engineering-loop ${block.trim()}`);
-  } else console.log(shortHelp());
+    printNow(`Usage: npx ai-engineering-loop ${block.trim()}`);
+  } else printNow(shortHelp());
   process.exit(0);
 }
 
