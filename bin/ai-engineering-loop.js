@@ -4445,6 +4445,60 @@ function handleQuick() {
   }
 }
 
+function handleDriver() {
+  const json = process.argv.includes('--json');
+  try {
+    if (args[1] !== 'scaffold') throw Object.assign(new Error('Use: driver scaffold [--feature <id>] [--surface web|api|cli|launch] [--json]'), { code: 'INVALID_USAGE' });
+    const results = require('../lib/driver-scaffold.js').scaffoldDriver(CWD, { feature: argValue('--feature'), surface: argValue('--surface') });
+    if (json) {
+      console.log(JSON.stringify({ ok: true, drivers: results }, null, 2));
+      return;
+    }
+    if (!results.length) log.success('✓ Every feature in the feature map already has a driver');
+    for (const item of results) {
+      if (item.written && item.written.endsWith('.ael-new')) console.log(`! ${item.feature}: ${item.file} was edited; new template saved as ${item.written}`);
+      else if (item.written) console.log(`✓ ${item.feature} (${item.surface}): ${item.written}${item.featureMapUpdated ? ' (feature map Driver set)' : ''}`);
+      else console.log(`- ${item.feature}: ${item.file} unchanged`);
+      if (item.gaps.length) console.log(`  missing: ${item.gaps.join(', ')} (see the .md next to the driver)`);
+    }
+    console.log('Fill in EXPECT and the user steps, then run the driver; it exits 0 only when the result matches.');
+  } catch (err) {
+    stageJsonError(err, json, 'DRIVER_FAILED');
+  }
+}
+
+function learnFromTranscripts(json) {
+  try {
+    const lessons = require('../lib/transcript-lessons.js');
+    const sinceArg = String(argValue('--since') || '30d');
+    if (!/^\d+d?$/.test(sinceArg)) throw Object.assign(new Error('--since must be a number of days, such as 30 or 30d'), { code: 'INVALID_USAGE' });
+    const since = Number(sinceArg.replace(/d$/, ''));
+    const hostArg = argValue('--host') || 'all';
+    const hosts = hostArg === 'all' ? lessons.HOSTS : hostArg.split(',').map((item) => item.trim());
+    const minArg = argValue('--min-sessions');
+    const minSessions = minArg == null ? 2 : parsePositiveIntegerArg('--min-sessions', minArg);
+    const result = lessons.mineTranscripts(CWD, { hosts, since, minSessions });
+    const dryRun = process.argv.includes('--dry-run');
+    const written = dryRun ? null : lessons.writeTranscriptLessons(CWD, result, { since });
+    if (json) {
+      console.log(JSON.stringify({ ok: true, written, ...result }, null, 2));
+      return;
+    }
+    log.info(`Transcripts scanned (last ${since} days): ${Object.entries(result.scanned).map(([host, n]) => `${host} ${n}`).join(', ')}; ${result.corrections} correction(s) found`);
+    if (!result.entries.length) {
+      log.success(`✓ No correction repeated across ${minSessions}+ sessions`);
+      return;
+    }
+    for (const entry of result.entries) {
+      console.log(`- ${entry.id} ×${entry.sessions} sessions (${entry.hosts.join(', ')}): ${entry.lesson}`);
+      console.log(`  fix level: ${entry.suggestedFix.level} (${entry.suggestedFix.why})${entry.suggestedFix.command ? `\n  try: ${entry.suggestedFix.command}` : ''}`);
+    }
+    console.log(written ? `Saved to ${written} (redacted examples only). Promote one with \`learn promote <id> ...\`.` : 'Dry run: nothing saved.');
+  } catch (err) {
+    stageJsonError(err, json, 'LEARN_TRANSCRIPTS_FAILED');
+  }
+}
+
 function handleLearn() {
   const json = process.argv.includes('--json');
   if (args[1] === 'promote') {
@@ -4468,6 +4522,7 @@ function handleLearn() {
     }
     return;
   }
+  if (process.argv.includes('--transcripts')) return learnFromTranscripts(json);
   try {
     const maxAge = argValue('--max-age-runs');
     const result = learn(CWD, {
@@ -4634,6 +4689,7 @@ Commands:
   next         Next unblocked feature from .ai-engineering-loop/features.json, VCR (verified/activated), evidence audit [--json]
   worktree     Clean up AEL worktrees: prune [--audit] [--include-scratch] [--yes] [--json] (never removes changed tracked files, open PRs or foreign worktrees)
   pr           One read-only PR snapshot via gh: status [--run <id> | --branch <name> | --pr <n>] [--json]; records merge.json when merged
+  driver       Scaffold a reusable verification driver per feature-map row: scaffold [--feature <id>] [--surface web|api|cli|launch]
   safety       Record the one fact a change is safe because of [record --fact <text> --cmd <proof>] (T2 Judge PASS needs level 4+)
   measurement  Record how a performance number was measured [record --ac <id> --runs <n> --spread <pct> --effect <pct> --limiter <text>]
   recap        Evidence-backed recap of the last N days as one HTML page [--days 7] [--for me|lead|client] [--projects <p,...>|all] [--out <file>] [--lang <tag>] [--open] [--json]
@@ -4687,6 +4743,8 @@ Commands:
                [--dry-run] [--prune] [--max-age-runs <n>] [--json]
                deterministic and deduped with runId provenance; --prune drops lessons whose files are gone
                or not seen in the last <n> Runs (default 20); maker / devil-advocate packs get the top entries
+               --transcripts [--since 30d] [--host claude|cursor|codex|all] [--min-sessions 2] [--dry-run]: corrections you
+               repeated in local agent chats become candidate lessons (redacted, read-only, never sent anywhere)
   docs         Print a packaged spec without needing the package source tree
                list [--json]
                <name> [--section <heading>] [--json]   e.g. docs grill-policy --section "When to grill"
@@ -4862,6 +4920,9 @@ switch (command) {
     break;
   case 'pr':
     handlePr();
+    break;
+  case 'driver':
+    handleDriver();
     break;
   case 'worktree':
     handleWorktree();

@@ -244,3 +244,30 @@ Rules live in `.ai-engineering-loop/rules.json` (tracked). Default `verify` runs
 
 Both are stored with `kind`, always use `scope: "diff"`, and run as `rules check <ruleId>` through the same CLI (so `rules.json` holds no machine-specific path). Violations print as `file:line: <message>` and the rule's FIX.
 
+
+## 12. Corrections You Keep Repeating (C-44)
+
+`learn` mines Run artifacts. The corrections a human types in agent chats ("jangan pakai X", "why did you … again") never reach it, so the same intervention repeats across sessions. `learn --transcripts` reads them:
+
+```bash
+npx ai-engineering-loop learn --transcripts [--since 30d] [--host claude|cursor|codex|all] [--min-sessions 2] [--dry-run] [--json]
+```
+
+- **Sources (read-only, local):** Claude Code `~/.claude/projects/<repo-slug>*/*.jsonl` (this repo and its Claude worktrees), Cursor `~/.cursor/projects/<slug>/agent-transcripts/`, Codex `~/.codex/sessions/**` whose `session_meta.cwd` is this repo. A missing host is reported as `not found`; it never fails the command.
+- **What counts:** human turns after the first one in a session (the first is the task), not tool results or system text, at most 600 characters, that correct the agent (`don't`, `never`, `wrong`, `revert`, `why did you`, `jangan`, `kok`, `salah`, `harusnya`, `malah`, `masih … lagi`, …) and have at least 3 content words.
+- **Grouping:** corrections sharing at least 3 content words (and 60% of the shorter one) form one group. Groups seen in `--min-sessions` sessions (default 2) become candidates.
+- **Saved:** `.ai-engineering-loop/transcript-lessons.json` (mode 0600) holds per candidate an id `L-T<hash>`, session and occurrence counts, hosts, last seen, one example with secrets and home paths redacted (at most 200 characters), and a suggested fix. No other transcript text is stored anywhere.
+- **Suggested fix:** a correction that names code (a backticked token or `a.b` call) suggests `learn promote <id> --forbid-api "<token>" --fix … --by …`, plus `--prove <commit>` when `git log -S` finds the commit that introduced it; a test-related one suggests a test; anything else is a judgment call for `lessons.md` or a skill.
+- **Promotion** stays human: `learn promote L-T… ...` works like any lesson. `stats` lists the top three repeated corrections.
+
+## 13. Reusable Feature Drivers (C-43)
+
+L3 evidence used to be a script written during the Run and thrown away. `ael driver scaffold [--feature <id>] [--surface web|api|cli|launch]` builds one per feature-map row instead, once:
+
+- File: `.ai-engineering-loop/drivers/<feature>.mjs` plus `<feature>.md` (what to fill in, which gaps remain).
+- Surface: an endpoint row (`POST /api/...`) gets `api`; a repo with Playwright gets `web`; a package with `bin` gets `cli`; otherwise `launch` (start the app and fetch the page, and the README says what runner is missing).
+- Parts: **launch** (start command from `verification.md` `dev`/`start` or `package.json`, skipped when `AEL_BASE_URL` points at a running app), **drive** (the user steps), **observe** (status, body, screenshot or output into `runs/<AEL_RUN_ID>/evidence/`).
+- `EXPECT` starts as `null`, so an unfilled driver always exits non-zero. Exit 0 means the observed result matched.
+- The scaffold fills an empty `Driver` cell with `node .ai-engineering-loop/drivers/<feature>.mjs`; `review-pack` passes it to reviewers.
+- Re-running never overwrites an edited driver: the new template lands next to it as `<file>.ael-new`.
+- `doctor --harness`: warning `feature-driver` when a `node <file>` Driver points at a missing file; info when an e2e or smoke lane exists and some features have no driver.

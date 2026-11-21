@@ -4,6 +4,11 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+From poteto's live with Matt Pocock (cards C-43 and C-44 in `docs/cards/poteto-live-2026-11-21.md`).
+
+- **Added:** `learn --transcripts` (C-44): reads local Claude Code, Cursor and Codex transcripts for this repository, finds corrections the human repeated across sessions, and saves them as candidate lessons (`L-T…`, redacted example only) with a suggested fix level and, for code tokens, a ready `learn promote --forbid-api … --prove <commit>`. `stats` lists the top repeated corrections.
+- **Added:** `driver scaffold [--feature <id>] [--surface web|api|cli|launch]` (C-43): writes `.ai-engineering-loop/drivers/<feature>.mjs` (launch the app, drive the user steps, save evidence under `runs/<id>/evidence/`; exit 0 only when `EXPECT` matches) plus a README naming any gap, and fills the feature map's Driver column. It reuses the project's Playwright or plain `fetch`, adds no dependency, and never overwrites an edited driver (`.ael-new`). `doctor --harness` warns when a Driver command's file is missing and lists features with no driver when an e2e or smoke lane is set.
+
 From pstack's scripts (cards C-41, C-42 in `docs/cards/pstack-scripts-2026-11-21.md`).
 
 - **Added:** `worktree prune` buckets (C-41): `hold-wip`, `hold-live-run`, `hold-open-pr`, `review`, `scratch`, `safe`, plus size and age per worktree, biggest first. Worktrees with only untracked files are `scratch` and removed only with `--include-scratch`; an open PR holds a worktree; `--audit` lists every git worktree (others as `foreign`, never removed).

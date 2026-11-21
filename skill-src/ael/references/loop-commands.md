@@ -11,6 +11,7 @@
 
 Run these when the user asks how the loop is doing, before planning work, or when a gate points at them. All read local Run files; none starts a Run.
 - `stats [--last <n>] [--json]`: failure causes by harness layer (`task_spec`, `context`, `environment`, `verification`, `state`, `model`), false-victory rate per tier, iterations to PASS, revert rate of delivered Runs (from git) and the verification share of tokens. Fix the bottleneck layer first.
+- `learn --transcripts [--since 30d]`: corrections you repeated across agent chats become candidate lessons (local, redacted; `docs verification-loop` 12).
 - `learn promote ... --prove <commit>`: the check must fail on the commit that introduced the mistake. `measurement record --ac <id> --runs <n> --spread <pct> --effect <pct> --limiter <text>` for `measure: true` ACs (`docs verification-loop` 3e).
 - `run --worktree "<task>"` starts a task in its own git worktree when another Run is unfinished; `worktree prune [--audit] [--include-scratch] [--yes]` removes finished, clean worktrees and merged branches; `pr status --run <id>` reads the PR once and records `merge.json` when merged (`docs run-isolation`).
 - `recap [--days N] [--for me|lead|client] [--projects <p,...>|all]`: one HTML page of what shipped, with evidence (`docs recap`). Client recaps take one project.
@@ -18,7 +19,7 @@ Run these when the user asks how the loop is doing, before planning work, or whe
 - `debt [--file <path>]` lists trade-offs the Judge accepted and L3 waivers; `debt close <id> --by <name>` only on the human's word.
 - `next`: the next unblocked feature in `.ai-engineering-loop/features.json` and VCR (verified/activated). Finish the active feature before starting another.
 - `learn` lists lessons seen in 3+ Runs; a human promotes one with `learn promote <id> --check "<cmd>" --fix "<instruction>" --by <name>`. Default `verify` then runs it as an L1 rule. On a codebase that already has old violations use `--scope diff`: the check reads only added lines from `$AEL_ADDED_LINES_FILE`, so new ones fail and the old ones become a backlog (`doctor --harness`). Common cases need no script: `--forbid-import "src/renderer/** -> src/main/**"` or `--forbid-api "\buseEffect\(" --except "src/framework/**"`.
-- `.ai-engineering-loop/feature-map.md` (Feature | Where | Paths | How to reach | Driver): `review-pack` adds the features a diff touches; use those names and drivers for L3 evidence.
+- `.ai-engineering-loop/feature-map.md` (Feature | Where | Paths | How to reach | Driver): `review-pack` adds the features a diff touches; use those names and drivers for L3 evidence. `driver scaffold [--feature <id>]` writes a reusable driver (launch, drive, observe) per row and fills the Driver column; fill in its `EXPECT` and steps once, then reuse it every Run.
 - `doctor --harness`: harness debt (entry-file size and structure, stale learnings, rule provenance, skill budget). Report findings; do not mass-delete.
 - `bench --without <integrity|l3|l1|smoke|rules>` measures whether a gate component still earns its cost (`docs bench`). Never use it on a real task.
 
