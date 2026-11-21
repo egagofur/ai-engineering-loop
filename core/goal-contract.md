@@ -208,3 +208,25 @@ Then ask the human: freeze, another view, or turn `?` cells, hotspots and side e
 
 The receipt lists `--evidence AC-N=<https-url>` links first, typed as video, screenshot or diagram from the URL. An AC with `crossComponent: true` or a `rubric` is `MISSING` (❌) until it has at least one such link, because a reviewer should be able to look at the behaviour rather than read the diff.
 
+## JSON example for `goal draft` (C-50)
+
+`goal draft --file` reads JSON, not the Markdown template above. `ai-engineering-loop scaffold goal [--run <id>]` writes this shape to `.ai-engineering-loop/drafts/goal.json` with `_templateOnly: true`; `goal draft` refuses the file until you replace the placeholders and delete `_templateOnly`. Keep drafts under `.ai-engineering-loop/` so they stay out of the Maker diff.
+
+```json
+{
+  "schemaVersion": 1,
+  "runId": "<runId>",
+  "objective": "Users can export the filtered report as CSV",
+  "acceptanceCriteria": [
+    {
+      "id": "AC-1",
+      "statement": "Export downloads a CSV containing only the filtered rows",
+      "evidenceRequired": "unit test output and a CSV sample",
+      "failureCases": ["CSV ignores the active filter", "empty report produces an error instead of a header-only file"]
+    }
+  ],
+  "outOfScope": ["PDF export"]
+}
+```
+
+Then: `goal draft --run <runId> --file .ai-engineering-loop/drafts/goal.json --revision 0`, show the draft to the human, and `goal freeze`.

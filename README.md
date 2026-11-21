@@ -29,7 +29,15 @@ AI Engineering Loop puts every task on one gated path and keeps the receipts. Yo
 
 ## Get started in a minute
 
-Run the command above in any project. Then tell your coding agent:
+In any project:
+
+```bash
+npm i -g ai-engineering-loop   # Node 18+ and git required
+ael setup                      # installs the ael skill into your coding agents
+ael init                       # writes .ai-engineering-loop/ for this project
+```
+
+Then start a new agent session and tell it:
 
 > Use AI Engineering Loop to build this feature: **your idea here**
 

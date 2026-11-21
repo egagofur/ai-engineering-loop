@@ -65,3 +65,50 @@ test('C-54 quick start on a different task while a Run is unfinished returns RUN
   assert.strictEqual(out.conflict.runId, first.runId);
   assert.strictEqual(fs.readFileSync(currentFile, 'utf8'), before);
 });
+
+test('C-49 status, init and run say NOT INSTALLED until an agent has the skill, then CURRENT', () => {
+  const { home, cli } = box();
+  fs.mkdirSync(path.join(home, '.claude'));
+  const init = cli('init');
+  assert.match(init.stdout + init.stderr, /ael setup/);
+  const before = cli('status');
+  assert.match(before.stdout + before.stderr, /Host skills: NOT INSTALLED/);
+  assert.doesNotMatch(before.stdout, /CURRENT \(0 managed/);
+  const run = cli('run', 'Add export');
+  assert.match(run.stdout + run.stderr, /No agent has the ael skill yet/);
+  assert.doesNotMatch(run.stdout, /AI Agent Ready/);
+  const sync = cli('sync-hosts');
+  assert.strictEqual(sync.status, 0, sync.stdout + sync.stderr);
+  const after = cli('status');
+  assert.match(after.stdout, /Host skills: CURRENT/);
+});
+
+test('C-50 scaffold goal, edit, goal draft and goal freeze work with no hand-written JSON shape', () => {
+  const { dir, cli } = box();
+  assert.strictEqual(cli('init').status, 0);
+  const run = lastJson(cli('run', '--json', 'Add CSV export'));
+  const missing = cli('goal', 'draft', '--run', run.runId, '--json');
+  assert.match(lastJson(missing).fix, /scaffold goal/);
+  const scaffold = lastJson(cli('scaffold', 'goal', '--json'));
+  assert.strictEqual(scaffold.path, '.ai-engineering-loop/drafts/goal.json');
+  const file = path.join(dir, scaffold.path);
+  const template = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.strictEqual(template.runId, run.runId);
+  const refused = cli('goal', 'draft', '--run', run.runId, '--file', scaffold.path, '--revision', '0', '--json');
+  assert.strictEqual(lastJson(refused).code, 'TEMPLATE_ONLY');
+  const filled = { ...template, acceptanceCriteria: [{ id: 'AC-1', statement: 'Export downloads a CSV of the filtered rows', evidenceRequired: 'unit test output', failureCases: ['CSV ignores the filter'] }], outOfScope: ['PDF export'] };
+  delete filled._templateOnly;
+  delete filled._howTo;
+  fs.writeFileSync(file, JSON.stringify(filled));
+  const draft = cli('goal', 'draft', '--run', run.runId, '--file', scaffold.path, '--revision', '0', '--json');
+  assert.strictEqual(draft.status, 0, draft.stdout + draft.stderr);
+  assert.doesNotMatch(draft.stderr, /outside \.ai-engineering-loop/);
+  const freeze = cli('goal', 'freeze', '--run', run.runId, '--latest', '--by', 'human', '--json');
+  assert.strictEqual(freeze.status, 0, freeze.stdout + freeze.stderr);
+});
+
+test('C-50 docs --section lists the sections that exist when the name is wrong', () => {
+  const { cli } = box();
+  const out = cli('docs', 'goal-contract', '--section', 'No such heading');
+  assert.match(out.stdout + out.stderr, /Sections: .*JSON example for `goal draft`/);
+});

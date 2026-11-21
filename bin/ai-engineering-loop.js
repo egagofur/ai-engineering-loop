@@ -893,6 +893,7 @@ function handleInit() {
     log.success('\n✓ Successfully initialized .ai-engineering-loop/ with:');
     REQUIRED_FILES.forEach((f) => console.log(`  - .ai-engineering-loop/${f}`));
     log.dim('\nProject context is private by default. Remove .ai-engineering-loop/ from .gitignore if you want to share it.');
+    if (!agentSkillState().installed) log.warn(SETUP_HINT);
   } else {
     log.error(`\n✗ Initialization validation failed: ${validation.reason}`);
     process.exit(1);
@@ -935,6 +936,17 @@ function statusJson() {
   }
   return result;
 }
+
+function agentSkillState() {
+  try {
+    const hosts = hostSkillStatus({ home: homeDir(), version: VERSION });
+    return { hosts, installed: hosts.managedFiles > 0 || Boolean(hosts.installedVersion) };
+  } catch {
+    return { hosts: null, installed: true };
+  }
+}
+
+const SETUP_HINT = 'Next: `ael setup` installs the ael skill into the coding agents on this machine (Claude Code, Codex, Cursor, ...); then start a new agent session. No agent yet? See README "Bring your own AI agent".';
 
 function handleStatus() {
   if (command === 'status' && process.argv.includes('--json')) {
@@ -988,8 +1000,11 @@ function handleStatus() {
   const worktreeHint = require('../lib/run-isolation.js').pruneHint(CWD);
   if (worktreeHint) log.warn(`- ${worktreeHint}`);
 
-  const hosts = hostSkillStatus({ home: homeDir(), version: VERSION });
-  if (hosts.stale) {
+  const { hosts, installed } = agentSkillState();
+  if (!installed) {
+    log.warn('- Host skills: NOT INSTALLED (no agent on this machine has the ael skill yet)');
+    log.dim(`  ${SETUP_HINT}`);
+  } else if (hosts.stale) {
     log.warn(`- Host skills: STALE (${hosts.staleFiles} file(s) behind package v${VERSION}${hosts.installedVersion ? `, installed v${hosts.installedVersion}` : ''})`);
     log.dim('  Run "npx ai-engineering-loop sync-hosts" (or "update apply --yes" after a package upgrade), then start a new session.');
   } else {
@@ -1621,7 +1636,11 @@ function handleRun() {
   const grok = detectGrokHost();
 
   console.log('\n------------------------------------------------------------');
-  log.bold('AI Agent Ready:');
+  if (!agentSkillState().installed) {
+    log.warn('No agent has the ael skill yet, so nothing will pick up this Run on its own.');
+    log.dim(SETUP_HINT);
+  }
+  log.bold('Agent checklist:');
   console.log('1. Grill if needed (docs grill-policy), then freeze a failure-table Goal Contract');
   if (runResult.run.mode === RUN_MODES.REPORT_ONLY) {
     console.log('2. Analyze evidence without changing repository files');
@@ -1936,6 +1955,16 @@ function handleArtifactTool(action) {
   try {
     if (action === 'scaffold') {
       const type = process.argv[3];
+      if (type === 'goal') {
+        const goal = require('../lib/agent-artifacts.js').scaffoldGoal(CWD, { runId: argValue('--run') });
+        if (json) console.log(JSON.stringify({ ok: true, ...goal, templateOnly: true }));
+        else {
+          log.success('✓ Goal Contract template created');
+          console.log(`- Path: ${goal.path}`);
+          console.log(`- Next: fill in every <...>, delete _templateOnly, then \`${goal.nextCommand}\`.`);
+        }
+        return;
+      }
       const result = scaffoldArtifact(CWD, { type, runId: argValue('--run') });
       if (json) console.log(JSON.stringify({ ok: true, ...result, templateOnly: true }));
       else {
@@ -1959,7 +1988,7 @@ function handleArtifactTool(action) {
       if (!result.valid) process.exitCode = 1;
       return;
     }
-    throw new Error('Use scaffold <verification|findings|delivery> or validate <file>');
+    throw new Error('Use scaffold <goal|verification|findings|delivery> or validate <file>');
   } catch (err) {
     if (json) console.log(JSON.stringify({ ok: false, code: err.code || 'ARTIFACT_TOOL_FAILED', error: err.message }));
     else log.error(err.message);
@@ -3190,6 +3219,8 @@ function readBoundedJsonInput(fileName) {
   if (!fileName) {
     const error = new Error('goal draft requires --file <json> or --from-design <doc.md>');
     error.code = 'INVALID_USAGE';
+    error.why = 'The Goal Contract is a JSON file: objective, acceptance criteria with evidence and failure cases.';
+    error.fix = '`ai-engineering-loop scaffold goal` writes a template to .ai-engineering-loop/drafts/goal.json; fill it in, then `goal draft --file .ai-engineering-loop/drafts/goal.json --revision 0`.';
     throw error;
   }
   const file = path.resolve(CWD, fileName);
@@ -3258,6 +3289,14 @@ function handleGoal() {
         };
       } else {
         draftGoal = readBoundedJsonInput(argValue('--file'));
+      }
+      if (draftGoal && draftGoal._templateOnly === true) {
+        throw Object.assign(new Error(`${argValue('--file')} is still the scaffold template`), { code: 'TEMPLATE_ONLY', why: 'A template with <...> placeholders would freeze a Goal nobody wrote.', fix: 'Replace every <...> with the real goal, delete `_templateOnly` and `_howTo`, then rerun `goal draft`.' });
+      }
+      const draftFile = argValue('--file');
+      if (draftFile && !path.resolve(CWD, draftFile).startsWith(path.join(CWD, '.ai-engineering-loop') + path.sep)) {
+        extra.warning = `Goal draft file ${draftFile} is outside .ai-engineering-loop/, so it will show up in the Maker diff. Keep drafts in .ai-engineering-loop/drafts/.`;
+        console.error(`! ${extra.warning}`);
       }
       result = saveGoalDraft(CWD, runId, draftGoal, {
         actor: argValue('--by') || 'agent',
@@ -3352,8 +3391,14 @@ function handleGoal() {
     }
     console.log(JSON.stringify({ ok: true, runId, [action === 'show' ? 'draft' : 'result']: result, ...extra }, null, 2));
   } catch (error) {
-    log.error(`${error.code || 'GOAL_FAILED'}: ${error.message}`);
     process.exitCode = 1;
+    if (process.argv.includes('--json')) {
+      console.log(JSON.stringify({ ok: false, code: error.code || 'GOAL_FAILED', error: error.message, ...(error.why ? { why: error.why } : {}), ...(error.fix ? { fix: error.fix } : {}) }));
+      return;
+    }
+    log.error(`${error.code || 'GOAL_FAILED'}: ${error.message}`);
+    if (error.why) console.error(`WHY: ${error.why}`);
+    if (error.fix) console.error(`FIX: ${error.fix}`);
   }
 }
 
@@ -4603,7 +4648,7 @@ Commands:
                  Captures bounded, redacted output; updates verification.json and its summary
                  --shell opts into a shell; pass one quoted command string, e.g. -- "npm test"
   scaffold     Create a private, deliberately incomplete stage-artifact template
-               verification | findings | delivery [--run <id>] [--json]
+               goal | verification | findings | delivery [--run <id>] [--json]
   validate     Check a verification, findings, or delivery JSON file without advancing a gate
                <repository-relative-file> [--type verification|findings|delivery] [--json]
   activity     Publish safe Run lifecycle summaries for Studio
