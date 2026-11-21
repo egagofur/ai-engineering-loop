@@ -44,6 +44,8 @@
 | C-38 P1: `run --worktree "<task>"` | Engineer Bot | Done | [#131](https://github.com/egagofur/ai-engineering-loop/pull/131) | Claude | f9a9715 (merged 2026-11-21, v2.12.0) |
 | C-39 P1: Stage 9 cleanup after deliver | Engineer Bot | Done | [#131](https://github.com/egagofur/ai-engineering-loop/pull/131) | Claude | f9a9715 (merged 2026-11-21, v2.12.0) |
 | C-40 P2: `worktree prune` and status hint | Engineer Bot | Done | [#131](https://github.com/egagofur/ai-engineering-loop/pull/131) | Claude | f9a9715 (merged 2026-11-21, v2.12.0) |
+| C-41 P2: worktree audit buckets for `worktree prune` (from pstack worktree-audit) | Engineer Bot | Done | [#133](https://github.com/egagofur/ai-engineering-loop/pull/133) | Claude | 84e411b (merged 2026-11-21) |
+| C-42 P2: `ael pr status` closes the loop after delivery (from pstack watch-pr) | Engineer Bot | Done | [#133](https://github.com/egagofur/ai-engineering-loop/pull/133) | Claude | 84e411b (merged 2026-11-21) |
 | C-43 P2: `driver scaffold` builds the verification driver once | Engineer Bot | In Review | branch `feat/learn-transcripts` | Claude | not merged |
 | C-44 P1: `learn --transcripts` mines repeated human corrections | Engineer Bot | In Review | branch `feat/learn-transcripts` | Claude | not merged |
 | C-45 P1: `sources.md` registry and per-tier gather budget | Engineer Bot | In Review | branch `feat/novice-ux` | Claude | not merged |
