@@ -46,7 +46,8 @@ Full pre-publish gate: `npm run check:skills && npm test && npm run doctor && np
 | `core/`, `policies/` | specs served by `ael docs <name>` |
 | `schemas/` | JSON Schemas for Run artifacts |
 | `evals/` | judgment cases and bench scenarios |
-| `docs/cards/`, `docs/board.md` | improvement cards and their status |
+| `docs/cards/`, `docs/board.md` | open improvement cards and their status |
+| `docs/archive/` | finished cards, board history, old designs and plans (read only for history) |
 
 ## Definition of done
 

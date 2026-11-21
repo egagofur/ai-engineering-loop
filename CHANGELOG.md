@@ -4,7 +4,9 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
-_No changes yet._
+- **Changed:** repo cleanup (`docs/audit/repo-cleanup-2026-11-21.md`). Finished cards, board history, old designs, the issue #110 cut and QA pack, and old feasibility docs moved to `docs/archive/`; unused images, `README.npm.md`, `templates/repo-config/` and `examples/` removed; `social-preview.png` moved out of the package to `docs/brand/`. The package is 87 KB smaller.
+- **Changed:** `scripts/init.sh` is deprecated: it now runs `npx ai-engineering-loop init` and will be removed in the next release.
+- **Changed:** CI runs the release checks (`doctor --package`, `check:skills`, `audit:package`, `measure`); `ael help` lists every command again, including `gate`, `context`, `review` and `outcome`.
 
 ## 2.14.0 - 2026-11-21
 

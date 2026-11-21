@@ -33,4 +33,4 @@ The Devil's Advocate output is a stand-in ledger with no findings (`{"findings":
 ## Reading the results
 
 - `RESULT PASS|FAIL <check>`: behaviour a newcomer depends on. Any FAIL makes the script exit 1.
-- `UX OPEN|FIXED <id>`: known friction from `docs/cards/novice-ux-2026-11-21.md`. OPEN never fails the run. When a fix lands the probe flips to FIXED: turn it into a PASS check in `scenario.sh` and close the card.
+- `UX OPEN|FIXED <id>`: known friction from `docs/archive/cards/novice-ux-2026-11-21.md`. OPEN never fails the run. When a fix lands the probe flips to FIXED: turn it into a PASS check in `scenario.sh` and close the card.

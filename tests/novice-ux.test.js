@@ -205,3 +205,12 @@ test('host decisions are asked with the host option UI, with a numbered fallback
   assert.match(hosts, /Antigravity/);
   assert.match(hosts, /numbered list with the exact words to reply/);
 });
+
+test('short help lists every routed command, including gate, context and review', () => {
+  const source = fs.readFileSync(CLI, 'utf8');
+  const routed = [...new Set([...source.matchAll(/^ {2}case '([a-z][\w-]*)':/gm)].map((match) => match[1]))];
+  const line = spawnSync(process.execPath, [CLI, 'help'], { encoding: 'utf8' }).stdout.trim().split('\n').pop();
+  const names = new Set(line.replace(/^All commands:\s*/, '').split(/,\s*/));
+  assert.ok(names.has('gate') && names.has('context') && names.has('review') && names.has('outcome'));
+  assert.deepStrictEqual(routed.filter((name) => !names.has(name)), ['rules'], 'only the internal rules alias stays unlisted');
+});

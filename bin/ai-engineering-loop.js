@@ -4993,7 +4993,7 @@ function printHelp() {
 }
 
 function commandNames() {
-  return [...new Set(helpText().split('\n').map((line) => (line.match(/^  ([a-z][\w-]*)(?: \[task\])?\s+(?=[A-Z])/) || [])[1]).filter(Boolean))];
+  return [...new Set(helpText().split('\n').map((line) => (line.match(/^  ([a-z][\w-]*)(?: (?:\[[^\]]+\]|<[^>]+>))*(?:\s{2,}|\s+(?=[A-Z])|\s*$)/) || [])[1]).filter(Boolean))];
 }
 
 function shortHelp() {
