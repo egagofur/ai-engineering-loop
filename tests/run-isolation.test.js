@@ -9,6 +9,11 @@ const { spawnSync, execFileSync } = require('child_process');
 const isolation = require('../lib/run-isolation.js');
 
 const CLI = path.join(__dirname, '..', 'bin', 'ai-engineering-loop.js');
+const FAKE_GH = path.join(__dirname, 'fixtures', 'fake-gh.js');
+const GH_FILE = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ael-iso-gh-')), 'gh.json');
+fs.writeFileSync(GH_FILE, '{}');
+process.env.AEL_GH_BIN = FAKE_GH;
+process.env.AEL_FAKE_GH_FILE = GH_FILE;
 
 function repo() {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-iso-home-'));
@@ -123,4 +128,62 @@ test('C-40 prune removes clean finished worktrees and merged branches, never dir
   assert.ok(fs.existsSync(path.join(main, '.ai-engineering-loop', 'runs', cancelled.runId)), 'evidence kept');
   assert.ok(fs.existsSync(dirty.worktree.path), 'dirty work is never removed');
   assert.ok(fs.existsSync(foreign), 'unregistered worktree untouched');
+});
+
+test('C-41 scratch-only worktrees are kept unless --include-scratch; changed tracked files never go', () => {
+  const { main, cli } = repo();
+  const scratch = json(cli(main, 'run', '--worktree', '--json', 'Scratch task'));
+  assert.strictEqual(cli(scratch.worktree.path, 'run', '--abandon', '--run', scratch.runId, '--reason', 'r', '--by', 'e', '--yes', '--force-live', '--json').status, 0);
+  fs.writeFileSync(path.join(scratch.worktree.path, 'build.log'), 'x\n');
+  const wip = json(cli(main, 'run', '--worktree', '--json', 'Wip task'));
+  assert.strictEqual(cli(wip.worktree.path, 'run', '--abandon', '--run', wip.runId, '--reason', 'r', '--by', 'e', '--yes', '--force-live', '--json').status, 0);
+  fs.writeFileSync(path.join(wip.worktree.path, 'a.js'), 'module.exports = 9;\n');
+  const rows = Object.fromEntries(isolation.planPrune(main).plan.map((row) => [row.path, row]));
+  assert.strictEqual(rows[scratch.worktree.path].bucket, 'scratch');
+  assert.deepStrictEqual(rows[scratch.worktree.path].actions, []);
+  assert.strictEqual(rows[wip.worktree.path].bucket, 'hold-wip');
+  const withScratch = Object.fromEntries(isolation.planPrune(main, { includeScratch: true }).plan.map((row) => [row.path, row]));
+  assert.deepStrictEqual(withScratch[scratch.worktree.path].actions, ['remove-worktree']);
+  assert.deepStrictEqual(withScratch[wip.worktree.path].actions, []);
+  assert.strictEqual(cli(main, 'worktree', 'prune', '--yes', '--include-scratch', '--json').status, 0);
+  assert.ok(!fs.existsSync(scratch.worktree.path));
+  assert.ok(fs.existsSync(wip.worktree.path), 'wip survives every flag');
+});
+
+test('C-41 an open PR holds a clean finished worktree; --audit lists foreign worktrees with size and never removes them', () => {
+  const { main, cli, git } = repo();
+  const held = json(cli(main, 'run', '--worktree', '--json', 'Open PR task'));
+  assert.strictEqual(cli(held.worktree.path, 'run', '--abandon', '--run', held.runId, '--reason', 'r', '--by', 'e', '--yes', '--force-live', '--json').status, 0);
+  fs.writeFileSync(GH_FILE, JSON.stringify({ 'list-open': [{ number: 12 }] }));
+  try {
+    const row = isolation.planPrune(main).plan.find((item) => item.path === held.worktree.path);
+    assert.strictEqual(row.bucket, 'hold-open-pr');
+    assert.deepStrictEqual(row.actions, []);
+  } finally {
+    fs.writeFileSync(GH_FILE, '{}');
+  }
+  const foreign = path.join(path.dirname(main), 'hand-made');
+  git(main, 'worktree', 'add', '-q', '-b', 'hand-made', foreign);
+  const audit = json(cli(main, 'worktree', 'prune', '--audit', '--json'));
+  const same = (a, b) => fs.realpathSync.native(a) === fs.realpathSync.native(b);
+  const row = audit.plan.find((item) => fs.existsSync(item.path) && same(item.path, foreign));
+  assert.strictEqual(row.bucket, 'foreign');
+  assert.ok(row.sizeBytes > 0);
+  assert.strictEqual(cli(main, 'worktree', 'prune', '--yes', '--json').status, 0);
+  assert.ok(fs.existsSync(foreign));
+});
+
+test('C-42 prune deletes a squash-merged branch from merge.json without asking gh', () => {
+  const { main, cli } = repo();
+  const done = json(cli(main, 'run', '--worktree', '--json', 'Squashed task'));
+  isolation.cleanupAfterDeliver(done.worktree.path, done.runId);
+  fs.writeFileSync(path.join(main, '.ai-engineering-loop', 'runs', done.runId, 'state.json'), JSON.stringify({ runId: done.runId, state: 'DELIVERED', history: [] }));
+  fs.writeFileSync(path.join(main, '.ai-engineering-loop', 'runs', done.runId, 'merge.json'), JSON.stringify({ pr: 3, mergedAt: '2026-11-21T00:00:00Z' }));
+  fs.writeFileSync(GH_FILE, JSON.stringify({ 'list-merged': { exit: 1, stderr: 'boom' } }));
+  try {
+    const row = isolation.planPrune(main).plan.find((item) => item.path === done.worktree.path);
+    assert.deepStrictEqual(row.actions, ['delete-branch']);
+  } finally {
+    fs.writeFileSync(GH_FILE, '{}');
+  }
 });
