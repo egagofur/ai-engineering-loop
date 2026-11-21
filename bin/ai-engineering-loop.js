@@ -5029,7 +5029,17 @@ Help: ael help. Nothing was written.`;
 
 // CLI Router
 const args = process.argv.slice(2);
-const printNow = (text) => fs.writeSync(1, `${text}\n`);
+const printNow = (text) => {
+  const buffer = Buffer.from(`${text}\n`);
+  let offset = 0;
+  while (offset < buffer.length) {
+    try {
+      offset += fs.writeSync(1, buffer, offset);
+    } catch (err) {
+      if (err.code !== 'EAGAIN') throw err;
+    }
+  }
+};
 if (!args.length && !fs.existsSync(CONTEXT_DIR)) {
   printNow(startMenu());
   process.exit(0);
