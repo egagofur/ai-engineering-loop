@@ -165,7 +165,8 @@ test('C-41 an open PR holds a clean finished worktree; --audit lists foreign wor
   const foreign = path.join(path.dirname(main), 'hand-made');
   git(main, 'worktree', 'add', '-q', '-b', 'hand-made', foreign);
   const audit = json(cli(main, 'worktree', 'prune', '--audit', '--json'));
-  const row = audit.plan.find((item) => item.path === foreign);
+  const same = (a, b) => fs.realpathSync.native(a) === fs.realpathSync.native(b);
+  const row = audit.plan.find((item) => fs.existsSync(item.path) && same(item.path, foreign));
   assert.strictEqual(row.bucket, 'foreign');
   assert.ok(row.sizeBytes > 0);
   assert.strictEqual(cli(main, 'worktree', 'prune', '--yes', '--json').status, 0);
