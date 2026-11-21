@@ -4,7 +4,9 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
-_No changes yet._
+From poteto's live with Matt Pocock (card C-44 in `docs/cards/poteto-live-2026-11-21.md`).
+
+- **Added:** `learn --transcripts` (C-44): reads local Claude Code, Cursor and Codex transcripts for this repository, finds corrections the human repeated across sessions, and saves them as candidate lessons (`L-T…`, redacted example only) with a suggested fix level and, for code tokens, a ready `learn promote --forbid-api … --prove <commit>`. `stats` lists the top repeated corrections.
 
 ## 2.12.0 - 2026-11-21
 

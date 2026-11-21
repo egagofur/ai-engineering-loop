@@ -11,6 +11,7 @@
 
 Run these when the user asks how the loop is doing, before planning work, or when a gate points at them. All read local Run files; none starts a Run.
 - `stats [--last <n>] [--json]`: failure causes by harness layer (`task_spec`, `context`, `environment`, `verification`, `state`, `model`), false-victory rate per tier, iterations to PASS, revert rate of delivered Runs (from git) and the verification share of tokens. Fix the bottleneck layer first.
+- `learn --transcripts [--since 30d]`: corrections you repeated across agent chats become candidate lessons (local, redacted; `docs verification-loop` 12).
 - `learn promote ... --prove <commit>`: the check must fail on the commit that introduced the mistake. `measurement record --ac <id> --runs <n> --spread <pct> --effect <pct> --limiter <text>` for `measure: true` ACs (`docs verification-loop` 3e).
 - `run --worktree "<task>"` starts a task in its own git worktree when another Run is unfinished; `worktree prune [--yes]` removes finished, clean worktrees and merged branches (`docs run-isolation`).
 - `recap [--days N] [--for me|lead|client] [--projects <p,...>|all]`: one HTML page of what shipped, with evidence (`docs recap`). Client recaps take one project.
