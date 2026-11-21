@@ -46,3 +46,5 @@
 | C-40 P2: `worktree prune` and status hint | Engineer Bot | Done | [#131](https://github.com/egagofur/ai-engineering-loop/pull/131) | Claude | f9a9715 (merged 2026-11-21, v2.12.0) |
 | C-43 P2: `driver scaffold` builds the verification driver once | Engineer Bot | In Review | branch `feat/learn-transcripts` | Claude | not merged |
 | C-44 P1: `learn --transcripts` mines repeated human corrections | Engineer Bot | In Review | branch `feat/learn-transcripts` | Claude | not merged |
+| C-45 P1: `sources.md` registry and per-tier gather budget | Engineer Bot | Backlog | `docs/cards/dig-first-2026-11-21.md` | - | - |
+| C-46 P1: provenance labels fact/decision/assumption | Engineer Bot | Backlog | `docs/cards/dig-first-2026-11-21.md` | - | - |
