@@ -5,7 +5,7 @@
 #   RESULT PASS|FAIL <check> <detail>
 #   UX OPEN|FIXED <id> <detail>      (known newcomer friction; never fails the run)
 # PASS/FAIL checks pin the behaviour a newcomer depends on. UX probes track the
-# friction reported in docs/cards/novice-ux-*.md: OPEN = still present,
+# friction reported in docs/archive/cards/novice-ux-*.md: OPEN = still present,
 # FIXED = the probe no longer sees it (update the card).
 
 set -u

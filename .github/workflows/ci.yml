@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
       - run: npm test
-      - run: node bin/ai-engineering-loop.js doctor
+      - run: node bin/ai-engineering-loop.js doctor --package
       - run: node bin/ai-engineering-loop.js eval
 
   package:
@@ -32,4 +32,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - run: npm run check:skills
+      - run: npm run audit:package
+      - run: npm run measure
       - run: npm pack --dry-run
