@@ -65,7 +65,7 @@ test('C-38 run --worktree starts the task in a new worktree and leaves the main 
   assert.ok(fs.existsSync(out.worktree.path));
   assert.match(out.worktree.branch, /^ael\/fix-login-bug-/);
   assert.notStrictEqual(out.runId, first.runId);
-  assert.strictEqual(fs.readFileSync(path.join(out.worktree.path, 'a.js'), 'utf8'), 'module.exports = 1;\n', 'other Run changes stay behind');
+  assert.strictEqual(fs.readFileSync(path.join(out.worktree.path, 'a.js'), 'utf8').replace(/\r\n/g, '\n'), 'module.exports = 1;\n', 'other Run changes stay behind');
   assert.strictEqual(json(cli(main, 'run', '--json')).runId, first.runId, 'main checkout keeps its Run');
   const registry = isolation.loadRegistry(main);
   assert.strictEqual(registry.worktrees[0].runId, out.runId);
