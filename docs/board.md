@@ -44,19 +44,19 @@
 | C-38 P1: `run --worktree "<task>"` | Engineer Bot | Done | [#131](https://github.com/egagofur/ai-engineering-loop/pull/131) | Claude | f9a9715 (merged 2026-11-21, v2.12.0) |
 | C-39 P1: Stage 9 cleanup after deliver | Engineer Bot | Done | [#131](https://github.com/egagofur/ai-engineering-loop/pull/131) | Claude | f9a9715 (merged 2026-11-21, v2.12.0) |
 | C-40 P2: `worktree prune` and status hint | Engineer Bot | Done | [#131](https://github.com/egagofur/ai-engineering-loop/pull/131) | Claude | f9a9715 (merged 2026-11-21, v2.12.0) |
-| C-41 P2: worktree audit buckets for `worktree prune` (from pstack worktree-audit) | Engineer Bot | Done | [#133](https://github.com/egagofur/ai-engineering-loop/pull/133) | Claude | 84e411b (merged 2026-11-21) |
-| C-42 P2: `ael pr status` closes the loop after delivery (from pstack watch-pr) | Engineer Bot | Done | [#133](https://github.com/egagofur/ai-engineering-loop/pull/133) | Claude | 84e411b (merged 2026-11-21) |
-| C-43 P2: `driver scaffold` builds the verification driver once | Engineer Bot | In Review | branch `feat/learn-transcripts` | Claude | not merged |
-| C-44 P1: `learn --transcripts` mines repeated human corrections | Engineer Bot | In Review | branch `feat/learn-transcripts` | Claude | not merged |
-| C-45 P1: `sources.md` registry and per-tier gather budget | Engineer Bot | In Review | branch `feat/novice-ux` | Claude | not merged |
-| C-46 P1: provenance labels fact/decision/assumption | Engineer Bot | In Review | branch `feat/novice-ux` | Claude | not merged |
-| C-47 P1: deliver refuses a change that is not committed | Engineer Bot | In Review | branch `feat/novice-ux` | Claude | not merged |
-| C-48 P1: git preflight (missing git, no repo, no commit) with one fix line | Engineer Bot | In Review | branch `feat/novice-ux` | Claude | not merged |
-| C-49 P1: newcomers get the agent skill on the first try (setup in Get Started, host NOT INSTALLED state) | Engineer Bot | In Review | branch `feat/novice-ux` | Claude | not merged |
-| C-50 P1: `scaffold goal` template for CLI users | Engineer Bot | In Review | branch `feat/novice-ux` | Claude | not merged |
-| C-51 P2: user-facing `doctor` (git, identity, host, adapter auth with fixes); package checks to `doctor --package` | Engineer Bot | In Review | branch `feat/novice-ux` | Claude | not merged |
-| C-52 P2: CLI basics (unknown command exit, `help`, short help, bare `ael` menu, empty `run`) | Engineer Bot | In Review | branch `feat/novice-ux` | Claude | not merged |
-| C-53 P2: review handoff errors with WHY/FIX; `gate judge` after ingest is a no-op | Engineer Bot | In Review | branch `feat/novice-ux` | Claude | not merged |
-| C-54 P2: `quick start` respects RUN_CONFLICT | Engineer Bot | In Review | branch `feat/novice-ux` | Claude | not merged |
-| C-55 P2: keep AEL's own files (`.gitignore`, goal draft) out of the Maker diff | Engineer Bot | In Review | branch `feat/novice-ux` | Claude | not merged |
-| C-56 P3: quieter default output (goal JSON, ANSI in non-TTY, empty-folder init, old Node) | Engineer Bot | In Review | branch `feat/novice-ux` | Claude | not merged |
+| C-41 P2: worktree audit buckets for `worktree prune` (from pstack worktree-audit) | Engineer Bot | Done | [#133](https://github.com/egagofur/ai-engineering-loop/pull/133) | Claude | 84e411b (merged 2026-11-21, v2.13.0) |
+| C-42 P2: `ael pr status` closes the loop after delivery (from pstack watch-pr) | Engineer Bot | Done | [#133](https://github.com/egagofur/ai-engineering-loop/pull/133) | Claude | 84e411b (merged 2026-11-21, v2.13.0) |
+| C-43 P2: `driver scaffold` builds the verification driver once | Engineer Bot | Done | [#134](https://github.com/egagofur/ai-engineering-loop/pull/134) | Claude | f0dc441 (merged 2026-11-21, v2.13.0) |
+| C-44 P1: `learn --transcripts` mines repeated human corrections | Engineer Bot | Done | [#134](https://github.com/egagofur/ai-engineering-loop/pull/134) | Claude | f0dc441 (merged 2026-11-21, v2.13.0) |
+| C-45 P1: `sources.md` registry and per-tier gather budget | Engineer Bot | Done | [#135](https://github.com/egagofur/ai-engineering-loop/pull/135) | Claude | 854b28e (merged 2026-11-21, v2.13.0) |
+| C-46 P1: provenance labels fact/decision/assumption | Engineer Bot | Done | [#135](https://github.com/egagofur/ai-engineering-loop/pull/135) | Claude | 854b28e (merged 2026-11-21, v2.13.0) |
+| C-47 P1: deliver refuses a change that is not committed | Engineer Bot | Done | [#135](https://github.com/egagofur/ai-engineering-loop/pull/135) | Claude | 854b28e (merged 2026-11-21, v2.13.0) |
+| C-48 P1: git preflight (missing git, no repo, no commit) with one fix line | Engineer Bot | Done | [#135](https://github.com/egagofur/ai-engineering-loop/pull/135) | Claude | 854b28e (merged 2026-11-21, v2.13.0) |
+| C-49 P1: newcomers get the agent skill on the first try (setup in Get Started, host NOT INSTALLED state) | Engineer Bot | Done | [#135](https://github.com/egagofur/ai-engineering-loop/pull/135) | Claude | 854b28e (merged 2026-11-21, v2.13.0) |
+| C-50 P1: `scaffold goal` template for CLI users | Engineer Bot | Done | [#135](https://github.com/egagofur/ai-engineering-loop/pull/135) | Claude | 854b28e (merged 2026-11-21, v2.13.0) |
+| C-51 P2: user-facing `doctor` (git, identity, host, adapter auth with fixes); package checks to `doctor --package` | Engineer Bot | Done | [#135](https://github.com/egagofur/ai-engineering-loop/pull/135) | Claude | 854b28e (merged 2026-11-21, v2.13.0) |
+| C-52 P2: CLI basics (unknown command exit, `help`, short help, bare `ael` menu, empty `run`) | Engineer Bot | Done | [#135](https://github.com/egagofur/ai-engineering-loop/pull/135) | Claude | 854b28e (merged 2026-11-21, v2.13.0) |
+| C-53 P2: review handoff errors with WHY/FIX; `gate judge` after ingest is a no-op | Engineer Bot | Done | [#135](https://github.com/egagofur/ai-engineering-loop/pull/135) | Claude | 854b28e (merged 2026-11-21, v2.13.0) |
+| C-54 P2: `quick start` respects RUN_CONFLICT | Engineer Bot | Done | [#135](https://github.com/egagofur/ai-engineering-loop/pull/135) | Claude | 854b28e (merged 2026-11-21, v2.13.0) |
+| C-55 P2: keep AEL's own files (`.gitignore`, goal draft) out of the Maker diff | Engineer Bot | Done | [#135](https://github.com/egagofur/ai-engineering-loop/pull/135) | Claude | 854b28e (merged 2026-11-21, v2.13.0) |
+| C-56 P3: quieter default output (goal JSON, ANSI in non-TTY, empty-folder init, old Node) | Engineer Bot | Done | [#135](https://github.com/egagofur/ai-engineering-loop/pull/135) | Claude | 854b28e (merged 2026-11-21, v2.13.0) |
