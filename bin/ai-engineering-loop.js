@@ -1337,22 +1337,55 @@ function startWorktreeRun(task, runArgs, runJson, realLog) {
   }
 }
 
+function handlePr() {
+  const json = process.argv.includes('--json');
+  try {
+    if (args[1] !== 'status') throw Object.assign(new Error('Use: pr status [--run <id> | --branch <name> | --pr <number>] [--json]'), { code: 'INVALID_USAGE' });
+    const explicit = argValue('--pr') || argValue('--branch');
+    const runId = argValue('--run') || (explicit ? null : getCurrentRun(CWD)?.runId) || null;
+    const status = require('../lib/pr-status.js').prStatus(CWD, { runId, branch: argValue('--branch'), pr: argValue('--pr') });
+    if (json) console.log(JSON.stringify({ ok: true, ...status }, null, 2));
+    else {
+      console.log(`PR #${status.pr} (${status.branch || 'branch unknown'}): ${status.verdict}`);
+      for (const blocker of status.blockers) console.log(`- blocker: ${blocker}`);
+      for (const item of status.waitingOn || []) console.log(`- waiting on: ${item}`);
+      if (status.mergeRecorded) console.log(`- recorded runs/${status.runId}/merge.json`);
+      console.log(`- ${status.url}`);
+    }
+  } catch (err) {
+    if (json) console.log(JSON.stringify({ ok: false, code: err.code || 'PR_STATUS_FAILED', error: err.message, ...(err.fix ? { fix: err.fix } : {}) }));
+    else {
+      log.error(err.message);
+      if (err.fix) console.error(`FIX: ${err.fix}`);
+    }
+    process.exitCode = 1;
+  }
+}
+
 function handleWorktree() {
   const json = process.argv.includes('--json');
   const isolation = require('../lib/run-isolation.js');
   try {
-    if (args[1] !== 'prune') throw Object.assign(new Error('Use: worktree prune [--yes] [--json]'), { code: 'INVALID_USAGE' });
+    if (args[1] !== 'prune') throw Object.assign(new Error('Use: worktree prune [--audit] [--include-scratch] [--yes] [--json]'), { code: 'INVALID_USAGE' });
+    const includeScratch = process.argv.includes('--include-scratch');
     if (!process.argv.includes('--yes')) {
-      const { plan } = isolation.planPrune(CWD);
+      const audit = process.argv.includes('--audit');
+      const { plan } = isolation.planPrune(CWD, { includeScratch, audit, sizes: true });
       if (json) console.log(JSON.stringify({ ok: true, applied: false, plan }, null, 2));
       else if (!plan.length) log.success('✓ No AEL worktree needs cleanup');
       else {
-        for (const row of plan) console.log(`- ${row.path} [${row.runState || 'unknown'}]: ${[...row.actions, ...row.notes].join('; ')}`);
-        console.log('Apply with: ai-engineering-loop worktree prune --yes (uncommitted or unmerged work is never removed)');
+        const mb = (bytes) => (bytes == null ? '?' : `${(bytes / 1048576).toFixed(1)} MB`);
+        console.log('SIZE\tAGE\tBUCKET\tRUN\tWORKTREE');
+        for (const row of plan) {
+          console.log(`${mb(row.sizeBytes)}\t${row.ageDays == null ? '?' : `${row.ageDays}d`}\t${row.bucket}\t${row.runState || '-'}\t${row.path}`);
+          const what = [...row.actions, ...row.notes];
+          if (what.length) console.log(`  ${what.join('; ')}`);
+        }
+        console.log('Apply with: ai-engineering-loop worktree prune --yes [--include-scratch] (changed tracked files, open PRs and foreign worktrees are never removed)');
       }
       return;
     }
-    const result = isolation.applyPrune(CWD);
+    const result = isolation.applyPrune(CWD, { includeScratch });
     if (json) console.log(JSON.stringify({ ok: true, applied: true, ...result }, null, 2));
     else if (!result.done.length) log.success('✓ Nothing to clean up');
     else for (const item of result.done) console.log(`✓ ${item.action}: ${item.path}`);
@@ -4599,7 +4632,8 @@ Commands:
   calibrate    Compare recorded outcomes with each Run's Finding Ledger: DA misses, wrong dismissals, per reviewer prompt
   debt         Accepted trade-offs and L3 waivers recorded at delivery: list [--file <path>] | close <id> --by <name> [--note <text>]
   next         Next unblocked feature from .ai-engineering-loop/features.json, VCR (verified/activated), evidence audit [--json]
-  worktree     Clean up AEL worktrees: prune [--yes] [--json] (never removes uncommitted or unmerged work)
+  worktree     Clean up AEL worktrees: prune [--audit] [--include-scratch] [--yes] [--json] (never removes changed tracked files, open PRs or foreign worktrees)
+  pr           One read-only PR snapshot via gh: status [--run <id> | --branch <name> | --pr <n>] [--json]; records merge.json when merged
   safety       Record the one fact a change is safe because of [record --fact <text> --cmd <proof>] (T2 Judge PASS needs level 4+)
   measurement  Record how a performance number was measured [record --ac <id> --runs <n> --spread <pct> --effect <pct> --limiter <text>]
   recap        Evidence-backed recap of the last N days as one HTML page [--days 7] [--for me|lead|client] [--projects <p,...>|all] [--out <file>] [--lang <tag>] [--open] [--json]
@@ -4825,6 +4859,9 @@ switch (command) {
     break;
   case 'recap':
     handleRecap();
+    break;
+  case 'pr':
+    handlePr();
     break;
   case 'worktree':
     handleWorktree();

@@ -44,3 +44,5 @@
 | C-38 P1: `run --worktree "<task>"` | Engineer Bot | Done | [#131](https://github.com/egagofur/ai-engineering-loop/pull/131) | Claude | f9a9715 (merged 2026-11-21, v2.12.0) |
 | C-39 P1: Stage 9 cleanup after deliver | Engineer Bot | Done | [#131](https://github.com/egagofur/ai-engineering-loop/pull/131) | Claude | f9a9715 (merged 2026-11-21, v2.12.0) |
 | C-40 P2: `worktree prune` and status hint | Engineer Bot | Done | [#131](https://github.com/egagofur/ai-engineering-loop/pull/131) | Claude | f9a9715 (merged 2026-11-21, v2.12.0) |
+| C-41 P2: worktree audit buckets for `worktree prune` (from pstack worktree-audit) | Engineer Bot | In Review | branch `feat/worktree-audit-pr-status` | Claude | not merged |
+| C-42 P2: `ael pr status` closes the loop after delivery (from pstack watch-pr) | Engineer Bot | In Review | branch `feat/worktree-audit-pr-status` | Claude | not merged |
