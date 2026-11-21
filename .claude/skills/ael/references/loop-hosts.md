@@ -46,3 +46,13 @@ Strict proxies (including Kiro) return HTTP 400 `REQUEST_BODY_INVALID` on unknow
 
 1. Use a native subagent only if it can run the DA or Judge prompt with a fresh context and return its own result; read-only research subagents qualify only for DA.
 2. Otherwise run DA and Judge in this session as `CONTEXT_ISOLATION_ONLY`, disclosed, with the same budgets.
+
+## Asking the human
+
+Every decision that is the human's (freeze the Goal, a diagram view, RUN_CONFLICT worktree/resume/abandon, fix DA findings or deliver as-is, approve delivery, a tier change) goes through the host's structured question tool when it has one, so the human clicks instead of typing:
+
+- Claude Code: `AskUserQuestion`. Antigravity, Cursor, Codex, Gemini and others: their native ask/options UI when the session offers one.
+- One question per decision; 2-4 options; your recommendation first with "(Recommended)"; each option a short label plus one line on what happens next.
+- CLI JSON that already lists choices (`conflict.options`, `diagramOptions`) maps one option per entry; keep the command each option runs.
+- No such tool: a numbered list with the exact words to reply, recommendation first.
+- Only the human's own answer counts. No answer, a timeout or a changed subject is not approval.

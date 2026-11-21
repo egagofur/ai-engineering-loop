@@ -34,7 +34,7 @@
   "scripts": {
     "init": "node bin/ai-engineering-loop.js",
     "test": "node --test",
-    "doctor": "node bin/ai-engineering-loop.js doctor",
+    "doctor": "node bin/ai-engineering-loop.js doctor --package",
     "eval": "node bin/ai-engineering-loop.js eval",
     "audit:package": "node scripts/audit-package.js",
     "verify:release": "node scripts/verify-release.js",

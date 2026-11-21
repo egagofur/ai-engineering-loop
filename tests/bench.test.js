@@ -164,7 +164,7 @@ test('AC1 bench schemas exist and doctor parses them', () => {
   assert.strictEqual(schemas.passed, true, schemas.detail);
   assert.match(schemas.detail, /schemas parse/);
   assert.strictEqual(catalog.passed, true, catalog.detail);
-  const cliDoctor = spawnSync(process.execPath, [CLI, 'doctor', '--json'], {
+  const cliDoctor = spawnSync(process.execPath, [CLI, 'doctor', '--package', '--json'], {
     cwd: ROOT,
     env: { ...process.env, AEL_NO_SETUP_HINT: '1', AEL_NO_AUTO_UPDATE: '1' },
     encoding: 'utf8'

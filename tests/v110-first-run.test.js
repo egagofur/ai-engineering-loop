@@ -296,7 +296,7 @@ test('AC-12 keeps the existing CLI and packaged Studio entry points', () => {
   assert.equal(packageJson.bin['ai-engineering-loop'], 'bin/ai-engineering-loop.js');
   assert.ok(packageJson.files.includes('studio/'));
   assert.equal(packageJson.scripts.test, 'node --test');
-  assert.equal(packageJson.scripts.doctor, 'node bin/ai-engineering-loop.js doctor');
+  assert.equal(packageJson.scripts.doctor, 'node bin/ai-engineering-loop.js doctor --package');
   assert.equal(packageJson.scripts.eval, 'node bin/ai-engineering-loop.js eval');
 });
 

@@ -112,3 +112,96 @@ test('C-50 docs --section lists the sections that exist when the name is wrong',
   const out = cli('docs', 'goal-contract', '--section', 'No such heading');
   assert.match(out.stdout + out.stderr, /Sections: .*JSON example for `goal draft`/);
 });
+
+test('C-53 stage-order errors name the next ready stage; gate judge after a pass is a no-op', () => {
+  const { dir, cli } = box();
+  assert.strictEqual(cli('init').status, 0);
+  lastJson(cli('run', '--json', 'Add export page'));
+  const early = lastJson(cli('deliver', '--json', '--destination', 'pr', '--summary', 'x', '--approve', '--by', 'e'));
+  assert.strictEqual(early.code, 'NODE_NOT_READY');
+  assert.ok(early.why);
+  assert.match(early.fix, /Next ready stage is 'goal'/);
+  const quick = box();
+  fs.writeFileSync(path.join(quick.dir, 'README.md'), '# Demo\n\nThe demmo.\n');
+  execFileSync('git', ['add', '-A'], { cwd: quick.dir });
+  execFileSync('git', ['-c', 'user.email=a@b.c', '-c', 'user.name=t', 'commit', '-qm', 'readme'], { cwd: quick.dir });
+  assert.strictEqual(quick.cli('init').status, 0);
+  const start = lastJson(quick.cli('quick', 'start', 'Fix typo in README', '--json'));
+  fs.writeFileSync(path.join(quick.dir, 'README.md'), '# fixed\n');
+  assert.strictEqual(lastJson(quick.cli('quick', 'finish', '--run', start.runId, '--cmd', 'node --version', '--json')).state, 'JUDGED_PASS');
+  const again = quick.cli('gate', 'judge', '--json');
+  assert.strictEqual(again.status, 0, again.stdout);
+  assert.strictEqual(lastJson(again).alreadyPassed, true);
+  assert.ok(dir);
+});
+
+test('C-53 review ingest on prose explains the ledger it needs', () => {
+  const { extractLedger } = require('../lib/review-ingest.js');
+  assert.strictEqual(extractLedger('Looks fine to me, no issues.'), null);
+  const source = fs.readFileSync(path.join(__dirname, '..', 'lib', 'review-ingest.js'), 'utf8');
+  assert.match(source, /NO_LEDGER_IN_OUTPUT'\), \{\n\s+why:/);
+});
+
+test('C-52 CLI basics: unknown command, help, bare ael, empty run, gate without a name', () => {
+  const { dir, cli } = box();
+  const typo = cli('int');
+  assert.strictEqual(typo.status, 2);
+  assert.match(typo.stderr + typo.stdout, /Unknown command: int\. Did you mean `init`\?/);
+  assert.ok(typo.stdout.split('\n').length < 10, 'no help dump');
+  const help = cli('help');
+  assert.strictEqual(help.status, 0);
+  assert.ok(help.stdout.split('\n').length <= 30, `short help, got ${help.stdout.split('\n').length} lines`);
+  assert.match(help.stdout, /ael setup/);
+  assert.match(cli('help', 'run').stdout, /^Usage: npx ai-engineering-loop run/);
+  assert.match(cli('help', '--all').stdout, /generate-adapter/);
+  const bare = cli();
+  assert.strictEqual(bare.status, 0);
+  assert.match(bare.stdout, /Pick one:[\s\S]*ael init[\s\S]*Nothing was written/);
+  assert.ok(!fs.existsSync(path.join(dir, '.ai-engineering-loop')), 'bare ael writes nothing');
+  assert.strictEqual(cli('init').status, 0);
+  const empty = cli('run', '--json');
+  assert.strictEqual(lastJson(empty).code, 'INVALID_USAGE');
+  assert.match(lastJson(empty).fix, /run "/);
+  const gate = cli('gate', '--json');
+  assert.strictEqual(lastJson(gate).code, 'INVALID_USAGE');
+  assert.match(cli().stdout, /Status: READY/, 'bare ael in an initialised project shows status');
+});
+
+test('C-51 doctor is about the machine: git, identity, agent skill, gh login, each with a FIX; package checks need --package', () => {
+  const { home, dir, cli } = box();
+  execFileSync('git', ['remote', 'add', 'origin', 'git@github.com:a/b.git'], { cwd: dir });
+  assert.strictEqual(cli('init').status, 0);
+  const env = { ...process.env, HOME: home, USERPROFILE: home, AEL_HOME: home, AEL_NO_SETUP_HINT: '1', AEL_NO_AUTO_UPDATE: '1', GIT_CONFIG_GLOBAL: path.join(home, 'none'), GIT_CONFIG_NOSYSTEM: '1', PATH: path.dirname(process.execPath) + path.delimiter + '/usr/bin:/bin' };
+  const doctor = spawnSync(process.execPath, [CLI, 'doctor', '--json'], { cwd: dir, env, encoding: 'utf8' });
+  const result = JSON.parse(doctor.stdout);
+  assert.strictEqual(result.scope, 'machine');
+  const byId = Object.fromEntries(result.checks.map((check) => [check.id, check]));
+  assert.match(byId['git-identity'].detail, /FIX: `git config --global user.name/);
+  assert.match(byId['agent-skill'].detail, /FIX: `ael setup`/);
+  assert.ok(!byId['evaluation-catalog'], 'package checks are not shown to users');
+  const text = spawnSync(process.execPath, [CLI, 'doctor'], { cwd: dir, env, encoding: 'utf8' });
+  assert.match(text.stdout, /READY \(warnings\)|NOT READY/);
+  const pkg = JSON.parse(spawnSync(process.execPath, [CLI, 'doctor', '--package', '--json'], { cwd: dir, env, encoding: 'utf8' }).stdout);
+  assert.ok(pkg.checks.some((check) => check.id === 'evaluation-catalog'));
+});
+
+test('C-56 no colour codes outside a terminal, and init says when it found no manifest', () => {
+  const { dir, cli } = box();
+  fs.unlinkSync(path.join(dir, 'package.json'));
+  const init = cli('init');
+  assert.strictEqual(init.status, 0);
+  assert.doesNotMatch(init.stdout, /\x1b\[/);
+  assert.match(init.stdout, /No manifest found/);
+  assert.doesNotMatch(init.stdout, /Unit Test Command: npm test/);
+});
+
+test('host decisions are asked with the host option UI, with a numbered fallback', () => {
+  const root = path.join(__dirname, '..');
+  const skill = fs.readFileSync(path.join(root, '.agents', 'skills', 'ael', 'SKILL.md'), 'utf8');
+  assert.match(skill, /Never infer human approval; ask with host buttons \(`loop-hosts`\)/);
+  const hosts = fs.readFileSync(path.join(root, '.agents', 'skills', 'ael', 'references', 'loop-hosts.md'), 'utf8');
+  assert.match(hosts, /## Asking the human/);
+  assert.match(hosts, /AskUserQuestion/);
+  assert.match(hosts, /Antigravity/);
+  assert.match(hosts, /numbered list with the exact words to reply/);
+});

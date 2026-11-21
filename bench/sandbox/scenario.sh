@@ -113,8 +113,7 @@ happy)
   identity; sample_app
   c ael --version; expect_rc version 0
   c ael init; expect_rc init 0
-  c git status --short
-  ux init-gitignore-untracked "init leaves .gitignore untracked; it later shows up as out-of-scope in the gated diff" '[ -n "$(git status --short .gitignore)" ]'
+  ux init-gitignore-untracked "init leaves .gitignore untracked and says nothing; it later shows up as out-of-scope in the gated diff" '! printf "%s" "$OUT" | grep -q "Commit it on its own"'
   c ael status; expect_rc status 0
   ux status-hosts-current-when-none "status says Host skills CURRENT with zero hosts installed" 'printf "%s" "$OUT" | grep -q "CURRENT (0 managed"'
   c ael doctor; expect_rc doctor 0
@@ -148,9 +147,11 @@ happy)
   c ael gate judge
   ux gate-judge-after-ingest "gate judge after review ingest fails with 'Node judge is PASSED, not READY'" '[ "$RC" -ne 0 ]'
   c ael deliver --destination pr --summary "add subtract"; expect_rc deliver-needs-approve 2
+  c ael deliver --destination pr --summary "add subtract" --approve --by newbie
+  ux deliver-uncommitted "deliver passes while the gated change is uncommitted; receipt base == head" '[ "$RC" -eq 0 ]'
+  expect_out deliver-names-uncommitted 'not committed'
+  git add -A src test && git commit -qm "add subtract"
   c ael deliver --destination pr --summary "add subtract" --approve --by newbie; expect_rc deliver 0; expect_out delivered 'DELIVERED'
-  c git status --short
-  ux deliver-uncommitted "deliver passes while the gated change is uncommitted; receipt base == head" '[ -n "$(git status --short src)" ]'
   c ael state --json; expect_out state-delivered '"DELIVERED"'
   ;;
 
@@ -169,9 +170,9 @@ no-git)
   c ael init; expect_rc init 0
   c ael status; expect_rc status 0
   ux status-claims-git-current "status says 'Git HEAD ... match' and 'Baseline Git: untracke' with no git" 'printf "%s" "$OUT" | grep -q "untracke$"'
-  c ael doctor; expect_rc doctor 0
+  c ael doctor; expect_rc_not0 doctor-not-ready-without-git; expect_out doctor-git-fix 'FIX: Install git'
   ux doctor-ready-without-git "doctor says READY although git is not installed" 'printf "%s" "$OUT" | grep -q "doctor: READY"'
-  c ael run --json "Add a subtract function"; expect_rc run 0
+  c ael run --json "Add a subtract function"; expect_rc_not0 run-refused-without-git; expect_out run-git-missing 'GIT_MISSING'
   ux run-starts-without-git "run starts a Run that cannot pass the Maker gate (git missing)" '[ "$RC" -eq 0 ]'
   RUNID=$(printf '%s' "$OUT" | json runId); write_goal "$RUNID"
   ael goal draft --file .ai-engineering-loop/drafts/goal.json --revision 0 >/dev/null; ael goal freeze --latest --by newbie >/dev/null
@@ -183,7 +184,7 @@ no-git)
 non-git-folder)
   sample_app nogit
   c ael init; expect_rc init 0
-  c ael run --json "Add a subtract function"; expect_rc run 0
+  c ael run --json "Add a subtract function"; expect_rc_not0 run-refused-not-a-repo; expect_out run-git-init-fix 'git init'
   RUNID=$(printf '%s' "$OUT" | json runId); write_goal "$RUNID"
   ael goal draft --file .ai-engineering-loop/drafts/goal.json --revision 0 >/dev/null; ael goal freeze --latest --by newbie >/dev/null
   c ael impact show
@@ -196,7 +197,7 @@ non-git-folder)
 no-commit)
   sample_app git nocommit
   c ael init; expect_rc init 0
-  c ael run --json "Add a subtract function"; expect_rc run 0
+  c ael run --json "Add a subtract function"; expect_rc_not0 run-refused-no-commit; expect_out run-first-commit-fix 'git commit'
   make_change
   c ael gate maker --from-git; expect_rc_not0 gate-maker-fails
   ux maker-bad-head "gate maker on a repo with no commits: raw 'bad revision HEAD', no FIX" 'printf "%s" "$OUT" | grep -q "bad revision" && ! printf "%s" "$OUT" | grep -q "FIX"'
@@ -211,7 +212,7 @@ no-identity)
   ux doctor-no-identity-check "doctor does not warn that git user.name/email are unset (the human cannot commit before deliver)" '! printf "%s" "$OUT" | grep -qi "identity\|user.email"'
   drive_to_pass
   c git commit -qam "add subtract"; expect_rc_not0 commit-fails-without-identity
-  c ael deliver --destination pr --summary "add subtract" --approve --by newbie; expect_rc deliver 0
+  c ael deliver --destination pr --summary "add subtract" --approve --by newbie; expect_rc_not0 deliver-refuses-uncommitted; expect_out deliver-names-uncommitted 'not committed'
   ;;
 
 gh-missing|gh-logged-out)
@@ -222,7 +223,7 @@ gh-missing|gh-logged-out)
   c ael doctor; expect_rc doctor 0
   if [ "$SCENARIO" = gh-missing ]; then expect_out adapter-auth-warn 'gh not installed'; else expect_out adapter-auth-warn 'gh not logged in'; fi
   ux adapter-auth-no-fix "adapter-auth warning names no command (gh auth login / install link)" '! printf "%s" "$OUT" | grep -q "gh auth login\|cli.github.com"'
-  ux doctor-ready-adapter-broken "doctor prints READY and exits 0 while the delivery adapter cannot run" 'printf "%s" "$OUT" | grep -q "doctor: READY"'
+  ux doctor-ready-adapter-broken "doctor prints READY and exits 0 while the delivery adapter cannot run" 'printf "%s" "$OUT" | grep -q "doctor: READY$"'
   drive_to_pass
   git add -A src test && git commit -qm "add subtract"
   c ael deliver --destination pr --summary "add subtract" --approve --by newbie; expect_rc deliver 0
@@ -239,14 +240,14 @@ cli-errors)
   ux help-wall "--help is a wall of text" '[ "$(lines)" -gt 80 ]'
   c ael status; expect_rc status-before-init 1
   c ael init; expect_rc init 0
-  c ael run; expect_rc run-without-task 0
+  c ael run; expect_rc_not0 run-without-task
   ux run-empty-task "run with no task creates a Run with an empty task" '[ "$RC" -eq 0 ] && printf "%s" "$OUT" | grep -q "(created)"'
   ael run --abandon --reason test --by newbie --yes --force-live >/dev/null 2>&1
   c ael run --json "Add subtract"; expect_rc run 0
   c ael gate
   ux gate-no-name "gate without a name reports the delivery-approval node instead of usage" 'printf "%s" "$OUT" | grep -q "delivery-approval"'
   c ael deliver
-  ux deliver-early-misleading "deliver before any gate says only 'needs --approve'" 'printf "%s" "$OUT" | grep -q "needs the human"'
+  ux deliver-early-misleading "deliver before any gate says only 'needs --approve'" '! printf "%s" "$OUT" | grep -q "deliver comes after the Judge"'
   c ael run --json "Rewrite the parser"; expect_out run-conflict 'RUN_CONFLICT'; expect_rc run-conflict-exit 3
   c ael quick start "Fix typo in README" --json
   ux quick-start-skips-conflict "quick start opens a second Run while another is unfinished (no RUN_CONFLICT)" 'printf "%s" "$OUT" | grep -q "\"ok\":true"'
@@ -262,7 +263,7 @@ empty-folder)
 host-stale)
   identity; sample_app; mkdir -p ~/.claude
   c ael init; expect_rc init 0
-  ux init-no-skill-install "init does not install or offer the agent skill" '[ ! -d ~/.claude/skills/ael ]'
+  ux init-no-skill-install "init does not install or offer the agent skill" '! printf "%s" "$OUT" | grep -q "ael setup"'
   c ael status
   ux status-stale-not-missing "status says skills STALE when they were never installed" 'printf "%s" "$OUT" | grep -q "STALE"'
   c ael sync-hosts; expect_rc sync-hosts 0
