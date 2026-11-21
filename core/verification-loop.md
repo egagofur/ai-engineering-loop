@@ -259,3 +259,15 @@ npx ai-engineering-loop learn --transcripts [--since 30d] [--host claude|cursor|
 - **Saved:** `.ai-engineering-loop/transcript-lessons.json` (mode 0600) holds per candidate an id `L-T<hash>`, session and occurrence counts, hosts, last seen, one example with secrets and home paths redacted (at most 200 characters), and a suggested fix. No other transcript text is stored anywhere.
 - **Suggested fix:** a correction that names code (a backticked token or `a.b` call) suggests `learn promote <id> --forbid-api "<token>" --fix … --by …`, plus `--prove <commit>` when `git log -S` finds the commit that introduced it; a test-related one suggests a test; anything else is a judgment call for `lessons.md` or a skill.
 - **Promotion** stays human: `learn promote L-T… ...` works like any lesson. `stats` lists the top three repeated corrections.
+
+## 13. Reusable Feature Drivers (C-43)
+
+L3 evidence used to be a script written during the Run and thrown away. `ael driver scaffold [--feature <id>] [--surface web|api|cli|launch]` builds one per feature-map row instead, once:
+
+- File: `.ai-engineering-loop/drivers/<feature>.mjs` plus `<feature>.md` (what to fill in, which gaps remain).
+- Surface: an endpoint row (`POST /api/...`) gets `api`; a repo with Playwright gets `web`; a package with `bin` gets `cli`; otherwise `launch` (start the app and fetch the page, and the README says what runner is missing).
+- Parts: **launch** (start command from `verification.md` `dev`/`start` or `package.json`, skipped when `AEL_BASE_URL` points at a running app), **drive** (the user steps), **observe** (status, body, screenshot or output into `runs/<AEL_RUN_ID>/evidence/`).
+- `EXPECT` starts as `null`, so an unfilled driver always exits non-zero. Exit 0 means the observed result matched.
+- The scaffold fills an empty `Driver` cell with `node .ai-engineering-loop/drivers/<feature>.mjs`; `review-pack` passes it to reviewers.
+- Re-running never overwrites an edited driver: the new template lands next to it as `<file>.ael-new`.
+- `doctor --harness`: warning `feature-driver` when a `node <file>` Driver points at a missing file; info when an e2e or smoke lane exists and some features have no driver.

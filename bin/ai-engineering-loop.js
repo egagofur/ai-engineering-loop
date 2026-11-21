@@ -4412,6 +4412,28 @@ function handleQuick() {
   }
 }
 
+function handleDriver() {
+  const json = process.argv.includes('--json');
+  try {
+    if (args[1] !== 'scaffold') throw Object.assign(new Error('Use: driver scaffold [--feature <id>] [--surface web|api|cli|launch] [--json]'), { code: 'INVALID_USAGE' });
+    const results = require('../lib/driver-scaffold.js').scaffoldDriver(CWD, { feature: argValue('--feature'), surface: argValue('--surface') });
+    if (json) {
+      console.log(JSON.stringify({ ok: true, drivers: results }, null, 2));
+      return;
+    }
+    if (!results.length) log.success('✓ Every feature in the feature map already has a driver');
+    for (const item of results) {
+      if (item.written && item.written.endsWith('.ael-new')) console.log(`! ${item.feature}: ${item.file} was edited; new template saved as ${item.written}`);
+      else if (item.written) console.log(`✓ ${item.feature} (${item.surface}): ${item.written}${item.featureMapUpdated ? ' (feature map Driver set)' : ''}`);
+      else console.log(`- ${item.feature}: ${item.file} unchanged`);
+      if (item.gaps.length) console.log(`  missing: ${item.gaps.join(', ')} (see the .md next to the driver)`);
+    }
+    console.log('Fill in EXPECT and the user steps, then run the driver; it exits 0 only when the result matches.');
+  } catch (err) {
+    stageJsonError(err, json, 'DRIVER_FAILED');
+  }
+}
+
 function learnFromTranscripts(json) {
   try {
     const lessons = require('../lib/transcript-lessons.js');
@@ -4633,6 +4655,7 @@ Commands:
   debt         Accepted trade-offs and L3 waivers recorded at delivery: list [--file <path>] | close <id> --by <name> [--note <text>]
   next         Next unblocked feature from .ai-engineering-loop/features.json, VCR (verified/activated), evidence audit [--json]
   worktree     Clean up AEL worktrees: prune [--yes] [--json] (never removes uncommitted or unmerged work)
+  driver       Scaffold a reusable verification driver per feature-map row: scaffold [--feature <id>] [--surface web|api|cli|launch]
   safety       Record the one fact a change is safe because of [record --fact <text> --cmd <proof>] (T2 Judge PASS needs level 4+)
   measurement  Record how a performance number was measured [record --ac <id> --runs <n> --spread <pct> --effect <pct> --limiter <text>]
   recap        Evidence-backed recap of the last N days as one HTML page [--days 7] [--for me|lead|client] [--projects <p,...>|all] [--out <file>] [--lang <tag>] [--open] [--json]
@@ -4860,6 +4883,9 @@ switch (command) {
     break;
   case 'recap':
     handleRecap();
+    break;
+  case 'driver':
+    handleDriver();
     break;
   case 'worktree':
     handleWorktree();

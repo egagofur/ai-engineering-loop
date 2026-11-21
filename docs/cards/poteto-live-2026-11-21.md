@@ -19,12 +19,12 @@ AEL already keeps deterministic work in its CLI, turns repeated mistakes into pr
 2. Each driver has three parts: **launch** (start the app and wait until ready, from an empty state), **drive** (the user steps from the feature map), **observe** (screenshot, response body, log, exit code into `runs/<id>/evidence/`). Exit 0 only when the observed result matches.
 3. The scaffold fills the feature map's `Driver` column with the exact command; `review-pack` already passes drivers to reviewers.
 4. No new dependency in AEL: the scaffold reuses the project's own test runner, or writes a plain Node script that uses `fetch` or the project's Playwright if present. Without either, it writes a launch/observe script and says what is missing.
-5. `doctor --harness` warns when an L3 AC's feature has no driver, and when a driver command no longer runs.
+5. `doctor --harness` warns when a Driver command points at a file that is gone, and (info) lists features with no driver when the project has an e2e or smoke lane. Running every driver from doctor would be slow and side-effectful, so doctor checks presence only.
 
 **AC:**
 - On a repo with Playwright and a feature-map row, scaffold writes a runnable driver and updates the row.
 - On a repo without a browser runner, scaffold writes an API/CLI driver or a launch/observe script and names the gap.
-- `doctor --harness` lists features with L3 ACs and no driver.
+- `doctor --harness` lists features with no driver (when an e2e or smoke lane exists) and Driver commands whose file is missing.
 - Re-running scaffold never overwrites an edited driver (writes `<file>.ael-new`).
 
 **Effort:** M.
