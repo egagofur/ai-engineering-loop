@@ -5171,7 +5171,7 @@ Commands:
                draft --from-design <doc.md> [--file <json>] --revision <n>   prefill from a design doc, record designRef
                freeze --revision <n> --hash <sha256> [--run <id>] --by <human>
                show --human [--run <id>]   the Goal as plain Markdown for people (STE style: short active sentences)
-               freeze --latest [--run <id>] --by <human>   newest draft. A person types the confirmation in their terminal. A non-interactive shell is refused. --by is that person (not agent or ael-agent). Agents must not set AEL_GOAL_FREEZE_OK
+               freeze --latest [--run <id>] --by <human>   newest draft. A person types the confirmation in their terminal. A non-interactive shell is refused. --by is that person, spaces and letters allowed (not agent or ael-agent). Agents must not set AEL_GOAL_FREEZE_OK
                diagram --view state|storyboard|lanes [--run <id>] [--revision <n>] [--lang <tag>] [--open]   draw the Goal flow as HTML
   verification Summarize verification.json for compact Judge context
                summarize [--run <id>] [--json]

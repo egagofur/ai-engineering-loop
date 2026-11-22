@@ -7,6 +7,7 @@ All notable changes to this project are documented here. Versions follow [Semant
 ## 2.15.1 - 2026-11-22
 
 - **Fixed:** `goal freeze` no longer treats a `--by` name as approval. A non-interactive shell is refused for every name. The human types a short confirmation in their own terminal. Studio's Freeze click still counts. `AEL_GOAL_FREEZE_OK=1` is the test-suite hatch; agents must not set it (#162).
+- **Fixed:** `goal freeze --by` accepts a human display name with spaces and unicode letters, such as `AEL Round3 Tester` (#168).
 
 ## 2.15.0 - 2026-11-22
 
