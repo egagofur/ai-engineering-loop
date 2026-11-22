@@ -539,7 +539,8 @@ test('AC12 canvas markup has no inline styles or external assets, and edge delet
   assert.deepEqual(externalUrls, []);
 
   assert.match(cssSource, /\.edge-delete\{[^}]*visibility:\s*hidden/);
-  assert.match(cssSource, /\.edge-delete\.visible,\.edge-delete\.selected,\.edge-delete:hover/);
+  assert.match(cssSource, /\.edge-delete\.visible,\.edge-delete\.selected\{/);
+  assert.match(cssSource, /@media \(hover:hover\) and \(pointer:fine\)\{[\s\S]*\.edge-delete:hover\{/);
   await withStudio(async ({ parts }) => {
     const controls = parts.get('.edge-controls').children.filter((element) => /\bedge-delete\b/.test(classText(element)));
     assert.ok(controls.length > 0);

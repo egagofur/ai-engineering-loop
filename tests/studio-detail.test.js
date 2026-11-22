@@ -162,8 +162,9 @@ test('live meta is labeled chips and unknown tokens are not zero', async () => {
     assert.match(meta, />Iteration</);
     assert.match(meta, />1</);
     assert.match(meta, />Tokens</);
-    assert.match(meta, /unknown \/ 1000/);
-    assert.match(meta, /host reports no usage/);
+    assert.match(meta, />not recorded</);
+    assert.match(meta, /no token usage recorded yet/);
+    assert.doesNotMatch(meta, />0 \/ 1000</);
     assert.match(meta, /1 warn · 0 block/);
     assert.match(meta, />Drift</);
     assert.match(meta, />none</);
@@ -238,8 +239,9 @@ test('live tab shows the rail, current step, questions, and grouped timeline', a
     assert.match(view.rail, /<li class="passed"><strong>maker<\/strong><span>4m 00s<\/span><\/li>/);
     assert.match(view.rail, /<li class="passed"><strong>verify<\/strong><span>3m 00s<\/span><\/li>/);
     assert.match(view.rail, /<li class="active"><strong>review<\/strong><span>2m 0\ds<\/span><\/li>/);
-    assert.match(view.rail, /<li class="pending"><strong>judge<\/strong><span>—<\/span><\/li>/);
-    assert.match(view.rail, /<li class="pending"><strong>deliver<\/strong><span>—<\/span><\/li>/);
+    assert.match(view.rail, /<li class="pending"><strong>judge<\/strong><\/li>/);
+    assert.match(view.rail, /<li class="pending"><strong>deliver<\/strong><\/li>/);
+    assert.doesNotMatch(view.rail, /<span>—<\/span>/);
     assert.equal(view.bannerHidden, false);
     assert.match(view.banner, /Which page size\?/);
     assert.match(view.banner, /Answer in Studio/);
@@ -261,7 +263,7 @@ test('live tab shows the rail, current step, questions, and grouped timeline', a
     assert.match(view.meta, /Compliance &amp; budget/);
     assert.match(view.meta, />Mode</);
     assert.match(view.meta, /ASSISTED/);
-    assert.match(view.meta, /host reports no usage/);
+    assert.match(view.meta, /no token usage recorded yet/);
     assert.match(view.meta, /Latest events/);
     assert.match(view.meta, /Goal frozen/);
     assert.match(view.meta, /Verification gate passed/);

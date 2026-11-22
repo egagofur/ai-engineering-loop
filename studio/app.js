@@ -1636,6 +1636,40 @@ async function saveGoalFromForm() {
   }
 }
 
+function goalCriteriaText(criteria) {
+  return (criteria || []).map((criterion) => [
+    criterion.statement || '',
+    criterion.evidenceRequired || '',
+    (criterion.failureCases || []).join('; ')
+  ].join(' | ')).join('\n');
+}
+
+async function loadGoalIntoForm() {
+  const run = catalog.live?.run;
+  const runId = activeRunId || run?.runId;
+  if (!runId) return;
+  try {
+    const { draft } = await api(`/api/runs/${encodeURIComponent(runId)}/goal`);
+    if (!draft?.contract) return;
+    const contract = draft.contract;
+    activeRunId = runId;
+    goal = {
+      text: contract.objective || '',
+      criteria: contract.acceptanceCriteria || [],
+      version: run?.goal?.version || goal.version,
+      frozen: Boolean(run?.goal?.frozen),
+      draftRevision: draft.metadata?.revision ?? goal.draftRevision,
+      draftHash: draft.metadata?.contentHash ?? goal.draftHash
+    };
+    byId('goal-task').value = run?.task || contract.objective || '';
+    byId('goal-text').value = contract.objective || '';
+    byId('goal-criteria').value = goalCriteriaText(contract.acceptanceCriteria);
+    if (goal.frozen) byId('goal-advanced').open = true;
+  } catch {
+    // No draft yet: keep the empty form for a new Goal.
+  }
+}
+
 function renderGoalState() {
   const state = byId('goal-state');
   state.className = `goal-state ${goal.frozen ? 'frozen' : 'draft'}`;
@@ -2000,7 +2034,7 @@ function liveMetaHtml(live) {
     labeledChip('Mode', run.mode || '—'),
     labeledChip('Tier', run.tier?.current || run.mode || '—'),
     labeledChip('Iteration', run.iteration ?? '—'),
-    labeledChip('Tokens', tokenBudgetLabel(live), tokens === 'unknown' ? 'host reports no usage' : ''),
+    labeledChip('Tokens', tokens === 'unknown' ? 'not recorded' : tokenBudgetLabel(live)),
     labeledChip('Guard', guardChipValue(artifacts['artifact.guard'])),
     labeledChip('Drift', driftLabel(artifacts['artifact.drift']) || 'unknown'),
     labeledChip('Receipt', receipt.value, receipt.title)
@@ -2010,8 +2044,8 @@ function liveMetaHtml(live) {
 
 function budgetRow(live) {
   const tokens = tokenLabel(live);
-  const note = tokens === 'unknown' ? 'host reports no usage' : tokenBudgetLabel(live);
-  return `<div class="budget-row"><span>Budget</span><span class="meter" aria-hidden="true"><i></i></span><span>${escapeHtml(note)}</span></div>`;
+  if (tokens === 'unknown') return '<p class="budget-row muted">Budget: no token usage recorded yet.</p>';
+  return `<div class="budget-row"><span>Budget</span><span class="meter" aria-hidden="true"><i></i></span><span>${escapeHtml(tokenBudgetLabel(live))}</span></div>`;
 }
 
 function paintBudget(live) {
@@ -2087,8 +2121,9 @@ function stageDurationLabel(stage, live) {
 function progressRailHtml(live) {
   return STAGES.map((stage) => {
     const state = live ? stageState(stage, live) : 'pending';
-    const duration = live ? stageDurationLabel(stage, live) : '—';
-    return `<li class="${state}"><strong>${escapeHtml(stage.label)}</strong><span>${escapeHtml(duration)}</span></li>`;
+    const duration = live ? stageDurationLabel(stage, live) : '';
+    const shown = duration && duration !== '—' ? `<span>${escapeHtml(duration)}</span>` : '';
+    return `<li class="${state}"><strong>${escapeHtml(stage.label)}</strong>${shown}</li>`;
   }).join('');
 }
 
@@ -2101,6 +2136,7 @@ function focusNodeRecord(live) {
       const stage = STAGES.find((item) => item.id === currentStageId(live));
       return stage?.types.includes(node.type) && !['PASSED', 'SKIPPED', ''].includes(statusOf(node));
     })
+    || plan.find((node) => statusOf(node) === 'READY')
     || [...plan].reverse().find((node) => statusOf(node) === 'PASSED')
     || null;
 }
@@ -3449,7 +3485,8 @@ async function initialize() {
   byId('show-runs').onclick = () => showWorkspace('runs');
   byId('show-wiring').onclick = () => showWorkspace('wiring');
   byId('run-search').oninput = loadRuns;
-  byId('open-goal').onclick = () => {
+  byId('open-goal').onclick = async () => {
+    await loadGoalIntoForm();
     renderGoalState();
     byId('goal-dialog').showModal();
   };

@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>AEL Workflow Studio</title>
+  <link rel="stylesheet" href="/tokens.css">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -99,7 +100,7 @@
         <p id="agent-handoff-instructions">Paste it once into your current AI Agent terminal, then keep Studio open to follow persisted progress.</p>
       </section>
       <section id="goal-review" class="goal-review" hidden></section>
-      <label class="unfreeze-reason-label">Reason for unfreezing</label>
+      <label class="unfreeze-reason-label" for="unfreeze-reason">Reason for unfreezing</label>
       <textarea id="unfreeze-reason" maxlength="500" hidden></textarea>
       <footer>
         <button type="button" id="save-goal">Save draft</button>

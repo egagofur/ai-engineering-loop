@@ -4,7 +4,8 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
-_No changes yet._
+- **Changed:** Workflow Studio redesign, phase 1 (`docs/audit/studio-2026-11-22.md`). The AEL orange brand replaces the green accent; green now means passed only. All colours come from `studio/tokens.css` (light warm-paper theme following the OS, dark ink theme), 133 one-off colours are gone, cards use the blog's soft shadow and radii, and type uses Geist when installed. Motion follows Emil Kowalski's rules: custom ease-out, press feedback, hover only with a mouse, visible focus, four loops instead of eight, and reduced motion that keeps fades. Mobile: square logo, single-row stage rail, no stray dashes.
+- **Fixed:** the Goal dialog of a frozen Run shows its task, objective and acceptance criteria instead of an empty field; "Current step" points at the next ready stage (Maker after the freeze) instead of the passed Goal; the token chip says "not recorded" instead of "unknown / 50000".
 
 ## 2.17.0 - 2026-11-22
 

@@ -14,6 +14,10 @@ The server rejects non-local `Host` headers. Static assets are bundled in the np
 
 Studio watches one project root — the working directory where it was launched. The header shows that root. `status --json` and `run --json` include `studioUrl` when a Studio process for that root is alive. That field identifies the running Studio; it is tokenless and returns 401 without a session. Do not write the session token to disk or into agent-visible output. Open the browser session from the tokenized URL printed by `ael studio`.
 
+## Look and feel
+
+Studio follows the AEL brand: orange (`--brand: #fc6404`) for actions and the live state, green only for passed, on warm paper in light mode or ink in dark mode. The theme follows the operating system (`prefers-color-scheme`); `data-theme="light|dark"` on `<html>` overrides it. All colours live in `studio/tokens.css`; `styles.css` uses tokens only (tested). Type is Geist and Geist Mono when installed, with system fallbacks (no remote fonts). Motion: panels ease out in 220ms and close in 180ms, buttons press to `scale(0.97)`, hover effects apply only with a mouse, and the only loops are the active edge flow, the live dot and the running spinner. Reduced motion keeps fades and removes movement.
+
 ## Real-time sync
 
 Studio does not poll `/api/live` on a timer. One `RunWatcher` per process recursively watches `.ai-engineering-loop/runs/` and `current.json`. On a change it re-reads only the changed artifact and pushes a typed event on `GET /api/events` (SSE).

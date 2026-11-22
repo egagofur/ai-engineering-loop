@@ -38,7 +38,7 @@ test('issue 91 acceptance criteria are covered by tests, docs, and the changelog
   assert.match(detail, /5 min ago/);
   assert.match(detail, /2 days ago/);
   assert.match(detail, /<time datetime=/);
-  assert.ok(detail.includes('unknown \\/ 1000'));
+  assert.ok(detail.includes('no token usage recorded yet'));
   assert.match(detail, /Answer in Studio/);
   assert.match(detail, /Compliance &amp; budget/);
   assert.ok(detail.includes('scheduleLiveRender'));
@@ -100,7 +100,7 @@ test('a lifecycle event over SSE refreshes the live rail and compliance chips', 
       events: [],
       presence: {}
     }; renderLive()`);
-    assert.match(elements.get('live-meta').innerHTML, /unknown \/ 1000/);
+    assert.match(elements.get('live-meta').innerHTML, />Tokens<\/span><strong>not recorded</);
     assert.match(elements.get('stage-rail').innerHTML, /class="pending"/);
     const seq = run('lastEventSeq + 4');
     run(`applyEvent({
