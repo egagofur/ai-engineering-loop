@@ -4166,8 +4166,14 @@ function handleNext() {
   const json = process.argv.includes('--json');
   try {
     const features = require('../lib/features.js');
-    const document = features.loadFeatures(CWD);
-    if (!document) throw Object.assign(new Error('No .ai-engineering-loop/features.json. FIX: create it with {"schemaVersion":1,"features":[{"id","title","behavior","verify","status":"not_started","priority","dependsOn":[]}]}.'), { code: 'NO_FEATURES' });
+    const document = features.loadFeatures(CWD) || features.featuresFromMap(CWD);
+    if (!document) {
+      throw Object.assign(new Error(`No feature list. FIX: run \`ael feature-map scaffold\`, or create .ai-engineering-loop/features.json with ${features.FEATURES_EXAMPLE}`), {
+        code: 'NO_FEATURES',
+        why: 'next needs a feature list. features.json is the ledger; feature-map.md is the map scaffold writes.',
+        fix: 'ael feature-map scaffold'
+      });
+    }
     const next = features.nextFeature(document);
     const ratio = features.vcr(document);
     const problems = features.auditFeatures(CWD, document);
@@ -4829,7 +4835,7 @@ function handleFeatureMap() {
     if (result.preserved) console.log(`! ${result.file} was edited; new draft saved as ${result.written}`);
     else if (result.written) console.log(`✓ ${result.written} (${result.rows} row(s) from ${result.signals.join(', ') || 'stub'})`);
     else console.log(`- ${result.file} unchanged`);
-    if (!result.rows) console.log('No routes, OpenAPI, pages, or README features found. The file is a stub table; fill one row per user-facing feature.');
+    if (!result.rows) console.log('No routes, OpenAPI, pages, README feature bullets, package.json bin, or src directories found. Next: add a ## Features list or fill the stub table, then rerun `ael feature-map scaffold`.');
     else console.log('Check the rows, then `driver scaffold` to add a driver for each feature.');
   } catch (err) {
     stageJsonError(err, json, 'FEATURE_MAP_FAILED');

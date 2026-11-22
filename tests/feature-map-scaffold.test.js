@@ -93,6 +93,46 @@ test('feature-map scaffold drafts pages and Next route handlers', () => {
   assert.ok(entries.some((entry) => entry.where === 'page /about' && entry.how === 'open /about'));
 });
 
+test('feature-map scaffold reads feature and usage bullets and prefers a matching src directory', () => {
+  const root = rootDir();
+  write(root, 'README.md', '# widget-api\n\n## Features\n\n- list inventory\n- add widget\n\n## Usage\n\n- filter by keyword\n');
+  write(root, 'src/inventory/index.js', 'module.exports = {};\n');
+  write(root, 'src/lib/util.js', 'module.exports = {};\n');
+  const result = scaffoldFeatureMap(root);
+  const entries = loadFeatureMap(root);
+  const inventory = entries.find((entry) => entry.id === 'list-inventory');
+  assert.ok(inventory, entries.map((entry) => entry.id).join(','));
+  assert.deepStrictEqual(inventory.paths, ['src/inventory/**']);
+  assert.ok(entries.some((entry) => entry.id === 'add-widget' && entry.paths[0] === 'README.md'));
+  assert.ok(entries.some((entry) => entry.id === 'filter-by-keyword'));
+  assert.ok(entries.every((entry) => entry.id !== 'lib'));
+  assert.ok(result.rows >= 3);
+  assert.ok(result.signals.includes('readme'));
+});
+
+test('feature-map scaffold reads package.json bin and scripts, and src directories', () => {
+  const root = rootDir();
+  write(root, 'package.json', JSON.stringify({
+    name: 'widget-api',
+    bin: { 'widget-api': 'bin/widget.js' },
+    scripts: { test: 'node -e 0', 'seed-demo': 'node seed.js' }
+  }));
+  const fromPackage = scaffoldFeatureMap(root);
+  const packaged = loadFeatureMap(root);
+  assert.strictEqual(fromPackage.source, 'package');
+  assert.ok(packaged.some((entry) => entry.id === 'widget-api' && entry.paths[0] === 'bin/widget.js' && entry.how === 'run widget-api'));
+  assert.ok(packaged.some((entry) => entry.id === 'seed-demo' && entry.how === 'npm run seed-demo'));
+  assert.ok(packaged.every((entry) => entry.id !== 'test'));
+
+  const dirs = rootDir();
+  write(dirs, 'src/widgets/index.js', 'module.exports = {};\n');
+  write(dirs, 'src/lib/util.js', 'module.exports = {};\n');
+  const fromSrc = scaffoldFeatureMap(dirs);
+  assert.strictEqual(fromSrc.source, 'src');
+  assert.deepStrictEqual(loadFeatureMap(dirs).map((entry) => entry.id), ['widgets']);
+  assert.deepStrictEqual(loadFeatureMap(dirs)[0].paths, ['src/widgets/**']);
+});
+
 test('feature-map scaffold uses README headings only when nothing else describes a feature', () => {
   const root = rootDir();
   write(root, 'README.md', '# Demo\n\n## Installation\n\nnpm install\n\n## Export CSV\n\nDownload the report.\n\n## License\n\nMIT\n');
@@ -163,6 +203,31 @@ test('feature-map scaffold CLI writes JSON and refuses an unknown subcommand', (
   assert.notStrictEqual(bad.status, 0);
   assert.match(bad.stdout + bad.stderr, /Unknown argument/);
   assert.ok(!fs.existsSync(path.join(root, '.ai-engineering-loop', 'feature-map.md.ael-new')));
+});
+
+test('next reads the feature map and its missing-list FIX is valid JSON', () => {
+  const root = rootDir();
+  write(root, 'README.md', '# widget-api\n\n## Features\n\n- list inventory\n');
+  assert.strictEqual(scaffoldFeatureMap(root).rows, 1);
+  const env = { ...process.env, AEL_NO_SETUP_HINT: '1', AEL_NO_AUTO_UPDATE: '1' };
+  const next = spawnSync(process.execPath, [CLI, 'next', '--json'], { cwd: root, env, encoding: 'utf8' });
+  assert.strictEqual(next.status, 0, next.stdout + next.stderr);
+  const body = JSON.parse(next.stdout);
+  assert.strictEqual(body.next.id, 'list-inventory');
+  assert.ok(!fs.existsSync(path.join(root, '.ai-engineering-loop/features.json')));
+  const empty = rootDir();
+  const missing = spawnSync(process.execPath, [CLI, 'next', '--json'], { cwd: empty, env, encoding: 'utf8' });
+  assert.notStrictEqual(missing.status, 0);
+  const error = JSON.parse(missing.stdout);
+  assert.strictEqual(error.code, 'NO_FEATURES');
+  assert.match(error.fix, /feature-map scaffold/);
+  const example = error.error.slice(error.error.indexOf('{'));
+  const parsed = JSON.parse(example);
+  assert.strictEqual(parsed.schemaVersion, 1);
+  assert.strictEqual(parsed.features[0].status, 'not_started');
+  assert.ok(Array.isArray(parsed.features[0].dependsOn));
+  const { FEATURES_EXAMPLE } = require('../lib/features.js');
+  assert.deepStrictEqual(JSON.parse(FEATURES_EXAMPLE), parsed);
 });
 
 test('init offers feature-map scaffold and does not write the map', () => {
