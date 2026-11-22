@@ -4,6 +4,7 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+- **Added:** a verification one-pager (`docs verification-one-pager`): the gates in order, what `verify` records, and how the Judge uses that evidence.
 - **Added:** how to coordinate agents and stack pull requests without a coordinator process (`docs coordinator`). `run --worktree --base <branch>` starts the worktree from that local commit. `--base` alone is refused, so the current checkout is not switched.
 - **Added:** a weekly process-sampling playbook (`docs/playbooks/weekly-process-sampling.md`, also `docs weekly-process-sampling`). Read three recent Runs and check the loop was followed. No command.
 - **Added:** `refresh --garden` reports stale learnings, feature-map rows whose paths match nothing, and old Runs (`docs garden`). It writes nothing unless `--yes`. `--yes` prunes those learnings and moves fully dead feature-map rows under `## Stale (garden)` after saving `feature-map.md.ael-backup`. Runs are never deleted.

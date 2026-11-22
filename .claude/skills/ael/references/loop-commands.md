@@ -24,6 +24,7 @@ Run these when the user asks how the loop is doing, before planning work, or whe
 - Dig before asking (`docs dig-first`): `.ai-engineering-loop/sources.md` lists readable sources (read-only); `sources hint` suggests queries, `sources record` caches one line each (budget T0 0, T1 4, T2 8). Goal `statements` label fact/decision/assumption; a fact needs `path:line`, a commit or a recorded `S-n`. Assumptions are shown, never blocking.
 - `doctor --harness`: harness debt (entry-file size and structure, stale learnings, rule provenance, skill budget). Report findings; do not mass-delete.
 - `refresh --garden` reports stale learnings, dead feature-map rows, and old Runs. It writes nothing until `--yes`. `--yes` never deletes Runs (`docs garden`).
+- Before freeze, one throwaway spike is allowed (`docs prototype-spike`, no arena). The verification map is `docs verification-one-pager`.
 - `bench --without <integrity|l3|l1|smoke|rules>` measures whether a gate component still earns its cost (`docs bench`). Never use it on a real task.
 
 ## Personal workflow
