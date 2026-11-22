@@ -214,3 +214,56 @@ test('short help lists every routed command, including gate, context and review'
   assert.ok(names.has('gate') && names.has('context') && names.has('review') && names.has('outcome'));
   assert.deepStrictEqual(routed.filter((name) => !names.has(name)), ['rules'], 'only the internal rules alias stays unlisted');
 });
+
+test('#156 pr babysit on a Run without a PR names babysit and delivery, not pr status', () => {
+  const { cli } = box();
+  assert.strictEqual(cli('init').status, 0);
+  const run = lastJson(cli('run', '--json', 'Add export page'));
+  const out = cli('pr', 'babysit', '--run', run.runId, '--json');
+  assert.strictEqual(out.status, 1);
+  const body = lastJson(out);
+  assert.strictEqual(body.code, 'NO_PR_FOR_RUN');
+  assert.match(body.fix, /^Deliver first/);
+  assert.match(body.fix, new RegExp(`pr babysit --run ${run.runId}`));
+  assert.strictEqual(cli('pr', 'babysit').status, 1);
+});
+
+test('#155 an unknown command with --help exits 2 instead of printing the manual', () => {
+  const { cli } = box();
+  for (const args of [['totally-bogus', '--help'], ['int', '-h']]) {
+    const out = cli(...args);
+    assert.strictEqual(out.status, 2, args.join(' '));
+    assert.match(out.stdout + out.stderr, /Unknown command/);
+    assert.ok(out.stdout.split('\n').length < 6, 'no manual dump');
+  }
+  assert.strictEqual(cli('learn', '--help').status, 0);
+});
+
+test('#157 a tiny Node CLI is not called backend-api, and the default branch comes from git', () => {
+  const { dir, cli } = box({ commit: false });
+  execFileSync('git', ['checkout', '-q', '-b', 'master'], { cwd: dir });
+  fs.writeFileSync(path.join(dir, 'package.json'), '{"name":"hello-notes","bin":{"hello":"index.js"},"scripts":{"test":"node -e 0"}}\n');
+  fs.writeFileSync(path.join(dir, 'index.js'), 'console.log("hi");\n');
+  execFileSync('git', ['add', '-A'], { cwd: dir });
+  execFileSync('git', ['-c', 'user.email=a@b.c', '-c', 'user.name=t', 'commit', '-qm', 'init'], { cwd: dir });
+  const init = cli('init');
+  assert.strictEqual(init.status, 0);
+  assert.match(init.stdout, /Profile Bound: library \(guessed/);
+  const config = fs.readFileSync(path.join(dir, '.ai-engineering-loop', 'config.md'), 'utf8');
+  assert.doesNotMatch(config, /backend-api/);
+  assert.match(config, /default_base_branch\*\*: "master"/);
+  assert.doesNotMatch(config, /TypeScript/);
+  const arch = fs.readFileSync(path.join(dir, '.ai-engineering-loop', 'architecture.md'), 'utf8');
+  assert.match(arch, /Confidence: LOW/);
+});
+
+test('#161 help for learn shows the mine, --transcripts and promote forms, main form first', () => {
+  const { cli } = box();
+  for (const args of [['help', 'learn'], ['learn', '--help'], ['learn', '--transcripts', '--help']]) {
+    const out = cli(...args);
+    assert.strictEqual(out.status, 0, args.join(' '));
+    assert.match(out.stdout, /^Usage: npx ai-engineering-loop learn {2,}Mine past Runs/);
+    assert.match(out.stdout, /--transcripts \[--since 30d\]/);
+    assert.match(out.stdout, /learn promote <learningId>/);
+  }
+});

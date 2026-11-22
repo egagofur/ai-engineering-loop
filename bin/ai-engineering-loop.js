@@ -416,11 +416,24 @@ function getGitRevision(rootDir) {
 /**
  * Repository Discovery Engine
  */
+function gitDefaultBranch(rootDir) {
+  const run = (args) => {
+    try {
+      return execSync(`git ${args}`, { cwd: rootDir, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+    } catch {
+      return '';
+    }
+  };
+  const remote = run('symbolic-ref --quiet --short refs/remotes/origin/HEAD').replace(/^origin\//, '');
+  return remote || run('symbolic-ref --quiet --short HEAD') || null;
+}
+
 function analyzeRepository(rootDir) {
   const discovery = {
     projectName: path.basename(rootDir),
     isMonorepo: false,
     profile: 'backend-api',
+    profileConfidence: 'LOW',
     languages: [],
     frameworks: [],
     packageManager: 'npm',
@@ -479,11 +492,13 @@ function analyzeRepository(rootDir) {
   const pkgPath = path.join(rootDir, 'package.json');
   if (fs.existsSync(pkgPath)) {
     discovery.manifestChecksums['package.json'] = getFileChecksum(pkgPath);
-    discovery.languages.push('TypeScript / JavaScript');
     discovery.evidence.push('Manifest: package.json');
     try {
       const pkg = JSON.parse(readFileSafe(pkgPath) || '{}');
       const allDeps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };
+      const usesTypeScript = Boolean(allDeps.typescript) || fs.existsSync(path.join(rootDir, 'tsconfig.json'));
+      discovery.languages.push(usesTypeScript ? 'TypeScript' : 'JavaScript');
+      const frameworksBefore = discovery.frameworks.length;
 
       if (allDeps['next']) { discovery.frameworks.push('Next.js'); if (!discovery.isMonorepo) discovery.profile = 'web-app'; }
       if (allDeps['react']) { discovery.frameworks.push('React'); if (!discovery.isMonorepo) discovery.profile = 'web-app'; }
@@ -493,6 +508,12 @@ function analyzeRepository(rootDir) {
       if (allDeps['express']) { discovery.frameworks.push('Express'); if (!discovery.isMonorepo) discovery.profile = 'backend-api'; }
       if (allDeps['fastify']) { discovery.frameworks.push('Fastify'); if (!discovery.isMonorepo) discovery.profile = 'backend-api'; }
       if (allDeps['@prisma/client'] || allDeps['prisma']) { discovery.frameworks.push('Prisma ORM'); }
+      if (discovery.frameworks.length > frameworksBefore) discovery.profileConfidence = 'HIGH';
+      else if (!discovery.isMonorepo) {
+        discovery.profile = 'library';
+        discovery.profileConfidence = 'LOW';
+        discovery.evidence.push(`Profile: library (no web or server framework found${pkg.bin ? '; package has a bin, so it is a CLI' : ''}); edit config.md if this is a service`);
+      }
 
       // Script mapping
       const scripts = pkg.scripts || {};
@@ -575,6 +596,7 @@ function analyzeRepository(rootDir) {
 
   // 3. Adapter / CI Detection (shared with generate-adapter and Studio, #62)
   const detected = detectAdapter(rootDir);
+  discovery.adapter.defaultBranch = gitDefaultBranch(rootDir) || discovery.adapter.defaultBranch;
   discovery.adapter.type = detected.type;
   discovery.adapter.ciProvider = detected.ciProvider;
   discovery.adapter.repoSlug = detected.remote || null;
@@ -646,7 +668,7 @@ ${discovery.topLevelDirs.map((d) => `- \`${d}/\``).join('\n') || '- Flat directo
 
 ## Evidence & Confidence
 - Observed from: Directory scan, package manifests
-- Confidence: HIGH
+- Confidence: ${discovery.profileConfidence || 'LOW'}${discovery.profileConfidence === 'HIGH' ? '' : ' (no framework evidence; confirm the profile and boundaries in config.md)'}
 `;
   writeContextFile(path.join(targetDir, 'architecture.md'), archMd, { overwrite: overwriteCore });
 
@@ -890,7 +912,7 @@ function handleInit() {
   if (!Object.keys(discovery.manifestChecksums || {}).length && !discovery.languages.length) {
     log.warn('> No manifest found (package.json, go.mod, pyproject.toml, ...): profile unknown, no test command. Edit .ai-engineering-loop/verification.md once the project has one.');
   } else {
-    log.dim(`> Profile Bound: ${discovery.profile}`);
+    log.dim(`> Profile Bound: ${discovery.profile}${discovery.profileConfidence === 'HIGH' ? '' : ' (guessed: no framework found; change it in config.md if wrong)'}`);
     log.dim(`> Languages: ${discovery.languages.join(', ') || 'Unspecified'}`);
     log.dim(`> Package Manager: ${discovery.packageManager}`);
     log.dim(`> Unit Test Command: ${discovery.scripts.testUnit}`);
@@ -2025,10 +2047,15 @@ function handlePolicy() {
       const allowUnattended = argValue('--allow-unattended');
       const requireSandbox = argValue('--require-sandbox');
       const reviewProfile = argValue('--review-profile');
+      const goalFreeze = argValue('--goal-freeze');
       const perRunLimit = argValue('--per-run-token-limit');
       const dailyLimit = argValue('--daily-token-limit');
       if (mode != null) changes.defaultMode = normalizeMode(mode);
       if (reviewProfile != null) changes.reviewProfile = normalizeReviewProfile(reviewProfile);
+      if (goalFreeze != null) {
+        if (!require('../lib/runtime-policy.js').GOAL_FREEZE_MODES.includes(goalFreeze)) throw Object.assign(new Error('--goal-freeze must be host-question or strict'), { code: 'INVALID_USAGE' });
+        changes.goalFreeze = goalFreeze;
+      }
       if (allowUnattended != null) {
         changes.allowUnattended = parseBooleanArg('--allow-unattended', allowUnattended);
       }
@@ -3635,8 +3662,8 @@ function handleGoal() {
         extra.question = { error: err.message };
       }
     } else if (action === 'freeze') {
-      const { assertGoalFreezeApproval } = require('../lib/goal-freeze-approval.js');
-      const approval = assertGoalFreezeApproval({ runId, actor: argValue('--by') });
+      const { assertGoalFreezeApproval, freezeMode } = require('../lib/goal-freeze-approval.js');
+      const approval = assertGoalFreezeApproval({ runId, actor: argValue('--by'), mode: freezeMode(CWD) });
       const latest = process.argv.includes('--latest');
       const latestDraft = latest ? loadGoalDraft(CWD, runId) : null;
       if (latest && !latestDraft) {
@@ -5171,7 +5198,7 @@ Commands:
                draft --from-design <doc.md> [--file <json>] --revision <n>   prefill from a design doc, record designRef
                freeze --revision <n> --hash <sha256> [--run <id>] --by <human>
                show --human [--run <id>]   the Goal as plain Markdown for people (STE style: short active sentences)
-               freeze --latest [--run <id>] --by <human>   newest draft. A person types the confirmation in their terminal. A non-interactive shell is refused. --by is that person, spaces and letters allowed (not agent or ael-agent). Agents must not set AEL_GOAL_FREEZE_OK
+               freeze --latest [--run <id>] --by <human>   newest draft, after the person picked Freeze (host question). --by is that person, spaces and letters allowed (not agent or ael-agent). Policy goalFreeze strict: the person types a code in their terminal; a non-interactive shell is refused. Agents must not set AEL_GOAL_FREEZE_OK.
                diagram --view state|storyboard|lanes [--run <id>] [--revision <n>] [--lang <tag>] [--open]   draw the Goal flow as HTML
   verification Summarize verification.json for compact Judge context
                summarize [--run <id>] [--json]
@@ -5203,6 +5230,7 @@ Commands:
                set [--default-mode <mode>] [--allow-unattended true|false]
                    [--require-sandbox true|false]
                    [--review-profile lean|standard|thorough]
+                   [--goal-freeze host-question|strict]   how a person approves a Goal freeze (default host-question)
                    [--per-run-token-limit <n>] [--daily-token-limit <n>]
   budget       Enforce actual provider-reported token usage and emergency pause
                status [--run <id>] [--node <id>] [--estimate <n>] [--json]
@@ -5435,6 +5463,13 @@ function editDistance(a, b) {
   return row[b.length];
 }
 
+function unknownCommand(name) {
+  const best = commandNames().map((candidate) => ({ name: candidate, distance: editDistance(name, candidate) })).sort((a, b) => a.distance - b.distance)[0];
+  log.error(`Unknown command: ${name}.${best && best.distance <= 2 ? ` Did you mean \`${best.name}\`?` : ''}`);
+  console.error('Run `ael help` for the common commands, or `ael help --all`.');
+  process.exit(2);
+}
+
 function startMenu() {
   return `AI Engineering Loop v${VERSION}
 No .ai-engineering-loop/ in this folder yet. Pick one:
@@ -5482,9 +5517,8 @@ if (!['-h', '--help', '-v', '--version'].includes(command)) {
   const checked = effectiveCommand(command, args.slice(1));
   if (wantsCommandHelp(checked, args.slice(1))) {
     const block = commandHelp(helpText(), command);
-    console.log(block
-      ? `Usage: npx ai-engineering-loop ${block.trim()}`
-      : helpText());
+    if (!block && !commandNames().includes(command) && command !== 'rules') unknownCommand(command);
+    printNow(block ? `Usage: npx ai-engineering-loop ${block.trim()}` : shortHelp());
     process.exit(0);
   }
   const unknown = unknownWriterArgs(checked, args.slice(1));
@@ -5695,10 +5729,6 @@ switch (command) {
   case '--help':
     console.log(shortHelp());
     break;
-  default: {
-    const best = commandNames().map((name) => ({ name, distance: editDistance(command, name) })).sort((a, b) => a.distance - b.distance)[0];
-    log.error(`Unknown command: ${command}.${best && best.distance <= 2 ? ` Did you mean \`${best.name}\`?` : ''}`);
-    console.error('Run `ael help` for the common commands, or `ael help --all`.');
-    process.exit(2);
-  }
+  default:
+    unknownCommand(command);
 }
