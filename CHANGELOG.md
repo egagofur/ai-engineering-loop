@@ -4,6 +4,7 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+- **Added:** a throwaway prototype spike before the Goal freeze (`docs prototype-spike`). `spike record --discarded --question "..." --learned "..."` writes `runs/<id>/spike.json`. It refuses a spike that was not discarded, and it refuses once the Goal is frozen. No arena and no second model.
 - **Added:** an overnight contract for unattended runs (`docs overnight-contract`). `overnight check [--run <id>]` recomputes the morning packet from Run files: what the agent may do, when it must stop, and which files a person reviews in the morning. Exit 1 when the run was delivered without a person, or a stopped run is missing that packet.
 - **Fixed:** `goal freeze` refuses an empty `--by` and agent-like names (`agent`, `ael-agent`, a model id such as `deepseek-flash`). The skill says a cancelled or unanswered question is not approval: stop and wait, and never freeze yourself (#162).
 - **Fixed:** The skill confirms `git rev-parse --show-toplevel` is the project the human named before drafting. `goal draft` prints that path as `repoRoot` (#164).
