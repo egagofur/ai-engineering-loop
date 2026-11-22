@@ -1408,7 +1408,23 @@ function startWorktreeRun(task, runArgs, runJson, realLog) {
 function handlePr() {
   const json = process.argv.includes('--json');
   try {
-    if (args[1] !== 'status') throw Object.assign(new Error('Use: pr status [--run <id> | --branch <name> | --pr <number>] [--json]'), { code: 'INVALID_USAGE' });
+    if (args[1] === 'babysit') {
+      const runId = argValue('--run');
+      if (!runId) throw Object.assign(new Error('Use: pr babysit --run <id> [--json]'), { code: 'INVALID_USAGE', fix: 'ai-engineering-loop pr babysit --run <id>' });
+      const result = require('../lib/pr-babysit.js').babysit(CWD, { runId });
+      if (json) console.log(JSON.stringify({ ok: true, ...result }, null, 2));
+      else {
+        console.log(`PR #${result.pr} (${result.branch || 'branch unknown'}): ${result.action}${result.reason ? ` (${result.reason})` : ''}`);
+        console.log(result.message);
+        if (result.fixRunId) console.log(`- fix run: ${result.fixRunId}${result.tier ? ` (${result.tier})` : ''}`);
+        if (result.pushed) console.log(`- pushed ${result.branch}`);
+        if (result.next) console.log(`- next: ${result.next}`);
+        for (const blocker of result.blockers || []) console.log(`- blocker: ${blocker}`);
+        if (result.url) console.log(`- ${result.url}`);
+      }
+      return;
+    }
+    if (args[1] !== 'status') throw Object.assign(new Error('Use: pr status [--run <id> | --branch <name> | --pr <number>] [--json] | pr babysit --run <id> [--json]'), { code: 'INVALID_USAGE' });
     const explicit = argValue('--pr') || argValue('--branch');
     const runId = argValue('--run') || (explicit ? null : getCurrentRun(CWD)?.runId) || null;
     const status = require('../lib/pr-status.js').prStatus(CWD, { runId, branch: argValue('--branch'), pr: argValue('--pr') });
@@ -1421,9 +1437,10 @@ function handlePr() {
       console.log(`- ${status.url}`);
     }
   } catch (err) {
-    if (json) console.log(JSON.stringify({ ok: false, code: err.code || 'PR_STATUS_FAILED', error: err.message, ...(err.fix ? { fix: err.fix } : {}) }));
+    if (json) console.log(JSON.stringify({ ok: false, code: err.code || 'PR_STATUS_FAILED', error: err.message, ...(err.why ? { why: err.why } : {}), ...(err.fix ? { fix: err.fix } : {}) }));
     else {
       log.error(err.message);
+      if (err.why) console.error(`WHY: ${err.why}`);
       if (err.fix) console.error(`FIX: ${err.fix}`);
     }
     process.exitCode = 1;
@@ -4906,7 +4923,7 @@ Commands:
   debt         Accepted trade-offs and L3 waivers recorded at delivery: list [--file <path>] | close <id> --by <name> [--note <text>]
   next         Next unblocked feature from .ai-engineering-loop/features.json, VCR (verified/activated), evidence audit [--json]
   worktree     Clean up AEL worktrees: prune [--audit] [--include-scratch] [--yes] [--json] (never removes changed tracked files, open PRs or foreign worktrees)
-  pr           One read-only PR snapshot via gh: status [--run <id> | --branch <name> | --pr <n>] [--json]; records merge.json when merged
+  pr           Pull request after delivery. status [--run <id> | --branch <name> | --pr <n>] [--json] reads once and records merge.json when merged. babysit --run <id> [--json] polls with backoff, starts a T0 or T1 fix on that same branch when checks fail, and leaves the merge to you
   sources      Where the agent digs before asking (read-only): show | refresh | hint | record --source <id> --ref <ref> --line <text>
   driver       Scaffold a reusable verification driver per feature-map row: scaffold [--feature <id>] [--surface web|api|cli|launch]
   feature-map  Draft .ai-engineering-loop/feature-map.md from routes, OpenAPI, pages, or the README: scaffold [--json]
