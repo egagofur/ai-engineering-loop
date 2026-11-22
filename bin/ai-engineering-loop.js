@@ -1222,22 +1222,34 @@ function handleSetup() {
   }
   const interactive = process.stdin.isTTY && process.stdout.isTTY && !json && autoUpdate.autoUpdateAllowedHere();
   if (!yes && !interactive) {
-    const plan = { ok: true, wrote: false, detected: rows.filter((row) => row.detected).map((row) => row.id), wouldEnable: ids };
+    const plan = {
+      ok: false,
+      wrote: false,
+      code: 'SETUP_NOT_CONFIRMED',
+      detected: rows.filter((row) => row.detected).map((row) => row.id),
+      wouldEnable: ids,
+      why: 'A non-interactive session cannot ask, so setup does not write host files.',
+      fix: 'ai-engineering-loop setup --yes'
+    };
     if (json) console.log(JSON.stringify(plan, null, 2));
     else {
-      console.log(hostCommands.formatHostsList(rows, selection));
       console.log(`Would enable: ${ids.join(', ') || '(none detected)'}`);
-      console.log('Nothing was written. Run "ai-engineering-loop setup --yes" (optionally --hosts a,b --mode auto|manual) to install.');
+      console.log('Nothing was written.');
+      console.error(`FIX: ${plan.fix}`);
     }
+    process.exitCode = 2;
     return;
   }
   let mode = hostCommands.setupMode({ modeArg, interactive: false });
+  if (!ids.length) {
+    const message = 'No coding agent detected, so nothing was installed. Install Claude Code, Cursor, Codex, OpenCode, or another supported agent, then rerun `ai-engineering-loop setup --yes`.';
+    if (json) console.log(JSON.stringify({ ok: false, wrote: false, code: 'NO_HOSTS', enabled: [], error: message, fix: 'Install a supported coding agent, then `ai-engineering-loop setup --yes`.' }));
+    else console.error(message);
+    process.exitCode = 1;
+    return;
+  }
   if (!yes) {
     console.log(hostCommands.formatHostsList(rows, selection));
-    if (!ids.length) {
-      console.log('No AI agent detected. Install one, or pick hosts with "setup --hosts <id,...>".');
-      return;
-    }
     const ok = readTtyLine(`Install the loop for ${ids.join(', ')}? [Y/n] `, 'y');
     if (!['y', 'yes'].includes(ok)) {
       console.log('Nothing was written.');
@@ -1566,9 +1578,52 @@ function reproIntake() {
   return fromIssue ? issueRepro.readIssue(CWD, fromIssue) : issueRepro.readReportFile(CWD, fromReport);
 }
 
+const RUN_FLAGS = new Set(['--new', '--json', '--worktree', '--abandon', '--yes', '--force-live', '--help', '-h']);
+const RUN_VALUED = ['--mode', '--recipe', '--tier', '--tier-reason', '--from-issue', '--from-report', '--run', '--reason', '--by'];
+
+function rejectUnknownRunFlags(runArgs) {
+  const valued = new Set(RUN_VALUED);
+  for (let index = 0; index < runArgs.length; index += 1) {
+    const token = runArgs[index];
+    if (token === '--') break;
+    if (!token.startsWith('--')) continue;
+    if (RUN_FLAGS.has(token)) continue;
+    if (valued.has(token)) {
+      index += 1;
+      continue;
+    }
+    const known = [...RUN_FLAGS, ...RUN_VALUED].filter((flag) => flag.startsWith('--'));
+    let suggestion = null;
+    let best = 4;
+    for (const flag of known) {
+      const distance = editDistance(token, flag);
+      if (distance > 0 && distance < best) {
+        suggestion = flag;
+        best = distance;
+      }
+    }
+    throw Object.assign(new Error(`Unknown flag ${token}.${suggestion ? ` Did you mean \`${suggestion}\`?` : ''}`), {
+      code: 'INVALID_USAGE',
+      why: 'Unknown flags are not the task. Treating them as the task can start or replace the active Run.',
+      fix: 'Run `ael help run` for the flags. Quote the task: ael run "Add CSV export".'
+    });
+  }
+}
+
 function handleRun() {
   if (process.argv.includes('--abandon')) return handleRunAbandon();
   const runJson = process.argv.includes('--json');
+  try {
+    rejectUnknownRunFlags(process.argv.slice(3));
+  } catch (err) {
+    if (runJson) console.log(JSON.stringify({ ok: false, code: err.code, error: err.message, why: err.why, fix: err.fix }));
+    else {
+      log.error(err.message);
+      console.error(`WHY: ${err.why}`);
+      console.error(`FIX: ${err.fix}`);
+    }
+    process.exit(1);
+  }
   const gitState = require('../lib/git-readiness.js').gitReadiness(CWD);
   if (!gitState.ok) {
     if (runJson) console.log(JSON.stringify({ ok: false, code: gitState.code, error: `Cannot start a Run: ${gitState.message}.`, why: gitState.why, fix: gitState.fix }));
@@ -5170,7 +5225,7 @@ function shortHelp() {
 
 Start here:
   npm i -g ai-engineering-loop   Node 18+ and git required
-  ael setup                      install the ael skill into your coding agents
+  ael setup                      install the ael skill (agents and scripts: ael setup --yes)
   ael init                       write .ai-engineering-loop/ for this project
   Then tell your agent: "Use AI Engineering Loop to build <your feature>"
 
