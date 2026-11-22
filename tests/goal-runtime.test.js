@@ -6,6 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 const { freezeGoal, loadGoalDraft, saveGoalDraft, unfreezeGoal } = require('../lib/goal-runtime.js');
+const HATCH = { env: { AEL_GOAL_FREEZE_OK: '1' } };
 const { createRun, loadRun, RUN_STATES } = require('../lib/run-state.js');
 
 function tempRepo() {
@@ -30,7 +31,7 @@ test('goal freeze and unfreeze preserve immutable versions and audited actors', 
   const root = tempRepo();
   createRun(root, { runId: 'run-one', task: 'runtime' });
   saveGoalDraft(root, 'run-one', contract('run-one'));
-  const frozen = freezeGoal(root, 'run-one', { actor: 'alice' });
+  const frozen = freezeGoal(root, 'run-one', { actor: 'alice', ...HATCH });
   assert.equal(frozen.state, RUN_STATES.GOAL_FROZEN);
   assert.equal(frozen.goal.version, 1);
   assert.equal(frozen.goal.frozen, true);
@@ -45,7 +46,7 @@ test('goal freeze and unfreeze preserve immutable versions and audited actors', 
   assert.equal(loadRun(root, 'run-one').history.at(-1).reason, 'Add the denied timeout case');
 
   saveGoalDraft(root, 'run-one', contract('run-one', 'Implement safe local runtime with timeouts'));
-  freezeGoal(root, 'run-one', { actor: 'alice' });
+  freezeGoal(root, 'run-one', { actor: 'alice', ...HATCH });
   assert.ok(fs.existsSync(path.join(root, '.ai-engineering-loop', 'runs', 'run-one', 'goal-contract.v1.json')));
   assert.ok(fs.existsSync(path.join(root, '.ai-engineering-loop', 'runs', 'run-one', 'goal-contract.v2.json')));
 });
@@ -63,7 +64,7 @@ test('goal freeze rejects invalid contracts and unfreeze requires a reason', () 
     /Goal Contract/
   );
   saveGoalDraft(root, 'run-one', contract('run-one'));
-  freezeGoal(root, 'run-one', { actor: 'alice' });
+  freezeGoal(root, 'run-one', { actor: 'alice', ...HATCH });
   assert.throws(
     () => unfreezeGoal(root, 'run-one', { actor: 'alice', reason: '' }),
     (error) => error.code === 'INVALID_UNFREEZE_REASON'
@@ -122,14 +123,16 @@ test('Goal Freeze binds the reviewed draft revision and hash', () => {
     () => freezeGoal(root, 'run-one', {
       actor: 'alice',
       expectedRevision: 2,
-      expectedHash: draft.metadata.contentHash
+      expectedHash: draft.metadata.contentHash,
+      ...HATCH
     }),
     { code: 'GOAL_DRAFT_CONFLICT' }
   );
   const frozen = freezeGoal(root, 'run-one', {
     actor: 'alice',
     expectedRevision: 1,
-    expectedHash: draft.metadata.contentHash
+    expectedHash: draft.metadata.contentHash,
+    ...HATCH
   });
   assert.equal(frozen.goal.draftRevision, 1);
   assert.equal(frozen.goal.hash, draft.metadata.contentHash);

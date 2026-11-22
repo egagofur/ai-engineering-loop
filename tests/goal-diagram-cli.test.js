@@ -13,7 +13,7 @@ const CLI = path.join(__dirname, '..', 'bin', 'ai-engineering-loop.js');
 function setup(goalExtra = {}) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-diagram-home-'));
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-diagram-'));
-  const env = { ...process.env, HOME: home, USERPROFILE: home, AEL_HOME: home, AEL_NO_SETUP_HINT: '1', AEL_NO_AUTO_UPDATE: '1' };
+  const env = { ...process.env, HOME: home, USERPROFILE: home, AEL_HOME: home, AEL_NO_SETUP_HINT: '1', AEL_NO_AUTO_UPDATE: '1', AEL_GOAL_FREEZE_OK: '1' };
   execFileSync('git', ['init', '-q'], { cwd: repo });
   fs.writeFileSync(path.join(repo, 'index.js'), 'module.exports = 1;\n');
   execFileSync('git', ['add', '.'], { cwd: repo });

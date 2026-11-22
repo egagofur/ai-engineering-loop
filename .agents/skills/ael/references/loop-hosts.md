@@ -57,3 +57,4 @@ Every decision that is the human's (freeze the Goal, a diagram view, RUN_CONFLIC
 - No such tool: a numbered list with the exact words to reply, recommendation first.
 - Only the human's own answer counts. No answer, a timeout or a changed subject is not approval.
 - Cancelled, unanswered, timed out, or a non-interactive "continue without an answer": stop. Ask in the user-visible message and wait for the next turn. Do not freeze and do not edit.
+- Freeze: ask the human to run `goal freeze` in their own terminal and type the confirmation. Never type it yourself. Never set `AEL_GOAL_FREEZE_OK`.

@@ -29,7 +29,7 @@ Invariants (every tier):
 - One red test per AC row (bugs: red repro) before the fix.
 - Write claimed-vs-reality.md after `gate verification` passes. Do not spawn Devil's Advocate if the file is missing or any Claimed row lacks Reality.
 - ITERATE to iteration 3 (or the recipe cap), each with a **new** DA.
-- Never infer human approval; ask with host buttons (`loop-hosts`). A cancelled or unanswered question: stop and wait; never freeze yourself.
+- Never infer human approval; ask with host buttons (`loop-hosts`). A cancelled or unanswered question: stop and wait; never freeze yourself, and never set `AEL_GOAL_FREEZE_OK`.
 - After each child `budget record` real usage or `--unavailable`; never invent counts.
 - No secrets or hidden reasoning in activity messages.
 

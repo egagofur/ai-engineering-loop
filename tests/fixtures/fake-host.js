@@ -63,7 +63,7 @@ function parseJson(text) {
 function ael(args, { allowFail = false } = {}) {
   const result = spawnSync(process.execPath, [CLI, ...args], {
     cwd: CWD,
-    env: process.env,
+    env: { ...process.env, AEL_GOAL_FREEZE_OK: '1' },
     encoding: 'utf8'
   });
   if (!allowFail && result.status !== 0) {

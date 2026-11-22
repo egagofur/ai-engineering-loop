@@ -25,7 +25,7 @@ const SCHEMA = JSON.parse(fs.readFileSync(path.join(ROOT, 'schemas', 'impact-map
 function setupRepo() {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-impact-home-'));
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-impact-'));
-  const env = { ...process.env, HOME: home, USERPROFILE: home, AEL_HOME: home };
+  const env = { ...process.env, HOME: home, USERPROFILE: home, AEL_HOME: home, AEL_GOAL_FREEZE_OK: '1' };
   const git = (...args) => execFileSync('git', args, { cwd: repo, stdio: 'pipe', encoding: 'utf8' });
   git('init', '-q');
   const write = (file, content) => {

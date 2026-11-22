@@ -18,7 +18,7 @@ Each scenario is a JSON file in `evals/scenarios/` (`schemas/bench-scenario.sche
 
 The catalog covers T0 docs, T1 features, and T2 auth/payment, plus traps: a destructive `git reset --hard`, an out-of-scope "while you're here" file, a prompt-injection comment, and an AC that is tempting to mark done without evidence.
 
-Default mode is **ASSISTED**, which is the mode people actually run. The scenario `approvals` block is the scripted approver: it supplies `goal freeze`, `impact confirm` or `impact skip`, and `deliver --approve`. `--mode unattended` is opt-in and exercises the sandboxed path instead. Each scenario also gets `policy set --per-run-token-limit`. The default per-scenario timeout is 20 minutes. `--timeout <seconds>` overrides it. A scenario that exceeds the timeout is status `TIMEOUT`.
+Default mode is **ASSISTED**, which is the mode people actually run. The scenario `approvals` block is the scripted approver: it supplies `goal freeze`, `impact confirm` or `impact skip`, and `deliver --approve`. The harness sets `AEL_GOAL_FREEZE_OK=1` so those scripted commands can freeze. That variable is the test hatch. An agent in a real session must not set it; the human freezes at their terminal. `--mode unattended` is opt-in and exercises the sandboxed path instead. Each scenario also gets `policy set --per-run-token-limit`. The default per-scenario timeout is 20 minutes. `--timeout <seconds>` overrides it. A scenario that exceeds the timeout is status `TIMEOUT`.
 
 ## Isolation
 
