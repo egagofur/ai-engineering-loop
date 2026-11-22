@@ -6,7 +6,7 @@ For hosts with no subagent tool (certification `instruction-only`). Full skill: 
 Loop: Specify (0-1), Make (2-4), Review (5-7), Deliver (8). You are Maker. Devil's Advocate (DA) and Judge run in this session as `CONTEXT_ISOLATION_ONLY`, with the same budgets; never claim independent review.
 
 1. `npx ai-engineering-loop run --json` gives runId, tier, budget. Read `.ai-engineering-loop/glossary.md`.
-2. Goal Contract: AC is a failure table (happy, empty, boundary, error). Only after the human freezes: `goal freeze --json --latest --run <runId> --by human`. Chat agreement is not freeze.
+2. Goal Contract: AC is a failure table (happy, empty, boundary, error). Confirm `git rev-parse --show-toplevel` is the project the human named. Only after the human freezes: `goal freeze --json --latest --run <runId> --by <their name>`. Never `--by agent` or `ael-agent`. A cancelled question: stop and wait. Chat agreement is not freeze.
 3. Maker: one red test per AC row before the fix, then `gate maker`.
 4. `verify --cmd <test command>`, then write claimed-vs-reality.md.
 5. DA: re-read only the diff, Goal, and evidence; log findings; `gate review`. Judge: write the verdict from the evidence, then `gate judge`. ITERATE at most 3 times.

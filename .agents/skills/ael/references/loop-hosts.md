@@ -56,3 +56,4 @@ Every decision that is the human's (freeze the Goal, a diagram view, RUN_CONFLIC
 - CLI JSON that already lists choices (`conflict.options`, `diagramOptions`) maps one option per entry; keep the command each option runs.
 - No such tool: a numbered list with the exact words to reply, recommendation first.
 - Only the human's own answer counts. No answer, a timeout or a changed subject is not approval.
+- Cancelled, unanswered, timed out, or a non-interactive "continue without an answer": stop. Ask in the user-visible message and wait for the next turn. Do not freeze and do not edit.

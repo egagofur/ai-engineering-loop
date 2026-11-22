@@ -4,7 +4,7 @@
 @@ frontmatter
 ---
 name: ael
-description: Use when the user runs /ael, says "run the engineering loop" or "devil's advocate review", asks to init or refresh living project context, or wants the Maker / Devil's Advocate / Judge engineering loop.
+description: Use when this repo has AI Engineering Loop and the user asks for a feature or bugfix ("please add", "please fix", "fix this bug", "build this feature", "tambahin fitur", "Use AI Engineering Loop"), or runs /ael, says "run the engineering loop" or "devil's advocate review", or asks to init or refresh living project context. A one-line typo or "just change this line" is a direct edit, not this loop.
 ---
 @@ hostRules
 Same skill on every host. Before the first DA or Judge spawn, read your host's section in `loop-hosts` (exact tool, allowed keys, fallbacks).
