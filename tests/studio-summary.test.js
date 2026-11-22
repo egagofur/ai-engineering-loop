@@ -164,3 +164,71 @@ test('runDetail refuses a run id that escapes the context directory', () => {
   const root = tempRoot();
   assert.throws(() => runDetail({ project: project(root), root, worktree: null }, '../../x'));
 });
+
+function outsideFile(content) {
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ael-studio-outside-')));
+  const file = path.join(dir, 'secret.json');
+  fs.writeFileSync(file, content);
+  return { dir, file };
+}
+
+function replaceWithSymlink(target, to) {
+  fs.rmSync(target, { recursive: true, force: true });
+  fs.symlinkSync(to, target);
+}
+
+test('a symlinked state.json leaks nothing and the Run is idle', () => {
+  const root = tempRoot();
+  frozen(root, 'r1');
+  const state = path.join(root, '.ai-engineering-loop', 'runs', 'r1', 'state.json');
+  const outside = outsideFile(fs.readFileSync(state, 'utf8').replace('Show', 'LEAK'));
+  replaceWithSymlink(state, outside.file);
+  const summary = summarizeProject(project(root));
+  assert.equal(summary.state, 'idle');
+  assert.equal(summary.run, null);
+  assert.throws(() => runDetail({ project: project(root), root, worktree: null }, 'r1'), { code: 'PATH_OUTSIDE_SCOPE' });
+});
+
+test('a symlinked provenance.json is refused by runDetail', () => {
+  const root = tempRoot();
+  frozen(root, 'r1');
+  const outside = outsideFile(JSON.stringify({ unconfirmed: ['LEAK'] }));
+  replaceWithSymlink(path.join(root, '.ai-engineering-loop', 'runs', 'r1', 'provenance.json'), outside.file);
+  assert.throws(() => runDetail({ project: project(root), root, worktree: null }, 'r1'), { code: 'PATH_OUTSIDE_SCOPE' });
+  assert.equal(summarizeProject(project(root)).run, null);
+});
+
+test('a symlinked run directory is idle and refused by runDetail', () => {
+  const root = tempRoot();
+  frozen(root, 'r1');
+  const runDir = path.join(root, '.ai-engineering-loop', 'runs', 'r1');
+  const outside = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ael-studio-outside-')));
+  fs.cpSync(runDir, outside, { recursive: true });
+  replaceWithSymlink(runDir, outside);
+  assert.equal(summarizeProject(project(root)).run, null);
+  assert.throws(() => runDetail({ project: project(root), root, worktree: null }, 'r1'), { code: 'PATH_OUTSIDE_SCOPE' });
+});
+
+test('a symlinked current.json is idle', () => {
+  const root = tempRoot();
+  frozen(root, 'r1');
+  const pointer = path.join(root, '.ai-engineering-loop', 'runs', 'current.json');
+  const outside = outsideFile(JSON.stringify({ schemaVersion: 1, runId: 'r1' }));
+  replaceWithSymlink(pointer, outside.file);
+  assert.equal(summarizeProject(project(root)).run, null);
+});
+
+test('a REPORTED Run is finished: idle, goal and maker done, rest skipped', () => {
+  const root = tempRoot();
+  drafted(root, 'r1');
+  const statePath = path.join(root, '.ai-engineering-loop', 'runs', 'r1', 'state.json');
+  const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+  fs.writeFileSync(statePath, JSON.stringify({ ...state, state: 'REPORTED' }));
+  const summary = summarizeProject(project(root));
+  assert.equal(summary.state, 'idle');
+  assert.equal(summary.run.stage, null);
+  assert.equal(summary.run.waiting, null);
+  assert.deepEqual(ringOf(summary.run), {
+    goal: 'done', maker: 'done', verify: 'skipped', review: 'skipped', judge: 'skipped', deliver: 'skipped'
+  });
+});
