@@ -82,6 +82,8 @@ Enforcement (`lib/claimed-vs-reality.js`, `gate review`):
 
 **Feature map (C-22).** Optional `.ai-engineering-loop/feature-map.md` is a site map of what users can do, one Markdown table: `| Feature | Where (UI or endpoint) | Paths (globs) | How to reach | Driver |`. `review-pack` appends the entries whose `Paths` the diff touches, so the Devil's Advocate and L3 evidence use the same names ("export-csv", not "the button on the left"). `Driver` is an optional reusable command that runs the flow (cheaper and more repeatable than an agent clicking around). `doctor --harness` warns when `e2e` or `smoke` is configured but the map is empty.
 
+`ael feature-map scaffold` drafts that table from routes (the same declarations the impact map reads, plus Next.js route handlers), an OpenAPI or Swagger document, page files, or README headings when nothing else exists. No signal produces a stub table with no rows. An existing `feature-map.md` that differs is left in place and the new draft is written to `feature-map.md.ael-new`. `init` and project onboarding only offer the command; they do not write the map unless you say yes.
+
 **L1 at T1/T2.** When `verification.md` configures `typecheck` or `lint`, the verification gate at T1/T2 refuses a full-scope bundle with no L1 record (`L1_MISSING`). The related lane is exempt; `verify --final` runs the full plan.
 
 `init` writes only commands the project really has: `typecheck` from a script or a TypeScript setup, `lint` and `build` only from package scripts.

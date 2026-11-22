@@ -4,7 +4,7 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
-_No changes yet._
+- **Added:** `feature-map scaffold` drafts `.ai-engineering-loop/feature-map.md` (Feature | Where | Paths | How to reach | Driver) from routes, an OpenAPI or Swagger document, page files, or README headings. No signal writes a stub table with no rows. An edited map is never overwritten; the new draft is `feature-map.md.ael-new`. `init` and project onboarding offer the command and do not run it unless you say yes. `driver scaffold` names this command when the map is missing.
 
 ## 2.14.1 - 2026-11-21
 
