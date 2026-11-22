@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+_No changes yet._
+
+## 2.16.0 - 2026-11-22
+
+Goal freeze through host question buttons by default (#170), plus fixes from the usability rounds (#154, #155, #156, #157, #161).
+
 - **Changed (#170):** a Goal freeze is approved through the host's question buttons by default. The agent shows the Goal, asks **Freeze** / **Revise** (Claude Code `AskUserQuestion`, Antigravity and others' option UI, or a chat question), and runs `goal freeze --json --latest --by "<human name>"` only after the human picks Freeze. No terminal and no typed code are needed; the Run records `goal.approval: "host-question"`. The 2.15.1 behaviour (Studio click or a typed code, non-interactive shells refused) is now `ael policy set --goal-freeze strict`. Agent-like `--by` names are still refused.
 - **Fixed (#154):** the STE readability check no longer flags adjectives such as "missing id throws" or "Existing rows"; it flags only a real participle opening ("Keeping the filter, …").
 - **Fixed (#155):** an unknown command with `--help` (`ael totally-bogus --help`) exits 2 with "Unknown command" and a "Did you mean" hint instead of printing the manual.
