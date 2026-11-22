@@ -3823,6 +3823,13 @@ function repeatedArg(name) {
   return values;
 }
 
+function commandOutputTail(value, limit = 800) {
+  const text = String(value || '').trim();
+  if (!text || text === '(no stdout)') return '';
+  const tail = text.split('\n').slice(-12).join('\n');
+  return tail.length > limit ? tail.slice(-limit) : tail;
+}
+
 async function handleVerify() {
   const json = process.argv.includes('--json');
   try {
@@ -3944,16 +3951,32 @@ async function handleVerify() {
       ...(related ? { scope: 'related' } : {}),
       ...(timeoutValue == null ? {} : { timeoutMs: parsePositiveIntegerArg('--timeout-ms', timeoutValue) })
     });
-    const commands = recorded.commands.map((c) => ({ command: c.command, exitCode: c.exitCode, timeoutStatus: c.timeoutStatus, ...(c.layer ? { layer: c.layer } : {}), ...(c.scope ? { scope: c.scope } : {}), ...(c.reused ? { reused: true } : {}) }));
+    const commands = recorded.commands.map((c) => ({
+      command: c.command,
+      exitCode: c.exitCode,
+      timeoutStatus: c.timeoutStatus,
+      ...(c.layer ? { layer: c.layer } : {}),
+      ...(c.scope ? { scope: c.scope } : {}),
+      ...(c.reused ? { reused: true } : {}),
+      ...(!recorded.passed && (c.exitCode !== 0 || c.timeoutStatus !== 'COMPLETED') ? {
+        stdoutTail: commandOutputTail(c.stdout),
+        stderrTail: commandOutputTail(c.stderr)
+      } : {})
+    }));
     if (!recorded.passed) {
       autoHeartbeat(runId, 'verification', 'Verification failed; Maker must fix before review');
       const baselineModule = require('../lib/baseline.js');
       const failures = baselineModule.classifyAgainstBaseline(baselineModule.loadBaseline(CWD, runId), recorded.commands);
-      const result = { ok: false, code: 'VERIFICATION_FAILED', runId, commands, skipped: recorded.skipped, failures, gate: null };
+      const result = { ok: false, code: 'VERIFICATION_FAILED', runId, commands, skipped: recorded.skipped, failures, gate: null, evidence: `.ai-engineering-loop/runs/${runId}/verification.json` };
       if (json) console.log(JSON.stringify(result));
       else {
         log.error('Verification failed; the gate was not attempted.');
-        for (const c of commands) console.log(`- ${c.command}: exit ${c.exitCode} (${c.timeoutStatus})`);
+        console.log(`- Evidence: .ai-engineering-loop/runs/${runId}/verification.json`);
+        for (const c of commands) {
+          console.log(`- ${c.command}: exit ${c.exitCode} (${c.timeoutStatus})`);
+          if (c.stderrTail) console.log(`- stderr:\n${c.stderrTail}`);
+          if (c.stdoutTail) console.log(`- stdout:\n${c.stdoutTail}`);
+        }
         for (const skippedCommand of recorded.skipped) console.log(`- ${skippedCommand}: skipped (an earlier, cheaper check failed)`);
         for (const c of recorded.commands.filter((item) => item.exitCode !== 0)) {
           const rulesLib = require('../lib/rules.js');
@@ -4367,16 +4390,24 @@ function handleReviewPack() {
     try {
       const changed = require('../lib/verification-lanes.js').relatedFiles(CWD, run);
       openDebt = require('../lib/debt.js').openDebtFor(CWD, changed);
-      if (openDebt.length && pack.path) {
-        const lines = ['', '## Open debt on changed files', '', ...openDebt.map((item) => `- ${item.id} ${item.location}: ${item.debt} (deferred: ${item.whyDeferred}; risk ${item.risk})`)];
-        fs.appendFileSync(path.join(CWD, pack.path), `${lines.join('\n')}\n`);
-      }
-      // C-22: user-facing features this diff touches, with how to reach them.
       const featureMap = require('../lib/feature-map.js');
       touchedFeatures = featureMap.featuresForFiles(CWD, changed);
-      if (touchedFeatures.length && pack.path) fs.appendFileSync(path.join(CWD, pack.path), `${featureMap.renderForPack(touchedFeatures)}\n`);
       const unconfirmed = require('../lib/provenance.js').renderUnconfirmed(require('../lib/provenance.js').loadProvenance(CWD, runId), '## Unconfirmed assumptions in the Goal (raise a finding if the code relies on one)');
-      if (unconfirmed.length && pack.path) fs.appendFileSync(path.join(CWD, pack.path), `\n${unconfirmed.join('\n')}\n`);
+      const sections = [];
+      if (openDebt.length) {
+        sections.push(['## Open debt on changed files', '', ...openDebt.map((item) => `- ${item.id} ${item.location}: ${item.debt} (deferred: ${item.whyDeferred}; risk ${item.risk})`)].join('\n'));
+      }
+      const featuresNote = featureMap.renderForPack(touchedFeatures).trim();
+      if (featuresNote) sections.push(featuresNote);
+      if (unconfirmed.length) sections.push(unconfirmed.join('\n').trim());
+      // Appendices used to be concatenated onto the JSON file, which made
+      // escalation and gate judge reject it. Rewrite the whole document.
+      if (sections.length && pack.path) {
+        const abs = path.join(CWD, pack.path);
+        const document = JSON.parse(fs.readFileSync(abs, 'utf8'));
+        document.appendices = sections;
+        require('../lib/fsutil.js').writePrivateJson(abs, document);
+      }
     } catch {
       openDebt = [];
     }
