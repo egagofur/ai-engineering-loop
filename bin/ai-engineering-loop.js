@@ -1429,7 +1429,7 @@ function workingTreePaths(rootDir) {
 function startWorktreeRun(task, runArgs, runJson, realLog) {
   const isolation = require('../lib/run-isolation.js');
   try {
-    const worktree = isolation.createWorktree(CWD, { task });
+    const worktree = isolation.createWorktree(CWD, { task, baseRef: argValue('--base') });
     const passthrough = [];
     for (const flag of ['--mode', '--recipe', '--tier', '--tier-reason']) {
       const value = argValue(flag);
@@ -1443,14 +1443,14 @@ function startWorktreeRun(task, runArgs, runJson, realLog) {
       started = { ok: false, error: (child.stderr || child.stdout || 'run did not start').trim() };
     }
     if (!started.ok) throw Object.assign(new Error(`Worktree created at ${worktree.path}, but the Run did not start: ${started.error}`), { code: started.code || 'RUN_FAILED' });
-    isolation.registerWorktree(worktree.mainRoot, { runId: started.runId, path: worktree.path, branch: worktree.branch, base: worktree.base, task, state: 'active', createdAt: new Date().toISOString() });
-    const result = { ...started, worktree: { path: worktree.path, branch: worktree.branch, mainCheckout: worktree.mainRoot }, next: `Work only in ${worktree.path} for this Run.` };
+    isolation.registerWorktree(worktree.mainRoot, { runId: started.runId, path: worktree.path, branch: worktree.branch, base: worktree.base, baseRef: worktree.baseRef, task, state: 'active', createdAt: new Date().toISOString() });
+    const result = { ...started, worktree: { path: worktree.path, branch: worktree.branch, baseRef: worktree.baseRef, mainCheckout: worktree.mainRoot }, next: `Work only in ${worktree.path} for this Run.` };
     if (runJson) realLog(JSON.stringify(result, null, 2));
     else {
       console.log = realLog;
       log.success(`✓ Run ${started.runId} started in a new worktree`);
       console.log(`- Path: ${worktree.path}`);
-      console.log(`- Branch: ${worktree.branch} (from ${worktree.base.slice(0, 12)})`);
+      console.log(`- Branch: ${worktree.branch} (from ${worktree.baseRef})`);
       console.log(`- Work only in that folder for this Run. After deliver, Stage 9 removes the worktree when it is clean.`);
     }
   } catch (err) {
@@ -1623,7 +1623,7 @@ function reproIntake() {
 }
 
 const RUN_FLAGS = new Set(['--new', '--json', '--worktree', '--abandon', '--yes', '--force-live', '--help', '-h']);
-const RUN_VALUED = ['--mode', '--recipe', '--tier', '--tier-reason', '--from-issue', '--from-report', '--run', '--reason', '--by'];
+const RUN_VALUED = ['--mode', '--recipe', '--tier', '--tier-reason', '--from-issue', '--from-report', '--run', '--reason', '--by', '--base'];
 
 function rejectUnknownRunFlags(runArgs) {
   const valued = new Set(RUN_VALUED);
@@ -1698,7 +1698,7 @@ function handleRun() {
   const taskParts = [];
   for (let index = 0; index < runArgs.length; index++) {
     if (['--new', '--json', '--worktree'].includes(runArgs[index])) continue;
-    if (['--mode', '--recipe', '--tier', '--tier-reason'].includes(runArgs[index])) {
+    if (['--mode', '--recipe', '--tier', '--tier-reason', '--base'].includes(runArgs[index])) {
       index += 1;
       continue;
     }
@@ -1717,6 +1717,23 @@ function handleRun() {
       throw Object.assign(new Error('A bug-report Run takes its task from the report.'), { code: 'INVALID_USAGE', why: 'The issue title is the task, so extra words would start a different Run.', fix: 'ael run --from-issue <url|#n>' });
     }
     if (repro) task = repro.title;
+    if (process.argv.includes('--base')) {
+      const baseRef = argValue('--base');
+      if (!baseRef || baseRef.startsWith('-')) {
+        throw Object.assign(new Error('--base needs a branch or commit.'), {
+          code: 'INVALID_USAGE',
+          why: 'A stacked Run starts from a commit that already exists in this repository.',
+          fix: 'ael run --worktree --base <branch> "<task>"'
+        });
+      }
+      if (!runArgs.includes('--worktree')) {
+        throw Object.assign(new Error('--base starts a stacked worktree and does not switch this checkout.'), {
+          code: 'INVALID_USAGE',
+          why: 'Checking out another branch here would mix this Run with the stack.',
+          fix: 'ael run --worktree --base <branch> "<task>"'
+        });
+      }
+    }
     if (runArgs.includes('--worktree')) {
       if (repro) {
         throw Object.assign(new Error('--from-issue starts the Run in this checkout.'), { code: 'INVALID_USAGE', why: 'The red-repro Goal is drafted on the Run created here.', fix: 'ael run --from-issue <url|#n>' });
@@ -5127,6 +5144,7 @@ Commands:
   run [task]   Start or resume a stateful engineering run and instruct the agent (never writes to home)
                --new  start a new run even when another run is active
                --worktree  start this task in a new git worktree (use when another run is unfinished)
+               --base <branch>  with --worktree, start from that local commit (stacked PRs; docs coordinator)
                --mode report-only|assisted|unattended
                --recipe <id>  bind an immutable compiled workflow plan
                --tier T0|T1|T2 --tier-reason <text>  override the automatic tier (recorded)
