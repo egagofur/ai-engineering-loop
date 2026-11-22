@@ -909,9 +909,35 @@ function handleInit() {
     REQUIRED_FILES.forEach((f) => console.log(`  - .ai-engineering-loop/${f}`));
     log.dim('\nProject context is private by default. Remove .ai-engineering-loop/ from .gitignore if you want to share it.');
     if (!agentSkillState().installed) log.warn(SETUP_HINT);
+    offerFeatureMapScaffold();
   } else {
     log.error(`\n✗ Initialization validation failed: ${validation.reason}`);
     process.exit(1);
+  }
+}
+
+// Optional next step. A TTY may say yes; everyone else only sees the command.
+function offerFeatureMapScaffold() {
+  const hint = 'Optional next step: `ael feature-map scaffold` drafts .ai-engineering-loop/feature-map.md from routes, OpenAPI, pages, or the README. It does not overwrite a map you edit.';
+  try {
+    if (fs.existsSync(path.join(CONTEXT_DIR, 'feature-map.md'))) return;
+    if (!process.stdin.isTTY || !process.stdout.isTTY) {
+      log.dim(hint);
+      return;
+    }
+    process.stdout.write('Draft a feature map from routes, OpenAPI, pages, or the README? [y/N]: ');
+    const buffer = Buffer.alloc(16);
+    const bytes = fs.readSync(0, buffer, 0, buffer.length, null);
+    const answer = buffer.toString('utf8', 0, bytes).trim().toLowerCase();
+    if (answer !== 'y' && answer !== 'yes') {
+      log.dim(hint);
+      return;
+    }
+    const result = require('../lib/feature-map.js').scaffoldFeatureMap(CWD);
+    if (result.written) log.success(`✓ ${result.written} (${result.rows} row(s) from ${result.signals.join(', ') || 'stub'})`);
+    else log.dim(hint);
+  } catch {
+    log.dim(hint);
   }
 }
 
@@ -4617,6 +4643,25 @@ function handleSources() {
   }
 }
 
+function handleFeatureMap() {
+  const json = process.argv.includes('--json');
+  try {
+    if (args[1] !== 'scaffold') throw Object.assign(new Error('Use: feature-map scaffold [--json]'), { code: 'INVALID_USAGE' });
+    const result = require('../lib/feature-map.js').scaffoldFeatureMap(CWD);
+    if (json) {
+      console.log(JSON.stringify({ ok: true, ...result }, null, 2));
+      return;
+    }
+    if (result.preserved) console.log(`! ${result.file} was edited; new draft saved as ${result.written}`);
+    else if (result.written) console.log(`✓ ${result.written} (${result.rows} row(s) from ${result.signals.join(', ') || 'stub'})`);
+    else console.log(`- ${result.file} unchanged`);
+    if (!result.rows) console.log('No routes, OpenAPI, pages, or README features found. The file is a stub table; fill one row per user-facing feature.');
+    else console.log('Check the rows, then `driver scaffold` to add a driver for each feature.');
+  } catch (err) {
+    stageJsonError(err, json, 'FEATURE_MAP_FAILED');
+  }
+}
+
 function handleDriver() {
   const json = process.argv.includes('--json');
   try {
@@ -4864,6 +4909,7 @@ Commands:
   pr           One read-only PR snapshot via gh: status [--run <id> | --branch <name> | --pr <n>] [--json]; records merge.json when merged
   sources      Where the agent digs before asking (read-only): show | refresh | hint | record --source <id> --ref <ref> --line <text>
   driver       Scaffold a reusable verification driver per feature-map row: scaffold [--feature <id>] [--surface web|api|cli|launch]
+  feature-map  Draft .ai-engineering-loop/feature-map.md from routes, OpenAPI, pages, or the README: scaffold [--json]
   safety       Record the one fact a change is safe because of [record --fact <text> --cmd <proof>] (T2 Judge PASS needs level 4+)
   measurement  Record how a performance number was measured [record --ac <id> --runs <n> --spread <pct> --effect <pct> --limiter <text>]
   recap        Evidence-backed recap of the last N days as one HTML page [--days 7] [--for me|lead|client] [--projects <p,...>|all] [--out <file>] [--lang <tag>] [--open] [--json]
@@ -5180,6 +5226,9 @@ switch (command) {
     break;
   case 'driver':
     handleDriver();
+    break;
+  case 'feature-map':
+    handleFeatureMap();
     break;
   case 'worktree':
     handleWorktree();

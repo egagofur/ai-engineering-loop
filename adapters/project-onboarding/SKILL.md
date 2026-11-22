@@ -18,6 +18,7 @@ Run `npx ai-engineering-loop init` first if `.ai-engineering-loop/` is missing. 
 5. **Gotchas.** Only record ones you can prove: cite a file:line, commit, test, or command output for each. No speculation.
 6. **Write.** Update the two files with the template in `references/output.md`. Keep existing human-written sections; add or replace only the sections this skill owns.
 7. **Report** what you added, the evidence count, and any open question for the human.
+8. **Feature map (optional).** When `.ai-engineering-loop/feature-map.md` is missing, offer `npx ai-engineering-loop feature-map scaffold` as a next step. It drafts rows (feature, what it does, how a user reaches it) from routes, OpenAPI, pages, or the README, and writes `feature-map.md.ael-new` instead of overwriting an edited map. Run it only after the user says yes.
 
 ## Rules
 
@@ -25,3 +26,4 @@ Run `npx ai-engineering-loop init` first if `.ai-engineering-loop/` is missing. 
 - Do not paste secrets, tokens, customer data, or `.env` values; name the variable instead.
 - Keep each file short (aim for under 150 lines). Link to code instead of copying it.
 - Commands you ran go into `.ai-engineering-loop/verification.md` only if they actually passed.
+- Do not run `feature-map scaffold` unless the user asks. Offering it is enough.
