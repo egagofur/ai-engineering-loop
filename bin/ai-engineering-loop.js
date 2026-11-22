@@ -1059,7 +1059,51 @@ function handleStatus() {
 }
 
 // Command: refresh
+function handleGarden() {
+  const json = process.argv.includes('--json');
+  if (process.argv.includes('--non-destructive')) {
+    stageJsonError(Object.assign(new Error('--garden does not reconcile context. Nothing was written.'), {
+      code: 'INVALID_USAGE',
+      why: 'Garden only reports stale learnings, feature-map rows, and old Runs.',
+      fix: 'ael refresh --garden'
+    }), json, 'INVALID_USAGE');
+  }
+  try {
+    const garden = require('../lib/garden.js');
+    const apply = process.argv.includes('--yes');
+    const result = apply ? garden.applyGarden(CWD) : garden.planGarden(CWD);
+    if (json) {
+      console.log(JSON.stringify({ ok: true, ...result }, null, 2));
+      return;
+    }
+    console.log(`Garden${apply ? '' : ' (dry-run, nothing written)'}`);
+    if (!result.learnings.length) console.log('Learnings: nothing stale');
+    for (const item of result.learnings) console.log(`Learning ${item.id}: ${item.action} (${item.reason})`);
+    if (result.featureMapSkipped) console.log(`Feature map: skipped (${result.featureMapSkipped})`);
+    else if (!result.featureMap.length) console.log('Feature map: nothing stale');
+    for (const row of result.featureMap) console.log(`Feature ${row.id}: ${row.action}${row.reason ? ` (${row.reason})` : ''} ${row.paths.join(', ')}`);
+    if (!result.runs.length) console.log('Runs: nothing old');
+    for (const row of result.runs) console.log(`Run ${row.runId} ${row.state} ${row.ageDays}d: ${row.action}. ${row.note}`);
+    console.log(apply
+      ? `Wrote: ${result.written.join(', ') || '(nothing)'}`
+      : `Would write: ${result.writes.join(', ') || '(nothing)'}. Apply with: ael refresh --garden --yes`);
+  } catch (err) {
+    stageJsonError(err, json, 'GARDEN_FAILED');
+  }
+}
+
 function handleRefresh() {
+  if (process.argv.includes('--garden')) {
+    handleGarden();
+    return;
+  }
+  if (process.argv.includes('--yes')) {
+    stageJsonError(Object.assign(new Error('--yes applies a garden tidy. Nothing was written.'), {
+      code: 'INVALID_USAGE',
+      why: 'refresh --yes is not a context refresh.',
+      fix: 'ael refresh --garden --yes'
+    }), process.argv.includes('--json'), 'INVALID_USAGE');
+  }
   if (process.argv.includes('--non-destructive')) {
     handleSafeRefresh();
     return;
@@ -5076,6 +5120,10 @@ Commands:
   status       Check the validity, readiness, and baseline freshness of context
                --json  print context, host-skill freshness, and studioUrl (tokenless Studio identity; browser session comes from ael studio)
   refresh      Reconcile drifted context against repository non-destructively
+               --non-destructive  keep filled files and write *.ael-new
+               --garden [--json]  report stale learnings, dead feature-map rows, and old Runs; writes nothing
+               --garden --yes     prune those learnings and move fully dead feature-map rows; Runs stay
+               See docs garden.
   run [task]   Start or resume a stateful engineering run and instruct the agent (never writes to home)
                --new  start a new run even when another run is active
                --worktree  start this task in a new git worktree (use when another run is unfinished)
