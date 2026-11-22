@@ -3635,6 +3635,8 @@ function handleGoal() {
         extra.question = { error: err.message };
       }
     } else if (action === 'freeze') {
+      const { assertGoalFreezeApproval } = require('../lib/goal-freeze-approval.js');
+      const approval = assertGoalFreezeApproval({ runId, actor: argValue('--by') });
       const latest = process.argv.includes('--latest');
       const latestDraft = latest ? loadGoalDraft(CWD, runId) : null;
       if (latest && !latestDraft) {
@@ -3665,7 +3667,8 @@ function handleGoal() {
       result = freezeGoal(CWD, runId, {
         actor: argValue('--by'),
         expectedRevision: latest ? latestDraft.metadata.revision : requiredIntegerArg('--revision'),
-        expectedHash
+        expectedHash,
+        interactiveConfirmed: approval.via === 'tty'
       });
       const human = result.goal.actor;
       appendRunLifecycle(CWD, runId, {
@@ -3701,7 +3704,7 @@ function handleGoal() {
       if (action === 'draft') console.log(`- Repo: ${extra.repoRoot || 'unresolved'}`);
       if (extra.impactPreview) console.log(`- Impact preview: ${JSON.stringify(extra.impactPreview).slice(0, 200)}`);
       if (extra.warning) console.log(`! ${extra.warning}`);
-      console.log(action === 'draft' ? `- Next: the human reads this and says freeze; then \`goal freeze --latest --run ${runId} --by <name>\`. Agents: add --json.` : '- Next: Maker (implement), then `gate maker --from-git`. Agents: add --json.');
+      console.log(action === 'draft' ? `- Next: ask the human to run \`goal freeze --latest --run ${runId} --by "<their name>"\` in their own terminal and type the confirmation. Agents: add --json. Do not freeze from this shell.` : '- Next: Maker (implement), then `gate maker --from-git`. Agents: add --json.');
       return;
     }
     console.log(JSON.stringify({ ok: true, runId, [action === 'show' ? 'draft' : 'result']: result, ...extra }, null, 2));
@@ -5168,7 +5171,7 @@ Commands:
                draft --from-design <doc.md> [--file <json>] --revision <n>   prefill from a design doc, record designRef
                freeze --revision <n> --hash <sha256> [--run <id>] --by <human>
                show --human [--run <id>]   the Goal as plain Markdown for people (STE style: short active sentences)
-               freeze --latest [--run <id>] --by <human>   newest draft; --by is the person who agreed (not agent or ael-agent)
+               freeze --latest [--run <id>] --by <human>   newest draft. A person types the confirmation in their terminal. A non-interactive shell is refused. --by is that person (not agent or ael-agent). Agents must not set AEL_GOAL_FREEZE_OK
                diagram --view state|storyboard|lanes [--run <id>] [--revision <n>] [--lang <tag>] [--open]   draw the Goal flow as HTML
   verification Summarize verification.json for compact Judge context
                summarize [--run <id>] [--json]

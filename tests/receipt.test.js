@@ -23,7 +23,7 @@ function ok(result, label) {
 function deliveredRun({ rows = ['AC-1', 'AC-2'], deliverArgs = [], design = false } = {}) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-receipt-home-'));
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-receipt-'));
-  const env = { ...process.env, HOME: home, USERPROFILE: home, AEL_HOME: home };
+  const env = { ...process.env, HOME: home, USERPROFILE: home, AEL_HOME: home, AEL_GOAL_FREEZE_OK: '1' };
   const git = (...args) => execFileSync('git', args, { cwd: repo, stdio: 'pipe', encoding: 'utf8' });
   git('init', '-q');
   fs.mkdirSync(path.join(repo, 'src'));

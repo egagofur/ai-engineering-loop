@@ -52,7 +52,7 @@ function size(file) {
 function measureScenario(scenario) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-measure-home-'));
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-measure-'));
-  const env = { ...process.env, HOME: home, USERPROFILE: home, AEL_HOME: home, AEL_NO_AUTO_UPDATE: '1' };
+  const env = { ...process.env, HOME: home, USERPROFILE: home, AEL_HOME: home, AEL_NO_AUTO_UPDATE: '1', AEL_GOAL_FREEZE_OK: '1' };
   const git = (...args) => execFileSync('git', args, { cwd: repo, stdio: 'pipe', encoding: 'utf8' });
   const commitWork = () => {
     git('add', '-A');

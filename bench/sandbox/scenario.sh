@@ -9,6 +9,8 @@
 # FIXED = the probe no longer sees it (update the card).
 
 set -u
+# Sandbox harness only. Agents must never set this. A real freeze is a human at a terminal.
+export AEL_GOAL_FREEZE_OK=1
 SCENARIO="${1:?usage: ael-scenario <name>}"
 APP=/work/app
 OUT=""

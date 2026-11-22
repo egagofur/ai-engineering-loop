@@ -4,6 +4,10 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+## 2.15.1 - 2026-11-22
+
+- **Fixed:** `goal freeze` no longer treats a `--by` name as approval. A non-interactive shell is refused for every name. The human types a short confirmation in their own terminal. Studio's Freeze click still counts. `AEL_GOAL_FREEZE_OK=1` is the test-suite hatch; agents must not set it (#162).
+
 ## 2.15.0 - 2026-11-22
 
 Feature map, PR babysit, issue red-repro, and a restatement before the Goal; agent-safety fixes from the e2e test; overnight contract, prototype spike, garden, and stacked-run docs.

@@ -9,6 +9,8 @@ const os = require('os');
 const path = require('path');
 const { spawnSync, execFileSync } = require('child_process');
 const { freezeGoal, saveGoalDraft } = require('../lib/goal-runtime.js');
+const { assertGoalFreezeApproval, challengeToken } = require('../lib/goal-freeze-approval.js');
+const HATCH = { env: { AEL_GOAL_FREEZE_OK: '1' } };
 const { createRun, loadRun, RUN_STATES } = require('../lib/run-state.js');
 
 const CLI = path.join(__dirname, '..', 'bin', 'ai-engineering-loop.js');
@@ -40,7 +42,7 @@ test('goal freeze rejects agent-like and empty actors and keeps the draft unfroz
     const runId = `run-${refused.indexOf(actor)}`;
     draft(root, runId);
     assert.throws(
-      () => freezeGoal(root, runId, { actor }),
+      () => freezeGoal(root, runId, { actor, ...HATCH }),
       (error) => error.code === 'GOAL_FREEZE_NOT_HUMAN' && /goal freeze/.test(error.fix),
       actor || '(empty)'
     );
@@ -50,17 +52,19 @@ test('goal freeze rejects agent-like and empty actors and keeps the draft unfroz
   for (const actor of ['human', 'pengguna', 'alice', 'studio-user', 'scripted-approver', 'ega']) {
     const runId = `ok-${actor}`;
     draft(root, runId);
-    const frozen = freezeGoal(root, runId, { actor });
+    const frozen = freezeGoal(root, runId, { actor, ...HATCH });
     assert.equal(frozen.goal.actor, actor);
     assert.equal(frozen.state, RUN_STATES.GOAL_FROZEN);
   }
 });
 
-function box(cwdDir) {
+function box(cwdDir, { allowFreeze = false } = {}) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-freeze-home-'));
   const env = { ...process.env, HOME: home, USERPROFILE: home, AEL_HOME: home, AEL_NO_SETUP_HINT: '1', AEL_NO_AUTO_UPDATE: '1' };
+  if (allowFreeze) env.AEL_GOAL_FREEZE_OK = '1';
+  else delete env.AEL_GOAL_FREEZE_OK;
   const cli = (...args) => spawnSync(process.execPath, [CLI, ...args], { cwd: cwdDir, env, encoding: 'utf8' });
-  return { cli };
+  return { cli, env };
 }
 
 function gitRepo() {
@@ -79,11 +83,12 @@ const RESTATE = {
   unknowns: 'None.'
 };
 
-test('CLI freeze refuses ael-agent and a missing --by, and accepts the human name', () => {
+test('a script cannot freeze, whatever --by is; the hatch still refuses an agent name', () => {
   const root = gitRepo();
-  const { cli } = box(root);
-  assert.strictEqual(cli('init').status, 0);
-  const started = cli('run', '--json', 'Add CSV export');
+  const blocked = box(root);
+  const allowed = box(root, { allowFreeze: true });
+  assert.strictEqual(blocked.cli('init').status, 0);
+  const started = blocked.cli('run', '--json', 'Add CSV export');
   const runId = JSON.parse(started.stdout.slice(started.stdout.search(/^\{/m))).runId;
   const goal = {
     schemaVersion: 1,
@@ -94,20 +99,113 @@ test('CLI freeze refuses ael-agent and a missing --by, and accepts the human nam
   };
   fs.mkdirSync(path.join(root, '.ai-engineering-loop', 'drafts'), { recursive: true });
   fs.writeFileSync(path.join(root, '.ai-engineering-loop', 'drafts', 'goal.json'), JSON.stringify(goal));
-  assert.strictEqual(cli('goal', 'draft', '--json', '--run', runId, '--file', '.ai-engineering-loop/drafts/goal.json', '--revision', '0').status, 0);
-  const self = cli('goal', 'freeze', '--json', '--latest', '--run', runId, '--by', 'ael-agent', '--confirm-impact');
-  assert.notStrictEqual(self.status, 0);
-  const body = JSON.parse(self.stdout);
-  assert.strictEqual(body.code, 'GOAL_FREEZE_NOT_HUMAN');
-  assert.match(body.why, /human/);
-  assert.match(body.fix, /goal freeze --latest/);
+  assert.strictEqual(blocked.cli('goal', 'draft', '--json', '--run', runId, '--file', '.ai-engineering-loop/drafts/goal.json', '--revision', '0').status, 0);
+  for (const actor of ['ael-agent', 'scripted-approver', 'pengguna', 'human', 'AEL Round3 Tester']) {
+    const refused = blocked.cli('goal', 'freeze', '--json', '--latest', '--run', runId, '--by', actor, '--confirm-impact');
+    assert.notStrictEqual(refused.status, 0, actor);
+    const body = JSON.parse(refused.stdout);
+    assert.strictEqual(body.code, 'GOAL_FREEZE_NEEDS_HUMAN', actor);
+    assert.match(body.why, /non-interactive/);
+    assert.match(body.fix, /Stop\./);
+    assert.match(body.fix, /their own terminal/);
+    assert.match(body.fix, /Do not set AEL_GOAL_FREEZE_OK/);
+    assert.match(body.fix, /goal freeze --latest/);
+  }
+  const piped = spawnSync(process.execPath, [CLI, 'goal', 'freeze', '--json', '--latest', '--run', runId, '--by', 'pengguna'], {
+    cwd: root,
+    env: blocked.env,
+    encoding: 'utf8',
+    input: 'freeze-abcdef\n'
+  });
+  assert.strictEqual(JSON.parse(piped.stdout).code, 'GOAL_FREEZE_NEEDS_HUMAN');
+  const missing = blocked.cli('goal', 'freeze', '--json', '--latest', '--run', runId);
+  assert.strictEqual(JSON.parse(missing.stdout).code, 'GOAL_FREEZE_NEEDS_HUMAN');
   const state = JSON.parse(fs.readFileSync(path.join(root, '.ai-engineering-loop', 'runs', runId, 'state.json'), 'utf8'));
   assert.notStrictEqual(state.state, 'GOAL_FROZEN');
-  const missing = cli('goal', 'freeze', '--json', '--latest', '--run', runId);
-  assert.strictEqual(JSON.parse(missing.stdout).code, 'GOAL_FREEZE_NOT_HUMAN');
-  const ok = cli('goal', 'freeze', '--json', '--latest', '--run', runId, '--by', 'pengguna');
+  const self = allowed.cli('goal', 'freeze', '--json', '--latest', '--run', runId, '--by', 'ael-agent');
+  assert.strictEqual(JSON.parse(self.stdout).code, 'GOAL_FREEZE_NOT_HUMAN');
+  const ok = allowed.cli('goal', 'freeze', '--json', '--latest', '--run', runId, '--by', 'pengguna');
   assert.strictEqual(ok.status, 0, ok.stdout + ok.stderr);
   assert.strictEqual(JSON.parse(ok.stdout).result.goal.actor, 'pengguna');
+});
+
+test('freezeGoal refuses a direct call with no human channel, including scripted-approver', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-freeze-channel-'));
+  for (const actor of ['pengguna', 'scripted-approver', 'alice', 'studio-user']) {
+    const runId = `run-${actor}`;
+    draft(root, runId);
+    assert.throws(
+      () => freezeGoal(root, runId, { actor, env: {} }),
+      (error) => error.code === 'GOAL_FREEZE_NEEDS_HUMAN' && /Do not set AEL_GOAL_FREEZE_OK/.test(error.fix)
+    );
+    assert.equal(loadRun(root, runId).state, RUN_STATES.STARTED);
+  }
+  const runId = 'studio';
+  draft(root, runId);
+  const frozen = freezeGoal(root, runId, { actor: 'studio-user', studioSession: true, env: {} });
+  assert.equal(frozen.goal.actor, 'studio-user');
+  assert.equal(frozen.state, RUN_STATES.GOAL_FROZEN);
+});
+
+test('the terminal challenge accepts only the printed token', () => {
+  const token = 'freeze-abc123';
+  assert.match(challengeToken(Buffer.from('abcd12', 'hex')), /^freeze-[a-f0-9]{6}$/);
+  let prompted = '';
+  const ok = assertGoalFreezeApproval({
+    runId: 'run-1',
+    actor: 'Ada Lovelace',
+    env: {},
+    stdin: { isTTY: true },
+    stderr: { write(chunk) { prompted += chunk; } },
+    readLine: () => token,
+    token
+  });
+  assert.strictEqual(ok.via, 'tty');
+  assert.match(prompted, /Ada Lovelace/);
+  assert.match(prompted, new RegExp(token));
+  assert.throws(
+    () => assertGoalFreezeApproval({
+      runId: 'run-1',
+      actor: 'Ada',
+      env: { AEL_GOAL_FREEZE_OK: 'true' },
+      stdin: { isTTY: false },
+      stderr: { write() { throw new Error('should not prompt'); } },
+      readLine: () => token
+    }),
+    (error) => error.code === 'GOAL_FREEZE_NEEDS_HUMAN'
+  );
+  let reads = 0;
+  assert.throws(
+    () => assertGoalFreezeApproval({
+      runId: 'run-1',
+      actor: 'scripted-approver',
+      env: {},
+      stdin: { isTTY: false },
+      stderr: { write() { throw new Error('should not prompt'); } },
+      readLine: () => { reads += 1; return token; }
+    }),
+    (error) => error.code === 'GOAL_FREEZE_NEEDS_HUMAN'
+  );
+  assert.strictEqual(reads, 0);
+  assert.strictEqual(assertGoalFreezeApproval({
+    runId: 'run-1',
+    actor: 'scripted-approver',
+    env: { AEL_GOAL_FREEZE_OK: '1' },
+    stdin: { isTTY: false },
+    stderr: { write() { throw new Error('should not prompt'); } }
+  }).via, 'hatch');
+  assert.throws(
+    () => assertGoalFreezeApproval({
+      runId: 'run-1',
+      actor: 'Ada',
+      env: {},
+      stdin: { isTTY: true },
+      stderr: { write() {} },
+      readLine: () => 'nope',
+      token
+    }),
+    (error) => error.code === 'GOAL_FREEZE_NEEDS_HUMAN' && /confirmation did not match/.test(error.message)
+  );
 });
 
 test('goal draft prints the git toplevel, including when the command runs from a subdirectory', () => {
@@ -156,5 +254,11 @@ test('the skill tells the agent to wait on a cancelled question and to pin the r
   assert.match(goal, /repoRoot/);
   assert.match(goal, /never `agent`, `ael-agent`/);
   assert.match(goal, /Never freeze yourself/);
+  assert.match(goal, /their own terminal/);
+  assert.match(goal, /Never type that confirmation/);
+  assert.match(goal, /Never set `AEL_GOAL_FREEZE_OK`/);
   assert.match(goal, /Do not search parent or sibling repos/);
+  assert.match(skill, /never set `AEL_GOAL_FREEZE_OK`/);
+  const hosts = fs.readFileSync(path.join(ROOT, 'skill-src', 'ael', 'references', 'loop-hosts.md'), 'utf8');
+  assert.match(hosts, /Never set `AEL_GOAL_FREEZE_OK`/);
 });

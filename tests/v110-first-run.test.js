@@ -37,7 +37,8 @@ function executionFixture(root) {
   freezeGoal(root, run.runId, {
     actor: 'tester',
     expectedRevision: draft.metadata.revision,
-    expectedHash: draft.metadata.contentHash
+    expectedHash: draft.metadata.contentHash,
+    env: { AEL_GOAL_FREEZE_OK: '1' }
   });
   return run;
 }
