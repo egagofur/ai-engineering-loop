@@ -23,6 +23,7 @@ Run these when the user asks how the loop is doing, before planning work, or whe
 - `.ai-engineering-loop/feature-map.md` (Feature | Where | Paths | How to reach | Driver): `review-pack` adds the features a diff touches; use those names and drivers for L3 evidence. `feature-map scaffold` drafts the table from routes, OpenAPI, pages, or the README (a stub if none) and never overwrites an edited map (`.ael-new`). `driver scaffold [--feature <id>]` writes a reusable driver (launch, drive, observe) per row and fills the Driver column; fill in its `EXPECT` and steps once, then reuse it every Run.
 - Dig before asking (`docs dig-first`): `.ai-engineering-loop/sources.md` lists readable sources (read-only); `sources hint` suggests queries, `sources record` caches one line each (budget T0 0, T1 4, T2 8). Goal `statements` label fact/decision/assumption; a fact needs `path:line`, a commit or a recorded `S-n`. Assumptions are shown, never blocking.
 - `doctor --harness`: harness debt (entry-file size and structure, stale learnings, rule provenance, skill budget). Report findings; do not mass-delete.
+- `refresh --garden` reports stale learnings, dead feature-map rows, and old Runs. It writes nothing until `--yes`. `--yes` never deletes Runs (`docs garden`).
 - `bench --without <integrity|l3|l1|smoke|rules>` measures whether a gate component still earns its cost (`docs bench`). Never use it on a real task.
 
 ## Personal workflow
