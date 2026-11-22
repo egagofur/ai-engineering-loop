@@ -174,8 +174,7 @@ Agents you install later are noticed by `status` and the background `update auto
 ```bash
 npx ai-engineering-loop sync-hosts --pack backend         # framework-agnostic backend best practices
 npx ai-engineering-loop sync-hosts --pack backend,design  # plus Emil Kowalski's MIT-licensed design/animation skills
-npx ai-engineering-loop sync-hosts --pack quality         # ael-code-simplifier + ael-receiving-code-review (opt-in)
-npx ai-engineering-loop sync-hosts --pack spec            # ael-spec-* design-doc skills from the EGM fork (docs spec-pack)
+# ael-spec (design docs from the EGM fork, docs spec-pack) and ael-code-simplifier are installed by default
 npx ai-engineering-loop sync-hosts --pack core --prune    # drop unmodified optional-pack files again
 ```
 

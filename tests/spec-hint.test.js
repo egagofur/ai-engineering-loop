@@ -36,9 +36,9 @@ test('T0/T1 runs carry no specHint; a new T2 run shows it once; a resumed T2 run
 
   const t2 = JSON.parse(cli('run', '--json', '--new', '--tier', 'T2', '--tier-reason', 'new webhook subsystem', 'Add', 'webhooks').stdout);
   assert.strictEqual(t2.tier, 'T2');
-  assert.match(t2.specHint, /ael-spec-brainstorm -> ael-spec-draft -> ael-spec-review/);
-  assert.match(t2.specHint, /sync-hosts --pack spec/);
-  assert.strictEqual((JSON.stringify(t2).match(/ael-spec-brainstorm/g) || []).length, 1);
+  assert.match(t2.specHint, /ael-spec skill: brainstorm -> draft -> review/);
+  assert.doesNotMatch(t2.specHint, /--pack spec/);
+  assert.strictEqual((JSON.stringify(t2).match(/ael-spec skill/g) || []).length, 1);
 
   const resumed = JSON.parse(cli('run', '--json').stdout);
   assert.strictEqual(resumed.resumed, true);
@@ -51,9 +51,9 @@ test('hosts doctor reports spec pack status and review mode without changing ok'
   const selection = { enabled: new Set(['claude', 'kiro']) };
   const before = hostsDoctor({ home, selection, plan: [] });
   for (const row of before.hosts) assert.strictEqual(row.spec.installed, false);
-  assert.match(formatHostsDoctor(before), /sync-hosts --pack spec/);
+  assert.match(formatHostsDoctor(before), /install the ael-spec design skill \(installed by default/);
 
-  applyHostSync({ packageRoot: ROOT, home, packs: 'spec' });
+  applyHostSync({ packageRoot: ROOT, home });
   const after = hostsDoctor({ home, selection, plan: [] });
   const claude = after.hosts.find((row) => row.id === 'claude');
   assert.deepStrictEqual(claude.spec, { installed: true, reviewMode: 'FRESH_SUBAGENT' });

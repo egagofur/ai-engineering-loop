@@ -436,23 +436,25 @@ test('sync backs up user-edited or untracked host files and not files it wrote i
 });
 
 // Issue #31: optional packs.
-test('default sync installs only the core pack; packs are opt-in, saved, and prunable', () => {
+test('default sync installs core, quality and spec; backend and design are opt-in, saved, and prunable', () => {
   const home = tmpHome();
   fs.mkdirSync(path.join(home, '.claude'));
   const results = applyHostSync({ packageRoot: ROOT, home });
-  assert.deepStrictEqual(results.packs, ['core']);
+  assert.deepStrictEqual(results.packs, ['core', 'quality', 'spec']);
   assert.ok(fs.existsSync(path.join(home, '.claude/skills/ael/SKILL.md')));
+  assert.ok(fs.existsSync(path.join(home, '.claude/skills/ael-spec/SKILL.md')));
+  assert.ok(fs.existsSync(path.join(home, '.claude/skills/ael-code-simplifier/SKILL.md')));
   assert.ok(!fs.existsSync(path.join(home, '.claude/skills/emil-design-eng')));
   assert.ok(!fs.existsSync(path.join(home, '.claude/skills/backend-development')));
   const skippedPacks = new Set(results.filter((item) => item.reason === 'pack-not-selected').map((item) => item.pack));
-  assert.deepStrictEqual([...skippedPacks].sort(), ['backend', 'design', 'quality', 'spec']);
+  assert.deepStrictEqual([...skippedPacks].sort(), ['backend', 'design']);
 
   applyHostSync({ packageRoot: ROOT, home, packs: 'design' });
   assert.ok(fs.existsSync(path.join(home, '.claude/skills/emil-design-eng/SKILL.md')));
   const config = JSON.parse(fs.readFileSync(path.join(home, '.ai-engineering-loop/config.json'), 'utf8'));
-  assert.deepStrictEqual(config.hostPacks, ['core', 'design']);
+  assert.deepStrictEqual(config.hostPacks, ['core', 'design', 'quality', 'spec']);
   // Saved selection is reused without arguments.
-  assert.deepStrictEqual(planHostSync({ packageRoot: ROOT, home }).packs, ['core', 'design']);
+  assert.deepStrictEqual(planHostSync({ packageRoot: ROOT, home }).packs, ['core', 'design', 'quality', 'spec']);
 
   // Without --prune, deselecting never deletes.
   applyHostSync({ packageRoot: ROOT, home, packs: 'core' });
@@ -474,7 +476,7 @@ test('legacy installs keep updating an optional pack that is already on disk', (
   fs.mkdirSync(path.dirname(legacy), { recursive: true });
   fs.writeFileSync(legacy, 'old backend skill\n');
   const plan = planHostSync({ packageRoot: ROOT, home });
-  assert.deepStrictEqual(plan.packs, ['core', 'backend']);
+  assert.deepStrictEqual(plan.packs, ['core', 'backend', 'quality', 'spec']);
   assert.strictEqual(plan.packSource, 'detected');
   assert.strictEqual(plan.find((item) => item.dest === legacy).action, 'copy');
 });

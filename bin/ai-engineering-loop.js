@@ -3559,8 +3559,8 @@ function specHintField(runResult) {
     installed = false;
   }
   return {
-    specHint: 'For a new feature or architecture change, design first: ael-spec-brainstorm -> ael-spec-draft -> ael-spec-review, then `goal draft --from-design docs/designs/<name>.md`.' +
-      (installed ? '' : ' Install with `sync-hosts --pack spec`.')
+    specHint: 'For a new feature or architecture change, design first with the ael-spec skill: brainstorm -> draft -> review, then `goal draft --from-design docs/designs/<name>.md`.' +
+      (installed ? '' : ' Install it with `sync-hosts`.')
   };
 }
 
@@ -5399,7 +5399,7 @@ Commands:
   sync-hosts   Install the loop skill and reviewer agents into every detected AI agent host
                (only hosts that already exist; DOT skills only if already installed)
                --dry-run       print the plan without writing
-               --pack <list>   core (always), backend, design, quality; saved for later syncs
+               --pack <list>   core, quality and spec (always), plus backend, design; saved for later syncs
                --prune         remove unmodified files of packs that are not selected
                --json          print machine-readable results
                User-edited host files are backed up to <file>.ael-backup before overwrite

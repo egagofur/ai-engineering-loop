@@ -1,6 +1,6 @@
 ---
 name: ael
-description: Use for a feature or bugfix in a repo with AI Engineering Loop: "please add", "please fix", "fix this bug", "build this feature", "tambahin fitur", "Use AI Engineering Loop", /ael, "run the engineering loop", "devil's advocate review", or init/refresh living project context. A one-line typo or "just change this line" is a direct edit, not this loop.
+description: Use for a feature or bugfix in a repo with AI Engineering Loop: "please add", "please fix", "fix this bug", "build this feature", "tambahin fitur", "Use AI Engineering Loop", /ael, "run the engineering loop", "devil's advocate review", acting on review or MR/PR comments, or init/refresh living project context. A one-line typo or "just change this line" is a direct edit, not this loop.
 ---
 <!-- Generated from skill-src/ by npm run build:skills; do not edit. -->
 
