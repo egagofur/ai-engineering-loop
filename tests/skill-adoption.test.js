@@ -1,6 +1,7 @@
 'use strict';
 
-// Issue #36: adopted skills follow the slim rules and stay out of the default install.
+// Issue #36: adopted skills follow the slim rules. Since 2.17 the quality and
+// spec packs are part of the default install (fewer, merged skills).
 
 const test = require('node:test');
 const assert = require('node:assert');
@@ -14,8 +15,7 @@ const { listPackageFiles } = require('../lib/package-audit.js');
 
 const ADOPTED = Object.freeze([
   'adapters/project-onboarding/SKILL.md',
-  'adapters/quality/skills/ael-code-simplifier/SKILL.md',
-  'adapters/quality/skills/ael-receiving-code-review/SKILL.md'
+  'adapters/quality/skills/ael-code-simplifier/SKILL.md'
 ]);
 
 function read(rel) {
@@ -46,7 +46,7 @@ test('using-dot-skills is not adopted anywhere in the package', () => {
   assert.doesNotMatch(read('lib/sync-hosts.js'), /using-dot-skills/);
 });
 
-test('project-onboarding ships in core; the quality pack is opt-in on every host', () => {
+test('project-onboarding and the quality pack install by default on every host; core alone still works', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-adopt-'));
   for (const dir of ['.claude', '.grok', '.gemini/antigravity', '.agents']) fs.mkdirSync(path.join(home, dir), { recursive: true });
   applyHostSync({ packageRoot: ROOT, home });
@@ -56,21 +56,18 @@ test('project-onboarding ships in core; the quality pack is opt-in on every host
   for (const root of roots) {
     assert.ok(fs.existsSync(path.join(home, root, 'project-onboarding/SKILL.md')), root);
     assert.ok(fs.existsSync(path.join(home, root, 'project-onboarding/references/output.md')), root);
-    for (const skill of QUALITY_SKILLS) assert.ok(!fs.existsSync(path.join(home, root, skill)), `${root}/${skill} installed by default`);
-  }
-  applyHostSync({ packageRoot: ROOT, home, packs: 'quality' });
-  for (const root of roots) {
-    for (const skill of QUALITY_SKILLS) assert.ok(fs.existsSync(path.join(home, root, skill, 'SKILL.md')), `${root}/${skill}`);
+    for (const skill of QUALITY_SKILLS) assert.ok(fs.existsSync(path.join(home, root, skill, 'SKILL.md')), `${root}/${skill} not installed by default`);
+    assert.ok(!fs.existsSync(path.join(home, root, 'ael-receiving-code-review')), `${root}: merged into loop-judge`);
   }
   // Identical bytes in every folder: no per-host overlay (Grok defaults user-invocable to true).
   const copies = roots.map((root) => fs.readFileSync(path.join(home, root, 'ael-code-simplifier/SKILL.md'), 'utf8'));
   assert.ok(copies.every((c) => c === copies[0]));
-  assert.deepStrictEqual(planHostSync({ packageRoot: ROOT, home }).packs, ['core', 'quality']);
+  assert.deepStrictEqual(planHostSync({ packageRoot: ROOT, home }).packs, ['core', 'quality', 'spec']);
 });
 
 test('merged rules land in their target files without growing SKILL.md', () => {
   assert.match(read('skill-src/ael/references/loop-verify.md'), /No claim without fresh evidence/);
-  assert.match(read('skill-src/ael/references/loop-judge.md'), /ael-receiving-code-review/);
+  assert.match(read('skill-src/ael/references/loop-judge.md'), /## Acting on findings[\s\S]*Feedback is a claim to check[\s\S]*F-<id> <valid\|invalid\|out-of-scope\|unclear>/);
   const rca = read('core/root-cause-analysis.md');
   assert.match(rca, /Trace backward/);
   assert.match(rca, /Three strikes/);
@@ -99,14 +96,9 @@ test('ael-code-simplifier does not clash with the dot-plugin code-simplifier ski
   assert.ok(!fs.existsSync(path.join(ROOT, 'adapters/quality/skills/code-simplifier')));
 });
 
-test('ael-receiving-code-review does not clash with the dot-plugin receiving-code-review skill', () => {
+test('no AEL quality skill clashes with a dot-plugin skill; receiving-code-review is no longer a skill', () => {
   const dot = new Set(JSON.parse(read('tests/fixtures/dot-plugin-skill-names.json')).skills);
-  assert.ok(dot.has('receiving-code-review'));
-  assert.ok(!dot.has('ael-receiving-code-review'));
-  assert.ok(QUALITY_SKILLS.includes('ael-receiving-code-review'));
-  assert.ok(!QUALITY_SKILLS.includes('receiving-code-review'));
-  assert.match(read('adapters/quality/skills/ael-receiving-code-review/SKILL.md'), /^name: ael-receiving-code-review$/m);
-  assert.ok(!fs.existsSync(path.join(ROOT, 'adapters/quality/skills/receiving-code-review')));
-  // No AEL quality skill shares a name with a dot-plugin skill.
+  assert.deepStrictEqual([...QUALITY_SKILLS], ['ael-code-simplifier']);
+  assert.ok(!fs.existsSync(path.join(ROOT, 'adapters/quality/skills/ael-receiving-code-review')));
   for (const name of QUALITY_SKILLS) assert.ok(!dot.has(name), `${name} clashes with dot-plugin`);
 });

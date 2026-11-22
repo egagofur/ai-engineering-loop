@@ -4,7 +4,8 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
-_No changes yet._
+- **Changed:** fewer, merged skills. The six `ael-spec-*` skills are now one `ael-spec` skill: pick a stage with `/ael-spec brainstorm|draft|review|review loop|resolve|drift`, and the skill reads only that stage's reference. `ael-receiving-code-review` is merged into `loop-judge` ("Acting on findings"), and the `ael` skill now also triggers on review or MR/PR comments. Hosts list three AEL entries (`ael`, `ael-spec`, `ael-code-simplifier`) instead of nine.
+- **Changed:** the `spec` and `quality` packs are installed by default with `core`; `backend` and `design` stay opt-in. On the next `sync-hosts`, the old `ael-spec-*` and `ael-receiving-code-review` skills are removed when unedited (edited copies are kept). `scripts/sync-spec-pack.js` still generates the skill from `vendor/egm/`.
 
 ## 2.16.0 - 2026-11-22
 
