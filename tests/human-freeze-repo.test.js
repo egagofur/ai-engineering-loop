@@ -12,6 +12,7 @@ const { freezeGoal, saveGoalDraft } = require('../lib/goal-runtime.js');
 const { assertGoalFreezeApproval, challengeToken } = require('../lib/goal-freeze-approval.js');
 const HATCH = { env: { AEL_GOAL_FREEZE_OK: '1' } };
 const { createRun, loadRun, RUN_STATES } = require('../lib/run-state.js');
+const { updatePolicy } = require('../lib/runtime-policy.js');
 
 const CLI = path.join(__dirname, '..', 'bin', 'ai-engineering-loop.js');
 const ROOT = path.join(__dirname, '..');
@@ -83,11 +84,12 @@ const RESTATE = {
   unknowns: 'None.'
 };
 
-test('a script cannot freeze, whatever --by is; the hatch still refuses an agent name', () => {
+test('strict mode: a script cannot freeze, whatever --by is; the hatch still refuses an agent name', () => {
   const root = gitRepo();
   const blocked = box(root);
   const allowed = box(root, { allowFreeze: true });
   assert.strictEqual(blocked.cli('init').status, 0);
+  assert.strictEqual(blocked.cli('policy', 'set', '--goal-freeze', 'strict').status, 0);
   const started = blocked.cli('run', '--json', 'Add CSV export');
   const runId = JSON.parse(started.stdout.slice(started.stdout.search(/^\{/m))).runId;
   const goal = {
@@ -129,8 +131,9 @@ test('a script cannot freeze, whatever --by is; the hatch still refuses an agent
   assert.strictEqual(JSON.parse(ok.stdout).result.goal.actor, 'pengguna');
 });
 
-test('freezeGoal refuses a direct call with no human channel, including scripted-approver', () => {
+test('strict mode: freezeGoal refuses a direct call with no human channel, including scripted-approver', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-freeze-channel-'));
+  updatePolicy(root, { goalFreeze: 'strict' });
   for (const actor of ['pengguna', 'scripted-approver', 'alice', 'studio-user']) {
     const runId = `run-${actor}`;
     draft(root, runId);
@@ -302,12 +305,52 @@ test('the skill tells the agent to wait on a cancelled question and to pin the r
   assert.match(goal, /git rev-parse --show-toplevel/);
   assert.match(goal, /repoRoot/);
   assert.match(goal, /never `agent`, `ael-agent`/);
-  assert.match(goal, /Never freeze yourself/);
-  assert.match(goal, /their own terminal/);
-  assert.match(goal, /Never type that confirmation/);
+  assert.match(goal, /\*\*Freeze\*\* \/ \*\*Revise\*\*/);
+  assert.match(goal, /Only after Freeze/);
   assert.match(goal, /Never set `AEL_GOAL_FREEZE_OK`/);
   assert.match(goal, /Do not search parent or sibling repos/);
   assert.match(skill, /never set `AEL_GOAL_FREEZE_OK`/);
   const hosts = fs.readFileSync(path.join(ROOT, 'skill-src', 'ael', 'references', 'loop-hosts.md'), 'utf8');
   assert.match(hosts, /Never set `AEL_GOAL_FREEZE_OK`/);
+  assert.match(hosts, /`goalFreeze: strict`[^\n]*their own terminal[^\n]*never type it/);
+  assert.match(hosts, /wait for the word "freeze"/);
 });
+
+test('#170 default host-question mode: a non-interactive freeze by a human name works and records how it was approved', () => {
+  const root = gitRepo();
+  const agent = box(root);
+  assert.strictEqual(agent.cli('init').status, 0);
+  const policy = JSON.parse(agent.cli('policy', 'show', '--json').stdout);
+  assert.strictEqual(policy.goalFreeze, 'host-question');
+  const started = agent.cli('run', '--json', 'Add CSV export');
+  const runId = JSON.parse(started.stdout.slice(started.stdout.search(/^\{/m))).runId;
+  fs.mkdirSync(path.join(root, '.ai-engineering-loop', 'drafts'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.ai-engineering-loop', 'drafts', 'goal.json'), JSON.stringify({
+    schemaVersion: 1, runId, objective: 'Export the filtered report as CSV.', restatement: RESTATE,
+    acceptanceCriteria: [{ id: 'AC-1', statement: 'Export saves only the filtered rows.', evidenceRequired: 'unit test', failureCases: ['The CSV ignores the filter.'] }]
+  }));
+  assert.strictEqual(agent.cli('goal', 'draft', '--json', '--run', runId, '--file', '.ai-engineering-loop/drafts/goal.json', '--revision', '0').status, 0);
+  for (const actor of ['ael-agent', 'scripted-approver', 'claude-sonnet']) {
+    const refused = agent.cli('goal', 'freeze', '--json', '--latest', '--run', runId, '--by', actor);
+    assert.notStrictEqual(refused.status, 0, actor);
+    assert.strictEqual(JSON.parse(refused.stdout).code, 'GOAL_FREEZE_NOT_HUMAN', actor);
+  }
+  const ok = agent.cli('goal', 'freeze', '--json', '--latest', '--run', runId, '--by', 'AEL Round3 Tester');
+  assert.strictEqual(ok.status, 0, ok.stdout + ok.stderr);
+  const goal = JSON.parse(ok.stdout).result.goal;
+  assert.strictEqual(goal.actor, 'AEL Round3 Tester');
+  assert.strictEqual(goal.approval, 'host-question');
+  assert.strictEqual(agent.cli('policy', 'set', '--goal-freeze', 'loose').status === 0, false);
+});
+
+test('#170 freezeGoal records the channel: studio, host-question by default', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-freeze-default-'));
+  draft(root, 'host');
+  assert.equal(freezeGoal(root, 'host', { actor: 'pengguna', env: {} }).goal.approval, 'host-question');
+  draft(root, 'studio');
+  assert.equal(freezeGoal(root, 'studio', { actor: 'studio-user', studioSession: true, env: {} }).goal.approval, 'studio');
+  updatePolicy(root, { goalFreeze: 'strict' });
+  draft(root, 'strict');
+  assert.throws(() => freezeGoal(root, 'strict', { actor: 'pengguna', env: {} }), (error) => error.code === 'GOAL_FREEZE_NEEDS_HUMAN');
+});
+

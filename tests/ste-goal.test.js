@@ -146,3 +146,12 @@ test('goal draft refuses a missing or blank restatement', () => {
   const blank = cli('goal', 'draft', '--json', '--run', runId, '--file', '.ai-engineering-loop/drafts/goal.json', '--revision', '0');
   assert.strictEqual(JSON.parse(blank.stdout).code, 'RESTATEMENT_MISSING');
 });
+
+test('#154 adjectives that end in -ing are not flagged; real participle openings still are', () => {
+  for (const text of ['missing id throws', 'missing id returns undefined', 'Existing rows stay unchanged.', 'Pending jobs keep their order.', 'Running the export twice keeps one file.']) {
+    assert.ok(!steFindings(text).some((item) => item.rule === 'no-ing-start'), text);
+  }
+  for (const text of ['Keeping the filter, the page reloads.', 'Returning early, the API skips validation.']) {
+    assert.ok(steFindings(text).some((item) => item.rule === 'no-ing-start'), text);
+  }
+});

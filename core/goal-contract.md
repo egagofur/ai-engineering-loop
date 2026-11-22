@@ -86,8 +86,11 @@ Each AC is one row that can **fail**. Happy path alone is not a contract (`polic
 4. **Chat is not the contract**:
    - Parent-transcript `setuju` does not freeze AC.
    - Every user-visible grill decision (order of pages, enable flags, layout) MUST appear as AC-1..N in the contract file before Maker starts.
-   - `goal freeze --by <name>` records the person who agreed. The name may be a display name with spaces and letters, such as `AEL Round3 Tester` or `José Müller`. A non-interactive shell cannot freeze: the human runs the command in their own terminal and types the short confirmation it prints. An empty name, `agent`, `ael-agent`, and a model id (`deepseek-flash`) are still refused after that confirmation. `studio-user` is a human click in Studio and still counts.
-   - Agents stop and ask the human to do that. They never type the confirmation and never set `AEL_GOAL_FREEZE_OK` (the test suite and bench harness only).
+   - `goal freeze --by <name>` records the person who agreed. The name may be a display name with spaces and letters, such as `AEL Round3 Tester` or `José Müller`. An empty name, `agent`, `ael-agent`, and a model id (`deepseek-flash`) are refused. `studio-user` is a human click in Studio and counts.
+   - How the human approves depends on `goalFreeze` in `runtime-policy.json` (`ael policy set --goal-freeze host-question|strict`):
+     - `host-question` (default): the agent shows the Goal (`goal show --human`) and asks one question with the host's buttons, **Freeze** / **Revise** (Claude Code `AskUserQuestion`, Antigravity, Cursor, OpenCode and others' option UI; a plain chat question where there is none). Only after the human picks Freeze does the agent run `goal freeze --json --latest --by "<human name>"`. It works in a non-interactive shell and needs no code. The Run records `goal.approval: "host-question"`. The CLI cannot see the click; it relies on the skill. Use strict when you need hard enforcement.
+     - `strict`: the human clicks Freeze in Studio, or runs `goal freeze` in their own terminal and types the short code it prints (`goal.approval: "studio"` or `"tty"`). A non-interactive shell is refused with `GOAL_FREEZE_NEEDS_HUMAN`.
+   - Agents never type the strict code and never set `AEL_GOAL_FREEZE_OK` (the test suite and bench harness only).
    - A cancelled or unanswered question is not agreement. Stop and wait. Do not freeze.
    - `goal draft` returns `repoRoot`, the git toplevel. Draft only when that path is the project the human named.
 
