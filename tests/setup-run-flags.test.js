@@ -11,7 +11,9 @@ const { spawnSync, execFileSync } = require('child_process');
 
 const CLI = path.join(__dirname, '..', 'bin', 'ai-engineering-loop.js');
 
-function cli(home, args, cwd = home) {
+const INHERITED_PATH = Object.entries(process.env).find(([key]) => key.toUpperCase() === 'PATH')?.[1] || '';
+
+function cli(home, args, cwd = home, { pathValue = [path.dirname(process.execPath), '/usr/bin', '/bin'].join(path.delimiter) } = {}) {
   const base = Object.fromEntries(Object.entries(process.env).filter(([key]) => key.toUpperCase() !== 'PATH'));
   return spawnSync(process.execPath, [CLI, ...args], {
     cwd,
@@ -23,7 +25,7 @@ function cli(home, args, cwd = home) {
       AEL_HOME: home,
       AEL_NO_SETUP_HINT: '1',
       AEL_NO_AUTO_UPDATE: '1',
-      PATH: [path.dirname(process.execPath), '/usr/bin', '/bin'].join(path.delimiter)
+      PATH: pathValue
     }
   });
 }
@@ -48,18 +50,19 @@ test('an unknown run flag is rejected and does not replace the active Run', () =
   fs.writeFileSync(path.join(repo, 'package.json'), '{"name":"p","scripts":{"test":"node -e 0"}}\n');
   execFileSync('git', ['-c', 'user.email=a@b.c', '-c', 'user.name=t', 'add', '-A'], { cwd: repo });
   execFileSync('git', ['-c', 'user.email=a@b.c', '-c', 'user.name=t', 'commit', '-qm', 'init'], { cwd: repo });
-  assert.strictEqual(cli(home, ['init'], repo).status, 0);
-  const started = cli(home, ['run', '--json', 'Add CSV export'], repo);
+  const runCli = (args) => cli(home, args, repo, { pathValue: INHERITED_PATH });
+  assert.strictEqual(runCli(['init']).status, 0);
+  const started = runCli(['run', '--json', 'Add CSV export']);
   assert.strictEqual(started.status, 0, started.stdout + started.stderr);
   const runId = JSON.parse(started.stdout.slice(started.stdout.search(/^\{/m))).runId;
-  const bogus = cli(home, ['run', '--new', '--totally-bogus', '1', '--json'], repo);
+  const bogus = runCli(['run', '--new', '--totally-bogus', '1', '--json']);
   assert.strictEqual(bogus.status, 1);
   const body = JSON.parse(bogus.stdout);
   assert.strictEqual(body.code, 'INVALID_USAGE');
   assert.match(body.error, /--totally-bogus/);
   assert.match(body.why, /active Run/);
   assert.match(body.fix, /ael run/);
-  const near = cli(home, ['run', '--from-issu', '99', '--json'], repo);
+  const near = runCli(['run', '--from-issu', '99', '--json']);
   assert.strictEqual(near.status, 1);
   assert.match(JSON.parse(near.stdout).error, /--from-issue/);
   const current = JSON.parse(fs.readFileSync(path.join(repo, '.ai-engineering-loop/runs/current.json'), 'utf8'));
