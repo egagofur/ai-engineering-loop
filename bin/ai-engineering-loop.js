@@ -1544,6 +1544,28 @@ function currentRunSafe(dir) {
   }
 }
 
+function requiredFlag(name, fix) {
+  const index = process.argv.indexOf(name);
+  if (index === -1) return null;
+  const value = process.argv[index + 1];
+  if (!value || value.startsWith('-')) {
+    throw Object.assign(new Error(`${name} needs a value.`), { code: 'INVALID_USAGE', why: 'The bug report source was missing.', fix });
+  }
+  return value;
+}
+
+// Bug report -> one red-repro Goal. The Run itself is unchanged after the draft.
+function reproIntake() {
+  const fromIssue = requiredFlag('--from-issue', 'ael run --from-issue <url|#n>');
+  const fromReport = requiredFlag('--from-report', 'ael outcome repro --file <path>');
+  if (!fromIssue && !fromReport) return null;
+  if (fromIssue && fromReport) {
+    throw Object.assign(new Error('Pass --from-issue or --from-report, not both.'), { code: 'INVALID_USAGE', why: 'One bug report starts one Run.', fix: 'ael run --from-issue <url|#n>' });
+  }
+  const issueRepro = require('../lib/issue-repro.js');
+  return fromIssue ? issueRepro.readIssue(CWD, fromIssue) : issueRepro.readReportFile(CWD, fromReport);
+}
+
 function handleRun() {
   if (process.argv.includes('--abandon')) return handleRunAbandon();
   const runJson = process.argv.includes('--json');
@@ -1581,12 +1603,27 @@ function handleRun() {
       index += 1;
       continue;
     }
+    if (['--from-issue', '--from-report'].includes(runArgs[index])) {
+      index += 1;
+      continue;
+    }
     taskParts.push(runArgs[index]);
   }
-  const task = taskParts.join(' ').trim();
-  if (runArgs.includes('--worktree')) return startWorktreeRun(task, runArgs, runJson, realLog);
+  let task = taskParts.join(' ').trim();
   let runResult;
+  let repro = null;
   try {
+    repro = reproIntake();
+    if (repro && task) {
+      throw Object.assign(new Error('A bug-report Run takes its task from the report.'), { code: 'INVALID_USAGE', why: 'The issue title is the task, so extra words would start a different Run.', fix: 'ael run --from-issue <url|#n>' });
+    }
+    if (repro) task = repro.title;
+    if (runArgs.includes('--worktree')) {
+      if (repro) {
+        throw Object.assign(new Error('--from-issue starts the Run in this checkout.'), { code: 'INVALID_USAGE', why: 'The red-repro Goal is drafted on the Run created here.', fix: 'ael run --from-issue <url|#n>' });
+      }
+      return startWorktreeRun(task, runArgs, runJson, realLog);
+    }
     const current = getCurrentRun(CWD);
     if (!task && (forceNew || !current || TERMINAL_STATES.has(current.state))) {
       throw Object.assign(new Error('run needs a task when no Run is in progress'), { code: 'INVALID_USAGE', why: 'A Run is bound to one task; an empty task cannot be tiered, gated or delivered.', fix: 'ai-engineering-loop run "Add CSV export to the report page"' });
@@ -1656,6 +1693,7 @@ function handleRun() {
       ...(requestedRunId ? { runId: requestedRunId } : {})
     });
     assertBudgetAvailable(CWD, { runId: runResult.run.runId });
+    if (repro) runResult.repro = require('../lib/issue-repro.js').attachReproGoal(CWD, runResult.run.runId, repro);
   } catch (err) {
     console.log = realLog;
     if (runJson) {
@@ -1706,11 +1744,21 @@ function handleRun() {
         return hint ? { worktreeHint: hint } : {};
       })(),
       ...specHintField(runResult),
+      ...(runResult.repro ? { repro: runResult.repro } : {}),
       studioUrl: readStudioUrl(CWD)
     }, null, 2));
     return;
   }
   console.log(`- Run: ${runResult.run.runId} (${runResult.resumed ? 'resumed' : 'created'})`);
+  if (runResult.repro) {
+    const draft = runResult.repro;
+    console.log(`- Red repro: ${draft.failingBehavior}`);
+    console.log(`- Verify (fails today): ${draft.command}`);
+    console.log(`- Issue reader: read-only (${draft.source}${draft.ref ? `, ${draft.ref}` : ''}).`);
+    console.log(draft.drafted
+      ? `- Goal draft revision ${draft.revision}. Next: \`goal show --run ${runResult.run.runId} --human\`, then the human freezes. Maker, verify, Devil's Advocate, Judge, and deliver --approve follow.`
+      : `- Goal draft already present (revision ${draft.revision}).`);
+  }
   if (runResult.run.tier) {
     const t = runResult.run.tier;
     console.log(`- Tier: ${t.current} (${t.source}; ${t.reasons.map((r) => r.code).join(', ')})`);
@@ -1740,7 +1788,9 @@ function handleRun() {
     log.dim(SETUP_HINT);
   }
   log.bold('Agent checklist:');
-  console.log('1. Grill if needed (docs grill-policy), then freeze a failure-table Goal Contract');
+  console.log(runResult.repro
+    ? '1. Red-repro Goal is drafted. Show it and wait for the human to freeze (docs root-cause-analysis)'
+    : '1. Grill if needed (docs grill-policy), then freeze a failure-table Goal Contract');
   if (runResult.run.mode === RUN_MODES.REPORT_ONLY) {
     console.log('2. Analyze evidence without changing repository files');
     console.log('3. Write report.json; if the host has a subagent tool, have ONE fresh devil-advocate challenge it (no Judge), and record `review` in report.json (loop-maker)');
@@ -3963,7 +4013,17 @@ function handleOutcome() {
   const json = process.argv.includes('--json');
   try {
     const action = args[1] && !args[1].startsWith('--') ? args[1] : null;
-    if (action !== 'record') throw Object.assign(new Error('outcome supports: record --run <id> --source mr-comment|revert|bug|incident --location <file[:line]> --summary <text> --by <name> [--evidence <path|url>]'), { code: 'INVALID_USAGE' });
+    if (action === 'repro') {
+      const file = argValue('--file');
+      if (!file || file.startsWith('-')) {
+        throw Object.assign(new Error('outcome repro needs --file <path> with the pasted bug report.'), { code: 'INVALID_USAGE', why: 'Without a live issue reader, the bug report is a local file.', fix: 'ael outcome repro --file .ai-engineering-loop/drafts/bug-report.md' });
+      }
+      process.once('exit', () => projectRegistry.registerProject(CWD));
+      process.argv = [process.argv[0], process.argv[1], 'run', '--from-report', file, ...(json ? ['--json'] : [])];
+      return handleRun();
+    }
+    if (action !== 'record') throw Object.assign(new Error('outcome supports: record --run <id> --source mr-comment|revert|bug|incident --location <file[:line]> --summary <text> --by <name> [--evidence <path|url>] | repro --file <path>'), { code: 'INVALID_USAGE' });
+    if (argValue('--file')) throw Object.assign(new Error('outcome record does not take --file.'), { code: 'INVALID_USAGE', fix: 'ael outcome repro --file <path>' });
     const entry = require('../lib/calibration.js').recordOutcome(CWD, {
       runId: argValue('--run'),
       source: argValue('--source'),
@@ -4827,6 +4887,9 @@ Commands:
                --recipe <id>  bind an immutable compiled workflow plan
                --tier T0|T1|T2 --tier-reason <text>  override the automatic tier (recorded)
                --json  print runId, tier, tier reasons, subagent count, recipe, workflowSource, and studioUrl (tokenless; browser session comes from ael studio)
+               --from-issue <url|#n>  read one GitHub (gh) or GitLab (glab) issue and draft a red-repro Goal, then the normal loop
+                      read-only: never comments or edits the issue. No gh/glab: outcome repro --file <path>
+               --from-report <path>  same draft from a pasted report (outcome repro --file)
                --abandon [--run <id>] --reason <text> --by <name> [--yes] [--force-live] [--json]
                       close a stale run as CANCELLED (kept on disk) and release current.json;
                       ASSISTED asks to confirm, UNATTENDED needs --yes from a human
@@ -4919,6 +4982,7 @@ Commands:
                bench compare <benchIdA> <benchIdB> [--json]   read-only side-by-side table
   outcome      record --run <id> --source mr-comment|revert|bug|incident --location <file[:line]> --summary <text> --by <name>
                a post-delivery problem traced to a Run (input for calibrate)
+               repro --file <path> [--json]  pasted bug report -> one red-repro Goal, then the normal loop (read-only)
   calibrate    Compare recorded outcomes with each Run's Finding Ledger: DA misses, wrong dismissals, per reviewer prompt
   debt         Accepted trade-offs and L3 waivers recorded at delivery: list [--file <path>] | close <id> --by <name> [--note <text>]
   next         Next unblocked feature from .ai-engineering-loop/features.json, VCR (verified/activated), evidence audit [--json]

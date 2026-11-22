@@ -6,6 +6,7 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 - **Added:** `feature-map scaffold` drafts `.ai-engineering-loop/feature-map.md` (Feature | Where | Paths | How to reach | Driver) from routes, an OpenAPI or Swagger document, page files, or README headings. No signal writes a stub table with no rows. An edited map is never overwritten; the new draft is `feature-map.md.ael-new`. `init` and project onboarding offer the command and do not run it unless you say yes. `driver scaffold` names this command when the map is missing.
 - **Added:** `pr babysit --run <id>` polls PR status with backoff. Failing checks start a T0 or T1 fix Run on the same branch and push it. Ready to merge, or changes requested, stops for a human. Merge stays with the human. `GH_UNAVAILABLE` matches `pr status` (`docs run-isolation`).
+- **Added:** `run --from-issue <url|#n>` reads one GitHub issue (`gh issue view`) or GitLab issue (`glab issue view`) and drafts a red-repro Goal: one failing behavior plus the verify command that fails today. `outcome repro --file <path>` does the same from a pasted report. The issue connector is read-only (no comment, create, or edit). The Run then follows the normal loop (freeze, Maker, verification, Devil's Advocate, Judge, human-approved delivery). See `docs root-cause-analysis`.
 
 ## 2.14.1 - 2026-11-21
 

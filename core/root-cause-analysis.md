@@ -22,6 +22,33 @@ Use a gated diagnosis loop. Do not skip a gate.
 5. **Fix.** Only after one hypothesis is confirmed. The fix is Stage 4, still test-first at the agreed seam (`policies/tdd-policy.md`).
 6. **Regression test.** The red repro becomes a kept test mapped to an AC.
 
+## Start from a bug report
+
+`ael run --from-issue <url|#n>` reads one issue and drafts the Goal. The Run then stays on the normal loop: the human freezes the Goal, then Maker, verification, Devil's Advocate, Judge, and human-approved delivery. That loop does not change.
+
+The reader is read-only. It never comments, creates, closes, or edits the issue.
+
+| Host | Command |
+|---|---|
+| GitHub | `gh issue view <url-or-number> --json number,title,body,url,state` |
+| GitLab | `glab issue view <number> --output json` |
+
+A `#n` uses the origin host (`gh` on GitHub, `glab` on GitLab). A full issue URL names the host. If `gh` or `glab` is missing or not signed in, paste the report and run `ael outcome repro --file <path>` (`run --from-report <path>` is the same draft).
+
+The draft has one acceptance criterion. `failureCases` is the concrete failing behavior. `verify.command` is the command that fails today. The Maker still sees that command red before the fix.
+
+When the issue text has neither, put them in the report:
+
+```markdown
+# Export ignores the active filter
+
+Actual: The CSV contains rows the filter hid.
+
+Verify: npm test -- export.test.js
+```
+
+`Verify:`, `Driver:`, or `Command:` is the command. A `bash` fence, or the first command under a Repro / Steps heading, works too. `Actual:` (or an Actual heading) is the failing behavior. The first of each wins. AEL does not invent a command.
+
 ## When fixes keep failing
 
 - **Trace backward.** Start at the wrong value or symptom and walk up the call chain to where it first became wrong. Fix it there, not where it surfaced.

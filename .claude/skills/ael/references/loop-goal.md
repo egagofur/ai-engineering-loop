@@ -4,6 +4,7 @@
 - If the user asks for ideas, list a short menu and wait; do not implement.
 - Ambiguous task the user can answer: grill first (`docs grill-policy`): design tree, recommended answers, never ask look-up facts. T2 adds `loop-risky`.
 - If the user prompt has no numbered AC, draft the contract (`docs goal-contract` if needed), list it, and wait. Chat agreement is not freeze.
+- A bug report already drafted by `run --from-issue` or `outcome repro` has one red-repro AC. Show it and wait for freeze (`docs root-cause-analysis`).
 - AC is a failure table: each row has a statement, required evidence, and failure cases. Do not freeze sunny-path-only. T0 may use 1-3 rows that still list failure cases.
 - Boundary-crossing AC (UI-API, service-DB, queue, IPC): `crossComponent: true`; needs L3.
 - Optional per AC: `verify.command` (Judge PASS needs it green), `rubric` for subjective ACs; Goal `featureId` links `features.json`; Goal `flow` (from/event/to) for UI work: show its table with the draft (`docs goal-contract`).
