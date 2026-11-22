@@ -4896,6 +4896,62 @@ function learnFromTranscripts(json) {
   }
 }
 
+function handleOvernight() {
+  const json = process.argv.includes('--json');
+  const sub = args[1] && !String(args[1]).startsWith('-') ? args[1] : 'check';
+  const fail = (err) => stageJsonError(err, json, 'OVERNIGHT_FAILED');
+  if (sub !== 'check') {
+    fail(Object.assign(new Error('Use: overnight check [--run <id>] [--json]'), {
+      code: 'INVALID_USAGE',
+      why: 'The overnight contract is checked against one Run.',
+      fix: 'ael overnight check --run <id>'
+    }));
+  }
+  try {
+    const valued = new Set(['--run']);
+    const flags = new Set(['--json']);
+    const scoped = process.argv.slice(3);
+    for (let index = 0; index < scoped.length; index += 1) {
+      const token = scoped[index];
+      if (token === 'check') continue;
+      if (!token.startsWith('-')) {
+        throw Object.assign(new Error(`Unexpected argument ${token}.`), { code: 'INVALID_USAGE', fix: 'ael overnight check --run <id>' });
+      }
+      if (valued.has(token)) {
+        const value = scoped[index + 1];
+        if (!value || value.startsWith('-')) throw Object.assign(new Error(`${token} needs a value.`), { code: 'INVALID_USAGE', fix: 'ael overnight check --run <id>' });
+        index += 1;
+        continue;
+      }
+      if (!flags.has(token)) throw Object.assign(new Error(`Unknown flag ${token}.`), { code: 'INVALID_USAGE', fix: 'ael overnight check --run <id>' });
+    }
+    const result = require('../lib/overnight.js').morningReview(CWD, { runId: argValue('--run') });
+    if (json) console.log(JSON.stringify(result, null, 2));
+    else {
+      console.log(`Overnight contract (${result.contract.id})`);
+      if (!result.runId) {
+        console.log('No current Run.');
+        console.log(`May: ${result.contract.mayDo.join('; ')}`);
+        console.log(`Must not: ${result.contract.mustNot.join('; ')}`);
+        console.log(`Stop when: ${result.contract.stopWhen.join(', ')}`);
+        console.log('FIX: ael overnight check --run <id>');
+      } else {
+        console.log(`Run ${result.runId} ${result.mode} ${result.state}`);
+        console.log(`Applies: ${result.applies ? 'yes' : 'no'}`);
+        console.log(`May continue: ${result.mayContinue ? 'yes' : 'no'}`);
+        console.log(`Stop: ${result.stopReason || '(none)'}`);
+        console.log(`Morning missing: ${result.morning.missing.join(', ') || '(none)'}`);
+        console.log(`Questions: ${result.morning.questions.length}`);
+        if (!result.violations.length) console.log('Violations: (none)');
+        for (const item of result.violations) console.log(`Violation ${item.id}: ${item.why} FIX: ${item.fix}`);
+      }
+    }
+    if (!result.ok) process.exitCode = 1;
+  } catch (err) {
+    fail(err);
+  }
+}
+
 function handleLearn() {
   const json = process.argv.includes('--json');
   if (args[1] === 'promote') {
@@ -5143,6 +5199,10 @@ Commands:
                built-in instead of --check: --forbid-import "<fromGlob> -> <toGlob>" | --forbid-api "<regex>" [--except <glob>]
   rules check <ruleId>   run a built-in rule on the added lines (used by verify)
                turn a recurring review lesson into an executable L1 rule (.ai-engineering-loop/rules.json)
+  overnight    Check an UNATTENDED Run against the overnight contract
+               check [--run <id>] [--json]
+               exit 1 when it delivered without a person, or a stop is missing the morning files
+               See docs overnight-contract.
   learn        Mine past Runs' VALID findings into .ai-engineering-loop/learnings.json (+ .md) for context packs
                [--dry-run] [--prune] [--max-age-runs <n>] [--json]
                deterministic and deduped with runId provenance; --prune drops lessons whose files are gone
@@ -5461,6 +5521,9 @@ switch (command) {
     break;
   case 'learn':
     handleLearn();
+    break;
+  case 'overnight':
+    handleOvernight();
     break;
   case 'quick':
     handleQuick();
