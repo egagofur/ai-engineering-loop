@@ -77,3 +77,20 @@ Uncommitted or unmerged work is never removed. `status` and `run` print one line
 When the PR is merged, the Run gets `runs/<id>/merge.json` (PR number, URL, merged at, merge commit), written once. `worktree prune` then deletes a squash-merged branch on that evidence without calling `gh`; `stats` counts merged Runs and `recap` shows "merged N after delivery" per Run and a "Merged into main" metric for the lead.
 
 Without `gh`, or with `gh` signed out, the command stops with `GH_UNAVAILABLE` and the command to fix it. Set `AEL_GH_BIN` to use another `gh` binary.
+
+## `pr babysit` (after the PR is open)
+
+`ai-engineering-loop pr babysit --run <id> [--json]` watches the pull request for that Run. Each look is a `pr status` read (same `gh pr view`, same `GH_UNAVAILABLE` when `gh` is missing or signed out). It polls with backoff while the verdict is `waiting`: 2s, 4s, 8s, 16s, then 30s, and at most 8 times.
+
+| What you see | What babysit does |
+|---|---|
+| Failing checks, and the fix classifies as T0 or T1 | Starts a fix Run on that same branch and pushes it (`git push origin <branch>`). T0 and T1 come from the same classifier as `run`: the failing check names are the task text, and a dirty risky path raises the tier. The agent finishes that Run, then runs `pr babysit` again. |
+| Failing checks that classify as T2 | Stops. A human takes a risky fix. |
+| `ready` (ready to merge) | Stops and says so. You merge it. |
+| `changes-requested` | Stops and says so, even when checks are also failing. |
+| `merged`, `closed`, `draft`, or `merge-conflicts` with no failing checks | Stops and names the blocker. |
+| This checkout is on a different branch | Stops and names the PR branch. It does not switch branches. |
+
+The fix Run is recorded at `runs/<fix-id>/fix-pass.json` (`parentRunId`, `branch`, `tier`, `checks`). Calling babysit again while that Run is unfinished pushes the same branch and does not start a second Run.
+
+Merge stays with the human. This command does not run `gh pr merge` or `git merge`.

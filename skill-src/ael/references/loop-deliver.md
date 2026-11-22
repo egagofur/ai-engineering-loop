@@ -9,6 +9,7 @@
 - Commit before `deliver` (its receipt binds `HEAD`; videos/screenshots: `--evidence AC-N=<https-url>`, required for `crossComponent` and rubric ACs). Paste `RUN_DIR/receipt.md` into the PR/MR Receipt section unchanged; ❌ stays ❌ (`docs pr-receipt`).
 - Only the delivery gate completes the run. It also mines lessons for the next Run.
 - Worktree Run: after `deliver`, continue in `cleanup.mainCheckout` (Stage 9).
+- After the PR is open, `npx ai-engineering-loop pr babysit --run <runId>` polls with backoff. Failing checks start a T0 or T1 fix on that same branch and push it. Ready to merge, or changes requested, stops for a human. Merge stays with the human (`docs run-isolation`).
 
 ## Report header (execution mode)
 
