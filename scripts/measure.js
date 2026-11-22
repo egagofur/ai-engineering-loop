@@ -151,6 +151,12 @@ function measureScenario(scenario) {
     schemaVersion: 1,
     runId: run.runId,
     objective: scenario.task,
+    restatement: {
+      problem: scenario.task,
+      doneWhen: scenario.task,
+      failIf: 'The existing behaviour regresses.',
+      unknowns: 'None.'
+    },
     acceptanceCriteria: [{ id: 'AC-1', statement: scenario.task, evidenceRequired: 'node --version exit 0', failureCases: ['regression in existing behavior'] }]
   };
   {

@@ -100,6 +100,12 @@ function goalBody(scenario, runId, extraAc = []) {
     schemaVersion: 1,
     runId,
     objective: goal.objective,
+    restatement: goal.restatement || {
+      problem: goal.objective,
+      doneWhen: goal.acceptanceCriteria[0]?.statement || goal.objective,
+      failIf: goal.acceptanceCriteria[0]?.failureCases?.[0] || 'The stated outcome is still missing.',
+      unknowns: 'None.'
+    },
     acceptanceCriteria: [...goal.acceptanceCriteria, ...extraAc]
   };
 }

@@ -45,6 +45,7 @@ function frozenRun({ repo, cli }, { mode = 'assisted', scope } = {}) {
     schemaVersion: 1,
     runId: run.runId,
     objective: 'Paginate the list',
+    restatement: { problem: 'The list shows only the first page.', doneWhen: 'A caller can request page 2.', failIf: 'Page 2 is empty while rows remain.', unknowns: 'None.' },
     acceptanceCriteria: [{ id: 'AC-1', statement: 'returns page 2', evidenceRequired: 'tests', failureCases: ['page beyond end'] }],
     ...(scope ? { scope } : {})
   }));

@@ -7,6 +7,7 @@
     "schemaVersion",
     "runId",
     "objective",
+    "restatement",
     "acceptanceCriteria"
   ],
   "properties": {
@@ -20,6 +21,18 @@
     "objective": {
       "type": "string",
       "minLength": 1
+    },
+    "restatement": {
+      "description": "Required by goal draft. The problem in the agent's own words, written before acceptance criteria, so a freeze cannot lock the human's method. The four fields name the outcome. They do not name steps, files or libraries.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["problem", "doneWhen", "failIf", "unknowns"],
+      "properties": {
+        "problem": { "type": "string", "minLength": 1 },
+        "doneWhen": { "type": "string", "minLength": 1 },
+        "failIf": { "type": "string", "minLength": 1 },
+        "unknowns": { "type": "string", "minLength": 1 }
+      }
     },
     "acceptanceCriteria": {
       "type": "array",

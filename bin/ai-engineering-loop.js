@@ -3463,6 +3463,14 @@ function handleGoal() {
       if (draftGoal && draftGoal._templateOnly === true) {
         throw Object.assign(new Error(`${argValue('--file')} is still the scaffold template`), { code: 'TEMPLATE_ONLY', why: 'A template with <...> placeholders would freeze a Goal nobody wrote.', fix: 'Replace every <...> with the real goal, delete `_templateOnly` and `_howTo`, then rerun `goal draft`.' });
       }
+      const restatementErrors = require('../lib/gates.js').restatementProblems(draftGoal);
+      if (restatementErrors.length) {
+        throw Object.assign(new Error(`Goal draft is missing a restatement: ${restatementErrors.join('; ')}`), {
+          code: 'RESTATEMENT_MISSING',
+          why: 'A freeze without a restatement locks the method the human suggested, not the problem the agent understood.',
+          fix: 'Add restatement { problem, doneWhen, failIf, unknowns } to the Goal JSON. State the problem and the outcomes in your own words. Leave the steps out. Then rerun `goal draft`.'
+        });
+      }
       const draftFile = argValue('--file');
       if (draftFile && !path.resolve(CWD, draftFile).startsWith(path.join(CWD, '.ai-engineering-loop') + path.sep)) {
         extra.warning = `Goal draft file ${draftFile} is outside .ai-engineering-loop/, so it will show up in the Maker diff. Keep drafts in .ai-engineering-loop/drafts/.`;

@@ -76,6 +76,8 @@ test('draftFromDesign builds a valid draft with placeholders and designRef', () 
   assert.strictEqual(draft.acceptanceCriteria.length, 2);
   assert.deepStrictEqual(draft.outOfScope, ['Batch sending']);
   assert.deepStrictEqual(draft.designRef.targetFiles, ['src/webhooks/deliver.js', 'src/events/bus.js', 'src/config.js']);
+  assert.match(draft.restatement.problem, /Webhook delivery/);
+  assert.doesNotMatch(JSON.stringify(draft.restatement), /deliver\.js|bus\.js|config\.js|Implementation/);
   assert.ok(validateGoalContract({ ...draft, schemaVersion: 1, runId: 'r' }).valid);
   assert.deepStrictEqual(design.placeholderRows(draft), ['AC-1', 'AC-2']);
 });
@@ -117,6 +119,7 @@ test('CLI: --from-design drafts, freeze refuses placeholders, and show reports a
   // --file keeps the caller's rows and only adds designRef; then freeze passes.
   const filled = {
     objective: 'Webhook delivery',
+    restatement: { problem: 'Events do not reach subscribers.', doneWhen: 'Each event is delivered once on 200.', failIf: 'A 200 is delivered twice.', unknowns: 'None.' },
     acceptanceCriteria: [{ id: 'AC-1', statement: 'Delivers once on 200', evidenceRequired: 'test/deliver.test.js', failureCases: ['double delivery'] }]
   };
   fs.writeFileSync(path.join(repo, 'goal.json'), JSON.stringify(filled));

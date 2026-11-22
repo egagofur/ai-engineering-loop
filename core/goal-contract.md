@@ -208,6 +208,19 @@ Then ask the human: freeze, another view, or turn `?` cells, hotspots and side e
 
 The receipt lists `--evidence AC-N=<https-url>` links first, typed as video, screenshot or diagram from the URL. An AC with `crossComponent: true` or a `rubric` is `MISSING` (❌) until it has at least one such link, because a reviewer should be able to look at the behaviour rather than read the diff.
 
+## Restate
+
+Before acceptance criteria, write the problem in your own words. `goal draft` refuses a Goal whose `restatement` is missing or blank, so a freeze cannot lock the method a human suggested.
+
+| Field | What to write | Leave out |
+|---|---|---|
+| `problem` | What is wrong or missing, as you understand it | Steps, files, libraries, the human's how |
+| `doneWhen` | The outcome that means this is done | The implementation |
+| `failIf` | What is still wrong when that outcome is missed | A procedure |
+| `unknowns` | What you cannot tell yet, or `None.` | Guesses stated as facts |
+
+`goal.md` prints this block first, under Restate.
+
 ## JSON example for `goal draft` (C-50)
 
 `goal draft --file` reads JSON, not the Markdown template above. `ai-engineering-loop scaffold goal [--run <id>]` writes this shape to `.ai-engineering-loop/drafts/goal.json` with `_templateOnly: true`; `goal draft` refuses the file until you replace the placeholders and delete `_templateOnly`. Keep drafts under `.ai-engineering-loop/` so they stay out of the Maker diff.
@@ -217,6 +230,12 @@ The receipt lists `--evidence AC-N=<https-url>` links first, typed as video, scr
   "schemaVersion": 1,
   "runId": "<runId>",
   "objective": "Users can export the filtered report as CSV",
+  "restatement": {
+    "problem": "People cannot take the filtered rows out of the report.",
+    "doneWhen": "Export saves a CSV of only the filtered rows.",
+    "failIf": "The CSV still contains rows the filter hid.",
+    "unknowns": "None."
+  },
   "acceptanceCriteria": [
     {
       "id": "AC-1",
@@ -246,5 +265,5 @@ The Goal JSON is for the tools; people read `RUN_DIR/goal.md` (`goal show --huma
 
 `goal draft` prints `goal.md` and the next step by default; agents and scripts pass `--json` for the full JSON. With `--json` it returns `readability`: warnings for long sentences, passive voice, vague words, several actions in one sentence and sentences that start with an -ing word. They never block the gate; fix them before you ask for the freeze. AEL checks these general writing rules only; it does not ship the ASD-STE100 dictionary.
 
-`goal.md` has these sections: What changes, Done when (each AC with its proof and "Fail if" lines), Not in this change, Not confirmed yet (assumptions from `statements`), and the writing checks.
+`goal.md` has these sections: Restate (Problem, Done when, Fail if, Unknowns), What changes, Done when (each AC with its proof and "Fail if" lines), Not in this change, Not confirmed yet (assumptions from `statements`), and the writing checks.
 

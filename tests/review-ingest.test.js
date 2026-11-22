@@ -63,6 +63,7 @@ function toVerified({ repo, cli }) {
     schemaVersion: 1,
     runId: run.runId,
     objective: 'Paginate the list',
+    restatement: { problem: 'The list shows only the first page.', doneWhen: 'A caller can request page 2.', failIf: 'Page 2 is empty while rows remain.', unknowns: 'None.' },
     acceptanceCriteria: [{ id: 'AC-1', statement: 'returns page 2', evidenceRequired: 'tests exit 0', failureCases: ['page beyond end returns empty'] }]
   }));
   const draft = JSON.parse(ok(cli('goal', 'draft', '--json', '--run', run.runId, '--file', '.ai-engineering-loop/goal-draft.json', '--revision', '0'), 'goal draft').stdout);

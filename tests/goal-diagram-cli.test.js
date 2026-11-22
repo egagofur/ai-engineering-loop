@@ -25,6 +25,7 @@ function setup(goalExtra = {}) {
     schemaVersion: 1,
     runId: run.runId,
     objective: 'Cancel orders',
+    restatement: { problem: 'A paid order cannot be cancelled.', doneWhen: 'Cancel moves a paid order to Cancelled.', failIf: 'A shipped order can still be cancelled.', unknowns: 'None.' },
     acceptanceCriteria: [{ id: 'AC-1', statement: 'cancel works', evidenceRequired: 'test', failureCases: ['shipped order cancels'] }],
     flowSubject: 'order',
     flow: [
