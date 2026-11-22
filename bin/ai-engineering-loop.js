@@ -206,7 +206,8 @@ const {
   readHandoff,
   verifyHandoff
 } = lazyFunctions('../lib/handoff.js');
-const { createStudioServer, readStudioUrl } = lazyFunctions('../lib/studio-server.js');
+const { createStudioServer } = lazyFunctions('../lib/studio-server.js');
+const { readStudioUrl } = lazyFunctions('../lib/studio/instance.js');
 
 const VERSION = require('../package.json').version;
 const CWD = process.cwd();

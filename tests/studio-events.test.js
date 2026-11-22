@@ -489,10 +489,11 @@ describe('Studio real-time events #80', { concurrency: false }, () => {
       assert.equal((await fetch(studioUrl)).status, 401);
       const status = spawnSync(process.execPath, [CLI, 'status', '--json'], {
         cwd: root,
-        encoding: 'utf8'
+        encoding: 'utf8',
+        env: { ...process.env, AEL_HOME: fs.mkdtempSync(path.join(os.tmpdir(), 'ael-no-studio-')) }
       });
       const parsed = JSON.parse(status.stdout);
-      assert.equal(parsed.studioUrl, base);
+      assert.equal(parsed.studioUrl, null);
     }, { watch: false, pollMs: 10_000 });
   });
 
