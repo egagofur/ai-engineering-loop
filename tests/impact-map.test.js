@@ -59,6 +59,7 @@ function startFrozenRun({ repo, cli }, objective = 'Approve invoice must lock th
     schemaVersion: 1,
     runId: run.runId,
     objective,
+    restatement: { problem: 'An approved invoice can still be edited.', doneWhen: 'An approved invoice stays locked.', failIf: 'Editing an approved invoice succeeds.', unknowns: 'None.' },
     acceptanceCriteria: [{ id: 'AC-1', statement: 'approved invoices cannot be edited', evidenceRequired: 'node --version exit 0', failureCases: ['editing an approved invoice succeeds'] }]
   }));
   ok(cli('goal', 'draft', '--run', run.runId, '--file', '.ai-engineering-loop/goal-draft.json', '--revision', '0'), 'goal draft');
@@ -221,6 +222,7 @@ test('design drift lists unplanned and untouched files; review pack gets two lin
   const run = JSON.parse(ok(ctx.cli('run', '--json', 'Approve invoice must lock the invoice'), 'run').stdout);
   fs.writeFileSync(path.join(ctx.repo, 'goal.json'), JSON.stringify({
     objective: 'Lock invoices',
+    restatement: { problem: 'An approved invoice can still be edited.', doneWhen: 'An approved invoice stays locked.', failIf: 'Editing an approved invoice succeeds.', unknowns: 'None.' },
     acceptanceCriteria: [{ id: 'AC-1', statement: 'approved invoices cannot be edited', evidenceRequired: 'node --version exit 0', failureCases: ['editing succeeds'] }]
   }));
   ok(ctx.cli('goal', 'draft', '--run', run.runId, '--from-design', 'docs/designs/lock.md', '--file', 'goal.json', '--revision', '0'), 'draft');

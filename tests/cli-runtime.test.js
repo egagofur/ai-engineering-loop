@@ -143,6 +143,7 @@ test('CLI publishes revision-bound Goal drafts and lifecycle activity for Studio
     schemaVersion: 1,
     runId: 'run-001',
     objective: 'Show the terminal-authored Goal in Studio.',
+    restatement: { problem: 'Studio cannot see the Goal the terminal wrote.', doneWhen: 'Studio reads the same Goal revision.', failIf: 'The draft is not visible.', unknowns: 'None.' },
     acceptanceCriteria: [{
       id: 'AC-1',
       statement: 'Studio can read the exact Goal revision.',

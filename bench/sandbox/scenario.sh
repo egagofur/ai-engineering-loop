@@ -66,6 +66,7 @@ write_goal() {
   mkdir -p .ai-engineering-loop/drafts
   cat > .ai-engineering-loop/drafts/goal.json <<J
 {"schemaVersion":1,"runId":"$1","objective":"Add subtract(a, b) to src/math.js",
+ "restatement":{"problem":"The math module can add numbers but cannot subtract them.","doneWhen":"subtract(5, 3) returns 2.","failIf":"subtract(5, 3) does not return 2.","unknowns":"None."},
  "acceptanceCriteria":[{"id":"AC-1","statement":"subtract(5, 3) returns 2","evidenceRequired":"npm test exit 0",
    "failureCases":["subtract(1, 3) returns -2, not 2"]}]}
 J

@@ -80,6 +80,9 @@ test('a report becomes one red-repro acceptance criterion', () => {
   assert.strictEqual(contract.acceptanceCriteria[0].verify.command, report.command);
   assert.deepStrictEqual(contract.acceptanceCriteria[0].failureCases, [report.failingBehavior]);
   assert.strictEqual(contract.repro.readOnly, true);
+  assert.strictEqual(contract.restatement.problem, report.failingBehavior);
+  assert.strictEqual(contract.restatement.failIf, report.failingBehavior);
+  assert.doesNotMatch(JSON.stringify(contract.restatement), /npm test|export\.test/);
   assert.throws(() => parseReport('# Title only\n\nNo command here.\n'), (err) => err.code === 'REPRO_COMMAND_MISSING' && !/issue comment/.test(err.fix));
   assert.throws(() => parseReport('Verify: gh issue comment 1 --body hi\nActual: broken\n# Bug\n'), (err) => err.code === 'REPRO_COMMAND_INVALID');
 

@@ -44,6 +44,7 @@ function deliveredRun({ rows = ['AC-1', 'AC-2'], deliverArgs = [], design = fals
     schemaVersion: 1,
     runId: run.runId,
     objective: 'Paginate the list',
+    restatement: { problem: 'The list shows only the first page.', doneWhen: 'A caller can request page 2.', failIf: 'Page 2 is empty while rows remain.', unknowns: 'None.' },
     acceptanceCriteria: [
       { id: 'AC-1', statement: 'returns page 2', evidenceRequired: 'node --version exit 0', failureCases: ['page beyond end returns empty'] },
       { id: 'AC-2', statement: 'page 0 is rejected', evidenceRequired: 'node --version exit 0', failureCases: ['page 0 returns items'] }
