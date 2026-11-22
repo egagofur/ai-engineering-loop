@@ -3698,20 +3698,24 @@ function handleGoal() {
         interactiveConfirmed: approval.via === 'tty'
       });
       const human = result.goal.actor;
-      appendRunLifecycle(CWD, runId, {
-        type: goalNode ? 'NODE_COMPLETED' : 'GOAL_FROZEN',
-        ...(goalNode ? { nodeId: goalNode.id } : {}),
-        phase: 'goal',
-        actor: human,
-        message: 'Goal Contract frozen'
-      });
-      ensureImpactMap(runId);
-      closeFreezeQuestions(runId, human);
-      // One human stop: the same person accepts the Goal and its blast radius
-      // (shown as impactPreview with the draft).
-      if (process.argv.includes('--confirm-impact')) {
-        const confirmed = impactMap.confirmImpactMap(CWD, { runId, by: human });
-        extra.impact = { status: confirmed.map ? confirmed.map.status : 'CONFIRMED' };
+      if (result.alreadyFrozen) {
+        extra.alreadyFrozen = true;
+      } else {
+        appendRunLifecycle(CWD, runId, {
+          type: goalNode ? 'NODE_COMPLETED' : 'GOAL_FROZEN',
+          ...(goalNode ? { nodeId: goalNode.id } : {}),
+          phase: 'goal',
+          actor: human,
+          message: 'Goal Contract frozen'
+        });
+        ensureImpactMap(runId);
+        closeFreezeQuestions(runId, human);
+        // One human stop: the same person accepts the Goal and its blast radius
+        // (shown as impactPreview with the draft).
+        if (process.argv.includes('--confirm-impact')) {
+          const confirmed = impactMap.confirmImpactMap(CWD, { runId, by: human });
+          extra.impact = { status: confirmed.map ? confirmed.map.status : 'CONFIRMED' };
+        }
       }
     } else if (action === 'diagram') {
       Object.assign(extra, renderGoalDiagram(runId));
@@ -3722,6 +3726,11 @@ function handleGoal() {
     }
     if (!process.argv.includes('--json') && ['draft', 'freeze'].includes(action)) {
       const meta = result?.metadata || {};
+      if (extra.alreadyFrozen) {
+        log.success(`✓ Goal already frozen by ${result.goal.actor} (${result.goal.approval})`);
+        console.log('- Next: Maker (implement), then `gate maker --from-git`. Agents: add --json.');
+        return;
+      }
       log.success(`✓ goal ${action}: Run ${runId}${meta.revision != null ? `, revision ${meta.revision}` : ''}${meta.contentHash ? ` (${String(meta.contentHash).slice(0, 12)})` : ''}`);
       if (action === 'draft' && extra.human) {
         console.log('');
