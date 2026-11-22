@@ -34,6 +34,7 @@ In any project:
 ```bash
 npm i -g ai-engineering-loop   # Node 18+ and git required
 ael setup                      # installs the ael skill into your coding agents
+                               # agents and scripts: ael setup --yes (no prompt)
 ael init                       # writes .ai-engineering-loop/ for this project
 ```
 

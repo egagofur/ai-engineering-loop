@@ -166,9 +166,12 @@ test('setup without a TTY and without --yes writes nothing; --yes enables detect
   fs.mkdirSync(path.join(home, '.claude'));
   const { dir, marker } = stubBin(['codex']);
   const dry = cli(home, ['setup', '--json'], { pathDirs: [dir] });
-  assert.strictEqual(dry.status, 0, dry.stderr);
+  assert.strictEqual(dry.status, 2, dry.stderr);
   const plan = JSON.parse(dry.stdout);
+  assert.strictEqual(plan.ok, false);
+  assert.strictEqual(plan.code, 'SETUP_NOT_CONFIRMED');
   assert.strictEqual(plan.wrote, false);
+  assert.match(plan.fix, /setup --yes/);
   assert.deepStrictEqual(plan.wouldEnable, ['claude', 'codex']);
   assert.deepStrictEqual(listFiles(home), ['.claude'], 'non-interactive setup must not write');
   const done = cli(home, ['setup', '--yes', '--json'], { pathDirs: [dir] });
