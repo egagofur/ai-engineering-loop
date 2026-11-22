@@ -4896,6 +4896,43 @@ function learnFromTranscripts(json) {
   }
 }
 
+function handleSpike() {
+  const json = process.argv.includes('--json');
+  const sub = args[1];
+  const fail = (err) => stageJsonError(err, json, 'SPIKE_FAILED');
+  if (sub !== 'record' && sub !== 'show') {
+    fail(Object.assign(new Error('Use: spike record --discarded --question <text> --learned <text> | spike show'), {
+      code: 'INVALID_USAGE',
+      why: 'A spike note is recorded before the Goal freeze, or shown.',
+      fix: 'ael spike record --discarded --question "<one question>" --learned "<what the contract should say>"'
+    }));
+  }
+  try {
+    const spike = require('../lib/spike.js');
+    if (sub === 'show') {
+      const result = spike.showSpike(CWD, { runId: argValue('--run') });
+      if (json) console.log(JSON.stringify(result, null, 2));
+      else if (!result.recorded) console.log(result.runId ? `Run ${result.runId} has no spike. A spike is optional.` : 'No current Run.');
+      else if (!result.ok) {
+        console.error(`${result.code}: ${result.error}`);
+        if (result.fix) console.error(`FIX: ${result.fix}`);
+      } else console.log(`Spike discarded. Question: ${result.spike.question}`);
+      if (!result.ok) process.exitCode = 1;
+      return;
+    }
+    const result = spike.recordSpike(CWD, {
+      runId: argValue('--run'),
+      question: argValue('--question'),
+      learned: argValue('--learned'),
+      discarded: process.argv.includes('--discarded')
+    });
+    if (json) console.log(JSON.stringify({ ok: true, ...result }, null, 2));
+    else console.log(`Recorded ${result.path}. Draft the Goal from that note, then ask the human to freeze.`);
+  } catch (err) {
+    fail(err);
+  }
+}
+
 function handleOvernight() {
   const json = process.argv.includes('--json');
   const sub = args[1] && !String(args[1]).startsWith('-') ? args[1] : 'check';
@@ -5199,6 +5236,11 @@ Commands:
                built-in instead of --check: --forbid-import "<fromGlob> -> <toGlob>" | --forbid-api "<regex>" [--except <glob>]
   rules check <ruleId>   run a built-in rule on the added lines (used by verify)
                turn a recurring review lesson into an executable L1 rule (.ai-engineering-loop/rules.json)
+  spike        Record a throwaway prototype before the Goal freeze
+               record --discarded --question <text> --learned <text> [--run <id>] [--json]
+               show [--run <id>] [--json]
+               Refuses a spike that is not discarded, or a Goal that is already frozen.
+               See docs prototype-spike. No arena.
   overnight    Check an UNATTENDED Run against the overnight contract
                check [--run <id>] [--json]
                exit 1 when it delivered without a person, or a stop is missing the morning files
@@ -5524,6 +5566,9 @@ switch (command) {
     break;
   case 'overnight':
     handleOvernight();
+    break;
+  case 'spike':
+    handleSpike();
     break;
   case 'quick':
     handleQuick();
