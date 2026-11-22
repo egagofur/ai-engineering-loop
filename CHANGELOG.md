@@ -4,6 +4,10 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+## 2.15.0 - 2026-11-22
+
+Feature map, PR babysit, issue red-repro, and a restatement before the Goal; agent-safety fixes from the e2e test; overnight contract, prototype spike, garden, and stacked-run docs.
+
 - **Added:** a verification one-pager (`docs verification-one-pager`): the gates in order, what `verify` records, and how the Judge uses that evidence.
 - **Added:** how to coordinate agents and stack pull requests without a coordinator process (`docs coordinator`). `run --worktree --base <branch>` starts the worktree from that local commit. `--base` alone is refused, so the current checkout is not switched.
 - **Added:** a weekly process-sampling playbook (`docs/playbooks/weekly-process-sampling.md`, also `docs weekly-process-sampling`). Read three recent Runs and check the loop was followed. No command.
