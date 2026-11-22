@@ -4,6 +4,7 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+- **Added:** how to coordinate agents and stack pull requests without a coordinator process (`docs coordinator`). `run --worktree --base <branch>` starts the worktree from that local commit. `--base` alone is refused, so the current checkout is not switched.
 - **Added:** a weekly process-sampling playbook (`docs/playbooks/weekly-process-sampling.md`, also `docs weekly-process-sampling`). Read three recent Runs and check the loop was followed. No command.
 - **Added:** `refresh --garden` reports stale learnings, feature-map rows whose paths match nothing, and old Runs (`docs garden`). It writes nothing unless `--yes`. `--yes` prunes those learnings and moves fully dead feature-map rows under `## Stale (garden)` after saving `feature-map.md.ael-backup`. Runs are never deleted.
 - **Added:** a throwaway prototype spike before the Goal freeze (`docs prototype-spike`). `spike record --discarded --question "..." --learned "..."` writes `runs/<id>/spike.json`. It refuses a spike that was not discarded, and it refuses once the Goal is frozen. No arena and no second model.

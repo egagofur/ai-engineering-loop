@@ -29,6 +29,8 @@ Two agent sessions in one checkout corrupt each other: `gate maker --from-git` c
 
 Creates `<repo>.ael-worktrees/<slug>-<id>` next to the repository on branch `ael/<slug>-<id>`, from `HEAD` (uncommitted changes of the other Run stay behind), copies the AEL context files (not `runs/`, `recaps/`, `tasks/` or pointers), starts the Run there, and records it in `.ai-engineering-loop/worktrees.json` of the main checkout. `--mode`, `--recipe`, `--tier` and `--tier-reason` pass through. Work only in the printed path for that Run.
 
+`--base <branch>` with `--worktree` starts that worktree from the named commit instead of `HEAD` (`docs coordinator`). `--base` on its own is refused.
+
 ## Stage 9: cleanup after deliver (C-39)
 
 When `deliver` completes a Run inside a registered worktree:
