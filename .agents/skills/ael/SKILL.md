@@ -1,6 +1,6 @@
 ---
 name: ael
-description: Use when the user runs /ael, says "run the engineering loop" or "devil's advocate review", asks to init or refresh living project context, or wants the Maker / Devil's Advocate / Judge engineering loop.
+description: Use when this repo has AI Engineering Loop and the user asks for a feature or bugfix ("please add", "please fix", "fix this bug", "build this feature", "tambahin fitur", "Use AI Engineering Loop"), or runs /ael, says "run the engineering loop" or "devil's advocate review", or asks to init or refresh living project context. A one-line typo or "just change this line" is a direct edit, not this loop.
 ---
 <!-- Generated from skill-src/ by npm run build:skills; do not edit. -->
 
@@ -22,7 +22,7 @@ Same skill on every host. Before the first DA or Judge spawn, read your host's s
 
 ## Loop
 
-Map (not a second OS) of the 8-stage loop: Specify (stages 0-1), Make (stages 2-4), Review (stages 5-7), Deliver (stage 8). Parent = Maker + orchestrator; Devil's Advocate (DA) and Judge are fresh **siblings**, never nested or resumed. Gate failures override prose. Never edit `state.json`/`current.json`.
+Map (not a second OS) of the 8-stage loop: Specify (stages 0-1), Make (stages 2-4), Review (stages 5-7), Deliver (stage 8). Gate failures override prose. Never edit `state.json`/`current.json`.
 
 Tier (from `run --json`; it only rises). Do not skip Goal Contract, verification, Devil's Advocate, or Judge gates; the tier only decides who fills them.
 - **T0** trivial (docs/typo/lint): `quick start "<task>"` (run + `gate goal`), edit, `quick finish`; no subagents.
@@ -30,14 +30,14 @@ Tier (from `run --json`; it only rises). Do not skip Goal Contract, verification
 - **T2** risky (HIGH_RISK_PATH, DOT business logic, >10 files): add `loop-risky` (blast radius, Judge on STRONG_MODEL). Unseen risk: `run --new --tier T2 --tier-reason <why>`.
 
 0. `run --json [--mode report-only|assisted|unattended]` (`RUN_DIR` = `.ai-engineering-loop/runs/<runId>/`). Do not run `sync-hosts` per run; if `hostSkills.stale`, ask the user. Read `.ai-engineering-loop/glossary.md`, plus `lessons.md`/`workflow.md` if present; heed `learnings`.
-1. Goal Contract: `loop-goal`. 2-4. Maker: `loop-maker`, then `gate maker`. 5. Verify: `loop-verify`. 6-7. DA and Judge: `loop-review`. 8. Deliver: `loop-deliver`.
+1. Goal Contract: `loop-goal` (confirm the git toplevel is the project the human named). 2-4. Maker: `loop-maker`, then `gate maker`. 5. Verify: `loop-verify`. 6-7. DA and Judge: `loop-review`. 8. Deliver: `loop-deliver`.
 
 Invariants (every tier):
 - AC is a failure table. Do not freeze sunny-path-only. Chat agreement is not freeze.
 - One red test per AC row (bugs: red repro) before the fix.
 - Write claimed-vs-reality.md after `gate verification` passes. Do not spawn Devil's Advocate if the file is missing or any Claimed row lacks Reality.
 - ITERATE to iteration 3 (or the recipe cap), each with a **new** DA.
-- Never infer human approval; ask with host buttons (`loop-hosts`).
+- Never infer human approval; ask with host buttons (`loop-hosts`). A cancelled or unanswered question: stop and wait; never freeze yourself.
 - After each child `budget record` real usage or `--unavailable`; never invent counts.
 - No secrets or hidden reasoning in activity messages.
 

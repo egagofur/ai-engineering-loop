@@ -3480,6 +3480,7 @@ function handleGoal() {
         actor: argValue('--by') || 'agent',
         expectedRevision: requiredIntegerArg('--revision')
       });
+      extra.repoRoot = require('../lib/git-readiness.js').gitTopLevel(CWD);
       extra.impactPreview = impactPreview(runId, draftGoal);
       const ste = require('../lib/ste.js');
       const humanPath = path.join(runsDir(CWD), runId, 'goal.md');
@@ -3546,23 +3547,24 @@ function handleGoal() {
         }
       }
       result = freezeGoal(CWD, runId, {
-        actor: argValue('--by') || 'human',
+        actor: argValue('--by'),
         expectedRevision: latest ? latestDraft.metadata.revision : requiredIntegerArg('--revision'),
         expectedHash
       });
+      const human = result.goal.actor;
       appendRunLifecycle(CWD, runId, {
         type: goalNode ? 'NODE_COMPLETED' : 'GOAL_FROZEN',
         ...(goalNode ? { nodeId: goalNode.id } : {}),
         phase: 'goal',
-        actor: argValue('--by') || 'human',
+        actor: human,
         message: 'Goal Contract frozen'
       });
       ensureImpactMap(runId);
-      closeFreezeQuestions(runId, argValue('--by') || 'human');
+      closeFreezeQuestions(runId, human);
       // One human stop: the same person accepts the Goal and its blast radius
       // (shown as impactPreview with the draft).
       if (process.argv.includes('--confirm-impact')) {
-        const confirmed = impactMap.confirmImpactMap(CWD, { runId, by: argValue('--by') || 'human' });
+        const confirmed = impactMap.confirmImpactMap(CWD, { runId, by: human });
         extra.impact = { status: confirmed.map ? confirmed.map.status : 'CONFIRMED' };
       }
     } else if (action === 'diagram') {
@@ -3580,6 +3582,7 @@ function handleGoal() {
         process.stdout.write(fs.readFileSync(path.join(CWD, extra.human.path), 'utf8'));
         console.log('');
       }
+      if (action === 'draft') console.log(`- Repo: ${extra.repoRoot || 'unresolved'}`);
       if (extra.impactPreview) console.log(`- Impact preview: ${JSON.stringify(extra.impactPreview).slice(0, 200)}`);
       if (extra.warning) console.log(`! ${extra.warning}`);
       console.log(action === 'draft' ? `- Next: the human reads this and says freeze; then \`goal freeze --latest --run ${runId} --by <name>\`. Agents: add --json.` : '- Next: Maker (implement), then `gate maker --from-git`. Agents: add --json.');
@@ -4910,11 +4913,11 @@ Commands:
                --json      print machine-readable gate output
   goal         Share one revision-bound Goal draft between the Agent and Studio
                show [--run <id>]
-               draft --file <json> --revision <n> [--run <id>] [--by <agent>]
+               draft --file <json> --revision <n> [--run <id>] [--by <agent>]   prints repoRoot (git toplevel)
                draft --from-design <doc.md> [--file <json>] --revision <n>   prefill from a design doc, record designRef
-               freeze --revision <n> --hash <sha256> [--run <id>] [--by <name>]
+               freeze --revision <n> --hash <sha256> [--run <id>] --by <human>
                show --human [--run <id>]   the Goal as plain Markdown for people (STE style: short active sentences)
-               freeze --latest [--run <id>] --by <name>   freeze the newest draft (CLI resolves revision/hash)
+               freeze --latest [--run <id>] --by <human>   newest draft; --by is the person who agreed (not agent or ael-agent)
                diagram --view state|storyboard|lanes [--run <id>] [--revision <n>] [--lang <tag>] [--open]   draw the Goal flow as HTML
   verification Summarize verification.json for compact Judge context
                summarize [--run <id>] [--json]
