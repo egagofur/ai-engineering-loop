@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { test } = require('node:test');
 const { createRun } = require('../lib/run-state.js');
-const { saveGoalDraft, freezeGoal } = require('../lib/goal-runtime.js');
+const { saveGoalDraft, freezeGoal, loadGoalDraft } = require('../lib/goal-runtime.js');
 const { STAGES, summarizeProject, runDetail } = require('../lib/studio/summary.js');
 
 function tempRoot() {
@@ -145,6 +145,16 @@ test('runDetail returns the Goal markdown and unconfirmed assumptions', () => {
   assert.equal(detail.pr, null);
   assert.deepEqual(detail.extraNodes, []);
   assert.equal(detail.summary.runId, 'r1');
+});
+
+test('runDetail carries the draft content hash Studio sends back as expectedHash', () => {
+  const root = tempRoot();
+  drafted(root, 'r1');
+  const detail = runDetail({ project: project(root), root, worktree: null }, 'r1');
+  assert.equal(detail.goalHash, loadGoalDraft(root, 'r1').metadata.contentHash);
+  assert.match(detail.goalHash, /^[0-9a-f]{64}$/);
+  createRun(root, { runId: 'r2', task: 'no draft' });
+  assert.equal(runDetail({ project: project(root), root, worktree: null }, 'r2').goalHash, null);
 });
 
 test('runDetail counts findings and reports a written receipt', () => {

@@ -14,7 +14,6 @@ const {
   typeFromRemote
 } = require('../lib/adapter-detect.js');
 const { detectAdapterHints } = require('../lib/generate-adapter.js');
-const { bootstrap } = require('../lib/studio-server.js');
 
 const CLI = path.join(__dirname, '..', 'bin', 'ai-engineering-loop.js');
 const DOT_REMOTE = 'git@gitlab.dot.co.id:team/app.git';
@@ -66,11 +65,11 @@ const FIXTURES = [
 ];
 
 for (const fixture of FIXTURES) {
-  test(`init, generate-adapter and Studio agree: ${fixture.name} -> ${fixture.expected}`, () => {
+  test(`init, generate-adapter and the adapter hints agree: ${fixture.name} -> ${fixture.expected}`, () => {
     const dir = fixture.make();
     assert.strictEqual(detectAdapter(dir).type, fixture.expected);
     assert.strictEqual(generateAdapterType(dir), fixture.expected);
-    assert.strictEqual(bootstrap(dir).adapters.recommended, fixture.expected);
+    assert.strictEqual(detectAdapterHints(dir).recommended, fixture.expected);
     assert.strictEqual(initType(dir), fixture.expected);
   });
 }

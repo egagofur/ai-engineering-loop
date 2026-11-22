@@ -50,7 +50,3 @@ test('motion: named properties, no ease-in, a short keyframe list, press feedbac
   assert.match(css, /@media \(prefers-reduced-motion:reduce\)\{[\s\S]*animation:none/);
 });
 
-test('the server serves tokens.css and nothing outside the asset allowlist', () => {
-  const server = fs.readFileSync(path.join(__dirname, '..', 'lib', 'studio-server.js'), 'utf8');
-  assert.match(server, /\['index\.html', 'app\.js', 'styles\.css', 'tokens\.css'\]/);
-});

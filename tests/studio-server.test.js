@@ -6,472 +6,405 @@ const http = require('node:http');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
-const { appendRunLifecycle } = require('../lib/run-lifecycle.js');
+const { createRun, loadRun } = require('../lib/run-state.js');
+const { saveGoalDraft, loadGoalDraft } = require('../lib/goal-runtime.js');
 const { createStudioServer } = require('../lib/studio-server.js');
+const { projectId } = require('../lib/studio/instance.js');
 
-function tempRepo() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'ael-studio-'));
+const TOKEN = 'fixed-test-token';
+
+function tempDir(prefix) {
+  return fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), prefix)));
 }
 
-async function withServer(operation, options = {}) {
-  const root = tempRepo();
-  const instance = createStudioServer(root, { token: 'fixed-test-token', ...options });
+function repo(parent, name) {
+  const dir = path.join(parent, name);
+  fs.mkdirSync(path.join(dir, '.ai-engineering-loop', 'runs'), { recursive: true });
+  return dir;
+}
+
+function writeRegistry(home, paths) {
+  fs.mkdirSync(path.join(home, '.ai-engineering-loop'), { recursive: true });
+  fs.writeFileSync(
+    path.join(home, '.ai-engineering-loop', 'projects.json'),
+    JSON.stringify({ schemaVersion: 1, projects: paths.map((p) => ({ path: p })) })
+  );
+}
+
+function writeConfig(home, config) {
+  fs.mkdirSync(path.join(home, '.ai-engineering-loop'), { recursive: true });
+  fs.writeFileSync(path.join(home, '.ai-engineering-loop', 'config.json'), JSON.stringify(config));
+}
+
+function readConfig(home) {
+  return JSON.parse(fs.readFileSync(path.join(home, '.ai-engineering-loop', 'config.json'), 'utf8'));
+}
+
+function contract(runId, objective = 'Show the run') {
+  return {
+    schemaVersion: 1,
+    runId,
+    objective,
+    acceptanceCriteria: [{ id: 'AC-1', statement: 'It shows', evidenceRequired: 'test', failureCases: ['hidden'] }]
+  };
+}
+
+function drafted(root, runId) {
+  createRun(root, { runId, task: 'show the run' });
+  saveGoalDraft(root, runId, contract(runId), { actor: 'agent', expectedRevision: 0 });
+  return loadGoalDraft(root, runId).metadata.contentHash;
+}
+
+function fixture({ projects = 1, config = { studioActor: 'Ega' } } = {}) {
+  const home = tempDir('ael-studio-home-');
+  const work = tempDir('ael-studio-work-');
+  const roots = Array.from({ length: projects }, (_, index) => repo(work, `repo-${index}`));
+  writeRegistry(home, roots);
+  if (config) writeConfig(home, config);
+  return { home, roots };
+}
+
+async function withStudio(options, operation) {
+  const studio = createStudioServer({ token: TOKEN, pollMs: 60_000, ...options });
   await new Promise((resolve, reject) => {
-    instance.server.once('error', reject);
-    instance.server.listen(0, '127.0.0.1', resolve);
+    studio.server.once('error', reject);
+    studio.server.listen(0, '127.0.0.1', resolve);
   });
   try {
-    const { port } = instance.server.address();
-    await operation(`http://127.0.0.1:${port}`, instance.token, root);
+    const { port } = studio.server.address();
+    await operation({ base: `http://127.0.0.1:${port}`, port, studio });
   } finally {
-    await new Promise((resolve) => instance.server.close(resolve));
+    await studio.close();
   }
 }
 
-test('Studio requires a token and establishes an HttpOnly localhost session', async () => {
-  await withServer(async (base, token, root) => {
-    const unauthorized = await fetch(`${base}/api/bootstrap`);
-    assert.equal(unauthorized.status, 401);
-
-    const login = await fetch(`${base}/?token=${token}`, { redirect: 'manual' });
-    assert.equal(login.status, 302);
-    assert.match(login.headers.get('set-cookie'), /HttpOnly; SameSite=Strict/);
-
-    const cookie = login.headers.get('set-cookie').split(';')[0];
-    const bootstrap = await fetch(`${base}/api/bootstrap`, { headers: { cookie } });
-    assert.equal(bootstrap.status, 200);
-    assert.match(bootstrap.headers.get('content-security-policy'), /default-src 'self'/);
-    const body = await bootstrap.json();
-    assert.equal(body.ok, true);
-    assert.ok(body.recipes.some((recipe) => recipe.id === 'default'));
-    assert.deepEqual(body.adapters.types, ['standard', 'github', 'gitlab', 'dot']);
-    assert.equal(body.root, require('node:path').resolve(root));
-    assert.match(body.watchMode, /^(watch|poll)$/);
+function api(base, route, { method = 'GET', body, headers = {} } = {}) {
+  return fetch(`${base}${route}`, {
+    method,
+    headers: { 'x-ael-studio-token': TOKEN, ...(body ? { 'content-type': 'application/json' } : {}), ...headers },
+    body: body ? JSON.stringify(body) : undefined
   });
-});
+}
 
-test('Studio rejects hostile Host headers before token authentication', async () => {
-  await withServer(async (base, token) => {
-    const target = new URL(base);
-    const status = await new Promise((resolve, reject) => {
-      const request = http.request({
-        hostname: target.hostname,
-        port: target.port,
-        path: '/api/bootstrap',
-        headers: { host: 'attacker.example', 'x-ael-studio-token': token }
-      }, (response) => {
-        response.resume();
-        response.on('end', () => resolve(response.statusCode));
-      });
-      request.on('error', reject);
-      request.end();
+function rawGet(port, route, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const request = http.request({ host: '127.0.0.1', port, path: route, headers }, (response) => {
+      let body = '';
+      response.setEncoding('utf8');
+      response.on('data', (chunk) => { body += chunk; });
+      response.on('end', () => resolve({ status: response.statusCode, headers: response.headers, body }));
     });
-    assert.equal(status, 403);
+    request.on('error', reject);
+    request.end();
   });
-});
+}
 
-test('Studio exposes ordered lifecycle updates with a reconnect cursor', async () => {
-  await withServer(async (base, token, root) => {
-    const headers = { 'x-ael-studio-token': token, 'content-type': 'application/json' };
-    const created = await fetch(`${base}/api/runs`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        task: 'Show Agent progress',
-        recipeId: 'default',
-        mode: 'ASSISTED'
-      })
-    });
-    const run = (await created.json()).run;
-    appendRunLifecycle(root, run.runId, {
-      type: 'AGENT_HEARTBEAT',
-      actor: 'agent',
-      phase: 'goal',
-      message: 'Drafting the Goal'
-    });
-    appendRunLifecycle(root, run.runId, {
-      type: 'GOAL_DRAFTING',
-      actor: 'agent',
-      phase: 'goal',
-      message: 'Writing acceptance criteria'
-    });
-
-    const first = await fetch(
-      `${base}/api/runs/${run.runId}/lifecycle?after=0&limit=1`,
-      { headers }
-    );
-    const firstBody = await first.json();
-    assert.equal(firstBody.lifecycle.events.length, 1);
-    assert.equal(firstBody.lifecycle.nextSequence, 1);
-    assert.equal(firstBody.presence.status, 'WORKING');
-
-    const second = await fetch(
-      `${base}/api/runs/${run.runId}/lifecycle?after=1&limit=100`,
-      { headers }
-    );
-    const secondBody = await second.json();
-    assert.deepEqual(secondBody.lifecycle.events.map((event) => event.sequence), [2]);
-    assert.equal(secondBody.lifecycle.nextSequence, 2);
-
-    const gone = await fetch(
-      `${base}/api/runs/${run.runId}/lifecycle/stream?after=1`,
-      { headers }
-    );
-    assert.equal(gone.status, 404);
-    assert.equal((await gone.json()).code, 'GONE');
-
-    const stream = await fetch(`${base}/api/events`, { headers });
-    assert.match(stream.headers.get('content-type'), /^text\/event-stream/);
-    const reader = stream.body.getReader();
-    const chunk = new TextDecoder().decode((await reader.read()).value);
-    assert.match(chunk, /event: hello/);
-    await reader.cancel();
-  });
-});
-
-test('Studio stores private canvas layout separately from recipe semantics', async () => {
-  await withServer(async (base, token, root) => {
-    const headers = { 'x-ael-studio-token': token, 'content-type': 'application/json' };
-    const before = await fetch(`${base}/api/layout?id=default`, { headers });
-    assert.equal(before.status, 200);
-    assert.equal((await before.json()).layout, null);
-
-    const saved = await fetch(`${base}/api/layout`, {
-      method: 'PUT',
-      headers,
-      body: JSON.stringify({
-        recipeId: 'default',
-        layout: {
-          viewport: { x: 40, y: -12, scale: 1.25 },
-          positions: { goal: { x: 100, y: 200 } }
+function openEvents(port) {
+  return new Promise((resolve, reject) => {
+    const request = http.get({
+      host: '127.0.0.1',
+      port,
+      path: '/api/events',
+      headers: { 'x-ael-studio-token': TOKEN }
+    }, (response) => {
+      const events = [];
+      let buffer = '';
+      response.setEncoding('utf8');
+      response.on('data', (chunk) => {
+        buffer += chunk;
+        let end;
+        while ((end = buffer.indexOf('\n\n')) !== -1) {
+          const block = buffer.slice(0, end);
+          buffer = buffer.slice(end + 2);
+          const type = /^event: (.*)$/m.exec(block)?.[1];
+          const data = /^data: (.*)$/m.exec(block)?.[1];
+          events.push({ type, data: data ? JSON.parse(data) : null, at: Date.now() });
         }
-      })
-    });
-    assert.equal(saved.status, 200);
-    assert.equal((await saved.json()).layout.positions.goal.x, 100);
-
-    const stored = JSON.parse(fs.readFileSync(
-      path.join(root, '.ai-engineering-loop', 'studio-layouts', 'default.json'),
-      'utf8'
-    ));
-    assert.deepEqual(stored.viewport, { x: 40, y: -12, scale: 1.25 });
-    assert.equal(stored.positions.goal.y, 200);
-  });
-});
-
-test('Studio selects only a shipped Stage 8 delivery adapter', async () => {
-  await withServer(async (base, token, root) => {
-    const headers = { 'x-ael-studio-token': token, 'content-type': 'application/json' };
-    const selected = await fetch(`${base}/api/adapter/select`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ type: 'github' })
-    });
-    assert.equal(selected.status, 200);
-    assert.match(
-      fs.readFileSync(path.join(root, '.ai-engineering-loop', 'adapter.md'), 'utf8'),
-      /\*\*adapter_type\*\*: "github"/
-    );
-
-    const rejected = await fetch(`${base}/api/adapter/select`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ type: '../../shell' })
-    });
-    assert.equal(rejected.status, 400);
-    assert.equal((await rejected.json()).code, 'UNKNOWN_ADAPTER');
-  });
-});
-
-test('Studio creates, freezes, executes, and inspects a named local run through run-scoped APIs', async () => {
-  await withServer(async (base, token, root) => {
-    const headers = { 'x-ael-studio-token': token, 'content-type': 'application/json' };
-    const created = await fetch(`${base}/api/runs`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        task: 'Improve workflow canvas interactions',
-        displayName: 'Canvas interaction upgrade',
-        recipeId: 'default',
-        mode: 'ASSISTED'
-      })
-    });
-    assert.equal(created.status, 201);
-    const run = (await created.json()).run;
-    assert.equal(run.displayName, 'Canvas interaction upgrade');
-    assert.match(run.runId, /^\d{8}T\d{6}Z-[a-f0-9]{8}$/);
-
-    const blocked = await fetch(`${base}/api/runs/${run.runId}/execute`, {
-      method: 'POST',
-      headers,
-      body: '{}'
-    });
-    assert.equal(blocked.status, 400);
-    assert.equal((await blocked.json()).code, 'GOAL_NOT_FROZEN');
-
-    const contract = {
-      schemaVersion: 1,
-      runId: run.runId,
-      objective: 'Improve workflow canvas interactions.',
-      acceptanceCriteria: [{
-        id: 'AC-1',
-        statement: 'Canvas interaction is observable.',
-        evidenceRequired: 'Studio integration test passes.',
-        failureCases: ['The interaction remains unavailable.']
-      }]
-    };
-    const saved = await fetch(`${base}/api/runs/${run.runId}/goal`, {
-      method: 'PUT',
-      headers,
-      body: JSON.stringify({ goal: contract, actor: 'agent', expectedRevision: 0 })
-    });
-    assert.equal(saved.status, 200);
-    const draft = (await saved.json()).draft;
-    assert.equal(draft.metadata.revision, 1);
-    assert.equal(draft.metadata.actor, 'agent');
-
-    const visibleDraft = await fetch(`${base}/api/runs/${run.runId}/goal`, { headers });
-    assert.equal(visibleDraft.status, 200);
-    assert.deepEqual((await visibleDraft.json()).draft, draft);
-
-    const staleSave = await fetch(`${base}/api/runs/${run.runId}/goal`, {
-      method: 'PUT',
-      headers,
-      body: JSON.stringify({ goal: contract, expectedRevision: 0 })
-    });
-    assert.equal(staleSave.status, 400);
-    assert.equal((await staleSave.json()).code, 'GOAL_DRAFT_CONFLICT');
-
-    const frozen = await fetch(`${base}/api/runs/${run.runId}/goal/freeze`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        actor: 'studio-user',
-        expectedRevision: draft.metadata.revision,
-        expectedHash: draft.metadata.contentHash
-      })
-    });
-    assert.equal(frozen.status, 200);
-    assert.equal((await frozen.json()).run.goal.frozen, true);
-
-    const unfrozen = await fetch(`${base}/api/runs/${run.runId}/goal/unfreeze`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ actor: 'studio-user', reason: 'Add an isolation case' })
-    });
-    assert.equal(unfrozen.status, 200);
-    assert.equal((await unfrozen.json()).run.goal.version, 2);
-
-    contract.objective = 'Improve workflow canvas interactions with isolation.';
-    const resaved = await fetch(`${base}/api/runs/${run.runId}/goal`, {
-      method: 'PUT',
-      headers,
-      body: JSON.stringify({ goal: contract })
-    });
-    assert.equal(resaved.status, 200);
-    const refrozen = await fetch(`${base}/api/runs/${run.runId}/goal/freeze`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ actor: 'studio-user' })
-    });
-    assert.equal(refrozen.status, 200);
-    assert.equal((await refrozen.json()).run.goal.version, 2);
-
-    const executed = await fetch(`${base}/api/runs/${run.runId}/execute`, {
-      method: 'POST',
-      headers,
-      body: '{}'
-    });
-    assert.equal(executed.status, 200);
-    const execution = await executed.json();
-    assert.equal(execution.execution.dispatch, 'LOCAL_RUNTIME_ONLY');
-    assert.equal(execution.execution.externalDispatch, false);
-    const liveResponse = await fetch(`${base}/api/live`, { headers });
-    assert.equal(liveResponse.status, 200);
-    const live = (await liveResponse.json()).live;
-    assert.equal(live.summary.runId, run.runId);
-    assert.equal(live.summary.workflowEventLimit, 12);
-    assert.equal(live.summary.eventsTruncated, live.summary.workflowEventCount > live.events.length);
-    assert.ok(live.events.length <= 12);
-    assert.equal(live.summary.details.nodeIo, `/api/runs/${run.runId}/nodes/{nodeId}`);
-    assert.equal(live.summary.details.lifecycle, `/api/runs/${run.runId}/lifecycle?after={sequence}`);
-
-    const reopened = await fetch(`${base}/api/runs/${run.runId}/goal/unfreeze`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ actor: 'studio-user', reason: 'Revise after the first local execution' })
-    });
-    assert.equal(reopened.status, 200);
-    contract.objective = 'Improve workflow canvas interactions after first execution.';
-    assert.equal((await fetch(`${base}/api/runs/${run.runId}/goal`, {
-      method: 'PUT',
-      headers,
-      body: JSON.stringify({ goal: contract })
-    })).status, 200);
-    assert.equal((await fetch(`${base}/api/runs/${run.runId}/goal/freeze`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ actor: 'studio-user' })
-    })).status, 200);
-    const reexecuted = await fetch(`${base}/api/runs/${run.runId}/execute`, {
-      method: 'POST',
-      headers,
-      body: '{}'
-    });
-    assert.equal(reexecuted.status, 200);
-
-    const detail = await fetch(`${base}/api/runs/${run.runId}`, { headers });
-    assert.equal(detail.status, 200);
-    const inspectedRun = (await detail.json()).run;
-    assert.equal(inspectedRun.runId, run.runId);
-    assert.equal(inspectedRun.events.filter((event) => event.type === 'WORKFLOW_EXECUTION_STARTED').length, 2);
-    const statePath = path.join(root, '.ai-engineering-loop', 'runs', run.runId, 'state.json');
-    const stateBeforeInspection = fs.readFileSync(statePath, 'utf8');
-    const goalArtifact = inspectedRun.artifacts.goalContract.path;
-    const artifact = await fetch(
-      `${base}/api/runs/${run.runId}/artifacts?path=${encodeURIComponent(goalArtifact)}`,
-      { headers }
-    );
-    assert.equal(artifact.status, 200);
-    assert.match((await artifact.json()).artifact.content, /Improve workflow canvas/);
-    assert.equal(fs.readFileSync(statePath, 'utf8'), stateBeforeInspection);
-    const traversal = await fetch(
-      `${base}/api/runs/${run.runId}/artifacts?path=${encodeURIComponent('../outside')}`,
-      { headers }
-    );
-    assert.equal(traversal.status, 400);
-    assert.equal((await traversal.json()).code, 'UNSAFE_HISTORY_PATH');
-    const renamed = await fetch(`${base}/api/run/name`, {
-      method: 'PATCH',
-      headers,
-      body: JSON.stringify({
-        runId: run.runId,
-        displayName: 'Canvas workflow console',
-        actor: 'studio-user'
-      })
-    });
-    assert.equal(renamed.status, 200);
-    assert.equal((await renamed.json()).run.runId, run.runId);
-
-    const history = await fetch(`${base}/api/runs?q=canvas`, { headers });
-    assert.equal(history.status, 200);
-    assert.equal((await history.json()).runs[0].displayName, 'Canvas workflow console');
-  });
-});
-
-test('Studio exposes the active Run and requires explicit cancellation before replacing its Goal', async () => {
-  await withServer(async (base, token) => {
-    const headers = { 'x-ael-studio-token': token, 'content-type': 'application/json' };
-    const create = (task) => fetch(`${base}/api/runs`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ task, recipeId: 'default', mode: 'ASSISTED' })
-    });
-    const firstResponse = await create('Keep the current Goal');
-    assert.equal(firstResponse.status, 201);
-    const first = (await firstResponse.json()).run;
-
-    const conflictResponse = await create('Start a different Goal');
-    assert.equal(conflictResponse.status, 400);
-    const conflict = await conflictResponse.json();
-    assert.equal(conflict.code, 'ACTIVE_RUN');
-    assert.equal(conflict.activeRun.runId, first.runId);
-    assert.equal(conflict.activeRun.task, 'Keep the current Goal');
-
-    const cancelledResponse = await fetch(`${base}/api/runs/${first.runId}/cancel`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        actor: 'studio-user',
-        reason: 'Confirmed replacement from Studio'
-      })
-    });
-    assert.equal(cancelledResponse.status, 200);
-    assert.equal((await cancelledResponse.json()).run.state, 'CANCELLED');
-
-    const replacementResponse = await create('Start a different Goal');
-    assert.equal(replacementResponse.status, 201);
-    const replacement = (await replacementResponse.json()).run;
-    assert.notEqual(replacement.runId, first.runId);
-    assert.equal(replacement.task, 'Start a different Goal');
-
-    const oldDetail = await fetch(`${base}/api/runs/${first.runId}`, { headers });
-    assert.equal((await oldDetail.json()).run.status, 'CANCELLED');
-  });
-});
-
-test('Studio checks out a Run and exchanges agent questions without changing history', async () => {
-  await withServer(async (base, token, root) => {
-    const headers = { 'x-ael-studio-token': token, 'content-type': 'application/json' };
-    const created = await fetch(`${base}/api/runs`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        task: 'Add Run replay',
-        constraints: 'Never mutate historical evidence',
-        recipeId: 'default'
-      })
-    });
-    const run = (await created.json()).run;
-    const statePath = path.join(root, '.ai-engineering-loop', 'runs', run.runId, 'state.json');
-    const before = fs.readFileSync(statePath, 'utf8');
-
-    const checkoutResponse = await fetch(`${base}/api/runs/${run.runId}/checkout`, { headers });
-    assert.equal(checkoutResponse.status, 200);
-    const checkout = (await checkoutResponse.json()).checkout;
-    assert.equal(checkout.readOnly, true);
-    assert.ok(checkout.edges.length > 0);
-
-    const nodeResponse = await fetch(
-      `${base}/api/runs/${run.runId}/nodes/${encodeURIComponent(checkout.nodes[0].id)}`,
-      { headers }
-    );
-    assert.equal(nodeResponse.status, 200);
-    assert.equal((await nodeResponse.json()).io.runId, run.runId);
-
-    const questionResponse = await fetch(`${base}/api/runs/${run.runId}/questions`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ message: 'Q1: Which UX should I use?', actor: 'maker' })
-    });
-    assert.equal(questionResponse.status, 201);
-    const question = (await questionResponse.json()).question;
-    const answerResponse = await fetch(
-      `${base}/api/runs/${run.runId}/questions/${question.questionId}/answer`,
-      {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ message: 'Use the focused view.', actor: 'studio-user' })
-      }
-    );
-    assert.equal(answerResponse.status, 201);
-    const interactions = await fetch(`${base}/api/runs/${run.runId}/interactions`, { headers });
-    assert.equal((await interactions.json()).interactions.questions[0].answer.message, 'Use the focused view.');
-
-    const duplicate = await fetch(`${base}/api/runs/${run.runId}/duplicate`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ recipeId: 'run-replay-copy' })
-    });
-    assert.equal(duplicate.status, 200);
-    assert.equal((await duplicate.json()).preview.recipe.id, 'run-replay-copy');
-    const handoff = await fetch(`${base}/api/runs/${run.runId}/agent-handoff`, { headers });
-    assert.equal((await handoff.json()).handoff.externalDispatch, false);
-    assert.equal(fs.readFileSync(statePath, 'utf8'), before);
-  });
-});
-
-test('Studio import endpoints are gone', async () => {
-  await withServer(async (base, token) => {
-    const headers = { 'x-ael-studio-token': token, 'content-type': 'application/json' };
-    for (const pathName of ['/api/import/preview', '/api/import/apply']) {
-      const response = await fetch(`${base}${pathName}`, {
-        method: 'POST',
-        headers,
-        body: '{}'
       });
-      assert.equal(response.status, 404);
-      assert.equal((await response.json()).code, 'GONE');
+      response.on('error', () => {});
+      resolve({
+        response,
+        events,
+        close: () => request.destroy(),
+        async waitFor(predicate, timeoutMs) {
+          const deadline = Date.now() + timeoutMs;
+          while (Date.now() < deadline) {
+            const found = events.find(predicate);
+            if (found) return found;
+            await new Promise((done) => setTimeout(done, 10));
+          }
+          return null;
+        }
+      });
+    });
+    request.on('error', (error) => { if (error.code !== 'ECONNRESET') reject(error); });
+  });
+}
+
+test('requests without the session cookie or token header get 401', async () => {
+  const { home } = fixture();
+  await withStudio({ home }, async ({ base }) => {
+    assert.equal((await fetch(`${base}/api/projects`)).status, 401);
+    assert.equal((await fetch(`${base}/`)).status, 401);
+    assert.equal((await fetch(`${base}/api/projects`, { headers: { cookie: 'ael_studio=wrong' } })).status, 401);
+  });
+});
+
+test('the token is exchanged for an HttpOnly SameSite=Strict cookie that then authorises reads', async () => {
+  const { home } = fixture();
+  await withStudio({ home }, async ({ base }) => {
+    const login = await fetch(`${base}/?token=${TOKEN}&project=abc123`, { redirect: 'manual' });
+    assert.equal(login.status, 302);
+    assert.equal(login.headers.get('location'), '/?project=abc123');
+    assert.match(login.headers.get('set-cookie'), /^ael_studio=fixed-test-token; HttpOnly; SameSite=Strict; Path=\//);
+    const cookie = login.headers.get('set-cookie').split(';')[0];
+    const read = await fetch(`${base}/api/projects`, { headers: { cookie } });
+    assert.equal(read.status, 200);
+    assert.equal(read.headers.get('cache-control'), 'no-store');
+    assert.equal(
+      read.headers.get('content-security-policy'),
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+    );
+  });
+});
+
+test('a non-local Host header is refused with 403 even with the token', async () => {
+  const { home } = fixture();
+  await withStudio({ home }, async ({ port }) => {
+    const evil = await rawGet(port, '/api/projects', { host: 'evil.test', 'x-ael-studio-token': TOKEN });
+    assert.equal(evil.status, 403);
+    const local = await rawGet(port, '/api/projects', { host: `localhost:${port}`, 'x-ael-studio-token': TOKEN });
+    assert.equal(local.status, 200);
+  });
+});
+
+test('/api/projects lists every registry project with its summary', async () => {
+  const { home, roots } = fixture({ projects: 2 });
+  drafted(roots[0], 'run-1');
+  await withStudio({ home }, async ({ base }) => {
+    const response = await api(base, '/api/projects');
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.ok, true);
+    const byId = Object.fromEntries(body.projects.map((p) => [p.id, p]));
+    assert.deepEqual(Object.keys(byId).sort(), roots.map(projectId).sort());
+    assert.equal(byId[projectId(roots[0])].state, 'waiting');
+    assert.equal(byId[projectId(roots[0])].run.waiting.kind, 'freeze');
+    assert.equal(byId[projectId(roots[1])].state, 'idle');
+    assert.equal(JSON.stringify(body).includes(roots[0]), false, 'raw paths never reach the browser');
+  });
+});
+
+test('run detail resolves by project id and carries the draft hash; unknown ids are 404', async () => {
+  const { home, roots } = fixture();
+  const hash = drafted(roots[0], 'run-1');
+  const id = projectId(roots[0]);
+  await withStudio({ home }, async ({ base }) => {
+    const ok = await api(base, `/api/projects/${id}/runs/run-1`);
+    assert.equal(ok.status, 200);
+    const { detail } = await ok.json();
+    assert.equal(detail.summary.runId, 'run-1');
+    assert.equal(detail.goalHash, hash);
+    const unknownProject = await api(base, '/api/projects/ffffffffffff/runs/run-1');
+    assert.equal(unknownProject.status, 404);
+    assert.equal((await unknownProject.json()).code, 'PROJECT_NOT_FOUND');
+    const unknownRun = await api(base, `/api/projects/${id}/runs/run-404`);
+    assert.equal(unknownRun.status, 404);
+    assert.equal((await unknownRun.json()).code, 'RUN_NOT_FOUND');
+    const badRun = await api(base, `/api/projects/${id}/runs/..%2F..`);
+    assert.equal(badRun.status, 400);
+    const malformed = await api(base, `/api/projects/${id}/runs/%E0%A4%A`);
+    assert.equal(malformed.status, 400);
+    assert.equal((await malformed.json()).code, 'INVALID_PATH');
+  });
+});
+
+test('freeze twice: the first freezes as the Studio actor, the second answers alreadyFrozen', async () => {
+  const { home, roots } = fixture();
+  const hash = drafted(roots[0], 'run-1');
+  const route = `/api/projects/${projectId(roots[0])}/runs/run-1/goal/freeze`;
+  await withStudio({ home }, async ({ base }) => {
+    const first = await api(base, route, { method: 'POST', body: { expectedHash: hash } });
+    assert.equal(first.status, 200);
+    const firstBody = await first.json();
+    assert.equal(firstBody.ok, true);
+    assert.equal(firstBody.alreadyFrozen, false);
+    assert.equal(firstBody.run.state, 'GOAL_FROZEN');
+    assert.equal(loadRun(roots[0], 'run-1').goal.actor, 'Ega');
+    assert.equal(loadRun(roots[0], 'run-1').goal.approval, 'studio');
+    const second = await api(base, route, { method: 'POST', body: { expectedHash: hash } });
+    assert.equal(second.status, 200);
+    const secondBody = await second.json();
+    assert.equal(secondBody.alreadyFrozen, true);
+    assert.equal(secondBody.run.alreadyFrozen, undefined);
+  });
+});
+
+test('freeze with a stale expectedHash is 409 GOAL_DRAFT_CONFLICT and leaves the Run unfrozen', async () => {
+  const { home, roots } = fixture();
+  drafted(roots[0], 'run-1');
+  const route = `/api/projects/${projectId(roots[0])}/runs/run-1/goal/freeze`;
+  await withStudio({ home }, async ({ base }) => {
+    const response = await api(base, route, { method: 'POST', body: { expectedHash: 'stale' } });
+    assert.equal(response.status, 409);
+    assert.equal((await response.json()).code, 'GOAL_DRAFT_CONFLICT');
+    assert.equal(loadRun(roots[0], 'run-1').state, 'STARTED');
+    const missing = await api(base, route, { method: 'POST', body: {} });
+    assert.equal(missing.status, 400);
+    assert.equal((await missing.json()).code, 'EXPECTED_HASH_REQUIRED');
+  });
+});
+
+test('freeze refuses an agent-like Studio actor and freezes a worktree Run in the worktree root', async () => {
+  const { home, roots } = fixture({ config: { studioActor: 'claude' } });
+  const hash = drafted(roots[0], 'run-1');
+  await withStudio({ home }, async ({ base }) => {
+    const refused = await api(base, `/api/projects/${projectId(roots[0])}/runs/run-1/goal/freeze`, {
+      method: 'POST',
+      body: { expectedHash: hash }
+    });
+    assert.equal(refused.status, 403);
+    assert.equal((await refused.json()).code, 'GOAL_FREEZE_NOT_HUMAN');
+    assert.equal(loadRun(roots[0], 'run-1').state, 'STARTED');
+  });
+
+  const second = fixture();
+  const worktree = repo(path.dirname(second.roots[0]), 'wt');
+  fs.writeFileSync(
+    path.join(second.roots[0], '.ai-engineering-loop', 'worktrees.json'),
+    JSON.stringify({ schemaVersion: 1, worktrees: [{ runId: 'run-w', path: worktree, branch: 'ael/w' }] })
+  );
+  const worktreeHash = drafted(worktree, 'run-w');
+  await withStudio({ home: second.home }, async ({ base }) => {
+    const response = await api(base, `/api/projects/${projectId(worktree)}/runs/run-w/goal/freeze`, {
+      method: 'POST',
+      body: { expectedHash: worktreeHash }
+    });
+    assert.equal(response.status, 200);
+    assert.equal(loadRun(worktree, 'run-w').state, 'GOAL_FROZEN');
+  });
+});
+
+test('mutations need JSON and same origin or the token header', async () => {
+  const { home, roots } = fixture();
+  const hash = drafted(roots[0], 'run-1');
+  const route = `/api/projects/${projectId(roots[0])}/runs/run-1/goal/freeze`;
+  await withStudio({ home }, async ({ base }) => {
+    const cookie = `ael_studio=${TOKEN}`;
+    const body = JSON.stringify({ expectedHash: hash });
+    const crossOrigin = await fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json', origin: 'http://localhost:3000' },
+      body
+    });
+    assert.equal(crossOrigin.status, 403);
+    const textBody = await fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'text/plain', origin: base },
+      body
+    });
+    assert.equal(textBody.status, 415);
+    assert.equal(loadRun(roots[0], 'run-1').state, 'STARTED');
+  });
+});
+
+test('/api/me resolves the actor from config, then git user.name, and PUT saves a human name only', async () => {
+  const { home } = fixture({ config: { hostPacks: ['core'] } });
+  fs.writeFileSync(path.join(home, '.gitconfig'), '[user]\n\tname = Fixture Person\n');
+  await withStudio({ home }, async ({ base }) => {
+    const fromGit = await (await api(base, '/api/me')).json();
+    assert.deepEqual(fromGit, { ok: true, actor: 'Fixture Person', actorValid: true });
+
+    const refused = await api(base, '/api/me', { method: 'PUT', body: { actor: 'gpt-5' } });
+    assert.equal(refused.status, 403);
+    assert.equal((await refused.json()).code, 'GOAL_FREEZE_NOT_HUMAN');
+    assert.equal(readConfig(home).studioActor, undefined);
+
+    const saved = await api(base, '/api/me', { method: 'PUT', body: { actor: 'Ega Gofur' } });
+    assert.equal(saved.status, 200);
+    assert.deepEqual(await saved.json(), { ok: true, actor: 'Ega Gofur', actorValid: true });
+    assert.deepEqual(readConfig(home), { hostPacks: ['core'], studioActor: 'Ega Gofur' });
+    assert.equal((await (await api(base, '/api/me')).json()).actor, 'Ega Gofur');
+  });
+  const agentConfigured = fixture({ config: { studioActor: 'assistant' } });
+  await withStudio({ home: agentConfigured.home }, async ({ base }) => {
+    assert.deepEqual(await (await api(base, '/api/me')).json(), { ok: true, actor: 'assistant', actorValid: false });
+  });
+});
+
+test('static files come only from the allowlist; traversal and app.js are 404', async () => {
+  const { home } = fixture();
+  await withStudio({ home }, async ({ port }) => {
+    const headers = { 'x-ael-studio-token': TOKEN };
+    const tokens = await rawGet(port, '/tokens.css', headers);
+    assert.equal(tokens.status, 200);
+    assert.match(tokens.headers['content-type'], /^text\/css/);
+    assert.equal((await rawGet(port, '/', headers)).status, 200);
+    assert.equal((await rawGet(port, '/js/../../package.json', headers)).status, 404);
+    assert.equal((await rawGet(port, '/js/..%2F..%2Fpackage.json', headers)).status, 404);
+    assert.equal((await rawGet(port, '/app.js', headers)).status, 404);
+    assert.equal((await rawGet(port, '/api/bootstrap', headers)).status, 404);
+  });
+});
+
+test('SSE sends projects on connect and again within pollMs after a fixture Run changes', async () => {
+  const { home, roots } = fixture();
+  const pollMs = 150;
+  await withStudio({ home, pollMs }, async ({ port }) => {
+    const stream = await openEvents(port);
+    try {
+      assert.match(stream.response.headers['content-type'], /^text\/event-stream/);
+      const initial = await stream.waitFor((event) => event.type === 'projects', 1_000);
+      assert.ok(initial, 'initial projects event');
+      assert.equal(initial.data.projects[0].state, 'idle');
+      await new Promise((done) => setTimeout(done, pollMs * 2));
+      assert.equal(stream.events.filter((event) => event.type === 'projects').length, 1, 'no push without a change');
+      const changedAt = Date.now();
+      drafted(roots[0], 'run-1');
+      const update = await stream.waitFor((event) => event.type === 'projects' && event.data.projects[0].state === 'waiting', pollMs + 400);
+      assert.ok(update, 'projects event after the change');
+      assert.ok(update.at - changedAt <= pollMs + 400, `pushed after ${update.at - changedAt} ms`);
+    } finally {
+      stream.close();
     }
   });
+});
+
+test('with 25 fixture projects one poll completes under 500 ms', async () => {
+  const { home, roots } = fixture({ projects: 25 });
+  roots.forEach((root, index) => drafted(root, `run-${index}`));
+  await withStudio({ home }, async ({ base }) => {
+    await api(base, '/api/projects');
+    const started = process.hrtime.bigint();
+    const response = await api(base, '/api/projects');
+    const elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
+    assert.equal((await response.json()).projects.length, 25);
+    assert.ok(elapsedMs < 500, `poll took ${elapsedMs} ms`);
+  });
+});
+
+test('the notifier gets exactly one call for a new freeze wait across polls', async () => {
+  const { home, roots } = fixture();
+  const calls = [];
+  const pollMs = 50;
+  await withStudio({ home, pollMs, notifier: (title, body) => calls.push({ title, body }) }, async () => {
+    await new Promise((done) => setTimeout(done, pollMs * 2));
+    assert.equal(calls.length, 0);
+    drafted(roots[0], 'run-1');
+    await new Promise((done) => setTimeout(done, pollMs * 6));
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].body, 'Goal waiting for Freeze');
+    assert.match(calls[0].title, /^AEL: /);
+  });
+});
+
+test('close() stops the poll loop', async () => {
+  const { home, roots } = fixture();
+  const calls = [];
+  const studio = createStudioServer({ home, token: TOKEN, pollMs: 30, notifier: () => calls.push(1) });
+  await new Promise((resolve) => studio.server.listen(0, '127.0.0.1', resolve));
+  await studio.close();
+  drafted(roots[0], 'run-1');
+  await new Promise((done) => setTimeout(done, 120));
+  assert.equal(calls.length, 0);
 });
