@@ -3855,7 +3855,111 @@ function handleActivity() {
   }
 }
 
-function handleStudio() {
+const STUDIO_START_WAIT_MS = 5000;
+const STUDIO_STOP_WAIT_MS = 3000;
+
+function sleepMs(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function studioLogPath(home) {
+  return path.join(home, '.ai-engineering-loop', 'studio.log');
+}
+
+function pidIsAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error.code === 'EPERM';
+  }
+}
+
+async function stopStudio(home) {
+  const { readInstance, clearInstance } = require('../lib/studio/instance.js');
+  const instance = readInstance({ home });
+  if (!instance) {
+    console.log('Studio is not running');
+    return;
+  }
+  try {
+    process.kill(instance.pid, 'SIGTERM');
+  } catch {
+    clearInstance({ home });
+    console.log('Studio stopped');
+    return;
+  }
+  const deadline = Date.now() + STUDIO_STOP_WAIT_MS;
+  while (pidIsAlive(instance.pid) && Date.now() < deadline) await sleepMs(50);
+  clearInstance({ home });
+  console.log('Studio stopped');
+}
+
+async function startStudioInBackground(home, port) {
+  const { readInstance } = require('../lib/studio/instance.js');
+  const logFile = studioLogPath(home);
+  fs.mkdirSync(path.dirname(logFile), { recursive: true, mode: 0o700 });
+  const startOffset = fs.existsSync(logFile) ? fs.statSync(logFile).size : 0;
+  const fd = fs.openSync(logFile, 'a', 0o600);
+  const childArgs = [__filename, 'studio', '--no-open', '--port', String(port)];
+  if (process.argv.includes('--no-notify')) childArgs.push('--no-notify');
+  const child = spawn(process.execPath, childArgs, { detached: true, stdio: ['ignore', fd, fd] });
+  child.on('error', () => {});
+  child.unref();
+  fs.closeSync(fd);
+  const deadline = Date.now() + STUDIO_START_WAIT_MS;
+  while (Date.now() < deadline) {
+    if (readInstance({ home })) break;
+    await sleepMs(100);
+  }
+  const written = fs.readFileSync(logFile, 'utf8').slice(startOffset);
+  const urls = written.match(/http:\/\/127\.0\.0\.1:\d+\/\?token=\S+/g);
+  if (readInstance({ home }) && urls) {
+    console.log(urls[urls.length - 1]);
+    return;
+  }
+  log.error('Studio did not start in the background. Last log lines:');
+  console.error(written.split('\n').filter(Boolean).slice(-10).join('\n'));
+  process.exitCode = 1;
+}
+
+function startStudioInForeground(home, port) {
+  const { writeInstance, clearInstance } = require('../lib/studio/instance.js');
+  const { osNotifier } = require('../lib/studio/notify.js');
+  const notifier = process.argv.includes('--no-notify') ? undefined : osNotifier();
+  const { server, token, close } = createStudioServer({ home, notifier });
+  server.on('error', (error) => {
+    log.error(`Unable to start Studio: ${error.message}`);
+    process.exitCode = 1;
+  });
+  const shutdown = () => {
+    clearInstance({ home });
+    try {
+      close();
+    } finally {
+      process.exit(0);
+    }
+  };
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+  process.on('exit', () => clearInstance({ home }));
+  server.listen(port, '127.0.0.1', () => {
+    const actualPort = server.address().port;
+    writeInstance({ home, pid: process.pid, port: actualPort });
+    const url = `http://127.0.0.1:${actualPort}/?token=${token}`;
+    log.success('✓ AEL Studio is running locally');
+    console.log(url);
+    console.log('Press Ctrl+C to stop. The session token is valid only for this process.');
+    if (!process.argv.includes('--no-open')) openStudio(url);
+  });
+}
+
+async function handleStudio() {
+  const home = homeDir();
+  if (process.argv.includes('--stop')) {
+    await stopStudio(home);
+    return;
+  }
   const requestedPort = argValue('--port');
   const port = requestedPort == null ? 4317 : Number(requestedPort);
   if (!Number.isSafeInteger(port) || port < 0 || port > 65535) {
@@ -3863,19 +3967,19 @@ function handleStudio() {
     process.exitCode = 1;
     return;
   }
-  const { server, token } = createStudioServer(CWD);
-  server.on('error', (error) => {
-    log.error(`Unable to start Studio: ${error.message}`);
-    process.exitCode = 1;
-  });
-  server.listen(port, '127.0.0.1', () => {
-    const address = server.address();
-    const url = `http://127.0.0.1:${address.port}/?token=${token}`;
-    log.success('✓ Workflow Studio is running locally');
-    console.log(url);
-    console.log('Press Ctrl+C to stop. The session token is valid only for this process.');
-    if (!process.argv.includes('--no-open')) openStudio(url);
-  });
+  const { readInstance } = require('../lib/studio/instance.js');
+  const running = readInstance({ home });
+  if (running) {
+    console.log(running.url);
+    console.log('Studio is already running; if the browser asks for a session, run `ael studio --stop` then `ael studio`');
+    if (!process.argv.includes('--no-open') && !process.argv.includes('--background')) openStudio(running.url);
+    return;
+  }
+  if (process.argv.includes('--background')) {
+    await startStudioInBackground(home, port);
+    return;
+  }
+  startStudioInForeground(home, port);
 }
 
 function handleInteraction() {
@@ -5394,8 +5498,10 @@ Commands:
                show <id> [--json]
                validate <id> [--mode <mode>] [--json]
                explain | graph | simulate <id> [--mode <mode>] [--json]
-  studio       Open the localhost-only live-run Studio
-               [--port <0-65535>] [--no-open]
+  studio       Open the localhost-only, read-only bot monitor for every registered project
+               [--port <0-65535>] [--no-open] [--no-notify] [--json]
+               --background  keep Studio running detached; log in ~/.ai-engineering-loop/studio.log
+               --stop        stop the running Studio
   handoff      Export or verify a redacted, integrity-bound knowledge transfer
                create [--run <id>] [--audience developer|agent|auditor]
                       [--output <repository-relative-file>|-] [--json]
