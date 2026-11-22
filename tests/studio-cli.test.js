@@ -98,9 +98,12 @@ test('a second start reports already running with the tokenless url', async () =
 test('--stop ends the process and removes studio.json', async () => {
   const home = tempDir('ael-studio-cli-');
   const { child } = await startForeground(home);
-  const stop = runCli(home, ['studio', '--stop']);
-  assert.equal(stop.status, 0);
-  assert.match(stop.stdout, /Studio stopped/);
+  const stopper = spawn(process.execPath, [BIN, 'studio', '--stop'], { env: env(home), stdio: ['ignore', 'pipe', 'pipe'] });
+  let stdout = '';
+  stopper.stdout.on('data', (chunk) => { stdout += chunk; });
+  const code = await new Promise((resolve) => stopper.on('exit', resolve));
+  assert.equal(code, 0);
+  assert.match(stdout, /Studio stopped/);
   await exited(child);
   assert.equal(fs.existsSync(studioFile(home)), false);
 });
@@ -119,9 +122,40 @@ test('--background detaches, prints the url, and --stop ends it', () => {
   assert.match(started.stdout, /http:\/\/127\.0\.0\.1:\d+\/\?token=\S+/);
   assert.equal(fs.existsSync(studioFile(home)), true);
   assert.equal(fs.existsSync(path.join(home, '.ai-engineering-loop', 'studio.log')), true);
+  const { pid } = JSON.parse(fs.readFileSync(studioFile(home), 'utf8'));
   const stop = runCli(home, ['studio', '--stop']);
   assert.match(stop.stdout, /Studio stopped/);
   assert.equal(fs.existsSync(studioFile(home)), false);
+  assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
+});
+
+function writeStaleInstance(home, pid, port) {
+  fs.mkdirSync(path.dirname(studioFile(home)), { recursive: true });
+  fs.writeFileSync(studioFile(home), JSON.stringify({
+    schemaVersion: 1, pid, port, url: `http://127.0.0.1:${port}/`, startedAt: new Date().toISOString()
+  }));
+}
+
+function freePort() {
+  const server = require('node:net').createServer();
+  return new Promise((resolve) => {
+    server.listen(0, '127.0.0.1', () => {
+      const { port } = server.address();
+      server.close(() => resolve(port));
+    });
+  });
+}
+
+test('--stop never signals a live pid whose port is not Studio and removes the stale file', async () => {
+  const home = tempDir('ael-studio-cli-');
+  const bystander = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });
+  spawned.push(bystander);
+  writeStaleInstance(home, bystander.pid, await freePort());
+  const stop = runCli(home, ['studio', '--stop']);
+  assert.equal(stop.status, 0);
+  assert.match(stop.stdout, /Studio is not running \(removed a stale instance file\)/);
+  assert.equal(fs.existsSync(studioFile(home)), false);
+  process.kill(bystander.pid, 0);
 });
 
 test('status --json shows a studioUrl with ?project= while Studio runs', async () => {

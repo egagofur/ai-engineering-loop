@@ -168,6 +168,17 @@ test('the token is exchanged for an HttpOnly SameSite=Strict cookie that then au
   });
 });
 
+test('/healthz answers identity without a session and still enforces the Host check', async () => {
+  const { home } = fixture();
+  await withStudio({ home }, async ({ base, port }) => {
+    const res = await fetch(`${base}/healthz`);
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), { app: 'ael-studio', pid: process.pid });
+    const evil = await rawGet(port, '/healthz', { host: 'evil.test' });
+    assert.equal(evil.status, 403);
+  });
+});
+
 test('a non-local Host header is refused with 403 even with the token', async () => {
   const { home } = fixture();
   await withStudio({ home }, async ({ port }) => {

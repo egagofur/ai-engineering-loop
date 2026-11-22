@@ -3875,11 +3875,32 @@ function pidIsAlive(pid) {
   }
 }
 
+async function studioAnswersHealth(instance) {
+  try {
+    const response = await fetch(`http://127.0.0.1:${instance.port}/healthz`, { signal: AbortSignal.timeout(1500) });
+    const body = await response.json();
+    return body.app === 'ael-studio' && body.pid === instance.pid;
+  } catch {
+    return false;
+  }
+}
+
+async function waitForExit(pid, ms) {
+  const deadline = Date.now() + ms;
+  while (pidIsAlive(pid) && Date.now() < deadline) await sleepMs(50);
+  return !pidIsAlive(pid);
+}
+
 async function stopStudio(home) {
   const { readInstance, clearInstance } = require('../lib/studio/instance.js');
   const instance = readInstance({ home });
   if (!instance) {
     console.log('Studio is not running');
+    return;
+  }
+  if (!(await studioAnswersHealth(instance))) {
+    clearInstance({ home });
+    console.log('Studio is not running (removed a stale instance file)');
     return;
   }
   try {
@@ -3889,8 +3910,20 @@ async function stopStudio(home) {
     console.log('Studio stopped');
     return;
   }
-  const deadline = Date.now() + STUDIO_STOP_WAIT_MS;
-  while (pidIsAlive(instance.pid) && Date.now() < deadline) await sleepMs(50);
+  let gone = await waitForExit(instance.pid, STUDIO_STOP_WAIT_MS);
+  if (!gone) {
+    try {
+      process.kill(instance.pid, 'SIGKILL');
+    } catch {
+      gone = !pidIsAlive(instance.pid);
+    }
+    gone = gone || await waitForExit(instance.pid, 1000);
+  }
+  if (!gone) {
+    log.error(`Studio (pid ${instance.pid}) did not exit; instance file kept`);
+    process.exitCode = 1;
+    return;
+  }
   clearInstance({ home });
   console.log('Studio stopped');
 }
@@ -3924,7 +3957,7 @@ async function startStudioInBackground(home, port) {
 }
 
 function startStudioInForeground(home, port) {
-  const { writeInstance, clearInstance } = require('../lib/studio/instance.js');
+  const { writeInstance, clearInstance, clearInstanceIfOwned } = require('../lib/studio/instance.js');
   const { osNotifier } = require('../lib/studio/notify.js');
   const notifier = process.argv.includes('--no-notify') ? undefined : osNotifier();
   const { server, token, close } = createStudioServer({ home, notifier });
@@ -3933,7 +3966,7 @@ function startStudioInForeground(home, port) {
     process.exitCode = 1;
   });
   const shutdown = () => {
-    clearInstance({ home });
+    clearInstanceIfOwned({ home, pid: process.pid });
     try {
       close();
     } finally {
@@ -3942,7 +3975,7 @@ function startStudioInForeground(home, port) {
   };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
-  process.on('exit', () => clearInstance({ home }));
+  process.on('exit', () => clearInstanceIfOwned({ home, pid: process.pid }));
   server.listen(port, '127.0.0.1', () => {
     const actualPort = server.address().port;
     writeInstance({ home, pid: process.pid, port: actualPort });

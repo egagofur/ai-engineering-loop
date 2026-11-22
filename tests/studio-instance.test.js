@@ -10,6 +10,7 @@ const {
   writeInstance,
   readInstance,
   clearInstance,
+  clearInstanceIfOwned,
   readStudioUrl
 } = require('../lib/studio/instance.js');
 
@@ -65,4 +66,14 @@ test('projectId follows symlinks to the real path', () => {
   const link = `${repo}-link`;
   fs.symlinkSync(repo, link);
   assert.equal(projectId(link), projectId(repo));
+});
+
+test('clearInstanceIfOwned removes only a file written by the given pid', () => {
+  const home = tempHome();
+  writeInstance({ home, pid: process.ppid, port: 4567 });
+  clearInstanceIfOwned({ home, pid: process.pid });
+  assert.equal(fs.existsSync(file(home)), true);
+  writeInstance({ home, pid: process.pid, port: 4567 });
+  clearInstanceIfOwned({ home, pid: process.pid });
+  assert.equal(fs.existsSync(file(home)), false);
 });
