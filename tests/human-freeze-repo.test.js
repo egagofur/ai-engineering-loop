@@ -236,6 +236,55 @@ test('goal draft prints the git toplevel, including when the command runs from a
   assert.match(plain.stdout, new RegExp(`- Repo: ${toplevel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
 });
 
+test('an approved freeze accepts a display name with spaces and unicode letters', () => {
+  const { ACTOR_ID, HUMAN_NAME } = require('../lib/fsutil.js');
+  for (const name of ['a', 'user@host', 'a.b_c-d', 'A'.repeat(64)]) {
+    assert.equal(ACTOR_ID.test(name), true, name);
+    assert.equal(HUMAN_NAME.test(name), true, name);
+  }
+  for (const name of ['AEL Round3 Tester', 'José Müller', '李明', "O'Brien"]) {
+    assert.equal(HUMAN_NAME.test(name), true, name);
+  }
+  for (const name of ['a/b', 'a\\b', 'x'.repeat(65), 'has\nnewline']) {
+    assert.equal(HUMAN_NAME.test(name), false, JSON.stringify(name));
+  }
+  const root = gitRepo();
+  const { cli } = box(root, { allowFreeze: true });
+  assert.strictEqual(cli('init').status, 0);
+  const started = cli('run', '--json', 'Add CSV export');
+  const runId = JSON.parse(started.stdout.slice(started.stdout.search(/^\{/m))).runId;
+  const goal = {
+    schemaVersion: 1,
+    runId,
+    objective: 'Export the filtered report as CSV.',
+    restatement: RESTATE,
+    acceptanceCriteria: [{ id: 'AC-1', statement: 'Export saves only the filtered rows.', evidenceRequired: 'unit test', failureCases: ['The CSV ignores the filter.'] }]
+  };
+  fs.mkdirSync(path.join(root, '.ai-engineering-loop', 'drafts'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.ai-engineering-loop', 'drafts', 'goal.json'), JSON.stringify(goal));
+  assert.strictEqual(cli('goal', 'draft', '--json', '--run', runId, '--file', '.ai-engineering-loop/drafts/goal.json', '--revision', '0').status, 0);
+  const ok = cli('goal', 'freeze', '--json', '--latest', '--run', runId, '--by', 'AEL Round3 Tester', '--confirm-impact');
+  assert.strictEqual(ok.status, 0, ok.stdout + ok.stderr);
+  assert.strictEqual(JSON.parse(ok.stdout).result.goal.actor, 'AEL Round3 Tester');
+  const state = JSON.parse(fs.readFileSync(path.join(root, '.ai-engineering-loop', 'runs', runId, 'state.json'), 'utf8'));
+  assert.strictEqual(state.goal.actor, 'AEL Round3 Tester');
+
+  const unicodeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-freeze-name-'));
+  const unicodeId = 'run-unicode';
+  draft(unicodeRoot, unicodeId);
+  const frozen = freezeGoal(unicodeRoot, unicodeId, { actor: 'José Müller', ...HATCH });
+  assert.equal(frozen.goal.actor, 'José Müller');
+  const cjkId = 'run-cjk';
+  draft(unicodeRoot, cjkId);
+  assert.equal(freezeGoal(unicodeRoot, cjkId, { actor: '李明', ...HATCH }).goal.actor, '李明');
+  const slashId = 'run-slash';
+  draft(unicodeRoot, slashId);
+  assert.throws(
+    () => freezeGoal(unicodeRoot, slashId, { actor: 'a/b', ...HATCH }),
+    (error) => error.code === 'INVALID_GOAL_ACTOR'
+  );
+});
+
 test('the skill tells the agent to wait on a cancelled question and to pin the repo', () => {
   const skill = fs.readFileSync(path.join(ROOT, 'skill-src', 'ael', 'SKILL.template.md'), 'utf8');
   const overlay = fs.readFileSync(path.join(ROOT, 'skill-src', 'ael', 'overlay.md'), 'utf8');

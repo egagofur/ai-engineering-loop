@@ -86,7 +86,7 @@ Each AC is one row that can **fail**. Happy path alone is not a contract (`polic
 4. **Chat is not the contract**:
    - Parent-transcript `setuju` does not freeze AC.
    - Every user-visible grill decision (order of pages, enable flags, layout) MUST appear as AC-1..N in the contract file before Maker starts.
-   - `goal freeze --by <name>` records the person who agreed. A non-interactive shell cannot freeze: the human runs the command in their own terminal and types the short confirmation it prints. An empty name, `agent`, `ael-agent`, and a model id (`deepseek-flash`) are still refused after that confirmation. `studio-user` is a human click in Studio and still counts.
+   - `goal freeze --by <name>` records the person who agreed. The name may be a display name with spaces and letters, such as `AEL Round3 Tester` or `José Müller`. A non-interactive shell cannot freeze: the human runs the command in their own terminal and types the short confirmation it prints. An empty name, `agent`, `ael-agent`, and a model id (`deepseek-flash`) are still refused after that confirmation. `studio-user` is a human click in Studio and still counts.
    - Agents stop and ask the human to do that. They never type the confirmation and never set `AEL_GOAL_FREEZE_OK` (the test suite and bench harness only).
    - A cancelled or unanswered question is not agreement. Stop and wait. Do not freeze.
    - `goal draft` returns `repoRoot`, the git toplevel. Draft only when that path is the project the human named.
