@@ -13,7 +13,7 @@ const read = (file) => fs.readFileSync(path.join(__dirname, '..', 'studio', file
 test('styles.css has no raw colours; tokens.css defines the brand, light and dark themes', () => {
   const css = read('styles.css');
   assert.deepStrictEqual(css.match(/#[0-9a-fA-F]{3,8}\b/g), null);
-  assert.doesNotMatch(css, /\brgba?\(/);
+  assert.doesNotMatch(css, /\b(rgba?|hsla?|oklch|oklab|lab|lch)\(/);
   const tokens = read('tokens.css');
   assert.match(tokens, /--brand: #fc6404;/);
   assert.match(tokens, /:root\[data-theme="dark"\]/);
@@ -23,30 +23,34 @@ test('styles.css has no raw colours; tokens.css defines the brand, light and dar
   }
   const used = new Set([...css.matchAll(/var\(--([a-z0-9-]+)\)/g)].map((match) => match[1]));
   const defined = new Set([...tokens.matchAll(/--([a-z0-9-]+):/g)].map((match) => match[1]));
-  const local = new Set(['checkout-width', 'checkout-height', 'transform-origin']);
-  assert.deepStrictEqual([...used].filter((name) => !defined.has(name) && !local.has(name)), []);
+  assert.deepStrictEqual([...used].filter((name) => !defined.has(name)), []);
   assert.match(read('index.html'), /href="\/tokens\.css"[\s\S]*href="\/styles\.css"/);
 });
 
-test('passed is green (ok), brand orange is for action and live state', () => {
+test('done is green (ok), brand orange is for the Freeze action and live state', () => {
   const css = read('styles.css');
-  assert.match(css, /\.stage-rail li\.passed::before\{border-color:var\(--ok\)/);
-  assert.match(css, /\.status-pill\.status-passed\{background:var\(--ok-soft\);color:var\(--ok\)\}/);
-  assert.match(css, /\.primary\{background:var\(--brand\)/);
+  assert.match(css, /\.stage-rail li\[data-status="done"\]::before\{[^}]*background:var\(--ok\)/);
+  assert.match(css, /\.stage-rail li\[data-status="now"\]::before\{[^}]*background:var\(--brand\)/);
+  assert.match(css, /\.primary\{[^}]*background:var\(--brand\)/);
+  assert.match(css, /\.bot-working\{[^}]*background:var\(--brand\)/);
 });
 
 test('motion: named properties, no ease-in, a short keyframe list, press feedback, gated hover', () => {
   const css = read('styles.css');
   assert.doesNotMatch(css, /transition:\s*(all\b|\.\d|\d+m?s\b)/);
+  assert.doesNotMatch(css, /transition-property:\s*all\b/);
   assert.doesNotMatch(css, /\bease-in\b(?!-out)/);
   const keyframes = [...css.matchAll(/@keyframes ([a-z-]+)/g)].map((match) => match[1]).sort();
-  assert.deepStrictEqual(keyframes, ['flow', 'freeze-pop', 'node-mark-spin', 'presence-pulse']);
+  assert.deepStrictEqual(keyframes, ['bot-pulse', 'detail-fade', 'detail-in']);
   assert.match(css, /:active:not\(:disabled\)[^{]*\{transform:scale\(\.97\)\}/);
   assert.match(css, /:focus-visible\{outline:2px solid var\(--focus\)/);
   const gate = css.indexOf('@media (hover:hover) and (pointer:fine){');
   assert.ok(gate > 0, 'hover media block exists');
   const before = css.slice(0, gate);
   assert.doesNotMatch(before, /:hover/, 'every :hover rule sits inside the hover media block');
-  assert.match(css, /@media \(prefers-reduced-motion:reduce\)\{[\s\S]*animation:none/);
+  const reduced = css.match(/@media \(prefers-reduced-motion:reduce\)\{([\s\S]*)$/);
+  assert.ok(reduced, 'reduced motion block exists');
+  assert.match(reduced[1], /\.bot-working::after\{animation:none/);
+  assert.match(reduced[1], /animation-name:detail-fade/, 'reduced motion keeps the fade');
+  assert.doesNotMatch(css.match(/@keyframes detail-fade\{[^}]*\}[^}]*\}/)[0], /transform/);
 });
-

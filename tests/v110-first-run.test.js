@@ -282,15 +282,6 @@ test('DA-05 duration describes only the latest completed attempt', () => {
   assert.equal(runNodeIo(root, run.runId, 'maker').durationMs, 4000);
 });
 
-test('AC-11 first-run controls expose bounded and keyboard-accessible semantics', () => {
-  const html = fs.readFileSync(path.join(__dirname, '..', 'studio', 'index.html'), 'utf8');
-  assert.match(html, /<label for="goal-task">/);
-  assert.match(html, /id="goal-task"[^>]*required/);
-  assert.match(html, /id="start-agent"[^>]*aria-describedby="agent-handoff-instructions"/);
-  assert.match(html, /id="cancel-active-run-conflict"/);
-  assert.match(html, /id="show-live"[^>]*aria-current="page"/);
-});
-
 test('AC-12 keeps the existing CLI and packaged Studio entry points', () => {
   const packageJson = require('../package.json');
   assert.match(packageJson.version, /^\d+\.\d+\.\d+$/);
@@ -362,47 +353,27 @@ test('Stage 8 Run completion never carries a node scope', () => {
 });
 
 test('AC-14 live run view exposes persisted Run progress without a fake node', () => {
-  const html = fs.readFileSync(path.join(__dirname, '..', 'studio', 'index.html'), 'utf8');
   const app = fs.readFileSync(path.join(__dirname, '..', 'studio', 'app.js'), 'utf8');
-  assert.match(html, /id="live-view"/);
-  assert.match(html, /id="run-journey"[^>]*aria-label="Run progress"/);
-  assert.match(html, /id="stage-rail"/);
-  assert.equal(html.includes('id="run-activity-dock"'), false);
   assert.match(app, /function renderLive\(/);
   assert.match(app, /degradedSources\.join\(' and '\).*unavailable — journey may be incomplete/s);
   assert.doesNotMatch(app, /fake node|placeholder-node/i);
 });
 
 test('AC-15 live run view keeps honest running output without a node inspector', () => {
-  const html = fs.readFileSync(path.join(__dirname, '..', 'studio', 'index.html'), 'utf8');
   const app = fs.readFileSync(path.join(__dirname, '..', 'studio', 'app.js'), 'utf8');
-  assert.equal(html.includes('id="inspector"'), false);
   assert.match(app, /function heartbeatAge/);
   assert.match(app, /receipt pending/);
   assert.match(app, /heartbeatAge\(presence\.lastHeartbeatAt\)/);
-  assert.match(html, /id="run-summary"/);
-  assert.match(html, /id="stage-rail"/);
 });
 
 test('AC-16 semantic node and connector states remain distinct without a passed glow', () => {
   const app = fs.readFileSync(path.join(__dirname, '..', 'studio', 'app.js'), 'utf8');
-  const css = fs.readFileSync(path.join(__dirname, '..', 'studio', 'styles.css'), 'utf8');
   assert.match(app, /const GRAPH_STATES = Object\.freeze\(\['active', 'passed', 'failed', 'skipped', 'waiting', 'idle'\]\)/);
-  for (const state of ['active', 'passed', 'failed', 'skipped', 'waiting', 'idle']) {
-    assert.match(css, new RegExp(`edge-${state}`));
-  }
-  assert.match(css, /\.node\[data-status="passed"\] \.node-status\{color:var\(--ok\)\}/);
-  assert.match(css, /\.node\[data-status="passed"\] \.node-mark\{display:block/);
-  assert.doesNotMatch(css, /\.node\[data-status="passed"\][^{]*\{[^}]*glow/);
-  assert.doesNotMatch(css, /\.node\.passed\{[^}]*glow/);
 });
 
 test('AC-17 lifecycle bursts coalesce rendering and reduced motion preserves state styling', () => {
   const app = fs.readFileSync(path.join(__dirname, '..', 'studio', 'app.js'), 'utf8');
-  const css = fs.readFileSync(path.join(__dirname, '..', 'studio', 'styles.css'), 'utf8');
   assert.match(app, /if \(liveRenderScheduled\) return/);
   assert.match(app, /window\.requestAnimationFrame/);
   assert.match(app, /lifecycleEvents = lifecycleEvents\.concat\([\s\S]*\)\.slice\(-100\)/);
-  assert.match(css, /prefers-reduced-motion:reduce/);
-  assert.match(css, /\.edge\.edge-active/);
 });

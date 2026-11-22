@@ -3,146 +3,31 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>AEL Workflow Studio</title>
+  <meta name="color-scheme" content="light dark">
+  <title>AEL Studio</title>
   <link rel="stylesheet" href="/tokens.css">
   <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/js/main.js"></script>
 </head>
 <body>
   <header class="appbar">
-    <b class="mark" aria-label="AI Engineering Loop">A</b>
-    <nav class="workspace-tabs" aria-label="Studio sections">
-      <button id="show-live" class="workspace-tab active" aria-current="page">Live</button>
-      <button id="show-runs" class="workspace-tab">Runs</button>
-      <button id="show-wiring" class="workspace-tab">Wiring</button>
-    </nav>
-    <code id="watched-root" class="watched-root" title="Watched project root">—</code>
-    <span id="live-mode" class="live-mode" title="Filesystem sync mode">live: …</span>
-    <span id="run-summary" class="run-summary">No active run</span>
-    <button id="open-goal" class="quiet">Goal</button>
+    <b class="mark" aria-hidden="true">A</b>
+    <h1 class="title">AEL Studio</h1>
+    <p id="overview" class="overview" aria-live="polite">Loading projects…</p>
+    <p id="connection" class="connection" role="status" hidden></p>
   </header>
-  <main>
-    <section id="live-view" class="live-view" aria-label="Live run">
-      <div id="live-connection-state" class="validation-message" role="status" hidden>
-        <span id="live-connection-message"></span>
-        <button id="retry-live-connection" type="button">Retry now</button>
-      </div>
-      <ol id="stage-rail" class="stage-rail" aria-label="Run stages"></ol>
-      <div id="question-banner" class="pending-banner question-banner" hidden></div>
-      <div class="live-columns">
-        <section id="live-current" class="current-step" aria-label="Current step"></section>
-        <div id="live-meta" class="live-meta" aria-label="Compliance and budget"></div>
-      </div>
-      <section class="live-timeline">
-        <h2 class="live-card-title">Timeline</h2>
-        <ol id="run-journey" class="run-journey" aria-label="Run progress"></ol>
-      </section>
+  <main class="layout">
+    <nav class="projects" aria-labelledby="projects-title">
+      <h2 id="projects-title" class="section-title">Projects</h2>
+      <div id="project-list"></div>
+    </nav>
+    <section id="run" class="run" aria-label="Selected Run">
+      <p id="run-empty" class="empty">Pick a project to see its Run.</p>
+      <header id="run-head" class="run-head"></header>
+      <p id="run-status" class="run-status" role="status"></p>
+      <div id="ring" aria-hidden="true"></div>
+      <div id="run-detail" class="run-detail"></div>
     </section>
-    <section id="runs-view" class="runs-view" hidden>
-      <label class="run-search"><span>Search runs</span><input id="run-search" type="search" placeholder="Name, task…" autocomplete="off"></label>
-      <div id="run-list" class="run-list" role="list" aria-live="polite"></div>
-    </section>
-    <section class="canvas" id="canvas" tabindex="0" aria-label="Workflow wiring" hidden>
-      <div class="canvas-toolbar">
-        <select id="recipe" aria-label="Workflow"></select>
-      </div>
-      <section id="run-summary-card" class="run-summary-card" hidden></section>
-      <div id="wiring-bar" class="wiring-bar" hidden>
-        <p id="wiring-count"></p>
-        <p id="wiring-pill" class="wiring-pill"></p>
-        <p id="wiring-error" role="status"></p>
-        <button type="button" id="undo">Undo</button>
-        <button type="button" id="redo">Redo</button>
-        <button type="button" id="discard-wiring">Discard</button>
-        <button type="button" class="primary" id="save-wiring">Save wiring</button>
-      </div>
-      <aside id="node-panel" aria-label="Node inspection" hidden></aside>
-      <div id="scene">
-        <div class="loop-groups"></div>
-        <svg id="edges" aria-hidden="true">
-          <defs>
-            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
-              <path d="M 0 0 L 10 5 L 0 10 z"></path>
-            </marker>
-          </defs>
-          <g class="edge-paths"></g>
-          <path class="preview-edge"></path>
-        </svg>
-        <div class="edge-controls"></div>
-        <div id="nodes"></div>
-      </div>
-    </section>
-    <div id="message"></div>
   </main>
-  <dialog id="confirm">
-    <h2>Install wiring</h2>
-    <p>The compiler must accept this graph. Installation writes a project recipe; built-ins stay unchanged.</p>
-    <pre id="review-data"></pre>
-    <button type="button" data-close="confirm">Cancel</button>
-    <button class="primary" id="install">Save</button>
-  </dialog>
-  <dialog id="goal-dialog" class="wide-dialog resizable-dialog">
-    <form id="goal-form">
-      <header><div><small>GOAL CONTRACT</small><h2>Start a reliable run</h2></div><div class="dialog-actions"><button type="button" class="dialog-maximize" aria-label="Maximize dialog">□</button><button type="button" data-close="goal-dialog" aria-label="Close">×</button></div></header>
-      <div id="goal-state" class="goal-state draft">Draft · editing allowed</div>
-      <label for="goal-task">What should the AI Agent deliver?</label><textarea id="goal-task" maxlength="2000" required placeholder="Improve Workflow Studio canvas"></textarea>
-      <details id="goal-advanced" class="advanced-goal">
-        <summary>Advanced Goal fields</summary>
-        <label>Anything it must keep or avoid? <span class="muted">(optional)</span></label>
-        <textarea name="goal-constraints" maxlength="8000" placeholder="Keep existing CLI behavior."></textarea>
-        <label>Run Display Name</label>
-        <input name="goal-run-name" maxlength="100" placeholder="Automatically named from the task">
-        <label for="goal-text">Objective</label><textarea id="goal-text" maxlength="12000" placeholder="The Agent drafts this from your task."></textarea>
-        <label for="goal-criteria">Acceptance criteria</label>
-        <textarea id="goal-criteria" class="criteria-editor" placeholder="One row per line: statement | evidence required | failure case"></textarea>
-      </details>
-      <div id="goal-validation" class="validation-message" aria-live="polite"></div>
-      <section id="agent-handoff-state" class="agent-handoff-state" aria-live="polite" hidden>
-        <p id="agent-handoff-instructions">Paste it once into your current AI Agent terminal, then keep Studio open to follow persisted progress.</p>
-      </section>
-      <section id="goal-review" class="goal-review" hidden></section>
-      <label class="unfreeze-reason-label" for="unfreeze-reason">Reason for unfreezing</label>
-      <textarea id="unfreeze-reason" maxlength="500" hidden></textarea>
-      <footer>
-        <button type="button" id="save-goal">Save draft</button>
-        <button type="button" id="unfreeze-goal" hidden>Unfreeze…</button>
-        <button type="button" id="start-agent" class="primary" aria-describedby="agent-handoff-instructions">Start with AI Agent</button>
-        <button type="button" id="review-goal">Review &amp; Freeze</button>
-        <button type="button" id="confirm-freeze" class="primary" hidden>Confirm freeze</button>
-      </footer>
-    </form>
-  </dialog>
-  <dialog id="active-run-dialog" class="resizable-dialog">
-    <h2>An active Run already exists</h2>
-    <p id="active-run-message"></p>
-    <footer>
-      <button type="button" id="cancel-active-run-conflict">Cancel</button>
-      <button type="button" id="continue-active-run">Continue current Run</button>
-      <button type="button" id="replace-active-run" class="primary">End Run &amp; create new Goal</button>
-    </footer>
-  </dialog>
-  <dialog id="shortcut-sheet" aria-label="Keyboard shortcuts">
-    <header>
-      <div><small>KEYBOARD</small><h2>Shortcuts</h2></div>
-      <button type="button" data-close="shortcut-sheet" aria-label="Close shortcuts">×</button>
-    </header>
-    <dl class="shortcut-list">
-      <div><dt>F</dt><dd>Fit to view</dd></div>
-      <div><dt>L</dt><dd>Auto-layout</dd></div>
-      <div><dt>+ / −</dt><dd>Zoom in and out</dd></div>
-      <div><dt>0</dt><dd>Reset zoom to 100%</dd></div>
-      <div><dt>Arrow keys</dt><dd>Move between nodes</dd></div>
-      <div><dt>Enter</dt><dd>Open the selected node</dd></div>
-      <div><dt>Esc</dt><dd>Close the panel or clear the selection</dd></div>
-      <div><dt>Two-finger scroll</dt><dd>Pan the canvas</dd></div>
-      <div><dt>Pinch</dt><dd>Zoom around the cursor</dd></div>
-      <div><dt>Drag empty canvas</dt><dd>Pan</dd></div>
-      <div><dt>Shift + drag</dt><dd>Marquee select</dd></div>
-      <div><dt>Space + drag</dt><dd>Pan</dd></div>
-      <div><dt>⌘Z / ⇧⌘Z</dt><dd>Undo and redo wiring</dd></div>
-      <div><dt>Delete</dt><dd>Remove the selected connection</dd></div>
-      <div><dt>?</dt><dd>Show or hide these shortcuts</dd></div>
-    </dl>
-  </dialog>
-  <script src="/app.js"></script>
 </body>
 </html>
