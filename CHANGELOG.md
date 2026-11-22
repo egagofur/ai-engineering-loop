@@ -4,6 +4,7 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+- **Added:** a weekly process-sampling playbook (`docs/playbooks/weekly-process-sampling.md`, also `docs weekly-process-sampling`). Read three recent Runs and check the loop was followed. No command.
 - **Added:** `refresh --garden` reports stale learnings, feature-map rows whose paths match nothing, and old Runs (`docs garden`). It writes nothing unless `--yes`. `--yes` prunes those learnings and moves fully dead feature-map rows under `## Stale (garden)` after saving `feature-map.md.ael-backup`. Runs are never deleted.
 - **Added:** a throwaway prototype spike before the Goal freeze (`docs prototype-spike`). `spike record --discarded --question "..." --learned "..."` writes `runs/<id>/spike.json`. It refuses a spike that was not discarded, and it refuses once the Goal is frozen. No arena and no second model.
 - **Added:** an overnight contract for unattended runs (`docs overnight-contract`). `overnight check [--run <id>]` recomputes the morning packet from Run files: what the agent may do, when it must stop, and which files a person reviews in the morning. Exit 1 when the run was delivered without a person, or a stopped run is missing that packet.
