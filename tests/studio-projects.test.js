@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { test } = require('node:test');
-const { discoverProjects, resolveProject, contextPath } = require('../lib/studio/projects.js');
+const { discoverProjects, resolveProject, resolveRoot, contextPath } = require('../lib/studio/projects.js');
 const { projectId } = require('../lib/studio/instance.js');
 
 function tempDir(prefix) {
@@ -85,4 +85,36 @@ test('resolveProject returns null for an unknown id and the project for a known 
   const projects = discoverProjects({ home });
   assert.equal(resolveProject(projects, 'deadbeef0000'), null);
   assert.equal(resolveProject(projects, projectId(a)), projects[0]);
+});
+
+test('contextPath rejects a dangling symlink pointing outside', () => {
+  const root = tempDir('ael-proj-root-');
+  const outside = tempDir('ael-proj-outside-');
+  fs.mkdirSync(path.join(root, '.ai-engineering-loop'), { recursive: true });
+  fs.symlinkSync(path.join(outside, 'does-not-exist'), path.join(root, '.ai-engineering-loop', 'link'));
+  assert.throws(() => contextPath(root, 'link'), (e) => e.code === 'PATH_OUTSIDE_SCOPE');
+});
+
+test('contextPath rejects a context directory that is itself a symlink elsewhere', () => {
+  const root = tempDir('ael-proj-root-');
+  const outside = tempDir('ael-proj-outside-');
+  fs.symlinkSync(outside, path.join(root, '.ai-engineering-loop'));
+  assert.throws(() => contextPath(root, 'runs'), (e) => e.code === 'PATH_OUTSIDE_SCOPE');
+});
+
+test('resolveRoot resolves project ids, worktree ids and unknown ids', () => {
+  const home = tempDir('ael-proj-home-');
+  const work = tempDir('ael-proj-work-');
+  const main = makeRepo(work, 'main');
+  const wt = makeRepo(work, 'wt');
+  writeWorktrees(main, [{ runId: 'run-1', path: wt, branch: 'ael/x' }]);
+  writeProjects(home, [main, wt]);
+  const projects = discoverProjects({ home });
+  const project = projects[0];
+  assert.deepEqual(resolveRoot(projects, projectId(main)), { project, root: main, worktree: null });
+  const hit = resolveRoot(projects, projectId(wt));
+  assert.equal(hit.project, project);
+  assert.equal(hit.root, wt);
+  assert.equal(hit.worktree.runId, 'run-1');
+  assert.equal(resolveRoot(projects, 'deadbeef0000'), null);
 });
