@@ -8,7 +8,7 @@ export const WIDE_ASPECT = 1.7;
 export const KITCHEN_WIDTH = 16;
 export const GUEST_SPOT = { x: -1.4, z: 5.3 };
 export const RETURN_LABEL = 'Sent back to the kitchen';
-export const DINER_TABLES = [{ x: -4.9, z: 4.3 }, { x: 3.1, z: 5.4 }, { x: 5.4, z: 3.9 }];
+export const DINER_TABLES = [{ x: -4.1, z: 4.4 }, { x: 2.8, z: 5.3 }, { x: 4.4, z: 3.9 }];
 export const DINER_LOOPS = ['fork', 'sip', 'chat'];
 export const MAX_DINERS = 6;
 export const GENERIC_SEATS = 4;
@@ -117,8 +117,8 @@ export function botFace(model, { reacting = false } = {}) {
 }
 
 export const CAMERA_POSES = {
-  rest: { position: [0, 5.8, 13.2], target: [0, 0.9, 1.6], fov: 36 },
-  station: { position: [0, 2.5, 4.6], target: [0, 1.0, -0.4], fov: 30 }
+  rest: { position: [0, 4.7, 11.4], target: [0, 1.25, 0.7], fov: 36 },
+  station: { position: [0, 2.2, 4.0], target: [0, 0.95, -0.35], fov: 30 }
 };
 
 export function cameraPose(zoom, aspect, focusX = 0) {

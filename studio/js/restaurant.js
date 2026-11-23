@@ -35,14 +35,15 @@ import { cubicBezier, EASE_OUT, ROOM_SWITCH_MS, ZOOM_MS } from './mood.js';
 import { patternTexture, radialTexture, readToken, studioEnvironment } from './forms.js';
 import { buildDiners, dinerHeadY, poseDiners } from './diners.js';
 import { createCarriers, swapMode } from './carriers.js';
-import { BOT_Z, COUNTER_FRONT, GUEST_TOP, RAIL_Z, TICKET_Y, buildKitchen } from './stations.js';
+import { BOT_Y, BOT_Z, COUNTER_FRONT, COUNTER_TOP, GUEST_TOP, PENDANT_XS, PENDANT_Y, PENDANT_Z, RAIL_Z, TICKET_Y, buildKitchen } from './stations.js';
 
-const BOT_SIZE = 0.8;
+const BOT_SIZE = 1.05;
 const DIM_STATION = 0.55;
 const HOP = 0.14;
 const MAX_FRAME_SECONDS = 0.1;
 const LABEL_GAP = 8;
-const SPOT_ON = 16;
+const SPOT_ON = 9;
+const PENDANT_POWER = 7;
 const CRITIC_SPOT = 7;
 const SPOT_EASE_SECONDS = 0.35;
 const TICKET_EASE_SECONDS = 0.28;
@@ -64,15 +65,23 @@ function toneColor(color, { tone, saturation }) {
 }
 
 function buildTextures() {
-  return {
+  const textures = {
     planks: patternTexture('planks', { repeat: 0.9 }),
-    marble: patternTexture('marble', { repeat: 0.35 }),
-    tiles: patternTexture('tiles', { repeat: 8 }),
+    marble: patternTexture('marble', { size: 512, repeat: 0.3 }),
+    tiles: patternTexture('tiles', { repeat: 1 }),
+    checker: patternTexture('checker', { size: 512, repeat: 1 }),
+    subway: patternTexture('subway', { size: 512, repeat: 0.5 }),
+    brushed: patternTexture('brushed', { repeat: 1.5 }),
+    grain: patternTexture('grain', { size: 512, repeat: 0.6 }),
+    plaster: patternTexture('plaster', { repeat: 0.25 }),
     paper: patternTexture('paper', { repeat: 1 }),
     panels: patternTexture('panels', { repeat: 2 }),
     fabric: patternTexture('fabric', { repeat: 2 }),
     blob: radialTexture(1.8)
   };
+  textures.checker.repeat.set(10, 3.5);
+  textures.tiles.repeat.set(20, 2.2);
+  return textures;
 }
 
 function disposeTree(object) {
@@ -104,28 +113,35 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
 
   const scene = new Scene();
   const camera = new PerspectiveCamera(36, 1, 0.1, 80);
-  const hemisphere = new HemisphereLight(undefined, undefined, 0.75);
-  const key = new DirectionalLight(undefined, 2.3);
-  key.position.set(-4.5, 9, 6.5);
-  key.target.position.set(0, 0, 0.6);
+  const hemisphere = new HemisphereLight(undefined, undefined, 0.6);
+  const key = new DirectionalLight(undefined, 2.2);
+  key.position.set(-5.5, 9, 7);
+  key.target.position.set(0, 0.4, -0.4);
   key.castShadow = true;
   key.shadow.mapSize.set(2048, 2048);
-  Object.assign(key.shadow.camera, { left: -9, right: 9, top: 6, bottom: -6, near: 3, far: 24 });
+  Object.assign(key.shadow.camera, { left: -10, right: 10, top: 7, bottom: -6, near: 3, far: 26 });
   key.shadow.camera.updateProjectionMatrix();
   key.shadow.bias = -0.0004;
   key.shadow.normalBias = 0.02;
-  key.shadow.radius = 5;
+  key.shadow.radius = 6;
   key.shadow.blurSamples = 16;
-  const fill = new DirectionalLight(undefined, 0.5);
-  fill.position.set(6, 3, 4);
-  const rim = new DirectionalLight(undefined, 0.9);
-  rim.position.set(2, 5, -7);
+  const fill = new DirectionalLight(undefined, 0.35);
+  fill.position.set(7, 3, 5);
+  const rim = new DirectionalLight(undefined, 1.1);
+  rim.position.set(3, 6, -6);
+  const pendants = PENDANT_XS.map((x) => {
+    const light = new SpotLight(undefined, PENDANT_POWER, 0, 0.62, 1, 1.6);
+    light.position.set(x, PENDANT_Y, PENDANT_Z);
+    light.target.position.set(x, COUNTER_TOP, PENDANT_Z + 0.2);
+    return light;
+  });
   const spot = new SpotLight(undefined, 0, 0, 0.42, 0.8, 2);
   spot.position.set(0, 3.4, 1.6);
   const critic = new SpotLight(undefined, 0, 0, 0.32, 0.7, 2);
   critic.position.set(stationX('review'), 3.1, 0.9);
   critic.target.position.set(stationX('review'), 0.45, 0.04);
   scene.add(hemisphere, key, key.target, fill, rim, spot, spot.target, critic, critic.target);
+  pendants.forEach((light) => scene.add(light, light.target));
 
   const textures = buildTextures();
   const stage = new Group();
@@ -242,11 +258,14 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
     fill.color.setStyle(read('--light-fill'));
     rim.color.setStyle(read('--light-key'));
     spot.color.setStyle(read('--light-now'));
+    pendants.forEach((light) => light.color.setStyle(read('--light-pendant')));
+    renderer.toneMappingExposure = Number(read('--kitchen-exposure')) || 1;
+    hemisphere.intensity = Number(read('--kitchen-ambient')) || 0.6;
     critic.color.setStyle(read('--bot-devil-eye'));
     if (environment) environment.dispose();
     environment = studioEnvironment(renderer, read);
     scene.environment = environment.texture;
-    scene.environmentIntensity = 0.85;
+    scene.environmentIntensity = 0.7;
     bot.paint(read);
     if (current) paintCarrier(current);
     if (outgoing) paintCarrier(outgoing);
@@ -316,7 +335,7 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
     const base = offset();
     const scale = current ? current.carrier.scale.x : 1;
     const x = current ? current.botX : 0;
-    bot.root.position.set(base.x + x * scale, base.y + lift, base.z + BOT_Z * scale);
+    bot.root.position.set(base.x + x * scale, base.y + (BOT_Y + lift) * scale, base.z + BOT_Z * scale);
     bot.root.scale.setScalar(BOT_SIZE * scale);
     bot.root.rotation.y = heading;
   }
@@ -420,12 +439,13 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
       current.steam.children.forEach((puff, index) => {
         if (!cooking || reducedMotion) {
           puff.scale.setScalar(cooking ? 0.8 : 0.001);
-          puff.position.y = 0.3;
+          puff.position.y = 0.4;
           return;
         }
         const t = ((elapsed / STEAM_SECONDS) + index / current.steam.children.length) % 1;
-        puff.position.y = 0.26 + t * 0.55;
-        puff.scale.setScalar(Math.max(0.001, Math.sin(Math.PI * t) * (0.8 + t * 0.6)));
+        puff.position.y = 0.36 + t * 0.62;
+        puff.position.x = 0.36 + Math.sin((t + index) * Math.PI * 2) * 0.05 * (0.4 + t);
+        puff.scale.setScalar(Math.max(0.001, Math.sin(Math.PI * t) * (0.7 + t * 0.9)));
       });
       moving = moving || (cooking && !reducedMotion);
     }
@@ -454,7 +474,7 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
     spot.intensity = spotLevel;
     const focus = current.botX + current.carrier.position.x;
     spot.position.x = focus;
-    spot.target.position.set(focus, 0.45, 0);
+    spot.target.position.set(focus, COUNTER_TOP, BOT_Z);
     const criticOn = statuses.review !== 'skipped';
     critic.intensity = criticOn ? CRITIC_SPOT * (statuses.review === 'now' ? 1.6 : 1) : 0;
     critic.position.x = stationX('review') + current.carrier.position.x;
@@ -727,6 +747,7 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
       if (environment) environment.dispose();
       key.shadow.map?.dispose();
       spot.shadow.map?.dispose();
+      pendants.forEach((light) => light.dispose());
       critic.shadow.map?.dispose();
       renderer.dispose();
       renderer.forceContextLoss();

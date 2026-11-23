@@ -178,9 +178,11 @@ const PATTERNS = {
     return seam * tone * (0.86 + grain * 0.14);
   },
   marble(u, v) {
-    const n = fbm(u * 4, v * 4, 11, 4, 5);
-    const vein = Math.abs(Math.sin((u * 3 + v * 2 + n * 4) * Math.PI));
-    return 0.88 + 0.12 * Math.pow(vein, 0.35) - (vein < 0.06 ? 0.1 : 0);
+    const warp = fbm(u * 3, v * 3, 11, 3, 5);
+    const vein = Math.abs(Math.sin((u * 2.2 + v * 1.4 + warp * 3.2) * Math.PI));
+    const fine = Math.abs(Math.sin((u * 7 - v * 3 + fbm(u * 9, v * 9, 17, 9, 4) * 5) * Math.PI));
+    const cloud = 0.94 + fbm(u * 6, v * 6, 23, 6, 4) * 0.06;
+    return cloud - (vein < 0.045 ? 0.22 * (1 - vein / 0.045) : 0) - (fine < 0.02 ? 0.08 : 0);
   },
   tiles(u, v) {
     const n = 8;
@@ -188,6 +190,41 @@ const PATTERNS = {
     const fv = (v * n) % 1;
     const grout = Math.min(fu, 1 - fu, fv, 1 - fv) < 0.04 ? 0.72 : 1;
     return grout * (0.95 + hash(Math.floor(u * n), Math.floor(v * n), 2) * 0.05);
+  },
+  subway(u, v) {
+    const rows = 12;
+    const row = Math.floor(v * rows);
+    const across = u * 6 + (row % 2) * 0.5;
+    const fu = across % 1;
+    const fv = v * rows - row;
+    const edge = Math.min(fu * 2, (1 - fu) * 2, fv, 1 - fv);
+    const grout = edge < 0.05 ? 0.8 : edge < 0.12 ? 0.94 + edge * 0.4 : 1;
+    const glaze = 0.95 + hash(Math.floor(across), row, 4) * 0.05 + fbm(u * 24, v * 24, 9, 24, 2) * 0.02;
+    return Math.min(1, grout * glaze);
+  },
+  checker(u, v) {
+    const n = 8;
+    const x = Math.floor(u * n);
+    const y = Math.floor(v * n);
+    const fu = (u * n) % 1;
+    const fv = (v * n) % 1;
+    const grout = Math.min(fu, 1 - fu, fv, 1 - fv) < 0.022 ? 0.72 : 1;
+    const tone = (x + y) % 2 ? 0.84 : 1;
+    const wear = 0.92 + fbm(u * 16, v * 16, 31, 16, 4) * 0.08 + hash(x, y, 6) * 0.04;
+    return grout * tone * wear;
+  },
+  brushed(u, v) {
+    const streak = fbm(u * 2, v * 120, 61, 2, 3);
+    return 0.86 + streak * 0.14;
+  },
+  grain(u, v) {
+    const ring = 0.5 + 0.5 * Math.sin((u * 46 + fbm(u * 4, v * 3, 71, 4, 4) * 7) * Math.PI);
+    const board = Math.floor(u * 8);
+    const seam = Math.min((u * 8) % 1, 1 - ((u * 8) % 1)) < 0.03 ? 0.6 : 1;
+    return seam * (0.78 + hash(board, 2, 5) * 0.1 + ring * 0.12);
+  },
+  plaster(u, v) {
+    return 0.93 + fbm(u * 6, v * 6, 81, 6, 5) * 0.07;
   },
   paper(u, v) {
     return 0.93 + fbm(u * 10, v * 10, 41, 10, 4) * 0.07;

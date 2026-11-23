@@ -153,6 +153,30 @@ test('premium rendering: sRGB, ACES, soft shadows, PMREM studio environment, bev
   for (const token of new Set([...stations.matchAll(/'(--kitchen-[a-z-]+)'/g)].map((m) => m[1]))) assert.match(tokens, new RegExp(`${token}:`), token);
 });
 
+test('kitchen art: warm tiled backsplash, bracketed shelf, hood over the Cook, pendant pools, tuned exposure in both themes', async () => {
+  const stations = read('js/stations.js');
+  const scene = read('js/restaurant.js');
+  const forms = read('js/forms.js');
+  for (const pattern of ['subway', 'checker', 'brushed', 'grain', 'plaster', 'marble']) assert.match(forms, new RegExp(`\\n  ${pattern}\\(u, v\\) \\{`), pattern);
+  assert.match(stations, /map: textures\.subway/, 'tiled backsplash');
+  assert.match(stations, /function bracket\(/, 'the back shelf hangs on brackets');
+  assert.match(stations, /hood\.position\.set\(stationX\('maker'\)/, 'a hood over the Cook station');
+  assert.match(stations, /function buildPendants\(/);
+  assert.match(scene, /PENDANT_XS\.map\(\(x\) => \{\n\s+const light = new SpotLight\(/, 'pendants cast soft pools of light');
+  assert.match(scene, /toneMappingExposure = Number\(read\('--kitchen-exposure'\)\) \|\| 1/);
+  const tokens = read('tokens.css');
+  const themes = tokens.split(/:root\[data-theme="dark"\]|@media \(prefers-color-scheme: dark\)/);
+  assert.equal(themes.length, 3);
+  for (const theme of themes) {
+    for (const token of ['--kitchen-tile', '--kitchen-wall', '--kitchen-floor', '--kitchen-exposure', '--kitchen-ambient']) assert.match(theme, new RegExp(`${token}:`), token);
+  }
+  const { stationX } = await load('kitchen.js');
+  const { BOT_Y, BOT_Z, COUNTER_TOP, COUNTER_FRONT } = await load('stations.js');
+  assert.equal(BOT_Y, COUNTER_TOP, 'the bot stands on the counter, so its contact shadow lands on the marble');
+  assert.ok(BOT_Z < 0 && BOT_Z > -COUNTER_FRONT, 'behind the props, on the counter');
+  assert.ok(Math.abs(stationX('goal')) > 5, 'stations span the counter');
+});
+
 test('switching projects keeps one kitchen: the scene object count stays constant', async () => {
   const { Scene, Group } = await import(pathToFileURL(path.join(studio, 'vendor', 'three.module.min.js')).href);
   const { createCarriers, swapMode } = await load('carriers.js');
