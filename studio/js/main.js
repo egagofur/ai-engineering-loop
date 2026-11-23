@@ -18,9 +18,8 @@ const elements = {
 };
 
 const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-const narrowQuery = window.matchMedia('(max-width: 899px)');
 const HAS_WEBGL = webglAvailable();
-const ringView = { key: null, flat: null, model: null, handle: null, ticket: 0, threeFailed: false };
+const ringView = { key: null, handle: null, bot: null, model: null, ticket: 0, loading: false, threeFailed: false };
 
 const state = {
   projects: [],
@@ -48,45 +47,52 @@ function webglAvailable() {
   }
 }
 
-function wantsFlatRing() {
-  return !HAS_WEBGL || ringView.threeFailed || reducedMotionQuery.matches || narrowQuery.matches;
+function wantsGlBot() {
+  return HAS_WEBGL && !ringView.threeFailed && !reducedMotionQuery.matches;
+}
+
+function disposeBot() {
+  ringView.ticket += 1;
+  ringView.loading = false;
+  if (ringView.bot) ringView.bot.dispose();
+  ringView.bot = null;
+  elements.ring.dataset.bot = 'css';
 }
 
 function clearRing() {
-  ringView.ticket += 1;
+  disposeBot();
   if (ringView.handle) ringView.handle.dispose();
   ringView.handle = null;
   ringView.key = null;
-  ringView.flat = null;
+  elements.ring.hidden = true;
 }
 
-function mountFlatRing() {
-  ringView.flat = true;
-  ringView.handle = mountRing2d(elements.ring, ringView.model);
-}
-
-function showRing(key, model) {
-  const flat = wantsFlatRing();
-  ringView.model = model;
-  if (ringView.key === key && ringView.flat === flat) {
-    if (ringView.handle) ringView.handle.update(model);
+function syncBot() {
+  if (!wantsGlBot()) {
+    disposeBot();
     return;
   }
-  clearRing();
-  ringView.key = key;
-  if (flat) {
-    mountFlatRing();
+  if (ringView.bot) {
+    ringView.bot.update(ringView.model);
     return;
   }
-  ringView.flat = false;
+  if (ringView.loading) return;
+  ringView.loading = true;
   const ticket = ringView.ticket;
-  import('./ring.js').then(({ mountRing }) => {
-    if (ticket !== ringView.ticket) return;
-    ringView.handle = mountRing(elements.ring, ringView.model, { reducedMotion: reducedMotionQuery.matches });
-  }).catch(() => {
+  const failed = () => {
     ringView.threeFailed = true;
-    if (ticket === ringView.ticket) mountFlatRing();
-  });
+    if (ticket === ringView.ticket) disposeBot();
+  };
+  import('./ring.js').then(({ mountBot }) => {
+    if (ticket !== ringView.ticket || !ringView.handle) return;
+    ringView.loading = false;
+    try {
+      ringView.bot = mountBot(ringView.handle.gl, ringView.model);
+      elements.ring.dataset.bot = '3d';
+    } catch {
+      failed();
+    }
+  }).catch(failed);
 }
 
 function syncRing() {
@@ -96,7 +102,19 @@ function syncRing() {
     clearRing();
     return;
   }
-  showRing(`${project.id}|${summary.runId}`, ringModel(summary.ring, summary));
+  const key = `${project.id}|${summary.runId}`;
+  const view = { summary, findings: state.detail.findings, projectName: project.name };
+  ringView.model = ringModel(summary.ring, summary);
+  elements.ring.hidden = false;
+  if (ringView.key !== key) {
+    clearRing();
+    elements.ring.hidden = false;
+    ringView.key = key;
+    ringView.handle = mountRing2d(elements.ring, view);
+  } else {
+    ringView.handle.update(view);
+  }
+  syncBot();
 }
 
 function selectableTargets() {
@@ -164,10 +182,7 @@ function renderRun() {
   const input = elements.head.querySelector('#freeze-actor');
   const typed = input ? input.value : '';
   const typing = input && document.activeElement === input;
-  elements.head.innerHTML = renderRunHead(state.detail.summary, {
-    projectName: project.name,
-    actor: validActor()
-  });
+  elements.head.innerHTML = renderRunHead(state.detail.summary, { actor: validActor() });
   elements.detail.innerHTML = renderDetail(state.detail);
   const next = elements.head.querySelector('#freeze-actor');
   if (next && typed) next.value = typed;
@@ -362,7 +377,6 @@ elements.head.addEventListener('submit', (event) => {
 });
 
 reducedMotionQuery.addEventListener('change', syncRing);
-narrowQuery.addEventListener('change', syncRing);
 
 setInterval(() => {
   if (document.visibilityState === 'visible') refreshProjects();

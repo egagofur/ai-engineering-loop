@@ -53,9 +53,18 @@ export function sortProjects(projects) {
   return [...(projects || [])].sort((a, b) => rank(a) - rank(b) || String(a.name).localeCompare(String(b.name)));
 }
 
+function freezeWait(run) {
+  return Boolean(run && run.waiting && run.waiting.kind === 'freeze');
+}
+
+function nameSuffix(run) {
+  return freezeWait(run) ? ` <span class="row-ask">· ${WAITING_LABELS.freeze}</span>` : '';
+}
+
 function runMeta(run) {
   if (!run) return '';
-  const parts = [waitingLabel(run.waiting) || stageLabel(run.stage), run.tier, formatElapsed(run.elapsedMs)].filter(Boolean);
+  const waiting = freezeWait(run) ? '' : waitingLabel(run.waiting);
+  const parts = [waiting || stageLabel(run.stage), run.tier, formatElapsed(run.elapsedMs)].filter(Boolean);
   return parts.map(escapeHtml).join(' · ');
 }
 
@@ -67,7 +76,7 @@ export function worktreeState(run) {
 }
 
 function listFreezeButton(targetId, run, actor, targetName) {
-  if (!run || !run.waiting || run.waiting.kind !== 'freeze') return '';
+  if (!freezeWait(run)) return '';
   const label = actor ? `Freeze as ${escapeHtml(actor)}` : 'Freeze…';
   const accessibleName = actor ? `Freeze ${targetName} as ${actor}` : `Freeze ${targetName}`;
   return `<button type="button" class="primary list-freeze" data-action="list-freeze" data-project-id="${escapeHtml(targetId)}" data-run-id="${escapeHtml(run.runId)}" data-goal-hash="${escapeHtml(run.waiting.goalHash)}" aria-label="${escapeHtml(accessibleName)}">${label}</button>`;
@@ -79,7 +88,7 @@ function worktreeRow(run, selectedId, actor) {
   return `<li class="worktree-run" data-state="${state}">`
     + `<button type="button" class="worktree-row" data-project-id="${escapeHtml(run.worktreeId)}"${selected ? ' aria-current="true"' : ''}>`
     + `<span class="bot bot-${state}" aria-hidden="true"></span>`
-    + `<span class="worktree-task">${escapeHtml(run.task || run.runId)}</span>`
+    + `<span class="worktree-task">${escapeHtml(run.task || run.runId)}${nameSuffix(run)}</span>`
     + `<span class="row-meta">${runMeta(run)}</span></button>`
     + listFreezeButton(run.worktreeId, run, actor, run.task || run.runId)
     + '</li>';
@@ -96,7 +105,7 @@ function projectRow(project, selectedId, actor) {
   return `<li class="project" data-state="${state}">`
     + `<button type="button" class="project-row" data-project-id="${escapeHtml(project.id)}"${selected ? ' aria-current="true"' : ''}>`
     + `<span class="bot bot-${state}" role="img" aria-label="${STATE_LABELS[state]}"></span>`
-    + `<span class="row-name">${escapeHtml(project.name)}</span>`
+    + `<span class="row-name">${escapeHtml(project.name)}${nameSuffix(project.run)}</span>`
     + `<span class="row-meta">${meta}</span>`
     + '</button>'
     + listFreezeButton(project.id, project.run, actor, project.name)

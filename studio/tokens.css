@@ -25,7 +25,11 @@
   --text: #16171a;
 
   --ok: #1d7a00;
+  --ok-fill: #29ab00;
   --ok-soft: #e8f5e2;
+  --idle-highlight: #d9d7d2;
+  --idle: #b9b7b1;
+  --idle-deep: #8b8a86;
   --warn: #9a6200;
   --warn-soft: #fbf1dc;
   --danger: #c4282d;
@@ -40,6 +44,10 @@
   --radius-control: 6px;
   --radius-panel: 12px;
   --radius-card: 16px;
+  --shadow-raised: 0 6px 16px color-mix(in srgb, var(--shadow) 5%, transparent);
+  --shadow-bot: 0 6px 14px color-mix(in srgb, var(--brand) 35%, transparent);
+  --shadow-bot-drop: 0 6px 7px color-mix(in srgb, var(--brand) 35%, transparent);
+  --halo-now: 0 0 0 5px color-mix(in srgb, var(--brand) 15%, transparent);
   --shadow-panel: 0 1px 2px color-mix(in srgb, var(--shadow) 6%, transparent), 0 12px 32px color-mix(in srgb, var(--shadow) 10%, transparent);
 
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
@@ -64,6 +72,10 @@
   --text-2: #c9c9cf;
   --text: #f2f1ee;
   --ok: #4ade80;
+  --ok-fill: #3fbf5f;
+  --idle-highlight: #7a7b82;
+  --idle: #55565d;
+  --idle-deep: #3a3b41;
   --ok-soft: #14261a;
   --warn: #e4a853;
   --warn-soft: #3a3018;
@@ -89,6 +101,10 @@
     --text-2: #c9c9cf;
     --text: #f2f1ee;
     --ok: #4ade80;
+    --ok-fill: #3fbf5f;
+    --idle-highlight: #7a7b82;
+    --idle: #55565d;
+    --idle-deep: #3a3b41;
     --ok-soft: #14261a;
     --warn: #e4a853;
     --warn-soft: #3a3018;

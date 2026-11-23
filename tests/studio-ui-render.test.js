@@ -186,13 +186,30 @@ test('detail shows the Goal as text, findings, PR, receipt, assumptions and extr
   assert.match(html, /security-scan/);
 });
 
-test('detail rail lists the six stages with their status', async () => {
-  const { renderDetail } = await load('detail.js');
-  const html = renderDetail(detail(), { actor: 'Ega' });
-  const rail = html.match(/<ol class="stage-rail"[\s\S]*?<\/ol>/)[0];
-  const stages = [...rail.matchAll(/data-stage="([a-z]+)" data-status="([a-z]+)"/g)].map((m) => `${m[1]}:${m[2]}`);
-  assert.deepStrictEqual(stages, ['goal:done', 'maker:now', 'verify:pending', 'review:pending', 'judge:pending', 'deliver:pending']);
-  assert.match(rail, /Devil's Advocate|Review/);
+test('detail has no stage rail; the run head shows the title, start time and wait, not the ring eyebrow', async () => {
+  const { renderDetail, renderRunHead } = await load('detail.js');
+  assert.doesNotMatch(renderDetail(detail(), { actor: 'Ega' }), /stage-rail/);
+  const head = renderRunHead(summary({ waiting: { kind: 'freeze', since: 'x' } }), { actor: 'Ega' });
+  assert.match(head, /^<h2 class="run-task">Add login<\/h2><p class="run-meta">Started 2m ago<\/p><div class="waiting" data-kind="freeze">/);
+  assert.match(head, /Freeze as Ega/);
+  assert.doesNotMatch(head, /iteration/);
+});
+
+test('list bots: working orange, waiting outlined, idle grey; freeze waits read "name · Freeze?"', async () => {
+  const { renderProjectList } = await load('list.js');
+  const html = renderProjectList([
+    project('busy', 'working'),
+    project('quiet', 'idle'),
+    project('needs-freeze', 'waiting', summary({ stage: 'goal', waiting: { kind: 'freeze', since: 'x' } })),
+    project('needs-approval', 'waiting', summary({ stage: 'deliver', waiting: { kind: 'approval', since: 'x' } })),
+    { ...project('host', 'waiting', null), worktreeRuns: [summary({ runId: 'r-wt', task: 'Wt task', worktreeId: 'wt-1', waiting: { kind: 'freeze', since: 'x' } })] }
+  ], { selectedId: 'busy' });
+  assert.match(html, /data-project-id="busy" aria-current="true"><span class="bot bot-working" role="img" aria-label="Working"><\/span><span class="row-name">team\/busy<\/span>/);
+  assert.match(html, /<span class="bot bot-idle" role="img" aria-label="Idle"><\/span><span class="row-name">team\/quiet<\/span>/);
+  assert.match(html, /<span class="bot bot-waiting" role="img" aria-label="Waiting for you"><\/span><span class="row-name">team\/needs-freeze <span class="row-ask">· Freeze\?<\/span><\/span><span class="row-meta">Goal · T2 · 2m<\/span>/);
+  assert.match(html, /<span class="row-name">team\/needs-approval<\/span><span class="row-meta">Approve delivery\? · T2 · 2m<\/span>/);
+  assert.match(html, /<span class="worktree-task">Wt task <span class="row-ask">· Freeze\?<\/span><\/span>/);
+  assert.equal((html.match(/data-action="list-freeze"/g) || []).length, 2, 'the sibling Freeze button stays');
 });
 
 test('detail handles a Run with no Goal, findings, PR or assumptions', async () => {
@@ -218,7 +235,8 @@ test('index.html loads only allowlisted files and reserves the ring', () => {
   assert.match(html, /<script type="module" src="\/js\/main\.js"><\/script>/);
   assert.doesNotMatch(html, /app\.js/);
   assert.doesNotMatch(html, /<script(?![^>]*\bsrc=)[^>]*>|<style|\sstyle=|\son[a-z]+=/);
-  assert.match(html, /<div id="ring" aria-hidden="true"><\/div>/);
+  assert.match(html, /<section id="ring" class="ringbox" aria-label="Run loop" hidden><\/section>/);
+  assert.ok(html.indexOf('id="ring"') < html.indexOf('id="run-head"'), 'the ring card comes first, as in option C');
   assert.match(html, /id="project-list"/);
   assert.match(html, /id="run-detail"/);
 });

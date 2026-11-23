@@ -84,7 +84,7 @@ Under the hood, these moments use eight evidence-backed stages: `Specify (stages
 AEL Studio is one read-only window on every bot on your machine. It shows which projects have a Run in progress, where each Run is in the loop, and which one is waiting for you. It is not a second place to run the loop.
 
 - **Project list**: waiting for you first, then working, then idle, with stage, tier and elapsed time. Worktree Runs sit under their project.
-- **Loop ring**: the six stages (Goal, Maker, Verify, Review, Judge, Deliver) in 3D with the bot on the current stage and the iteration count. A flat 2D ring is used without WebGL or with reduced motion; a narrow screen shows the stage rail.
+- **Loop ring**: the six stages (Goal, Maker, Verify, Review, Judge, Deliver) as labelled dots on a circle, the bot at the current stage, the iteration count, and what is happening now in the centre (for example Devil's Advocate, 3 findings · 1 blocking). The bot is a 3D sphere with WebGL and a CSS bot without WebGL or with reduced motion; the ring scales down on narrow screens.
 - **Detail**: the human Goal, review findings, PR status (branch, merged and URL from the Run's own records), receipt and unconfirmed assumptions.
 - **Freeze**: the one action. Freeze a waiting Goal with one click; if the agent asked in the host at the same time, the first answer wins.
 - **Notifications** on macOS and Linux when a bot starts waiting for you. `ael studio --background` keeps them coming with the tab closed; `ael studio --stop` ends it.
