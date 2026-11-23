@@ -12,7 +12,7 @@ ael studio --stop         # stop the running Studio
 
 | Flag | Effect |
 |---|---|
-| `--background` | Start detached and print the session URL; notifications keep working with the browser tab closed. |
+| `--background` | Start detached and print the session URL to your terminal; notifications keep working with the browser tab closed. The log gets only the tokenless URL and is private (`0600`). |
 | `--stop` | Stop the Studio recorded in `~/.ai-engineering-loop/studio.json` (only that process) and remove the file. |
 | `--no-notify` | Do not send OS notifications. |
 | `--port <0-65535>` | Port to bind (default `4317`; `0` lets the OS choose). |
@@ -23,7 +23,7 @@ There is one Studio per machine. It writes its pid, port and URL to `~/.ai-engin
 ## Security
 
 - Binds `127.0.0.1` only and rejects a non-local `Host` header.
-- A random per-process token is printed once in the URL; the server exchanges it for an `HttpOnly; SameSite=Strict` cookie and removes it from the address bar. The token is never written to disk or to agent-visible output.
+- A random per-process token is printed once in the URL on the terminal that started Studio (with `--background` the detached process hands it to that terminal over an IPC channel); the server exchanges it for an `HttpOnly; SameSite=Strict` cookie and removes it from the address bar. The token is never written to disk: not to `studio.json`, not to `studio.log`. A request target that is not a valid URL gets `400 Bad request`.
 - CSP `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`. Static files come from an explicit allowlist bundled in the package: no CDN, analytics or remote fonts. three.js 0.185.1 (MIT) is vendored in `studio/vendor/`.
 - Read scope: each project in the registry (`~/.ai-engineering-loop/projects.json`, `ael projects list`) and each worktree listed in its `.ai-engineering-loop/worktrees.json`, and only the `.ai-engineering-loop/` folder inside them. Symlinks out of that folder are refused. The browser never sends a path: projects are addressed by an opaque id (a hash of the real path).
 
@@ -31,20 +31,21 @@ There is one Studio per machine. It writes its pid, port and URL to `~/.ai-engin
 
 - **Project list** (left; on top on narrow screens): waiting for you first, then working, then idle, then missing. Each row shows the project, the stage, the tier, elapsed time, and "waiting for you" with the reason (Goal waiting for Freeze, delivery waiting for approval, agent question). Worktree Runs are listed under their parent project; a registered worktree of another registered project is folded under that parent.
 - **Loop ring** for the selected Run: the six stages (Goal, Maker, Verify, Review, Judge, Deliver) with the bot on the current stage and the iteration (for example 2 of 3). Stages a Run skips (T0, report-only) are dimmed; recipe nodes that do not map to a stage are listed in the text detail. The ring is 3D (three.js). It falls back to a flat 2D ring when WebGL is missing or fails, or when `prefers-reduced-motion` is set. Below 900 px width the ring is hidden and the stage rail under it shows the same six stages. Everything the ring shows is also in text.
-- **Detail** under the ring: the human Goal, Devil's Advocate and Judge findings (total, blocking), PR status, receipt state, and unconfirmed assumptions (`provenance.json`).
+- **Detail** under the ring: the human Goal, Devil's Advocate and Judge findings (total, blocking), PR status, receipt state, and unconfirmed assumptions (`provenance.json`). PR status is the branch (from `worktrees.json` or `delivery.json`), whether a merge was recorded, and the merge URL, all read from the Run's own records (`merge.json`); Studio never queries GitHub or GitLab, so checks and review state stay in `ael pr status`.
+- A finished worktree Run (reported, delivered, cancelled or escalated) shows an idle bot, not a working one.
 - Theme: AEL orange on warm paper (light) or ink (dark), following the OS. All colours live in `studio/tokens.css`. Motion follows Emil Kowalski's rules; reduced motion keeps fades and removes movement.
 
 Studio polls the registered projects every 2 s and pushes a `projects` snapshot over server-sent events only when something changed.
 
 ## Freeze
 
-A Run whose Goal draft waits for approval shows **Freeze as &lt;name&gt;** in the project list and in the Run view. The name is `studioActor` from `~/.ai-engineering-loop/config.json`, else git `user.name`, else the OS user name. If that name does not pass the human-actor check, Studio asks for a name once and stores it (`PUT /api/me`).
+A Run whose Goal draft waits for approval shows **Freeze as &lt;name&gt;** in the project list and in the Run view. The freeze question that `goal draft` posts is shown as this Freeze wait, not as an agent question; any other pending question still shows as a question. A Freeze from Studio, or a repeat `goal freeze` of an already frozen draft, answers that freeze question, so the Run stops waiting. A repeat `goal freeze` still refuses an agent-like `--by` and records nothing. The name is `studioActor` from `~/.ai-engineering-loop/config.json`, else git `user.name`, else the OS user name. If that name does not pass the human-actor check, Studio asks for a name once and stores it (`PUT /api/me`).
 
-Freeze works in both `goalFreeze` modes. It records `goal.approval: "studio"`. Studio sends the content hash of the draft you saw; if the draft changed since, the freeze is refused (409) and the view reloads. In the default `host-question` mode the agent may be asking Freeze/Revise in the host at the same time: whichever answer comes first wins. `goal freeze` is idempotent: when the same draft is already frozen it succeeds with `alreadyFrozen: true` and the original approval channel and actor, and the agent continues. A frozen Goal whose hash differs from the draft still fails.
+Freeze works in both `goalFreeze` modes. It records `goal.approval: "studio"`. Studio sends the content hash of the draft you saw (the list button carries the hash it was rendered with); if the draft changed since, the freeze is refused (409) and the view reloads. In the default `host-question` mode the agent may be asking Freeze/Revise in the host at the same time: whichever answer comes first wins. `goal freeze` is idempotent: when the same draft is already frozen it succeeds with `alreadyFrozen: true` and the original approval channel and actor, and the agent continues. A frozen Goal whose hash differs from the draft still fails.
 
 ## Notifications
 
-When a Run starts waiting for a human, Studio sends one OS notification: title `AEL: <project>`, body `Goal waiting for Freeze`, `Delivery waiting for approval` or `Agent has a question`. The same wait never notifies twice; routine progress never notifies. macOS uses `osascript`, Linux uses `notify-send` when it is installed, other systems get none. The text never contains file contents. Turn it off with `--no-notify`.
+When a Run starts waiting for a human, Studio sends one OS notification: title `AEL: <project>`, body `Goal waiting for Freeze`, `Delivery waiting for approval` or `Agent has a question`. The same wait never notifies twice; waits already open when Studio starts do not notify, so a restart does not repeat them; routine progress never notifies. macOS uses `osascript`, Linux uses `notify-send` when it is installed (looked up once per Studio process), other systems get none. The notifier runs asynchronously with a 5 s timeout, so a stuck notifier never blocks Studio. The text never contains file contents. Turn it off with `--no-notify`.
 
 ## HTTP API
 

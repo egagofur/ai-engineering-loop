@@ -155,6 +155,8 @@ const {
 const {
   appendRunAnswer,
   appendRunQuestion,
+  closeFreezeQuestions: closeRunFreezeQuestions,
+  freezeQuestionMessage,
   listRunInteractions
 } = lazyFunctions('../lib/run-interactions.js');
 const {
@@ -164,6 +166,7 @@ const {
 } = lazyFunctions('../lib/run-lifecycle.js');
 const {
   freezeGoal,
+  humanFreezeActor,
   loadGoalDraft,
   saveGoalDraft
 } = lazyFunctions('../lib/goal-runtime.js');
@@ -2331,18 +2334,11 @@ function executeGate(gate, runId) {
   return run;
 }
 
-const FREEZE_QUESTION = /^Freeze Goal draft revision \d+/;
-
 // The freeze answers the pending freeze question(s) that `goal draft` asked,
 // so Studio does not keep showing them. Best effort.
 function closeFreezeQuestions(runId, actor) {
   try {
-    const { listRunInteractions, appendRunAnswer } = require('../lib/run-interactions.js');
-    for (const question of listRunInteractions(CWD, runId).pending) {
-      if (FREEZE_QUESTION.test(question.message)) {
-        appendRunAnswer(CWD, runId, question.questionId, { message: 'Goal frozen', actor });
-      }
-    }
+    closeRunFreezeQuestions(CWD, runId, actor);
   } catch (err) {
     console.error(`! freeze question not closed: ${err.message}`);
   }
@@ -3655,7 +3651,7 @@ function handleGoal() {
       // without a separate `interaction question` call.
       try {
         extra.question = appendRunQuestion(CWD, runId, {
-          message: `Freeze Goal draft revision ${result.metadata.revision} (and accept its blast radius)?`,
+          message: freezeQuestionMessage(result.metadata.revision),
           actor: argValue('--by') || 'agent'
         });
         appendRunLifecycle(CWD, runId, { type: 'AGENT_WAITING', phase: 'goal', actor: argValue('--by') || 'agent', message: `Waiting for answer to Q${extra.question.number}` });
@@ -3701,6 +3697,7 @@ function handleGoal() {
       const human = result.goal.actor;
       if (result.alreadyFrozen) {
         extra.alreadyFrozen = true;
+        closeFreezeQuestions(runId, humanFreezeActor(argValue('--by'), runId));
       } else {
         appendRunLifecycle(CWD, runId, {
           type: goalNode ? 'NODE_COMPLETED' : 'GOAL_FROZEN',
@@ -3928,29 +3925,41 @@ async function stopStudio(home) {
   console.log('Studio stopped');
 }
 
+function studioUrlFromChild(child, timeoutMs) {
+  return new Promise((resolve) => {
+    let timer;
+    const finish = (url) => {
+      clearTimeout(timer);
+      resolve(url);
+    };
+    timer = setTimeout(() => finish(null), timeoutMs);
+    child.on('message', (message) => {
+      if (message && typeof message.url === 'string') finish(message.url);
+    });
+    child.on('exit', () => finish(null));
+    child.on('error', () => finish(null));
+  });
+}
+
 async function startStudioInBackground(home, port) {
   const { readInstance } = require('../lib/studio/instance.js');
   const logFile = studioLogPath(home);
   fs.mkdirSync(path.dirname(logFile), { recursive: true, mode: 0o700 });
   const startOffset = fs.existsSync(logFile) ? fs.statSync(logFile).size : 0;
   const fd = fs.openSync(logFile, 'a', 0o600);
+  fs.chmodSync(logFile, 0o600);
   const childArgs = [__filename, 'studio', '--no-open', '--port', String(port)];
   if (process.argv.includes('--no-notify')) childArgs.push('--no-notify');
-  const child = spawn(process.execPath, childArgs, { detached: true, stdio: ['ignore', fd, fd] });
-  child.on('error', () => {});
-  child.unref();
+  const child = spawn(process.execPath, childArgs, { detached: true, stdio: ['ignore', fd, fd, 'ipc'] });
   fs.closeSync(fd);
-  const deadline = Date.now() + STUDIO_START_WAIT_MS;
-  while (Date.now() < deadline) {
-    if (readInstance({ home })) break;
-    await sleepMs(100);
-  }
-  const written = fs.readFileSync(logFile, 'utf8').slice(startOffset);
-  const urls = written.match(/http:\/\/127\.0\.0\.1:\d+\/\?token=\S+/g);
-  if (readInstance({ home }) && urls) {
-    console.log(urls[urls.length - 1]);
+  const url = await studioUrlFromChild(child, STUDIO_START_WAIT_MS);
+  if (child.connected) child.disconnect();
+  child.unref();
+  if (url && readInstance({ home })) {
+    console.log(url);
     return;
   }
+  const written = fs.readFileSync(logFile).subarray(startOffset).toString('utf8');
   log.error('Studio did not start in the background. Last log lines:');
   console.error(written.split('\n').filter(Boolean).slice(-10).join('\n'));
   process.exitCode = 1;
@@ -3981,6 +3990,11 @@ function startStudioInForeground(home, port) {
     writeInstance({ home, pid: process.pid, port: actualPort });
     const url = `http://127.0.0.1:${actualPort}/?token=${token}`;
     log.success('✓ AEL Studio is running locally');
+    if (typeof process.send === 'function') {
+      console.log(`http://127.0.0.1:${actualPort}/ (running in the background; stop it with \`ael studio --stop\`)`);
+      process.send({ url }, () => process.disconnect());
+      return;
+    }
     console.log(url);
     console.log('Press Ctrl+C to stop. The session token is valid only for this process.');
     if (!process.argv.includes('--no-open')) openStudio(url);
@@ -5532,7 +5546,7 @@ Commands:
                validate <id> [--mode <mode>] [--json]
                explain | graph | simulate <id> [--mode <mode>] [--json]
   studio       Open the localhost-only, read-only bot monitor for every registered project
-               [--port <0-65535>] [--no-open] [--no-notify] [--json]
+               [--port <0-65535>] [--no-open] [--no-notify]
                --background  keep Studio running detached; log in ~/.ai-engineering-loop/studio.log
                --stop        stop the running Studio
   handoff      Export or verify a redacted, integrity-bound knowledge transfer

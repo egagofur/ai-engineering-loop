@@ -109,11 +109,38 @@ test('project list offers Freeze beside rows waiting for a freeze, and only ther
     project('quiet', 'idle'),
     { ...project('host', 'waiting', null), worktreeRuns: [summary({ runId: 'r-wt', worktreeId: 'wt-1', waiting: freezeWait })] }
   ], { selectedId: null, actor: '<b>Ega</b>' });
-  const freezes = [...html.matchAll(/<button type="button" class="primary list-freeze" data-action="list-freeze" data-project-id="([^"]+)" data-run-id="([^"]+)">Freeze as &lt;b&gt;Ega&lt;\/b&gt;<\/button>/g)]
+  const freezes = [...html.matchAll(/<button type="button" class="primary list-freeze" data-action="list-freeze" data-project-id="([^"]+)" data-run-id="([^"]+)" data-goal-hash="[^"]*" aria-label="[^"]+">Freeze as &lt;b&gt;Ega&lt;\/b&gt;<\/button>/g)]
     .map((match) => `${match[1]}:${match[2]}`);
   assert.deepStrictEqual(freezes.sort(), ['needs-freeze:r-main', 'wt-1:r-wt']);
   assert.equal((html.match(/data-action="list-freeze"/g) || []).length, 2);
   assert.doesNotMatch(html, /<button[^>]*class="project-row"[^>]*>(?:(?!<\/button>)[\s\S])*data-action="list-freeze"/, 'Freeze is not nested in the row button');
+});
+
+test('list Freeze carries the escaped draft hash it was rendered with and names its target', async () => {
+  const { renderProjectList } = await load('list.js');
+  const html = renderProjectList([
+    { ...project('p"1', 'waiting', summary({ runId: 'r-main', waiting: { kind: 'freeze', since: 'x', goalHash: 'h"<1' } })), name: 'team/<a>' },
+    { ...project('host', 'waiting', null), worktreeRuns: [summary({ runId: 'r-wt', task: 'Fix "login"', worktreeId: 'wt-1', waiting: { kind: 'freeze', since: 'x', goalHash: 'h2' } })] }
+  ], { selectedId: null, actor: 'Ega <b>' });
+  assert.match(html, /data-run-id="r-main" data-goal-hash="h&quot;&lt;1" aria-label="Freeze team\/&lt;a&gt; as Ega &lt;b&gt;">/);
+  assert.match(html, /data-run-id="r-wt" data-goal-hash="h2" aria-label="Freeze Fix &quot;login&quot; as Ega &lt;b&gt;">/);
+  assert.doesNotMatch(html, /h"<1/);
+  const nameless = renderProjectList([project('p', 'waiting', summary({ waiting: { kind: 'freeze', since: 'x', goalHash: 'h' } }))], { actor: null });
+  assert.match(nameless, /aria-label="Freeze team\/p">Freeze…<\/button>/);
+});
+
+test('a finished worktree Run shows an idle bot, not a working one', async () => {
+  const { renderProjectList, worktreeState } = await load('list.js');
+  const done = summary({ runId: 'w-done', worktreeId: 'wt-done', state: 'DELIVERED', stage: null });
+  const live = summary({ runId: 'w-live', worktreeId: 'wt-live' });
+  const waiting = summary({ runId: 'w-wait', worktreeId: 'wt-wait', waiting: { kind: 'question', since: 'x' } });
+  const html = renderProjectList([{ ...project('host', 'working', null), worktreeRuns: [done, live, waiting] }], {});
+  assert.match(html, /<li class="worktree-run" data-state="idle"><button type="button" class="worktree-row" data-project-id="wt-done"><span class="bot bot-idle"/);
+  assert.match(html, /<li class="worktree-run" data-state="working"><button type="button" class="worktree-row" data-project-id="wt-live"><span class="bot bot-working"/);
+  assert.equal(worktreeState(done), 'idle');
+  assert.equal(worktreeState(summary({ state: 'REPORTED' })), 'idle');
+  assert.equal(worktreeState(live), 'working');
+  assert.equal(worktreeState(waiting), 'waiting');
 });
 
 test('list Freeze without a valid actor asks for a name in the Run view', async () => {

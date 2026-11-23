@@ -77,3 +77,12 @@ test('clearInstanceIfOwned removes only a file written by the given pid', () => 
   clearInstanceIfOwned({ home, pid: process.pid });
   assert.equal(fs.existsSync(file(home)), false);
 });
+
+test('readInstance rebuilds the loopback url from the port and ignores a stored url', () => {
+  const home = tempHome();
+  fs.mkdirSync(path.dirname(file(home)), { recursive: true });
+  fs.writeFileSync(file(home), JSON.stringify({ schemaVersion: 1, pid: process.pid, port: 4567, url: 'http://evil.test/?token=x' }));
+  assert.deepEqual(readInstance({ home }), { pid: process.pid, port: 4567, url: 'http://127.0.0.1:4567/' });
+  fs.writeFileSync(file(home), JSON.stringify({ schemaVersion: 1, pid: process.pid, port: 70000 }));
+  assert.equal(readInstance({ home }), null);
+});

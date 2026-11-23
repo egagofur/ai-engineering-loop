@@ -189,6 +189,27 @@ test('a non-local Host header is refused with 403 even with the token', async ()
   });
 });
 
+function rawRequest(port, text) {
+  return new Promise((resolve, reject) => {
+    const socket = require('node:net').connect(port, '127.0.0.1', () => socket.end(text));
+    let reply = '';
+    socket.setEncoding('utf8');
+    socket.on('data', (chunk) => { reply += chunk; });
+    socket.on('close', () => resolve(reply));
+    socket.on('error', reject);
+  });
+}
+
+test('a request target that is not a URL gets 400 before auth and the server keeps answering', async () => {
+  const { home } = fixture();
+  await withStudio({ home }, async ({ base, port }) => {
+    const reply = await rawRequest(port, 'GET http://[ HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n');
+    assert.match(reply, /^HTTP\/1\.1 400 /);
+    assert.match(reply, /\r\nBad request\r\n/);
+    assert.equal((await fetch(`${base}/healthz`)).status, 200);
+  });
+});
+
 test('/api/projects lists every registry project with its summary', async () => {
   const { home, roots } = fixture({ projects: 2 });
   drafted(roots[0], 'run-1');

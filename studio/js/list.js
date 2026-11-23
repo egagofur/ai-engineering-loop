@@ -59,20 +59,29 @@ function runMeta(run) {
   return parts.map(escapeHtml).join(' · ');
 }
 
-function listFreezeButton(targetId, run, actor) {
+const FINISHED_RUN_STATES = new Set(['REPORTED', 'DELIVERED', 'CANCELLED', 'ESCALATED']);
+
+export function worktreeState(run) {
+  if (run.waiting) return 'waiting';
+  return FINISHED_RUN_STATES.has(run.state) ? 'idle' : 'working';
+}
+
+function listFreezeButton(targetId, run, actor, targetName) {
   if (!run || !run.waiting || run.waiting.kind !== 'freeze') return '';
   const label = actor ? `Freeze as ${escapeHtml(actor)}` : 'Freeze…';
-  return `<button type="button" class="primary list-freeze" data-action="list-freeze" data-project-id="${escapeHtml(targetId)}" data-run-id="${escapeHtml(run.runId)}">${label}</button>`;
+  const accessibleName = actor ? `Freeze ${targetName} as ${actor}` : `Freeze ${targetName}`;
+  return `<button type="button" class="primary list-freeze" data-action="list-freeze" data-project-id="${escapeHtml(targetId)}" data-run-id="${escapeHtml(run.runId)}" data-goal-hash="${escapeHtml(run.waiting.goalHash)}" aria-label="${escapeHtml(accessibleName)}">${label}</button>`;
 }
 
 function worktreeRow(run, selectedId, actor) {
   const selected = run.worktreeId === selectedId;
-  return `<li class="worktree-run" data-state="${run.waiting ? 'waiting' : 'working'}">`
+  const state = worktreeState(run);
+  return `<li class="worktree-run" data-state="${state}">`
     + `<button type="button" class="worktree-row" data-project-id="${escapeHtml(run.worktreeId)}"${selected ? ' aria-current="true"' : ''}>`
-    + `<span class="bot bot-${run.waiting ? 'waiting' : 'working'}" aria-hidden="true"></span>`
+    + `<span class="bot bot-${state}" aria-hidden="true"></span>`
     + `<span class="worktree-task">${escapeHtml(run.task || run.runId)}</span>`
     + `<span class="row-meta">${runMeta(run)}</span></button>`
-    + listFreezeButton(run.worktreeId, run, actor)
+    + listFreezeButton(run.worktreeId, run, actor, run.task || run.runId)
     + '</li>';
 }
 
@@ -90,7 +99,7 @@ function projectRow(project, selectedId, actor) {
     + `<span class="row-name">${escapeHtml(project.name)}</span>`
     + `<span class="row-meta">${meta}</span>`
     + '</button>'
-    + listFreezeButton(project.id, project.run, actor)
+    + listFreezeButton(project.id, project.run, actor, project.name)
     + (worktrees ? `<ul class="worktree-runs" aria-label="Worktree Runs">${worktrees}</ul>` : '')
     + '</li>';
 }

@@ -1,5 +1,5 @@
 import { fetchDetail, fetchMe, fetchProjects, freezeGoal, saveActor } from './api.js';
-import { renderOverview, renderProjectList, sortProjects } from './list.js';
+import { renderOverview, renderProjectList, sortProjects, worktreeState } from './list.js';
 import { renderDetail, renderRunHead } from './detail.js';
 import { mountRing2d, ringModel } from './ring2d.js';
 
@@ -105,7 +105,7 @@ function selectableTargets() {
     ...(project.worktreeRuns || []).filter((run) => run.worktreeId).map((run) => ({
       id: run.worktreeId,
       name: `${project.name} · worktree`,
-      state: run.waiting ? 'waiting' : 'working',
+      state: worktreeState(run),
       run
     }))
   ]);
@@ -305,11 +305,12 @@ async function freezeFromList(button) {
   }
   const liveButton = [...elements.list.querySelectorAll('button[data-action="list-freeze"]')]
     .find((candidate) => candidate.dataset.projectId === targetId) || button;
-  await withFreezeLock(liveButton, async () => {
-    const detail = await fetchDetail(targetId, runId);
-    if (!detail.goalHash) throw new Error('There is no Goal draft to freeze');
-    await submitFreeze(targetId, runId, detail.goalHash);
-  });
+  const goalHash = button.dataset.goalHash;
+  if (!goalHash) {
+    setStatus('There is no Goal draft to freeze. Reload the page.');
+    return;
+  }
+  await withFreezeLock(liveButton, () => submitFreeze(targetId, runId, goalHash));
 }
 
 function setConnection(message) {

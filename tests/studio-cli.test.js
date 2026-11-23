@@ -167,3 +167,47 @@ test('status --json shows a studioUrl with ?project= while Studio runs', async (
   const parsed = JSON.parse(status.stdout);
   assert.match(parsed.studioUrl, /^http:\/\/127\.0\.0\.1:\d+\/\?project=[0-9a-f]{12}$/);
 });
+
+test('studio rejects --json before starting anything and help does not offer it', () => {
+  const home = tempDir('ael-studio-cli-');
+  const started = runCli(home, ['studio', '--json', '--no-open', '--port', '0']);
+  assert.equal(started.status, 2);
+  assert.match(started.stdout, /Unknown argument\(s\) for "studio": --json\. Nothing was written\./);
+  assert.equal(fs.existsSync(studioFile(home)), false);
+  const help = runCli(home, ['studio', '--help']);
+  assert.match(help.stdout, /\[--port <0-65535>\] \[--no-open\] \[--no-notify\]\n/);
+});
+
+test('--background never writes the session token to the log, and the log is private', () => {
+  const home = tempDir('ael-studio-cli-');
+  const logFile = path.join(home, '.ai-engineering-loop', 'studio.log');
+  fs.mkdirSync(path.dirname(logFile), { recursive: true });
+  fs.writeFileSync(logFile, 'é older line\n', { mode: 0o644 });
+  fs.chmodSync(logFile, 0o644);
+  const started = runCli(home, ['studio', '--background', '--no-notify', '--port', '0']);
+  assert.equal(started.status, 0, started.stderr);
+  const token = started.stdout.match(/\?token=(\S+)/)[1];
+  const log = fs.readFileSync(logFile, 'utf8');
+  assert.equal(log.includes(token), false);
+  assert.equal(log.includes('token='), false);
+  assert.match(log, /http:\/\/127\.0\.0\.1:\d+\//);
+  assert.equal(fs.statSync(logFile).mode & 0o777, 0o600);
+  runCli(home, ['studio', '--stop']);
+});
+
+test('--background that cannot start shows the new log lines intact after multibyte history', async () => {
+  const home = tempDir('ael-studio-cli-');
+  const logFile = path.join(home, '.ai-engineering-loop', 'studio.log');
+  fs.mkdirSync(path.dirname(logFile), { recursive: true });
+  fs.writeFileSync(logFile, `${'é'.repeat(40)}\n`);
+  const blocker = require('node:net').createServer();
+  await new Promise((resolve) => blocker.listen(0, '127.0.0.1', resolve));
+  try {
+    const started = runCli(home, ['studio', '--background', '--no-notify', '--port', String(blocker.address().port)]);
+    assert.equal(started.status, 1);
+    assert.match(started.stderr, /Unable to start Studio: .*EADDRINUSE/);
+    assert.equal(started.stderr.includes('é'), false);
+  } finally {
+    await new Promise((resolve) => blocker.close(resolve));
+  }
+});
