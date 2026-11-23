@@ -110,6 +110,7 @@ test('worktree Runs are summarised from the worktree path', () => {
   assert.equal(summary.run, null);
   assert.equal(summary.worktreeRuns.length, 1);
   assert.equal(summary.worktreeRuns[0].runId, 'w1');
+  assert.equal(summary.worktreeRuns[0].worktreeId, 'w');
   assert.equal(summary.state, 'working');
 });
 

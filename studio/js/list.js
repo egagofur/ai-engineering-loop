@@ -59,33 +59,48 @@ function runMeta(run) {
   return parts.map(escapeHtml).join(' · ');
 }
 
-function worktreeRow(run) {
-  return `<li class="worktree-run"><span class="bot bot-${run.waiting ? 'waiting' : 'working'}" aria-hidden="true"></span>`
-    + `<span class="worktree-task">${escapeHtml(run.task || run.runId)}</span>`
-    + `<span class="row-meta">${runMeta(run)}</span></li>`;
+function listFreezeButton(targetId, run, actor) {
+  if (!run || !run.waiting || run.waiting.kind !== 'freeze') return '';
+  const label = actor ? `Freeze as ${escapeHtml(actor)}` : 'Freeze…';
+  return `<button type="button" class="primary list-freeze" data-action="list-freeze" data-project-id="${escapeHtml(targetId)}" data-run-id="${escapeHtml(run.runId)}">${label}</button>`;
 }
 
-function projectRow(project, selectedId) {
+function worktreeRow(run, selectedId, actor) {
+  const selected = run.worktreeId === selectedId;
+  return `<li class="worktree-run" data-state="${run.waiting ? 'waiting' : 'working'}">`
+    + `<button type="button" class="worktree-row" data-project-id="${escapeHtml(run.worktreeId)}"${selected ? ' aria-current="true"' : ''}>`
+    + `<span class="bot bot-${run.waiting ? 'waiting' : 'working'}" aria-hidden="true"></span>`
+    + `<span class="worktree-task">${escapeHtml(run.task || run.runId)}</span>`
+    + `<span class="row-meta">${runMeta(run)}</span></button>`
+    + listFreezeButton(run.worktreeId, run, actor)
+    + '</li>';
+}
+
+function projectRow(project, selectedId, actor) {
   const selected = project.id === selectedId;
   const state = Object.hasOwn(STATE_ORDER, project.state) ? project.state : 'idle';
   const meta = project.run ? runMeta(project.run) : escapeHtml(state === 'missing' ? STATE_LABELS.missing : 'No active Run');
-  const worktrees = (project.worktreeRuns || []).map(worktreeRow).join('');
+  const worktrees = (project.worktreeRuns || [])
+    .filter((run) => run.worktreeId)
+    .map((run) => worktreeRow(run, selectedId, actor))
+    .join('');
   return `<li class="project" data-state="${state}">`
     + `<button type="button" class="project-row" data-project-id="${escapeHtml(project.id)}"${selected ? ' aria-current="true"' : ''}>`
     + `<span class="bot bot-${state}" role="img" aria-label="${STATE_LABELS[state]}"></span>`
     + `<span class="row-name">${escapeHtml(project.name)}</span>`
     + `<span class="row-meta">${meta}</span>`
     + '</button>'
+    + listFreezeButton(project.id, project.run, actor)
     + (worktrees ? `<ul class="worktree-runs" aria-label="Worktree Runs">${worktrees}</ul>` : '')
     + '</li>';
 }
 
-export function renderProjectList(projects, { selectedId = null } = {}) {
+export function renderProjectList(projects, { selectedId = null, actor = null } = {}) {
   const sorted = sortProjects(projects);
   if (!sorted.length) {
     return '<p class="empty">No projects yet. AEL lists a project here once you run <code>ael init</code> or <code>ael run</code> in it.</p>';
   }
-  return `<ul class="project-list">${sorted.map((project) => projectRow(project, selectedId)).join('')}</ul>`;
+  return `<ul class="project-list">${sorted.map((project) => projectRow(project, selectedId, actor)).join('')}</ul>`;
 }
 
 export function renderOverview(projects) {

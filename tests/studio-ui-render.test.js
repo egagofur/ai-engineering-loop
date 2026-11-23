@@ -69,7 +69,7 @@ test('project list orders waiting, working, idle, missing and marks the selectio
     project('busy', 'working'),
     project('needs-you', 'waiting', summary({ waiting: { kind: 'freeze', since: 'x' }, stage: 'goal' }))
   ], { selectedId: 'busy' });
-  const order = [...html.matchAll(/data-project-id="([^"]+)"/g)].map((match) => match[1]);
+  const order = [...html.matchAll(/class="project-row" data-project-id="([^"]+)"/g)].map((match) => match[1]);
   assert.deepStrictEqual(order, ['needs-you', 'busy', 'idle-one', 'gone']);
   assert.match(html, /data-project-id="busy"[^>]*aria-current="true"/);
   assert.doesNotMatch(html, /data-project-id="needs-you"[^>]*aria-current/);
@@ -87,6 +87,39 @@ test('project list escapes run-derived strings', async () => {
   assert.doesNotMatch(html, /<img/);
   assert.doesNotMatch(html, /"><x/);
   assert.match(html, /&lt;img src=x onerror=1&gt;/);
+});
+
+test('worktree Runs render as selectable rows keyed by their escaped worktree id', async () => {
+  const { renderProjectList } = await load('list.js');
+  const waiting = summary({ runId: 'w1', task: 'Worktree task', worktreeId: 'wt-"1<', waiting: { kind: 'freeze', since: 'x' } });
+  const html = renderProjectList([{ ...project('main', 'waiting', null), worktreeRuns: [waiting] }], { selectedId: 'wt-"1<', actor: 'Ega' });
+  assert.match(html, /<button type="button" class="worktree-row" data-project-id="wt-&quot;1&lt;" aria-current="true">/);
+  assert.doesNotMatch(html, /wt-"1</);
+  assert.match(html, /Worktree task/);
+});
+
+test('project list offers Freeze beside rows waiting for a freeze, and only there', async () => {
+  const { renderProjectList } = await load('list.js');
+  const freezeWait = { kind: 'freeze', since: 'x' };
+  const html = renderProjectList([
+    project('needs-freeze', 'waiting', summary({ runId: 'r-main', waiting: freezeWait })),
+    project('needs-approval', 'waiting', summary({ waiting: { kind: 'approval', since: 'x' } })),
+    project('question', 'waiting', summary({ waiting: { kind: 'question', since: 'x' } })),
+    project('busy', 'working'),
+    project('quiet', 'idle'),
+    { ...project('host', 'waiting', null), worktreeRuns: [summary({ runId: 'r-wt', worktreeId: 'wt-1', waiting: freezeWait })] }
+  ], { selectedId: null, actor: '<b>Ega</b>' });
+  const freezes = [...html.matchAll(/<button type="button" class="primary list-freeze" data-action="list-freeze" data-project-id="([^"]+)" data-run-id="([^"]+)">Freeze as &lt;b&gt;Ega&lt;\/b&gt;<\/button>/g)]
+    .map((match) => `${match[1]}:${match[2]}`);
+  assert.deepStrictEqual(freezes.sort(), ['needs-freeze:r-main', 'wt-1:r-wt']);
+  assert.equal((html.match(/data-action="list-freeze"/g) || []).length, 2);
+  assert.doesNotMatch(html, /<button[^>]*class="project-row"[^>]*>(?:(?!<\/button>)[\s\S])*data-action="list-freeze"/, 'Freeze is not nested in the row button');
+});
+
+test('list Freeze without a valid actor asks for a name in the Run view', async () => {
+  const { renderProjectList } = await load('list.js');
+  const html = renderProjectList([project('needs-freeze', 'waiting', summary({ waiting: { kind: 'freeze', since: 'x' } }))], { selectedId: null, actor: null });
+  assert.match(html, /data-action="list-freeze"[^>]*>Freeze…<\/button>/);
 });
 
 test('project list has an empty state', async () => {

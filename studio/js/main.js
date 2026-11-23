@@ -28,8 +28,20 @@ const state = {
 
 let detailTicket = 0;
 
+function selectableTargets() {
+  return state.projects.flatMap((project) => [
+    project,
+    ...(project.worktreeRuns || []).filter((run) => run.worktreeId).map((run) => ({
+      id: run.worktreeId,
+      name: `${project.name} · worktree`,
+      state: run.waiting ? 'waiting' : 'working',
+      run
+    }))
+  ]);
+}
+
 function selectedProject() {
-  return state.projects.find((project) => project.id === state.selectedId) || null;
+  return selectableTargets().find((target) => target.id === state.selectedId) || null;
 }
 
 function runKey(project) {
@@ -37,18 +49,24 @@ function runKey(project) {
   return run ? [project.id, run.runId, run.state, run.updatedAt, run.stage, run.waiting && run.waiting.kind].join('|') : null;
 }
 
-function focusedProjectId() {
-  const row = document.activeElement && document.activeElement.closest && document.activeElement.closest('[data-project-id]');
-  return row ? row.dataset.projectId : null;
+function validActor() {
+  return state.me.actorValid ? state.me.actor : null;
+}
+
+function focusedListButton() {
+  const active = document.activeElement;
+  const button = active && elements.list.contains(active) && active.closest('[data-project-id]');
+  return button ? { id: button.dataset.projectId, action: button.dataset.action || 'select' } : null;
 }
 
 function renderList() {
-  const focusedId = focusedProjectId();
-  elements.list.innerHTML = state.loaded ? renderProjectList(state.projects, { selectedId: state.selectedId }) : '';
+  const focused = focusedListButton();
+  elements.list.innerHTML = state.loaded ? renderProjectList(state.projects, { selectedId: state.selectedId, actor: validActor() }) : '';
   elements.overview.innerHTML = state.loaded ? renderOverview(state.projects) : 'Loading projects…';
-  if (!focusedId) return;
-  const row = [...elements.list.querySelectorAll('[data-project-id]')].find((button) => button.dataset.projectId === focusedId);
-  if (row) row.focus();
+  if (!focused) return;
+  const match = [...elements.list.querySelectorAll('[data-project-id]')]
+    .find((button) => button.dataset.projectId === focused.id && (button.dataset.action || 'select') === focused.action);
+  if (match) match.focus();
 }
 
 function emptyMessage(project) {
@@ -76,7 +94,7 @@ function renderRun() {
   const typing = input && document.activeElement === input;
   elements.head.innerHTML = renderRunHead(state.detail.summary, {
     projectName: project.name,
-    actor: state.me.actorValid ? state.me.actor : null
+    actor: validActor()
   });
   elements.detail.innerHTML = renderDetail(state.detail);
   const next = elements.head.querySelector('#freeze-actor');
@@ -161,9 +179,8 @@ async function refreshProjects() {
   }
 }
 
-function setBusy(busy) {
-  const button = elements.head.querySelector('button[data-action="freeze"]');
-  if (!button) return;
+function setBusy(button, busy) {
+  if (!button || !button.isConnected) return;
   button.disabled = busy;
   if (busy) button.textContent = 'Freezing…';
 }
@@ -173,20 +190,17 @@ function freezeFailure(error) {
   return error.fix ? `${error.message}. ${error.fix}` : error.message;
 }
 
-async function freeze(name) {
+async function submitFreeze(targetId, runId, expectedHash) {
+  const result = await freezeGoal(targetId, runId, expectedHash);
+  setStatus(result.alreadyFrozen ? 'This Goal was already frozen in the agent host.' : `Goal frozen as ${state.me.actor}.`);
+}
+
+async function withFreezeLock(button, operation) {
   if (state.freezing) return;
-  const project = selectedProject();
-  const detail = state.detail;
-  if (!project || !detail || !detail.goalHash) {
-    setStatus('There is no Goal draft to freeze. Reload the page.');
-    return;
-  }
   state.freezing = true;
-  setBusy(true);
+  setBusy(button, true);
   try {
-    if (name !== undefined) state.me = await saveActor(name);
-    const result = await freezeGoal(project.id, detail.summary.runId, detail.goalHash);
-    setStatus(result.alreadyFrozen ? 'This Goal was already frozen in the agent host.' : `Goal frozen as ${state.me.actor}.`);
+    await operation();
   } catch (error) {
     setStatus(freezeFailure(error));
   } finally {
@@ -194,6 +208,36 @@ async function freeze(name) {
   }
   await refreshProjects();
   await loadDetail();
+}
+
+async function freeze(name) {
+  const project = selectedProject();
+  const detail = state.detail;
+  if (!project || !detail || !detail.goalHash) {
+    setStatus('There is no Goal draft to freeze. Reload the page.');
+    return;
+  }
+  await withFreezeLock(elements.head.querySelector('button[data-action="freeze"]'), async () => {
+    if (name !== undefined) state.me = await saveActor(name);
+    await submitFreeze(project.id, detail.summary.runId, detail.goalHash);
+  });
+}
+
+async function freezeFromList(button) {
+  const targetId = button.dataset.projectId;
+  const runId = button.dataset.runId;
+  select(targetId);
+  if (!validActor()) {
+    setStatus('Type your name under the Goal to freeze it.');
+    return;
+  }
+  const liveButton = [...elements.list.querySelectorAll('button[data-action="list-freeze"]')]
+    .find((candidate) => candidate.dataset.projectId === targetId) || button;
+  await withFreezeLock(liveButton, async () => {
+    const detail = await fetchDetail(targetId, runId);
+    if (!detail.goalHash) throw new Error('There is no Goal draft to freeze');
+    await submitFreeze(targetId, runId, detail.goalHash);
+  });
 }
 
 function setConnection(message) {
@@ -221,6 +265,11 @@ function connect() {
 }
 
 elements.list.addEventListener('click', (event) => {
+  const freezeButton = event.target.closest('button[data-action="list-freeze"]');
+  if (freezeButton) {
+    freezeFromList(freezeButton);
+    return;
+  }
   const row = event.target.closest('[data-project-id]');
   if (row) select(row.dataset.projectId);
 });
