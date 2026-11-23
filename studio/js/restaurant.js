@@ -22,6 +22,9 @@ import {
   CUT_FADE_MS,
   GUEST_SPOT,
   cameraPose,
+  clampBox,
+  compactFocus,
+  dodgeLabel,
   flameBurst,
   hopHeight,
   judgeOutcome,
@@ -41,6 +44,9 @@ import { createCarriers, swapMode } from './carriers.js';
 import { BOT_Y, BOT_Z, COUNTER_FRONT, COUNTER_TOP, GUEST_TOP, PENDANT_XS, PENDANT_Y, PENDANT_Z, RAIL_Z, TICKET_Y, buildKitchen } from './stations.js';
 
 const BOT_SIZE = 1.05;
+const BOT_BOX = { top: 1.6, half: 0.9 };
+const CAMERA_EASE_SECONDS = 0.32;
+const OVERLAY_PAD = 8;
 const DIM_STATION = 0.55;
 const HOP = 0.14;
 const MAX_FRAME_SECONDS = 0.1;
@@ -185,6 +191,9 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
   let hovered = null;
   let dingAt = -1;
   let pushAt = -1;
+  let cameraX = null;
+  let stripStage = null;
+  const compactQuery = window.matchMedia('(max-width: 600px)');
 
   function statusMap(next) {
     return Object.fromEntries(next.stages.map((item) => [item.stage, item.status]));
@@ -286,9 +295,23 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
     return current ? current.carrier.position : scratch.set(0, 0, 0);
   }
 
+  function botBox() {
+    const scale = current ? current.carrier.scale.x : 1;
+    const foot = BOT_Y * scale + (current ? current.carrier.position.y : 0);
+    return { bottom: foot, top: foot + BOT_BOX.top * BOT_SIZE * scale, half: BOT_BOX.half * BOT_SIZE * scale, z: BOT_Z };
+  }
+
+  function stepCamera(seconds) {
+    const want = current ? compactFocus(current.botX) : 0;
+    if (cameraX === null || reducedMotion || !compactQuery.matches) cameraX = want;
+    else cameraX = settle(cameraX, want, seconds, CAMERA_EASE_SECONDS);
+    return cameraX !== want;
+  }
+
   function applyCamera() {
     const focus = current ? current.botX + current.carrier.position.x : 0;
-    const pose = cameraPose(zoomed, width / height, focus);
+    const compact = compactQuery.matches;
+    const pose = cameraPose(zoomed, width / height, focus, { compact, restX: cameraX === null ? focus : cameraX, bot: botBox() });
     camera.position.set(...pose.position);
     camera.fov = pose.fov;
     camera.aspect = width / height;
@@ -314,32 +337,82 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
     node.style.transform = `translate(${(screen.x - w / 2).toFixed(1)}px, ${y.toFixed(1)}px)`;
   }
 
+  function placeStrip(compact) {
+    const labels = root.querySelectorAll('.stage[data-stage]');
+    if (!compact) {
+      stripStage = null;
+      return false;
+    }
+    labels.forEach((label) => label.style.removeProperty('transform'));
+    const strip = root.querySelector('.stages');
+    const now = root.querySelector('.stage.now') || root.querySelector(`.stage[data-stage="${current.botStage}"]`);
+    if (strip && now && stripStage !== now.dataset.stage) {
+      stripStage = now.dataset.stage;
+      strip.scrollLeft = Math.max(0, now.offsetLeft - (strip.clientWidth - now.offsetWidth) / 2);
+    }
+    return true;
+  }
+
+  function placeGuest(compact, base) {
+    const guest = root.querySelector('.guest');
+    if (!guest) return;
+    if (!compact) {
+      place(guest, new Vector3(GUEST_SPOT.x + GUEST_REACH + base.x, GUEST_TOP + base.y, GUEST_SPOT.z + base.z), { anchor: 'side', gap: 14 });
+      return;
+    }
+    guest.style.removeProperty('transform');
+    root.style.setProperty('--guest-h', `${guest.offsetHeight}px`);
+  }
+
+  function placeBubble(top, size) {
+    const bubble = root.querySelector('.bot-bubble');
+    if (!bubble || bubble.hidden || !bubble.offsetWidth) return null;
+    const box = clampBox({ x: top.x + size * 0.2, y: top.y - (bubble.offsetHeight || 28) - 4, w: bubble.offsetWidth, h: bubble.offsetHeight }, { width, height }, OVERLAY_PAD);
+    bubble.style.transform = `translate(${box.x.toFixed(1)}px, ${box.y.toFixed(1)}px)`;
+    return box;
+  }
+
+  function placeTicket(base, bubbleBox) {
+    const ticket = root.querySelector('.kitchen-ticket');
+    if (!ticket) return;
+    const screen = project(new Vector3(current.ticketX + base.x, TICKET_Y + 0.2 + base.y, RAIL_Z + base.z));
+    const w = ticket.offsetWidth;
+    const h = ticket.offsetHeight;
+    const spot = dodgeLabel({ x: screen.x - w / 2, y: screen.y - h - 4, w, h }, bubbleBox, { width, height }, { pad: OVERLAY_PAD });
+    ticket.style.transform = `translate(${spot.x.toFixed(1)}px, ${spot.y.toFixed(1)}px)`;
+    ticket.style.visibility = spot.hidden ? 'hidden' : '';
+  }
+
   function placeOverlay() {
     if (!current) return;
     const base = current.carrier.position;
-    root.querySelectorAll('.stage[data-stage]').forEach((label) => {
-      place(label, new Vector3(stationX(label.dataset.stage) + base.x, 0.12 + base.y, COUNTER_FRONT + 0.02 + base.z), { gap: LABEL_GAP });
-    });
-    place(root.querySelector('.kitchen-ticket'), new Vector3(current.ticketX + base.x, TICKET_Y + 0.2 + base.y, RAIL_Z + base.z), { anchor: 'bottom', gap: 4 });
+    const compact = compactQuery.matches;
+    if (!placeStrip(compact)) {
+      root.querySelectorAll('.stage[data-stage]').forEach((label) => {
+        place(label, new Vector3(stationX(label.dataset.stage) + base.x, 0.12 + base.y, COUNTER_FRONT + 0.02 + base.z), { gap: LABEL_GAP });
+      });
+    }
     if (current.arc.visible) place(root.querySelector('.kitchen-return'), current.arc.userData.apex.clone().add(base), { anchor: 'bottom', gap: 10 });
-    place(root.querySelector('.guest'), new Vector3(GUEST_SPOT.x + GUEST_REACH + base.x, GUEST_TOP + base.y, GUEST_SPOT.z + base.z), { anchor: 'side', gap: 14 });
+    placeGuest(compact, base);
     root.querySelectorAll('.diner-tag[data-diner]').forEach((tag) => {
       const figure = current.figures[Number(tag.dataset.diner)];
       if (!figure) return;
       place(tag, new Vector3(figure.x + base.x, dinerHeadY() + 0.08 + base.y, figure.z + base.z), { anchor: 'bottom', gap: 2 });
     });
     const button = root.querySelector('.ring-bot');
-    if (!button) return;
+    if (!button) {
+      placeTicket(base, null);
+      return;
+    }
     bot.root.getWorldPosition(scratch);
     const foot = scratch.clone();
     const middle = project(foot.clone().setY(foot.y + bot.height * 0.55));
     const top = project(foot.clone().setY(foot.y + bot.height));
-    const size = Math.max(40, (middle.y - top.y) * 2.4);
+    const size = Math.max(44, (middle.y - top.y) * 2.4);
     button.style.width = `${size.toFixed(1)}px`;
     button.style.height = `${size.toFixed(1)}px`;
     button.style.transform = `translate(${(middle.x - size / 2).toFixed(1)}px, ${(middle.y - size / 2).toFixed(1)}px)`;
-    const bubble = root.querySelector('.bot-bubble');
-    if (bubble) bubble.style.transform = `translate(${(top.x + size * 0.2).toFixed(1)}px, ${(top.y - (bubble.offsetHeight || 28) - 4).toFixed(1)}px)`;
+    placeTicket(base, placeBubble(top, size));
   }
 
   function placeBot(lift = 0) {
@@ -543,10 +616,11 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
     const zooming = stepZoom(time);
     const walking = stepWalk(time, seconds);
     const sliding = stepTicket(seconds);
+    const panning = stepCamera(seconds);
     const botMoving = bot.step(seconds);
     const station = stepStation(seconds);
     render();
-    if (swapping || zooming || walking || sliding || botMoving || station) schedule();
+    if (swapping || zooming || walking || sliding || panning || botMoving || station) schedule();
     else {
       lastTime = 0;
       sleepUntilBlink();
@@ -649,6 +723,14 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
     else schedule();
   }
 
+  function onCompact() {
+    cameraX = null;
+    stripStage = null;
+    root.querySelectorAll('.stage[data-stage], .guest').forEach((node) => node.style.removeProperty('transform'));
+    render();
+    schedule();
+  }
+
   function onTheme() {
     paintScene();
     render();
@@ -722,6 +804,7 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
   resizeObserver.observe(el);
   document.addEventListener('visibilitychange', onVisibility);
   darkScheme.addEventListener('change', onTheme);
+  compactQuery.addEventListener('change', onCompact);
   el.addEventListener('pointermove', onPointerMove);
   el.addEventListener('pointerleave', onPointerLeave);
   el.addEventListener('click', onClick);
@@ -783,6 +866,8 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
       resizeObserver.disconnect();
       document.removeEventListener('visibilitychange', onVisibility);
       darkScheme.removeEventListener('change', onTheme);
+      compactQuery.removeEventListener('change', onCompact);
+      root.style.removeProperty('--guest-h');
       el.removeEventListener('pointermove', onPointerMove);
       el.removeEventListener('pointerleave', onPointerLeave);
       el.removeEventListener('click', onClick);

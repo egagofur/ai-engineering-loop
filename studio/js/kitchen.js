@@ -135,21 +135,92 @@ export const CAMERA_POSES = {
   station: { position: [0, 2.2, 4.0], target: [0, 0.95, -0.35], fov: 30 }
 };
 
-export function cameraPose(zoom, aspect, focusX = 0) {
+export const COMPACT_SPAN = 5.6;
+export const COMPACT_FOV = 40;
+export const COMPACT_LIFT = -0.55;
+export const COMPACT_REACH = stationX('deliver') - STATION_SPACING / 2;
+export const ZOOM_MARGIN = 0.3;
+export const ZOOM_INSETS = { wide: { top: 0.06, bottom: 0.12 }, compact: { top: 0.24, bottom: 0.14 } };
+
+const toRadians = (degrees) => (degrees * Math.PI) / 180;
+const unit = (vector) => {
+  const length = Math.hypot(...vector) || 1;
+  return vector.map((value) => value / length);
+};
+const along = (origin, direction, distance) => origin.map((value, index) => Number((value + direction[index] * distance).toFixed(4)));
+const towardCamera = (pose) => unit(pose.position.map((value, index) => value - pose.target[index]));
+
+export function compactFocus(x) {
+  return Math.min(COMPACT_REACH, Math.max(-COMPACT_REACH, Number(x) || 0));
+}
+
+export function compactRest(aspect, focusX = 0) {
+  const ratio = aspect > 0 ? aspect : 1;
+  const halfWidth = Math.tan(toRadians(COMPACT_FOV / 2)) * ratio;
+  const distance = COMPACT_SPAN / 2 / halfWidth;
+  const rest = CAMERA_POSES.rest;
+  const target = [compactFocus(focusX), rest.target[1] + COMPACT_LIFT, rest.target[2]];
+  return { position: along(target, towardCamera(rest), distance), target, fov: COMPACT_FOV };
+}
+
+export function stationFrame(aspect, box, { compact = false, fov = CAMERA_POSES.station.fov } = {}) {
+  const ratio = aspect > 0 ? aspect : 1;
+  const insets = compact ? ZOOM_INSETS.compact : ZOOM_INSETS.wide;
+  const band = 1 - insets.top - insets.bottom;
+  const tan = Math.tan(toRadians(fov / 2));
+  const halfHeight = ((box.top - box.bottom) / 2) * (1 + ZOOM_MARGIN) / band;
+  const halfWidth = box.half * (1 + ZOOM_MARGIN);
+  const distance = Math.max(halfHeight / tan, halfWidth / (tan * ratio));
+  const frameHalf = distance * tan;
+  const middle = (box.top + box.bottom) / 2 + (insets.top - insets.bottom) * frameHalf;
+  const target = [box.x, Number(middle.toFixed(4)), box.z];
+  return { position: along(target, towardCamera(CAMERA_POSES.station), distance), target, fov };
+}
+
+export function cameraPose(zoom, aspect, focusX = 0, { compact = false, restX = focusX, bot = null } = {}) {
   const t = Math.min(1, Math.max(0, zoom));
-  const station = {
-    position: [focusX + CAMERA_POSES.station.position[0], ...CAMERA_POSES.station.position.slice(1)],
-    target: [focusX + CAMERA_POSES.station.target[0], ...CAMERA_POSES.station.target.slice(1)]
-  };
+  const station = bot
+    ? stationFrame(aspect, { ...bot, x: focusX }, { compact })
+    : {
+        position: [focusX + CAMERA_POSES.station.position[0], ...CAMERA_POSES.station.position.slice(1)],
+        target: [focusX + CAMERA_POSES.station.target[0], ...CAMERA_POSES.station.target.slice(1)],
+        fov: CAMERA_POSES.station.fov
+      };
   const mix = (a, b) => a.map((value, index) => value + (b[index] - value) * t);
+  if (compact) {
+    const rest = compactRest(aspect, restX);
+    return { position: mix(rest.position, station.position), target: mix(rest.target, station.target), fov: rest.fov + (station.fov - rest.fov) * t };
+  }
   const target = mix(CAMERA_POSES.rest.target, station.target);
   let position = mix(CAMERA_POSES.rest.position, station.position);
-  const fov = CAMERA_POSES.rest.fov + (CAMERA_POSES.station.fov - CAMERA_POSES.rest.fov) * t;
+  const fov = CAMERA_POSES.rest.fov + (station.fov - CAMERA_POSES.rest.fov) * t;
   if (aspect > 0 && aspect < WIDE_ASPECT) {
-    const push = 1 + (WIDE_ASPECT / aspect - 1) * (1 - 0.6 * t);
+    const push = 1 + (WIDE_ASPECT / aspect - 1) * (1 - (bot ? 1 : 0.6) * t);
     position = position.map((value, index) => target[index] + (value - target[index]) * push);
   }
   return { position, target, fov };
+}
+
+export function clampBox(box, bounds, pad = 8) {
+  const maxX = Math.max(pad, bounds.width - box.w - pad);
+  const maxY = Math.max(pad, bounds.height - box.h - pad);
+  return { ...box, x: Math.min(maxX, Math.max(pad, box.x)), y: Math.min(maxY, Math.max(pad, box.y)) };
+}
+
+function overlaps(a, b, gap) {
+  return a.x < b.x + b.w + gap && b.x < a.x + a.w + gap && a.y < b.y + b.h + gap && b.y < a.y + a.h + gap;
+}
+
+export function dodgeLabel(label, obstacle, bounds, { gap = 6, pad = 8 } = {}) {
+  if (!obstacle || !obstacle.w || !overlaps(label, obstacle, gap)) return { ...label, hidden: false };
+  const candidates = [
+    { ...label, x: obstacle.x - gap - label.w },
+    { ...label, y: obstacle.y - gap - label.h },
+    { ...label, x: obstacle.x + obstacle.w + gap }
+  ];
+  const fits = (box) => box.x >= pad && box.y >= pad && box.x + box.w <= bounds.width - pad && box.y + box.h <= bounds.height - pad;
+  const spot = candidates.find((box) => fits(box) && !overlaps(box, obstacle, gap - 1e-6));
+  return spot ? { ...spot, hidden: false } : { ...label, hidden: true };
 }
 
 export function swapOffset(direction, progress) {

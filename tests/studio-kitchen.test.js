@@ -87,6 +87,86 @@ test('the chef walks between stations with eased hops; reduced motion cuts with 
   assert.equal(hopHeight(0.5, 0), 0);
 });
 
+test('camera: a phone frames the active station with its neighbours and follows the bot along the counter', async () => {
+  const { cameraPose, compactRest, compactFocus, COMPACT_REACH, COMPACT_SPAN, CAMERA_POSES, stationX, STATION_SPACING } = await load('kitchen.js');
+  const distance = (pose) => Math.hypot(...pose.position.map((value, index) => value - pose.target[index]));
+  const halfWidth = (pose, aspect) => distance(pose) * Math.tan((pose.fov * Math.PI) / 360) * aspect;
+  for (const aspect of [0.45, 0.55, 0.7]) {
+    const pose = compactRest(aspect, stationX('verify'));
+    assert.ok(Math.abs(halfWidth(pose, aspect) * 2 - COMPACT_SPAN) < 1e-3, `spans the station and neighbours at ${aspect}`);
+    assert.ok(COMPACT_SPAN / 2 > STATION_SPACING, 'both neighbours are in frame');
+    assert.ok(distance(pose) < distance(cameraPose(0, aspect)), 'closer than the whole-counter view');
+  }
+  assert.equal(compactRest(0.5, stationX('verify')).target[0], stationX('verify'));
+  assert.equal(compactRest(0.5, stationX('goal')).target[0], -COMPACT_REACH, 'stops at the end of the counter');
+  assert.equal(compactFocus(stationX('deliver')), COMPACT_REACH);
+  assert.ok(stationX('deliver') - COMPACT_REACH < COMPACT_SPAN / 2, 'the end station stays in frame');
+  const phone = cameraPose(0, 0.5, 99, { compact: true, restX: stationX('maker') });
+  assert.equal(phone.target[0], stationX('maker'), 'rest follows the eased camera x, not the zoom focus');
+  assert.deepStrictEqual(cameraPose(0, 2, 0, { compact: false }).position, CAMERA_POSES.rest.position, 'desktop rest is unchanged');
+});
+
+test('zoom: frames the whole bot, toque included, from its bounding box on desktop and phone', async () => {
+  const { cameraPose, stationFrame, ZOOM_INSETS } = await load('kitchen.js');
+  const bot = { bottom: 0.45, top: 2.13, half: 0.95, z: -0.38 };
+  const screenY = (pose, aspect, y) => {
+    const dir = pose.target.map((value, index) => value - pose.position[index]);
+    const length = Math.hypot(...dir);
+    const forward = dir.map((value) => value / length);
+    const up = [0, 1, 0];
+    const right = [forward[1] * up[2] - forward[2] * up[1], forward[2] * up[0] - forward[0] * up[2], forward[0] * up[1] - forward[1] * up[0]];
+    const rl = Math.hypot(...right);
+    const r = right.map((value) => value / rl);
+    const u = [r[1] * forward[2] - r[2] * forward[1], r[2] * forward[0] - r[0] * forward[2], r[0] * forward[1] - r[1] * forward[0]];
+    const rel = [0, y, bot.z].map((value, index) => value - pose.position[index]);
+    const depth = rel.reduce((sum, value, index) => sum + value * forward[index], 0);
+    const vertical = rel.reduce((sum, value, index) => sum + value * u[index], 0);
+    const ndc = vertical / (depth * Math.tan((pose.fov * Math.PI) / 360));
+    return (1 - ndc) / 2;
+  };
+  for (const [aspect, compact] of [[1.4, false], [2, false], [0.5, true], [0.6, true]]) {
+    const pose = stationFrame(aspect, { ...bot, x: 0 }, { compact });
+    const insets = compact ? ZOOM_INSETS.compact : ZOOM_INSETS.wide;
+    const top = screenY(pose, aspect, bot.top);
+    const foot = screenY(pose, aspect, bot.bottom);
+    assert.ok(top > insets.top, `toque clears the top inset at ${aspect}: ${top}`);
+    assert.ok(foot < 1 - insets.bottom, `feet clear the bottom inset at ${aspect}: ${foot}`);
+    const halfWidth = Math.hypot(...pose.position.map((value, index) => value - pose.target[index])) * Math.tan((pose.fov * Math.PI) / 360) * aspect;
+    assert.ok(halfWidth > bot.half, `bot fits across at ${aspect}`);
+  }
+  const zoomed = cameraPose(1, 1.4, 2.1, { bot });
+  assert.equal(zoomed.target[0], 2.1);
+  const frame = stationFrame(1.4, { ...bot, x: 2.1 });
+  zoomed.position.forEach((value, index) => assert.ok(Math.abs(value - frame.position[index]) < 1e-6, 'a full zoom lands on the bot frame with no extra push'));
+});
+
+test('overlays: bubbles clamp inside the scene and the ticket label dodges a bubble or hides', async () => {
+  const { clampBox, dodgeLabel } = await load('kitchen.js');
+  const bounds = { width: 375, height: 600 };
+  assert.deepStrictEqual(clampBox({ x: 330, y: -20, w: 120, h: 28 }, bounds), { x: 247, y: 8, w: 120, h: 28 });
+  assert.deepStrictEqual(clampBox({ x: -40, y: 590, w: 120, h: 28 }, bounds), { x: 8, y: 564, w: 120, h: 28 });
+  assert.deepStrictEqual(clampBox({ x: 100, y: 100, w: 120, h: 28 }, bounds), { x: 100, y: 100, w: 120, h: 28 });
+  const label = { x: 140, y: 200, w: 90, h: 22 };
+  assert.deepStrictEqual(dodgeLabel(label, null, bounds), { ...label, hidden: false }, 'no bubble, no change');
+  assert.deepStrictEqual(dodgeLabel(label, { x: 300, y: 200, w: 60, h: 28 }, bounds), { ...label, hidden: false }, 'no overlap, no change');
+  const moved = dodgeLabel(label, { x: 200, y: 196, w: 140, h: 30 }, bounds);
+  assert.equal(moved.hidden, false);
+  assert.ok(moved.x + moved.w <= 200 - 6, 'moves clear of the bubble');
+  const cramped = dodgeLabel({ x: 8, y: 8, w: 90, h: 22 }, { x: 20, y: 8, w: 340, h: 30 }, { width: 375, height: 40 });
+  assert.equal(cramped.hidden, true, 'hides when there is no room');
+});
+
+test('phone layout: strip, bottom sheet guest, compact header, and 44px tap targets under 600px', () => {
+  const css = read('styles.css');
+  const phone = css.slice(css.indexOf('@media (max-width:600px)'));
+  assert.ok(phone.length > 30, 'has a phone breakpoint');
+  assert.match(phone, /#ring\[data-ring="3d"\] \.stages\{[^}]*overflow-x:auto/);
+  assert.match(phone, /#ring\[data-ring="3d"\] \.guest\{[^}]*right:8px;bottom:60px;left:8px;max-width:none/);
+  assert.match(phone, /\.run-task\{[^}]*-webkit-line-clamp:2/);
+  assert.match(phone, /\.details-button[^{]*\{min-height:44px\}/);
+  assert.match(phone, /#ring\[data-ring="3d"\] \.ring-centre\{[^}]*clip-path:inset\(50%\)/, 'the waiting block stays for screen readers but merges into the header');
+});
+
 test('camera: rest shows the whole counter, zoom dollies to the station under the bot, narrow views step back', async () => {
   const { cameraPose, CAMERA_POSES, stationX } = await load('kitchen.js');
   const rest = cameraPose(0, 2);
