@@ -243,3 +243,25 @@ test('a REPORTED Run is finished: idle, goal and maker done, rest skipped', () =
     goal: 'done', maker: 'done', verify: 'skipped', review: 'skipped', judge: 'skipped', deliver: 'skipped'
   });
 });
+
+test('a recorded tier object is shown as its current tier', () => {
+  const root = tempRoot();
+  const tier = {
+    current: 'T0',
+    auto: 'T1',
+    source: 'override',
+    reasons: [{ code: 'MANUAL_OVERRIDE', detail: 'docs only', tier: 'T0' }],
+    history: [{ from: null, to: 'T0', by: 'override', reason: 'docs only', at: '2026-01-01T00:00:00.000Z' }]
+  };
+  frozen(root, 'r1', { tier });
+  const summary = summarizeProject(project(root));
+  assert.equal(summary.run.tier, 'T0');
+  assert.equal(ringOf(summary.run).review, 'skipped');
+  assert.equal(runDetail({ root }, 'r1').summary.tier, 'T0');
+});
+
+test('a tier object without a current tier is shown as no tier', () => {
+  const root = tempRoot();
+  frozen(root, 'r1', { tier: { auto: 'T1', source: 'auto' } });
+  assert.equal(summarizeProject(project(root)).run.tier, null);
+});

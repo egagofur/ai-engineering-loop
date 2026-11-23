@@ -33,7 +33,7 @@ No task (`ael`, "hi", "what can you do"): offer, numbered, 1) build my workflow,
 
 ## Studio
 
-Stage commands (`run`, `goal`, `gate`, `verify`, `review-pack`, `deliver`, `node start|activity|complete`) stream into an open Studio; `status --json` reports `studioUrl`. Emit `npx ai-engineering-loop activity heartbeat --run <runId> --phase <phase> --message <short factual summary>` only during long manual work, never before every stage. Before asking the human, persist the question with `npx ai-engineering-loop interaction question --run <runId> --id <id> --message <text>` so it appears once in Studio.
+`ael studio` opens one machine-wide, read-only monitor of every registered project; it reuses a running instance (`~/.ai-engineering-loop/studio.json`). `--background` keeps it running for notifications, `--stop` ends it, `--no-notify`, `--port`, `--no-open`. Studio only reads Run artifacts: it cannot start, edit, cancel or answer anything. Its one write is Freeze of a waiting Goal; `goal freeze` then answers `alreadyFrozen: true`, so continue. `status --json` reports `studioUrl`. Emit `npx ai-engineering-loop activity heartbeat --run <runId> --phase <phase> --message <short factual summary>` only during long manual work, never before every stage. Before asking the human, persist the question with `npx ai-engineering-loop interaction question --run <runId> --id <id> --message <text>` so Studio shows the Run as waiting and notifies once (`docs local-workflow-studio`).
 
 ## Budget
 

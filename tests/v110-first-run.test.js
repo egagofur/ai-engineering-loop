@@ -351,29 +351,3 @@ test('Stage 8 Run completion never carries a node scope', () => {
   assert.match(cli, /const runCompleted = run\.state === 'DELIVERED' \|\| run\.state === 'REPORTED'/);
   assert.match(cli, /\.\.\.\(!runCompleted && lifecycleNode \? \{ nodeId: lifecycleNode\.id \} : \{\}\)/);
 });
-
-test('AC-14 live run view exposes persisted Run progress without a fake node', () => {
-  const app = fs.readFileSync(path.join(__dirname, '..', 'studio', 'app.js'), 'utf8');
-  assert.match(app, /function renderLive\(/);
-  assert.match(app, /degradedSources\.join\(' and '\).*unavailable — journey may be incomplete/s);
-  assert.doesNotMatch(app, /fake node|placeholder-node/i);
-});
-
-test('AC-15 live run view keeps honest running output without a node inspector', () => {
-  const app = fs.readFileSync(path.join(__dirname, '..', 'studio', 'app.js'), 'utf8');
-  assert.match(app, /function heartbeatAge/);
-  assert.match(app, /receipt pending/);
-  assert.match(app, /heartbeatAge\(presence\.lastHeartbeatAt\)/);
-});
-
-test('AC-16 semantic node and connector states remain distinct without a passed glow', () => {
-  const app = fs.readFileSync(path.join(__dirname, '..', 'studio', 'app.js'), 'utf8');
-  assert.match(app, /const GRAPH_STATES = Object\.freeze\(\['active', 'passed', 'failed', 'skipped', 'waiting', 'idle'\]\)/);
-});
-
-test('AC-17 lifecycle bursts coalesce rendering and reduced motion preserves state styling', () => {
-  const app = fs.readFileSync(path.join(__dirname, '..', 'studio', 'app.js'), 'utf8');
-  assert.match(app, /if \(liveRenderScheduled\) return/);
-  assert.match(app, /window\.requestAnimationFrame/);
-  assert.match(app, /lifecycleEvents = lifecycleEvents\.concat\([\s\S]*\)\.slice\(-100\)/);
-});

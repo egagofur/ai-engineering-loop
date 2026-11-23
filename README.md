@@ -13,7 +13,7 @@ It plans, builds, tests its own claims, lets a Devil’s Advocate attack the res
 [![license](https://img.shields.io/badge/license-MIT-181c19?style=flat-square)](LICENSE)
 [![website](https://img.shields.io/badge/site-ael.egagofur.studio-fc6404?style=flat-square)](https://ael.egagofur.studio)
 
-**[Watch a Run play out →](https://ael.egagofur.studio)** · [Get started](#get-started-in-a-minute) · [How a Run works](#how-a-run-works) · [Workflow Studio](#meet-workflow-studio) · [Docs](core/)
+**[Watch a Run play out →](https://ael.egagofur.studio)** · [Get started](#get-started-in-a-minute) · [How a Run works](#how-a-run-works) · [AEL Studio](#meet-ael-studio) · [Docs](core/)
 
 </div>
 
@@ -44,13 +44,13 @@ Then start a new agent session and tell it:
 
 That is the intended experience. You do not need to memorize the internal commands—the agent can operate the loop for you.
 
-Want the visual workspace?
+Want to watch the bots?
 
 ```bash
 npx ai-engineering-loop studio
 ```
 
-Workflow Studio opens locally in your browser and follows the active Run live. Your project and run evidence stay on your machine.
+AEL Studio opens locally in your browser and shows every registered project's Run. Your project and run evidence stay on your machine.
 
 On first setup, `.ai-engineering-loop/` is added to your project’s `.gitignore` so plans and Run evidence stay private by default. Want to share that context with your team? Simply remove that line from `.gitignore`.
 
@@ -79,38 +79,17 @@ The experience is organized into four moments:
 
 Under the hood, these moments use eight evidence-backed stages: `Specify (stages 0-1)` → `Make (stages 2-4)` → `Review (stages 5-7)` → `Deliver (stage 8)`. The rigor is there when you need it, but it does not have to dominate the experience.
 
-## Meet Workflow Studio
+## Meet AEL Studio
 
-Workflow Studio makes agent work feel like a product, not a terminal session. It is a live window on your Runs, not a second place to author workflows.
+AEL Studio is one read-only window on every bot on your machine. It shows which projects have a Run in progress, where each Run is in the loop, and which one is waiting for you. It is not a second place to run the loop.
 
-### Watch the Run as it happens
+- **Project list**: waiting for you first, then working, then idle, with stage, tier and elapsed time. Worktree Runs sit under their project.
+- **Loop ring**: the six stages (Goal, Maker, Verify, Review, Judge, Deliver) in 3D with the bot on the current stage and the iteration count. A flat 2D ring is used without WebGL or with reduced motion; a narrow screen shows the stage rail.
+- **Detail**: the human Goal, review findings, PR status, receipt and unconfirmed assumptions.
+- **Freeze**: the one action. Freeze a waiting Goal with one click; if the agent asked in the host at the same time, the first answer wins.
+- **Notifications** on macOS and Linux when a bot starts waiting for you. `ael studio --background` keeps them coming with the tab closed; `ael studio --stop` ends it.
 
-- A compact live view: stage rail, heartbeat, tier, mode, iteration, and budget
-- Compliance chips for guard warnings, scope drift, and receipt verification
-- Pending questions and approvals in a banner at the top
-- Real-time updates pushed over `GET /api/events` (no polling; it falls back to a light stat-poll where file watching is unavailable)
-
-### Rewire, safely
-
-Workflow structure is read-only in Studio. **Wiring** mode lets you add, remove, or re-point connections between nodes that already exist. Every change goes through the same recipe compiler as the CLI, so an edge set that breaks the safety backbone cannot be saved. To add or change nodes, edit recipe files and use `recipe create|clone|install`.
-
-### Start with a Goal—not a vague prompt
-
-Write the task in plain language, add the outcomes that matter, and **Freeze** the Goal when it is ready. The agent cannot quietly move the finish line after work begins.
-
-### Follow every Run
-
-Runs have human-friendly names instead of cryptic hashes. Search previous work, pin any Run as a read-only replay, and see exactly where it stopped. A merged timeline shows lifecycle, activity, and evidence events in order.
-
-### Continue with your AI agent
-
-Use **Start with AI Agent** to copy a ready-to-use handoff for the selected Run. The agent continues with the same Goal, workflow, and evidence instead of starting from scratch.
-
-If the agent needs clarification, its questions can appear inside Workflow Studio. You answer them there, and the answer stays attached to the Run.
-
-### Repeat only the steps that need another pass
-
-Recipes can declare independent Loop Groups with a maximum number of passes. Studio shows a separate `Iteration 2 / 3` counter for each group, and a loop that reaches its limit pauses for a human decision instead of retrying forever.
+Everything else happens in your agent host or the CLI: recipes are files, Runs start with `ael run`, and agent questions are answered with the host's question buttons. Details: [AEL Studio](core/local-workflow-studio.md).
 
 ## Bring your own AI agent
 
@@ -370,11 +349,11 @@ The same engineering flow stays consistent even when teams use different deliver
 
 The rules that decide whether AI-generated work is trustworthy should be inspectable. AI Engineering Loop keeps its schemas, safety policies, verification logic, recipes, and agent prompts in the repository.
 
-No hidden cloud control plane is required. No project source is uploaded by Workflow Studio.
+No hidden cloud control plane is required. No project source is uploaded by AEL Studio.
 
 ## Documentation
 
-- [Workflow Studio](core/local-workflow-studio.md)
+- [AEL Studio](core/local-workflow-studio.md)
 - [Workflow recipes](core/workflow-recipes.md)
 - [Personal workflow](core/personal-workflow.md)
 - [Bench: compliance self-check](core/bench.md)
