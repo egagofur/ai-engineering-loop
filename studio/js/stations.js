@@ -286,9 +286,9 @@ function buildShell(k, textures) {
   const shelf = k.standard('--prop-wood', { roughness: 0.5, map: textures.planks });
   const steel = k.physical('--prop-metal', { roughness: 0.22, metalness: 1, clearcoat: 0.4 });
   const group = new Group();
-  const floorShape = new PlaneGeometry(22, 12);
+  const floorShape = new PlaneGeometry(34, 22);
   floorShape.rotateX(-Math.PI / 2);
-  const ground = k.mesh(floorShape, floor, [0, 0, 1.6], [0, 0, 0], { cast: false });
+  const ground = k.mesh(floorShape, floor, [0, 0, 9], [0, 0, 0], { cast: false });
   group.add(
     ground,
     k.box([16.4, 3.5, 0.14, 0.03], wall, [0, 1.75, -1.85]),

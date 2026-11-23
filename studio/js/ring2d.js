@@ -115,10 +115,11 @@ function stageItem({ stage, angle, status }) {
 
 function guestActions(summary, actor) {
   if (!summary.waiting || summary.waiting.kind !== 'freeze') return '';
+  const sketch = summary.waiting.sketch ? '<button type="button" class="ghost" data-action="open-sketch">Look at the order sketch</button>' : '';
   const freeze = actor
     ? `<button type="button" class="primary" data-action="freeze">Freeze as ${escapeHtml(actor)}</button>`
     : '<button type="button" class="primary" data-action="guest-freeze-name">Freeze…</button>';
-  return `<div class="guest-actions">${freeze}</div>`;
+  return `<div class="guest-actions">${sketch}${freeze}</div>`;
 }
 
 export function renderGuest({ summary, actor = null }) {

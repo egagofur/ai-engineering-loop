@@ -43,6 +43,10 @@ export async function fetchDetail(projectId, runId) {
   return (await request(`/api/projects/${segment(projectId)}/runs/${segment(runId)}`)).detail;
 }
 
+export function diagramUrl(projectId, runId, view) {
+  return `/api/projects/${segment(projectId)}/runs/${segment(runId)}/goal/diagram?view=${encodeURIComponent(view)}`;
+}
+
 export async function fetchMe() {
   const { actor, actorValid, diners = [] } = await request('/api/me');
   return { actor, actorValid, diners: Array.isArray(diners) ? diners : [] };

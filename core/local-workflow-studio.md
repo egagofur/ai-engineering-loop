@@ -60,6 +60,10 @@ A Run whose Goal draft waits for approval shows **Freeze as &lt;name&gt;** in th
 
 Freeze works in both `goalFreeze` modes. It records `goal.approval: "studio"`. Studio sends the content hash of the draft you saw (the list button carries the hash it was rendered with); if the draft changed since, the freeze is refused (409) and the view reloads. In the default `host-question` mode the agent may be asking Freeze/Revise in the host at the same time: whichever answer comes first wins. `goal freeze` is idempotent: when the same draft is already frozen it succeeds with `alreadyFrozen: true` and the original approval channel and actor, and the agent continues. A frozen Goal whose hash differs from the draft still fails.
 
+### Look before you freeze
+
+When the draft waiting for Freeze has a `flow` and `freeze_diagram` in `.ai-engineering-loop/workflow.md` is not `off`, Studio offers **Look at the order sketch** at the guest table, next to the Freeze chip, and as **Sketch** in the project list. It opens a sheet with the diagram views as tabs (State, Storyboard, Lanes; the recommended one first, as `goal draft` ranks them in `diagramOptions`), the counts ("3 undecided, 1 hotspot, 2 side effects"), the line "To change the Goal, answer Revise in your agent host." and **Freeze as &lt;name&gt;** at the bottom, which sends the same `expectedHash` as every other Freeze. Studio has no Revise button. The diagram is the same page `goal diagram` writes, rendered on request and never saved (`runs/<id>/diagrams` is not touched). It loads in a sandboxed iframe from `GET /api/projects/:id/runs/:runId/goal/diagram?view=…`, served with its own Content-Security-Policy: no scripts, only its one inline stylesheet allowed by hash, `frame-ancestors 'self'`, and `sandbox`.
+
 ## Notifications
 
 When a Run starts waiting for a human, Studio sends one OS notification: title `AEL: <project>`, body `Goal waiting for Freeze`, `Delivery waiting for approval` or `Agent has a question`. The same wait never notifies twice; waits already open when Studio starts do not notify, so a restart does not repeat them; routine progress never notifies. macOS uses `osascript`, Linux uses `notify-send` when it is installed (looked up once per Studio process), other systems get none. The notifier runs asynchronously with a 5 s timeout, so a stuck notifier never blocks Studio. The text never contains file contents. Turn it off with `--no-notify`.
@@ -70,7 +74,8 @@ When a Run starts waiting for a human, Studio sends one OS notification: title `
 |---|---|
 | `GET /healthz` | `{ app: "ael-studio", pid }`, no session needed; used to detect a running instance. |
 | `GET /api/projects` | Every registry project with its current Run and worktree Runs, summarised. |
-| `GET /api/projects/:id/runs/:runId` | One Run's detail (summary, ring, Goal markdown and hash, findings, PR, receipt, assumptions). |
+| `GET /api/projects/:id/runs/:runId` | One Run's detail (summary, ring, Goal markdown and hash, findings, PR, receipt, assumptions; `diagramOptions` and `flowCounts` while a draft with a flow waits for Freeze). |
+| `GET /api/projects/:id/runs/:runId/goal/diagram?view=state\|storyboard\|lanes` | The draft's diagram page (read-only, sandboxed CSP). 400 for an unknown view, 404 without a draft, a flow, or with `freeze_diagram: off`. |
 | `GET /api/me`, `PUT /api/me` | The Freeze actor and the diners; `PUT { actor }` stores a valid human name. |
 | `POST /api/projects/:id/runs/:runId/goal/freeze` | The only write. Body `{ expectedHash }` is required. |
 | `GET /api/events` | Server-sent events: `projects` snapshots and `ping`. |

@@ -77,6 +77,11 @@ export function worktreeState(run) {
   return FINISHED_RUN_STATES.has(run.state) ? 'idle' : 'working';
 }
 
+function listSketchButton(targetId, run, targetName) {
+  if (!freezeWait(run) || !run.waiting.sketch) return '';
+  return `<button type="button" class="ghost list-sketch" data-action="list-sketch" data-project-id="${escapeHtml(targetId)}" aria-label="${escapeHtml(`Look at the order sketch for ${targetName}`)}">Sketch</button>`;
+}
+
 function listFreezeButton(targetId, run, actor, targetName) {
   if (!freezeWait(run)) return '';
   const label = actor ? `Freeze as ${escapeHtml(actor)}` : 'Freeze…';
@@ -93,6 +98,7 @@ function worktreeRow(run, selectedId, actor) {
     + `<span class="worktree-task">${escapeHtml(run.task || run.runId)}${nameSuffix(run)}</span>`
     + `<span class="row-meta">${runMeta(run)}</span></button>`
     + listFreezeButton(run.worktreeId, run, actor, run.task || run.runId)
+    + listSketchButton(run.worktreeId, run, run.task || run.runId)
     + '</li>';
 }
 
@@ -111,6 +117,7 @@ function projectRow(project, selectedId, actor) {
     + `<span class="row-meta">${meta}</span>`
     + '</button>'
     + listFreezeButton(project.id, project.run, actor, project.name)
+    + listSketchButton(project.id, project.run, project.name)
     + (worktrees ? `<ul class="worktree-runs" aria-label="Worktree Runs">${worktrees}</ul>` : '')
     + '</li>';
 }

@@ -1,6 +1,6 @@
-import { fetchDetail, fetchMe, fetchProjects, freezeGoal, saveActor } from './api.js';
+import { diagramUrl, fetchDetail, fetchMe, fetchProjects, freezeGoal, saveActor } from './api.js';
 import { renderOverview, renderProjectList, sortProjects, worktreeState } from './list.js';
-import { renderDetail, renderRoomCard, renderRunHead } from './detail.js';
+import { renderDetail, renderRoomCard, renderRunHead, renderSketch } from './detail.js';
 import { mountRing2d, ringMode, ringModel } from './ring2d.js';
 import { createSheet, trapFocus } from './sheet.js';
 import { roomTargets, stepTarget, waitBubble, waitLevel, waitSeconds } from './mood.js';
@@ -23,6 +23,8 @@ const elements = {
   projects: document.getElementById('projects'),
   projectsToggle: document.getElementById('projects-toggle'),
   room: document.getElementById('room'),
+  sketchSheet: document.getElementById('sketch-sheet'),
+  sketch: document.getElementById('sketch'),
   roomCard: document.querySelector('#room .room-card')
 };
 
@@ -44,7 +46,10 @@ const state = {
   detailError: null,
   me: { actor: null, actorValid: false },
   freezing: false,
-  goalView: 'formatted'
+  goalView: 'formatted',
+  sketchView: null,
+  sketchKey: null,
+  pendingSketch: null
 };
 
 let detailTicket = 0;
@@ -238,6 +243,7 @@ function renderRun() {
   syncRing();
   if (!showing) {
     if (sheet.isOpen()) sheet.close();
+    if (sketchSheet.isOpen()) sketchSheet.close();
     elements.head.innerHTML = '';
     elements.detail.innerHTML = '';
     return;
@@ -245,6 +251,7 @@ function renderRun() {
   const input = elements.head.querySelector('#freeze-actor');
   const typed = input ? input.value : '';
   const typing = input && document.activeElement === input;
+  syncSketch();
   elements.head.innerHTML = renderRunHead(state.detail.summary, { actor: validActor(), projectName: project.name });
   const focusedTab = document.activeElement && elements.detail.contains(document.activeElement) ? document.activeElement.dataset.goalView : null;
   elements.detail.innerHTML = renderDetail(state.detail, { goalView: state.goalView });
@@ -264,6 +271,56 @@ const sheet = createSheet(elements.sheet, {
     elements.detailsButton.setAttribute('aria-expanded', String(open));
   }
 });
+
+const sketchSheet = createSheet(elements.sketchSheet, {
+  onOpenChange(open) {
+    document.body.dataset.sheet = open ? 'open' : 'closed';
+    if (!open) state.sketchKey = null;
+  }
+});
+
+function hasSketch(detail) {
+  return Boolean(detail && Array.isArray(detail.diagramOptions) && detail.diagramOptions.length);
+}
+
+function renderSketchSheet({ force = false } = {}) {
+  const project = selectedProject();
+  const detail = state.detail;
+  if (!project || !hasSketch(detail)) return;
+  const views = detail.diagramOptions.map((option) => option.view);
+  if (!views.includes(state.sketchView)) state.sketchView = views[0];
+  const key = [project.id, detail.summary.runId, detail.goalHash, state.sketchView, validActor()].join('|');
+  if (!force && key === state.sketchKey) return;
+  state.sketchKey = key;
+  const focused = document.activeElement && elements.sketch.contains(document.activeElement) ? document.activeElement.dataset.sketchView : null;
+  elements.sketch.innerHTML = renderSketch(detail, {
+    view: state.sketchView,
+    actor: validActor(),
+    urlFor: (view) => diagramUrl(project.id, detail.summary.runId, view)
+  });
+  if (focused) {
+    const tab = elements.sketch.querySelector(`[data-sketch-view="${focused}"]`);
+    if (tab) tab.focus();
+  }
+}
+
+function syncSketch() {
+  if (!sketchSheet.isOpen()) return;
+  if (!hasSketch(state.detail)) sketchSheet.close();
+  else renderSketchSheet();
+}
+
+function openSketch(opener) {
+  if (!hasSketch(state.detail)) {
+    setStatus('There is no order sketch for this Goal right now.');
+    return;
+  }
+  if (roomView.open) return;
+  if (sheet.isOpen()) sheet.close();
+  state.sketchView = null;
+  renderSketchSheet({ force: true });
+  sketchSheet.open(opener || null);
+}
 
 const narrowQuery = window.matchMedia('(max-width: 899px)');
 
@@ -308,6 +365,10 @@ async function loadDetail({ enter = false } = {}) {
   }
   renderRun();
   if (enter && !ringView.gl) playEnter();
+  if (state.pendingSketch && state.pendingSketch === state.selectedId && state.detail) {
+    state.pendingSketch = null;
+    openSketch(null);
+  }
 }
 
 function fallbackSelection() {
@@ -470,6 +531,16 @@ function connect() {
 }
 
 elements.list.addEventListener('click', (event) => {
+  const sketchButton = event.target.closest('button[data-action="list-sketch"]');
+  if (sketchButton) {
+    const id = sketchButton.dataset.projectId;
+    if (id === state.selectedId && state.detail) openSketch(sketchButton);
+    else {
+      state.pendingSketch = id;
+      select(id);
+    }
+    return;
+  }
   const freezeButton = event.target.closest('button[data-action="list-freeze"]');
   if (freezeButton) {
     freezeFromList(freezeButton);
@@ -496,10 +567,43 @@ document.addEventListener('keydown', (event) => {
     return;
   }
   if (roomView.open) return;
-  if ((event.key === 'd' || event.key === 'D') && !sheet.isOpen() && !elements.detailsButton.hidden) {
+  if ((event.key === 'd' || event.key === 'D') && !sheet.isOpen() && !sketchSheet.isOpen() && !elements.detailsButton.hidden) {
     event.preventDefault();
     sheet.open(elements.detailsButton);
   }
+});
+
+function showSketchView(view, { focus = false } = {}) {
+  state.sketchView = view;
+  renderSketchSheet();
+  if (focus) {
+    const tab = elements.sketch.querySelector(`[data-sketch-view="${view}"]`);
+    if (tab) tab.focus();
+  }
+}
+
+elements.sketch.addEventListener('click', (event) => {
+  const tab = event.target.closest('[role="tab"][data-sketch-view]');
+  if (tab) {
+    showSketchView(tab.dataset.sketchView);
+    return;
+  }
+  const action = event.target.closest('button[data-action]');
+  if (!action) return;
+  if (action.dataset.action === 'freeze') freeze(undefined, action);
+  else if (action.dataset.action === 'sketch-freeze-name') {
+    sketchSheet.close();
+    focusActorInput();
+  }
+});
+
+elements.sketch.addEventListener('keydown', (event) => {
+  const tab = event.target.closest('[role="tab"][data-sketch-view]');
+  const move = TAB_KEYS[event.key];
+  if (!tab || !move) return;
+  event.preventDefault();
+  const tabs = [...tab.parentElement.querySelectorAll('[role="tab"]')];
+  showSketchView(tabs[move(tabs.indexOf(tab), tabs.length)].dataset.sketchView, { focus: true });
 });
 
 elements.detail.addEventListener('click', (event) => {
@@ -574,6 +678,7 @@ elements.ring.addEventListener('click', (event) => {
   if (action) {
     if (action.dataset.action === 'freeze') freeze(undefined, action);
     else if (action.dataset.action === 'guest-freeze-name') focusActorInput();
+    else if (action.dataset.action === 'open-sketch') openSketch(action);
     return;
   }
   if (!event.target.closest('.ring-bot')) return;
@@ -619,6 +724,11 @@ window.setInterval(() => {
 }, MOOD_TURN_MS);
 
 elements.head.addEventListener('click', (event) => {
+  const sketch = event.target.closest('button[data-action="open-sketch"]');
+  if (sketch) {
+    openSketch(sketch);
+    return;
+  }
   const button = event.target.closest('button[data-action="freeze"]');
   if (!button || button.type === 'submit') return;
   freeze();

@@ -15,6 +15,39 @@ function plural(count, word) {
   return `${count} ${word}${count === 1 ? '' : 's'}`;
 }
 
+export const SKETCH_LABEL = 'Look at the order sketch';
+export const SKETCH_VIEWS = { state: 'State', storyboard: 'Storyboard', lanes: 'Lanes' };
+export const REVISE_HINT = 'To change the Goal, answer Revise in your agent host.';
+
+export function sketchButton(attributes = '') {
+  return `<button type="button" class="ghost" data-action="open-sketch"${attributes}>${SKETCH_LABEL}</button>`;
+}
+
+export function sketchCounts(counts) {
+  if (!counts) return '';
+  const part = (n, one, many) => `${Number(n) || 0} ${Number(n) === 1 ? one : many}`;
+  return [part(counts.undecided, 'undecided', 'undecided'), part(counts.hotspots, 'hotspot', 'hotspots'), part(counts.sideEffects, 'side effect', 'side effects')].join(', ');
+}
+
+export function renderSketch(detail, { view = null, actor = null, urlFor = () => '' } = {}) {
+  const options = detail && Array.isArray(detail.diagramOptions) ? detail.diagramOptions.filter((option) => SKETCH_VIEWS[option.view]) : [];
+  if (!options.length) return '<p class="quiet-text">There is no order sketch for this Goal.</p>';
+  const selected = options.some((option) => option.view === view) ? view : options[0].view;
+  const tab = (option) => {
+    const on = option.view === selected;
+    const note = option.recommended ? ' <span class="tab-note">Recommended</span>' : '';
+    return `<button type="button" role="tab" id="sketch-tab-${option.view}" aria-controls="sketch-panel" aria-selected="${on}" tabindex="${on ? 0 : -1}" data-sketch-view="${option.view}" title="${escapeHtml(option.reason || '')}">${SKETCH_VIEWS[option.view]}${note}</button>`;
+  };
+  const freeze = actor
+    ? `<button type="button" class="primary" data-action="freeze">Freeze as ${escapeHtml(actor)}</button>`
+    : '<button type="button" class="primary" data-action="sketch-freeze-name">Freeze…</button>';
+  return `<p class="sketch-counts">${escapeHtml(sketchCounts(detail.flowCounts))}</p>`
+    + `<div class="tabs" role="tablist" aria-label="Sketch view">${options.map(tab).join('')}</div>`
+    + `<div id="sketch-panel" class="sketch-panel" role="tabpanel" aria-labelledby="sketch-tab-${selected}">`
+    + `<iframe class="sketch-frame" title="${SKETCH_VIEWS[selected]} sketch of the Goal" sandbox="" referrerpolicy="no-referrer" src="${escapeHtml(urlFor(selected))}"></iframe></div>`
+    + `<div class="sketch-foot"><p class="quiet-text">${REVISE_HINT}</p>${freeze}</div>`;
+}
+
 export function renderFreezeButton(summary, actor) {
   if (!summary || !summary.waiting || summary.waiting.kind !== 'freeze') return '';
   if (!actor) {
@@ -38,7 +71,7 @@ export function renderRunHead(summary, { actor = null, projectName = '' } = {}) 
   const wait = summary.waiting
     ? `<div class="stage-wait" data-kind="${escapeHtml(summary.waiting.kind)}"><span class="chip chip-waiting">${escapeHtml(waitingLabel(summary.waiting))}</span>`
       + `<span class="visually-hidden">${escapeHtml(WAITING_TEXT[summary.waiting.kind] || '')}</span>`
-      + `${renderFreezeButton(summary, actor)}</div>`
+      + `${renderFreezeButton(summary, actor)}${summary.waiting.kind === 'freeze' && summary.waiting.sketch ? sketchButton() : ''}</div>`
     : '';
   return `<p class="eyebrow">${escapeHtml(ringEyebrow(summary, projectName))}</p>`
     + `<h2 class="run-task" title="${escapeHtml(title)}">${escapeHtml(title)}</h2>`

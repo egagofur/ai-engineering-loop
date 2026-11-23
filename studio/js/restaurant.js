@@ -63,7 +63,7 @@ function buildTextures() {
   return {
     planks: patternTexture('planks', { repeat: 0.9 }),
     marble: patternTexture('marble', { repeat: 0.35 }),
-    tiles: patternTexture('tiles', { repeat: 5 }),
+    tiles: patternTexture('tiles', { repeat: 8 }),
     paper: patternTexture('paper', { repeat: 1 }),
     panels: patternTexture('panels', { repeat: 2 }),
     fabric: patternTexture('fabric', { repeat: 2 }),

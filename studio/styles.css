@@ -88,6 +88,16 @@ body[data-sheet="open"] .run{transform:scale(.985)}
 .primary{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 14px;border:0;border-radius:var(--radius-control);background:var(--brand);color:var(--on-brand);font-weight:600;cursor:pointer;transition:background-color var(--press) ease,transform var(--press) var(--ease-out)}
 .primary:active:not(:disabled){transform:scale(.97)}
 .primary:disabled{cursor:progress;opacity:.6}
+.ghost{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;border:1px solid var(--line-strong);border-radius:var(--radius-control);background:var(--surface-2);color:var(--text);font-weight:600;cursor:pointer;transition:background-color var(--press) ease,transform var(--press) var(--ease-out)}
+.ghost:active:not(:disabled){transform:scale(.97)}
+.list-sketch{height:28px;margin:2px 0 6px 6px;padding:0 10px;font-size:12.5px}
+.sketch{display:flex;flex-direction:column;gap:12px;min-height:0;padding:0 20px 20px}
+.sketch-counts{color:var(--text-2);font-variant-numeric:tabular-nums}
+.tab-note{margin-left:4px;color:var(--brand-text);font-size:11px;font-weight:600}
+.sketch-panel{min-height:0;border:1px solid var(--line);border-radius:var(--radius-panel);overflow:hidden;background:var(--surface-2)}
+.sketch-frame{display:block;width:100%;height:min(56dvh,560px);border:0}
+.sketch-foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
+.sketch-sheet .sheet-panel{width:min(1100px,100%)}
 .freeze-form{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .freeze-form label{color:var(--text-2);font-size:12.5px}
 .freeze-form input{width:180px;height:34px;padding:0 10px;border:1px solid var(--line-strong);border-radius:var(--radius-control);background:var(--surface-2);transition:border-color var(--press) ease}
@@ -263,6 +273,7 @@ body[data-sheet="open"] .run{transform:scale(.985)}
   .tabs [role="tab"]:hover{color:var(--text)}
   .diner-tag:hover .diner-card{opacity:1;translate:0 0}
   .primary:hover:not(:disabled){background:var(--brand-hover)}
+  .ghost:hover:not(:disabled){background:var(--surface-1)}
   .details-button:hover,.sheet-close:hover,.projects-toggle:hover,.room-nav button:hover:not(:disabled){background:var(--surface-2)}
 }
 
