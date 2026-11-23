@@ -102,7 +102,7 @@ export function botLabel(summary, findings = null) {
 }
 
 export function ringEyebrow(summary, projectName = '') {
-  const iteration = `iteration ${Number(summary && summary.iteration) || 1}/${Number(summary && summary.maxIterations) || 1}`;
+  const iteration = `iteration ${Number(summary && summary.iteration) || 1} of ${Number(summary && summary.maxIterations) || 1}`;
   return [projectName, summary && summary.tier, iteration].filter(Boolean).join(' · ');
 }
 
@@ -112,11 +112,10 @@ function stageItem({ stage, angle, status }) {
     + `<span class="visually-hidden">, ${STATUS_TEXT[status]}</span></li>`;
 }
 
-export function renderRingFace({ summary, findings = null, projectName = '' }) {
+export function renderRingFace({ summary, findings = null }) {
   const model = ringModel(summary && summary.ring, summary || {});
   const activity = ringActivity(summary, findings);
-  return `<p class="eyebrow ring-eyebrow">${escapeHtml(ringEyebrow(summary, projectName))}</p>`
-    + '<div class="loop">'
+  return '<div class="loop">'
     + `<ol class="stages" aria-label="Run stages">${model.stages.map(stageItem).join('')}</ol>`
     + `<div class="ring-centre" aria-live="polite"><b class="ring-activity">${escapeHtml(activity.title)}</b>`
     + `<span class="eyebrow ring-note">${escapeHtml(activity.note)}</span></div>`
@@ -155,4 +154,64 @@ export function mountRing2d(el, view) {
       el.innerHTML = '';
     }
   };
+}
+
+export const RING_MARK_RADIUS = 1;
+export const RING_FIT_RADIUS = 1.2;
+export const BOT_WORLD_RADIUS = 0.12;
+const NARROW_WIDTH = 520;
+
+export function ringView(width) {
+  const narrow = width < NARROW_WIDTH;
+  return { tilt: narrow ? 50 : 62, roll: narrow ? -4 : -7, fov: 28, narrow };
+}
+
+export function tiltedPoint(angleDegrees, radius, { tilt, roll }) {
+  const a = (angleDegrees * Math.PI) / 180;
+  const t = (tilt * Math.PI) / 180;
+  const r = (roll * Math.PI) / 180;
+  const x = radius * Math.sin(a);
+  const y0 = radius * Math.cos(a);
+  const y = y0 * Math.cos(t);
+  const z = -y0 * Math.sin(t);
+  return { x: x * Math.cos(r) - y * Math.sin(r), y: x * Math.sin(r) + y * Math.cos(r), z };
+}
+
+export function cameraDistance({ fov, tilt }, aspect) {
+  const half = Math.tan((fov * Math.PI) / 360);
+  const byWidth = RING_FIT_RADIUS / (half * aspect);
+  const byHeight = (RING_FIT_RADIUS * Math.cos((tilt * Math.PI) / 180) + BOT_WORLD_RADIUS * 3) / half;
+  return Math.max(byWidth, byHeight) + RING_FIT_RADIUS * Math.sin((tilt * Math.PI) / 180);
+}
+
+export function projectPoint(point, { fov, distance }, width, height) {
+  const f = 1 / Math.tan((fov * Math.PI) / 360);
+  const aspect = width / height;
+  const depth = distance - point.z;
+  return {
+    x: width / 2 + ((point.x * f) / aspect / depth) * (width / 2),
+    y: height / 2 - ((point.y * f) / depth) * (height / 2),
+    depth
+  };
+}
+
+export const RING_BANDS = [
+  [0.72, 0.84, 0.14, '--ring-inner'],
+  [0.85, 0.95, 0.42, '--ring-band'],
+  [0.975, 1.06, 0.3, '--ring-band'],
+  [1.072, 1.12, 0.18, '--ring-outer'],
+  [1.15, 1.156, 0.3, '--ring-outer']
+];
+
+export function ringMode({ webgl = false, threeFailed = false } = {}) {
+  return webgl && !threeFailed ? '3d' : 'flat';
+}
+
+export function nudgeLabel(label, centre, direction = 'down') {
+  if (!centre) return label;
+  const overlaps = label.left < centre.right && label.left + label.width > centre.left
+    && label.top < centre.bottom && label.top + label.height > centre.top;
+  if (!overlaps) return label;
+  const top = direction === 'up' ? centre.top - label.height - 2 : centre.bottom + 2;
+  return { ...label, top };
 }

@@ -118,7 +118,7 @@ test('the bot is an accessible button whose label says what it is doing', async 
 });
 
 test('bot clips: one looping clip per stage with its prop, a blinking waiting clip, and a short interruptible reaction', async () => {
-  const { buildClips, REACTION_SECONDS } = await load('ring.js');
+  const { buildClips, REACTION_SECONDS } = await load('bot.js');
   const clips = buildClips();
   for (const stage of STAGES) {
     const clip = clips.stages[stage];
@@ -143,16 +143,18 @@ test('bot clips: one looping clip per stage with its prop, a blinking waiting cl
 });
 
 test('bot runtime: crossfades, one paused render loop, reduced motion static, hover only on fine pointers, toned-down glow', () => {
+  const bot = read('js/bot.js');
   const ring = read('js/ring.js');
-  assert.match(ring, /crossFadeTo\(/);
-  assert.match(ring, /new AnimationMixer\(/);
+  assert.match(bot, /crossFadeTo\(/);
+  assert.match(bot, /new AnimationMixer\(/);
+  assert.equal((bot.match(/requestAnimationFrame\(/g) || []).length, 0, 'the bot steps inside the ring loop');
   assert.equal((ring.match(/requestAnimationFrame\(/g) || []).length, 1);
   assert.match(ring, /document\.hidden/);
   assert.match(ring, /\(hover: hover\) and \(pointer: fine\)/);
-  assert.match(ring, /if \(reducedMotion\) return/);
-  assert.match(ring, /mixer\.stopAllAction\(\)/);
+  assert.match(bot, /if \(reducedMotion\) return false;/, 'reduced motion: no reaction motion');
+  assert.match(bot, /mixer\.stopAllAction\(\)/);
   assert.match(ring, /renderer\.dispose\(\)/);
-  assert.doesNotMatch(ring, /#[0-9a-fA-F]{3,8}\b|0x[0-9a-fA-F]{6}\b|rgba?\(/);
+  for (const source of [bot, ring]) assert.doesNotMatch(source, /#[0-9a-fA-F]{3,8}\b|0x[0-9a-fA-F]{6}\b|rgba?\(/);
   const css = read('styles.css');
   assert.doesNotMatch(css, /\.ring-gl\{[^}]*filter:/, 'no glow filter on the WebGL bot');
   assert.match(read('tokens.css'), /--shadow-bot: 0 3px 6px color-mix\(in srgb, var\(--brand\) 22%, transparent\);/);

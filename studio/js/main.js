@@ -1,7 +1,8 @@
 import { fetchDetail, fetchMe, fetchProjects, freezeGoal, saveActor } from './api.js';
 import { renderOverview, renderProjectList, sortProjects, worktreeState } from './list.js';
 import { renderDetail, renderRunHead } from './detail.js';
-import { mountRing2d, ringModel } from './ring2d.js';
+import { mountRing2d, ringMode, ringModel } from './ring2d.js';
+import { createSheet } from './sheet.js';
 
 const ELAPSED_REFRESH_MS = 60_000;
 
@@ -15,7 +16,11 @@ const elements = {
   head: document.getElementById('run-head'),
   status: document.getElementById('run-status'),
   detail: document.getElementById('run-detail'),
-  ring: document.getElementById('ring')
+  ring: document.getElementById('ring'),
+  detailsButton: document.getElementById('details-open'),
+  sheet: document.getElementById('details-sheet'),
+  projects: document.getElementById('projects'),
+  projectsToggle: document.getElementById('projects-toggle')
 };
 
 const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -50,7 +55,7 @@ function webglAvailable() {
 }
 
 function wantsGlBot() {
-  return HAS_WEBGL && !ringView.threeFailed;
+  return ringMode({ webgl: HAS_WEBGL, threeFailed: ringView.threeFailed }) === '3d';
 }
 
 function disposeBot() {
@@ -59,6 +64,7 @@ function disposeBot() {
   if (ringView.bot) ringView.bot.dispose();
   ringView.bot = null;
   elements.ring.dataset.bot = 'css';
+  elements.ring.dataset.ring = 'flat';
 }
 
 function clearRing() {
@@ -85,11 +91,12 @@ function syncBot() {
     ringView.threeFailed = true;
     if (ticket === ringView.ticket) disposeBot();
   };
-  import('./ring.js').then(({ mountBot }) => {
+  import('./ring.js').then(({ mountRing3d }) => {
     if (ticket !== ringView.ticket || !ringView.handle) return;
     ringView.loading = false;
     try {
-      ringView.bot = mountBot(ringView.handle.gl, ringView.model, { reducedMotion: reducedMotionQuery.matches, hoverTarget: elements.ring });
+      elements.ring.dataset.ring = '3d';
+      ringView.bot = mountRing3d(ringView.handle.gl, ringView.model, { root: elements.ring, reducedMotion: reducedMotionQuery.matches });
       elements.ring.dataset.bot = '3d';
     } catch {
       failed();
@@ -175,8 +182,10 @@ function renderRun() {
   elements.empty.hidden = showing;
   elements.empty.textContent = showing ? '' : emptyMessage(project);
   elements.run.dataset.showing = String(showing);
+  elements.detailsButton.hidden = !showing;
   syncRing();
   if (!showing) {
+    if (sheet.isOpen()) sheet.close();
     elements.head.innerHTML = '';
     elements.detail.innerHTML = '';
     return;
@@ -184,7 +193,7 @@ function renderRun() {
   const input = elements.head.querySelector('#freeze-actor');
   const typed = input ? input.value : '';
   const typing = input && document.activeElement === input;
-  elements.head.innerHTML = renderRunHead(state.detail.summary, { actor: validActor() });
+  elements.head.innerHTML = renderRunHead(state.detail.summary, { actor: validActor(), projectName: project.name });
   const focusedTab = document.activeElement && elements.detail.contains(document.activeElement) ? document.activeElement.dataset.goalView : null;
   elements.detail.innerHTML = renderDetail(state.detail, { goalView: state.goalView });
   if (focusedTab) {
@@ -194,6 +203,24 @@ function renderRun() {
   const next = elements.head.querySelector('#freeze-actor');
   if (next && typed) next.value = typed;
   if (next && typing) next.focus();
+}
+
+const sheet = createSheet(elements.sheet, {
+  onOpenChange(open) {
+    document.body.dataset.sheet = open ? 'open' : 'closed';
+    elements.detailsButton.setAttribute('aria-expanded', String(open));
+  }
+});
+
+const narrowQuery = window.matchMedia('(max-width: 899px)');
+
+function setProjectsOpen(open) {
+  elements.projectsToggle.setAttribute('aria-expanded', String(open));
+  elements.projects.dataset.open = String(open);
+}
+
+function typingTarget(target) {
+  return Boolean(target && target.closest && target.closest('input, textarea, select, [contenteditable="true"]'));
 }
 
 function setStatus(message) {
@@ -396,7 +423,29 @@ elements.list.addEventListener('click', (event) => {
     return;
   }
   const row = event.target.closest('[data-project-id]');
-  if (row) select(row.dataset.projectId);
+  if (row) {
+    select(row.dataset.projectId);
+    if (narrowQuery.matches) setProjectsOpen(false);
+  }
+});
+
+elements.detailsButton.addEventListener('click', () => sheet.open(elements.detailsButton));
+
+elements.projectsToggle.addEventListener('click', () => {
+  setProjectsOpen(elements.projectsToggle.getAttribute('aria-expanded') !== 'true');
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || typingTarget(event.target)) return;
+  if (event.key === 'Escape' && elements.projects.dataset.open === 'true') {
+    setProjectsOpen(false);
+    elements.projectsToggle.focus();
+    return;
+  }
+  if ((event.key === 'd' || event.key === 'D') && !sheet.isOpen() && !elements.detailsButton.hidden) {
+    event.preventDefault();
+    sheet.open(elements.detailsButton);
+  }
 });
 
 elements.detail.addEventListener('click', (event) => {

@@ -186,13 +186,55 @@ test('detail shows the Goal as text, findings, PR, receipt, assumptions and extr
   assert.match(html, /security-scan/);
 });
 
-test('detail has no stage rail; the run head shows the title, start time and wait, not the ring eyebrow', async () => {
+test('detail has no stage rail; the stage overlay shows eyebrow, title, start time and a compact wait with Freeze', async () => {
   const { renderDetail, renderRunHead } = await load('detail.js');
   assert.doesNotMatch(renderDetail(detail(), { actor: 'Ega' }), /stage-rail/);
-  const head = renderRunHead(summary({ waiting: { kind: 'freeze', since: 'x' } }), { actor: 'Ega' });
-  assert.match(head, /^<h2 class="run-task">Add login<\/h2><p class="run-meta">Started 2m ago<\/p><div class="waiting" data-kind="freeze">/);
-  assert.match(head, /Freeze as Ega/);
-  assert.doesNotMatch(head, /iteration/);
+  const head = renderRunHead(summary({ task: 'Add login <b>', waiting: { kind: 'freeze', since: 'x' } }), { actor: 'Ega', projectName: 'team/app' });
+  assert.match(head, /^<p class="eyebrow">team\/app · T2 · iteration 2 of 3<\/p><h2 class="run-task" title="Add login &lt;b&gt;">Add login &lt;b&gt;<\/h2><p class="run-meta">Started 2m ago<\/p>/);
+  assert.match(head, /<div class="stage-wait" data-kind="freeze"><span class="chip chip-waiting">Freeze\?<\/span><span class="visually-hidden">[^<]+<\/span><button type="button" class="primary" data-action="freeze">Freeze as Ega<\/button><\/div>$/);
+  const approval = renderRunHead(summary({ waiting: { kind: 'approval', since: 'x' } }), { actor: 'Ega' });
+  assert.match(approval, /<span class="chip chip-waiting">Approve delivery\?<\/span>/);
+  assert.doesNotMatch(approval, /data-action="freeze"/);
+  assert.doesNotMatch(renderRunHead(summary(), {}), /stage-wait/);
+});
+
+test('the Run view is one screen: stage overlay, Details button with a D shortcut, and a modal bottom sheet', () => {
+  const html = fs.readFileSync(path.join(studio, 'index.html'), 'utf8');
+  assert.match(html, /<header id="run-head" class="stage-head"><\/header>/);
+  assert.match(html, /<button type="button" id="details-open" class="details-button" aria-haspopup="dialog" aria-controls="details-sheet" aria-keyshortcuts="d" hidden>Details <kbd aria-hidden="true">D<\/kbd><\/button>/);
+  assert.match(html, /<div id="details-sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="details-title" hidden>/);
+  assert.match(html, /<h2 id="details-title" class="sheet-title">Run details<\/h2>/);
+  assert.match(html, /<button type="button" class="sheet-close" data-action="close-details" aria-label="Close details">Close<\/button>/);
+  assert.match(html, /<div class="sheet-panel" tabindex="-1">[\s\S]*<div id="run-detail" class="run-detail"><\/div>/);
+  assert.match(html, /<button type="button" id="projects-toggle" class="projects-toggle" aria-expanded="false" aria-controls="projects">Projects<\/button>/);
+  const css = fs.readFileSync(path.join(studio, 'styles.css'), 'utf8');
+  assert.match(css, /body\{[^}]*height:100dvh[^}]*overflow:hidden/, 'no page scroll: the stage fills the screen');
+  assert.match(css, /\.sheet-panel\{[^}]*transform:translateY\(100%\);transition:transform 450ms cubic-bezier\(\.32,\.72,0,1\)\}/);
+  assert.match(css, /body\[data-sheet="open"\] \.run\{transform:scale\(\.985\)\}/);
+  const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion:reduce)'));
+  assert.match(reduced, /\.sheet-panel\{opacity:0;transform:none;transition:opacity 200ms/, 'reduced motion: the sheet fades');
+  const main = fs.readFileSync(path.join(studio, 'js', 'main.js'), 'utf8');
+  assert.match(main, /event\.key === 'd' \|\| event\.key === 'D'/);
+  assert.match(main, /sheet\.open\(elements\.detailsButton\)/);
+});
+
+test('sheet rules: dismiss after a quarter of the height or a fast flick, rubber-band upward, focus stays inside', async () => {
+  const { shouldDismiss, dragOffset, trapFocus } = await load('sheet.js');
+  assert.equal(shouldDismiss(50, 0.1, 400), false);
+  assert.equal(shouldDismiss(120, 0.1, 400), true);
+  assert.equal(shouldDismiss(30, 0.9, 400), true);
+  assert.equal(shouldDismiss(-40, 2, 400), false);
+  assert.equal(dragOffset(40), 40);
+  assert.ok(dragOffset(-100) > -100 && dragOffset(-100) < 0);
+  const focused = [];
+  const first = { focus: () => focused.push('first'), closest: () => null };
+  const last = { focus: () => focused.push('last'), closest: () => null };
+  const container = { ownerDocument: { activeElement: last }, contains: () => true, querySelectorAll: () => [first, last] };
+  let prevented = false;
+  assert.equal(trapFocus({ key: 'Tab', shiftKey: false, preventDefault: () => { prevented = true; } }, container), true);
+  assert.deepStrictEqual(focused, ['first']);
+  assert.ok(prevented);
+  assert.equal(trapFocus({ key: 'a' }, container), false);
 });
 
 test('list bots: working orange, waiting outlined, idle grey; freeze waits read "name · Freeze?"', async () => {

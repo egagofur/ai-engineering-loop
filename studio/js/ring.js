@@ -1,196 +1,66 @@
 import {
   AmbientLight,
-  AnimationClip,
-  AnimationMixer,
-  BoxGeometry,
-  CapsuleGeometry,
-  ColorKeyframeTrack,
-  ConeGeometry,
-  CylinderGeometry,
+  BufferGeometry,
+  CircleGeometry,
   DataTexture,
   DirectionalLight,
+  DoubleSide,
+  Float32BufferAttribute,
   Group,
-  LoopOnce,
   Mesh,
   MeshBasicMaterial,
-  MeshPhysicalMaterial,
   MeshStandardMaterial,
-  NumberKeyframeTrack,
-  OrthographicCamera,
-  PlaneGeometry,
+  PerspectiveCamera,
+  Points,
+  PointsMaterial,
+  RingGeometry,
   Scene,
   SphereGeometry,
-  TorusGeometry,
-  VectorKeyframeTrack,
   WebGLRenderer
 } from '../vendor/three.module.min.js';
 
-import { BOT_ORBIT, RING_STAGES } from './ring2d.js';
+import {
+  BOT_WORLD_RADIUS,
+  RING_BANDS,
+  RING_MARK_RADIUS,
+  cameraDistance,
+  nudgeLabel,
+  projectPoint,
+  ringView,
+  tiltedPoint
+} from './ring2d.js';
+import { createBot } from './bot.js';
 
-export const REACTION_SECONDS = 0.7;
-
-const VIEW_EXTENT = 1.2;
-const BOT_RADIUS = 0.108;
-const ORBIT_EASE_SECONDS = 0.22;
-const GLANCE_EASE_SECONDS = 0.12;
-const GLANCE_REACH = 0.14;
-const SETTLED = 0.0005;
+const DUST_COUNT = 900;
+const DUST_DRIFT = 0.012;
+const SHIMMER = 0.06;
+const MARKER_RADIUS = 0.04;
+const HALO_RADIUS = 0.075;
+const ORBIT_EASE_SECONDS = 0.28;
 const SETTLED_DEGREES = 0.05;
 const MAX_FRAME_SECONDS = 0.1;
-const CROSSFADE_SECONDS = 0.45;
-const SHADOW_OPACITY = 0.16;
-const REVIEW_BODY = [0.09, 0.085, 0.1];
-const REVIEW_EYES = [0.78, 0.2, 0.14];
-
-const number = (name, times, values) => new NumberKeyframeTrack(name, times, values);
-const vector = (name, times, values) => new VectorKeyframeTrack(name, times, values);
-const shown = (name, duration) => vector(`${name}.scale`, [0, duration], [1, 1, 1, 1, 1, 1]);
-
-function breathe(duration, lift = 0.05) {
-  const half = duration / 2;
-  return [
-    number('body.position[y]', [0, half, duration], [0, lift, 0]),
-    vector('body.scale', [0, half, duration], [1, 1, 1, 1.02, 0.98, 1.02, 1, 1, 1])
-  ];
-}
-
-function repeat(times, period, values) {
-  const keys = [];
-  const out = [];
-  for (let time = 0, index = 0; time <= times + 1e-9; time += period, index += 1) {
-    keys.push(Number(time.toFixed(4)));
-    out.push(values[index % values.length]);
-  }
-  return [keys, out];
-}
-
-const WRITING_LINES = [0.12, 0, -0.12];
-const LINE_START = -0.4;
-const LINE_LENGTH = 0.6;
-const LINE_SECONDS = 0.8;
-const SCROLL_CENTER = [-0.05, -0.95];
-
-function goalClip() {
-  const duration = WRITING_LINES.length * LINE_SECONDS;
-  const quillKeys = [];
-  const quillValues = [];
-  WRITING_LINES.forEach((lineY, index) => {
-    const start = index * LINE_SECONDS;
-    const y = SCROLL_CENTER[1] + lineY;
-    quillKeys.push(start, start + LINE_SECONDS * 0.85, start + LINE_SECONDS * 0.97);
-    quillValues.push(LINE_START + SCROLL_CENTER[0], y, 1.12, LINE_START + LINE_LENGTH + SCROLL_CENTER[0], y, 1.12, LINE_START + SCROLL_CENTER[0], y - 0.06, 1.2);
-  });
-  const lines = WRITING_LINES.map((lineY, index) => {
-    const start = index * LINE_SECONDS;
-    const keys = [0, start, start + LINE_SECONDS * 0.85, duration].filter((value, position, all) => position === 0 || value > all[position - 1]);
-    const values = keys.flatMap((time) => (time <= start ? [0.001, 1, 1] : [1, 1, 1]));
-    return vector(`line${index + 1}.scale`, keys, values);
-  });
-  const [wiggleKeys, wiggleValues] = repeat(duration, 0.12, [0.1, -0.1]);
-  return new AnimationClip('goal', duration, [
-    shown('prop_goal', duration),
-    ...breathe(duration, 0.03),
-    vector('quill.position', quillKeys, quillValues),
-    number('quill.rotation[z]', wiggleKeys, wiggleValues),
-    ...lines
-  ]);
-}
-
-function swingClip(stage, tool, duration) {
-  return new AnimationClip(stage, duration, [
-    shown(`prop_${stage}`, duration),
-    ...breathe(duration),
-    number(`${tool}.rotation[z]`, [0, duration * 0.3, duration * 0.42, duration * 0.5, duration], [0, 0.45, -1.15, -1.0, 0])
-  ]);
-}
-
-function verifyClip() {
-  const duration = 2;
-  return new AnimationClip('verify', duration, [
-    shown('prop_verify', duration),
-    ...breathe(duration),
-    number('magnifier.position[x]', [0, duration / 2, duration], [-0.5, 0.5, -0.5]),
-    number('magnifier.rotation[z]', [0, duration / 2, duration], [0.15, -0.15, 0.15]),
-    vector('check.scale', [0, 0.85, 1.0, 1.12, 1.8, duration], [0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 1.25, 1.25, 1.25, 1, 1, 1, 1, 1, 1, 0.001, 0.001, 0.001])
-  ]);
-}
-
-function reviewClip(colors) {
-  const duration = 2.6;
-  const dot = (name, start) => vector(`${name}.scale`, [0, start, start + 0.15, duration - 0.3, duration], [0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 1, 1, 1, 1, 1, 1, 0.001, 0.001, 0.001]);
-  const wisp = (name, offset) => number(`${name}.position[y]`, [0, duration], [0.2 + offset, 1.1 + offset]);
-  return new AnimationClip('review', duration, [
-    shown('prop_review', duration),
-    ...breathe(duration, 0.03),
-    new ColorKeyframeTrack('sphere.material.color', [0, duration], [...colors.reviewBody, ...colors.reviewBody]),
-    number('sphere.material.roughness', [0, duration], [0.85, 0.85]),
-    number('sphere.material.clearcoat', [0, duration], [0.05, 0.05]),
-    new ColorKeyframeTrack('eyeLeft.material.color', [0, duration], [...colors.reviewEyes, ...colors.reviewEyes]),
-    number('body.rotation[z]', [0, 0.6, 1.3, 1.9, duration], [0, 0.2, 0.2, 0, 0]),
-    dot('dot1', 0.3),
-    dot('dot2', 0.6),
-    dot('dot3', 0.9),
-    wisp('wisp1', 0),
-    wisp('wisp2', -0.35),
-    wisp('wisp3', -0.7)
-  ]);
-}
-
-function deliverClip() {
-  const duration = 1.8;
-  return new AnimationClip('deliver', duration, [
-    shown('prop_deliver', duration),
-    ...breathe(duration),
-    number('package.position[y]', [0, duration / 2, duration], [-0.85, -0.76, -0.85]),
-    number('body.rotation[z]', [0, duration / 4, (duration * 3) / 4, duration], [0, 0.08, -0.08, 0])
-  ]);
-}
-
-function waitingClip() {
-  const duration = 3.2;
-  return new AnimationClip('waiting', duration, [
-    ...breathe(duration, 0.02),
-    number('eyes.scale[y]', [0, 2.6, 2.7, 2.8, duration], [1, 1, 0.1, 1, 1])
-  ]);
-}
-
-function reactionClip() {
-  const end = REACTION_SECONDS;
-  return new AnimationClip('reaction', end, [
-    number('hop.position[y]', [0, end * 0.2, end * 0.5, end * 0.8, end], [0, 0.9, 1.1, 0.15, 0]),
-    number('hop.rotation[y]', [0, end * 0.85, end], [0, Math.PI * 2, Math.PI * 2]),
-    number('face.scale[y]', [0, end * 0.15, end * 0.75, end], [1, 0.35, 0.35, 1])
-  ]);
-}
-
-export function buildClips(colors = { reviewBody: REVIEW_BODY, reviewEyes: REVIEW_EYES }) {
-  return {
-    stages: {
-      goal: goalClip(),
-      maker: swingClip('maker', 'hammer', 1.2),
-      verify: verifyClip(),
-      review: reviewClip(colors),
-      judge: swingClip('judge', 'gavel', 1.4),
-      deliver: deliverClip()
-    },
-    waiting: waitingClip(),
-    reaction: reactionClip()
-  };
-}
+const LABEL_GAP = 9;
+const CENTRE_LIFT = 0.16;
+const FAR_SCALE = 0.8;
+const FAR_OPACITY = 0.55;
+const STATUS_TOKENS = { done: '--ok-fill', now: '--brand', pending: '--line-strong', skipped: '--faint' };
 
 function readToken(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
-function shadowTexture() {
+function shortestTurn(from, to) {
+  return ((to - from + 540) % 360) - 180;
+}
+
+function radialTexture(power) {
   const size = 64;
   const data = new Uint8Array(size * size * 4);
   for (let y = 0; y < size; y += 1) {
     for (let x = 0; x < size; x += 1) {
       const dx = (x + 0.5) / size * 2 - 1;
       const dy = (y + 0.5) / size * 2 - 1;
-      const alpha = Math.max(0, 1 - Math.sqrt(dx * dx + dy * dy));
-      const value = Math.round(255 * alpha * alpha);
+      const value = Math.round(255 * Math.max(0, 1 - Math.hypot(dx, dy)) ** power);
       data.set([value, value, value, 255], (y * size + x) * 4);
     }
   }
@@ -199,266 +69,207 @@ function shadowTexture() {
   return texture;
 }
 
-function buildRig() {
-  const geometries = [];
-  const materials = [];
-  const painted = [];
-  const geometry = (value) => {
-    geometries.push(value);
-    return value;
+function dustGeometry() {
+  let seed = 7;
+  const random = () => {
+    seed = (seed * 16807) % 2147483647;
+    return seed / 2147483647;
   };
-  const material = (value, token) => {
-    materials.push(value);
-    if (token) painted.push([value, token]);
-    return value;
-  };
-  const matte = (token) => material(new MeshStandardMaterial({ roughness: 0.7 }), token);
-  const mesh = (shape, surface, name) => {
-    const value = new Mesh(shape, surface);
-    if (name) value.name = name;
-    return value;
-  };
-  const group = (name, children = [], position = [0, 0, 0]) => {
-    const value = new Group();
-    value.name = name || '';
-    value.position.set(...position);
-    children.forEach((child) => value.add(child));
-    return value;
-  };
-  const at = (object, position, rotation = [0, 0, 0], scale = null) => {
-    object.position.set(...position);
-    object.rotation.set(...rotation);
-    if (scale) object.scale.set(...scale);
-    return object;
-  };
-
-  const paper = matte('--prop-paper');
-  const wood = matte('--prop-wood');
-  const metal = material(new MeshStandardMaterial({ roughness: 0.35, metalness: 0.6 }), '--prop-metal');
-  const box = matte('--prop-box');
-  const pencil = matte('--prop-pencil');
-  const ink = material(new MeshBasicMaterial(), '--on-brand');
-  const leaf = matte('--ok-fill');
-  const muted = material(new MeshBasicMaterial(), '--muted');
-  const check = material(new MeshBasicMaterial(), '--ok-fill');
-  const horn = material(new MeshStandardMaterial({ roughness: 0.9 }), '--on-brand');
-  const wispMaterial = material(new MeshBasicMaterial({ transparent: true, opacity: 0.28, depthWrite: false }), '--muted');
-
-  const body = material(new MeshPhysicalMaterial({ roughness: 0.45, clearcoat: 0.4, clearcoatRoughness: 0.35 }), '--brand');
-  const eye = material(new MeshBasicMaterial(), '--on-brand');
-  const eyeShape = geometry(new CapsuleGeometry(0.085, 0.2, 4, 12));
-  const eyeLeft = at(mesh(eyeShape, eye, 'eyeLeft'), [-0.22, 0.12, 0.96]);
-  const eyeRight = at(mesh(eyeShape, eye, 'eyeRight'), [0.22, 0.12, 0.96]);
-  const eyes = group('eyes', [eyeLeft, eyeRight]);
-  const face = group('face', [eyes]);
-  const sphere = mesh(geometry(new SphereGeometry(1, 48, 32)), body, 'sphere');
-
-  const rod = (radius, length, surface, name) => mesh(geometry(new CylinderGeometry(radius, radius, length, 10)), surface, name);
-  const cube = (x, y, z, surface, name) => mesh(geometry(new BoxGeometry(x, y, z)), surface, name);
-  const ball = (radius, surface, name) => mesh(geometry(new SphereGeometry(radius, 12, 8)), surface, name);
-
-  const lineShape = geometry(new BoxGeometry(LINE_LENGTH, 0.025, 0.01));
-  lineShape.translate(LINE_LENGTH / 2, 0, 0);
-  const scroll = group('scroll', [
-    cube(0.95, 0.5, 0.03, paper),
-    at(rod(0.06, 1.05, paper), [0, 0.28, 0.02], [0, 0, Math.PI / 2]),
-    at(rod(0.06, 1.05, paper), [0, -0.28, 0.02], [0, 0, Math.PI / 2]),
-    ...WRITING_LINES.map((lineY, index) => at(mesh(lineShape, ink, `line${index + 1}`), [LINE_START, lineY, 0.03], [0, 0, 0], [0.001, 1, 1]))
-  ], [SCROLL_CENTER[0], SCROLL_CENTER[1], 1.06]);
-  const nibShape = geometry(new ConeGeometry(0.04, 0.22, 8));
-  nibShape.rotateZ(Math.PI);
-  nibShape.translate(0, 0.11, 0);
-  const quill = group('quill', [
-    mesh(nibShape, ink),
-    at(ball(1, paper), [0.1, 0.45, 0], [0, 0, -0.35], [0.1, 0.36, 0.03])
-  ], [LINE_START + SCROLL_CENTER[0], SCROLL_CENTER[1] + WRITING_LINES[0], 1.12]);
-  const wreath = group('', [
-    at(mesh(geometry(new TorusGeometry(0.72, 0.05, 6, 28, Math.PI * 1.7)), leaf), [0, 0, 0], [0, 0, -Math.PI * 0.35]),
-    ...Array.from({ length: 9 }, (unused, index) => {
-      const angle = -Math.PI * 0.35 + (index + 0.5) * (Math.PI * 1.7) / 9;
-      return at(ball(1, leaf), [0.72 * Math.cos(angle), 0.72 * Math.sin(angle), 0], [0, 0, angle], [0.22, 0.1, 0.08]);
-    })
-  ], [0, 0.72, 0.15]);
-  wreath.rotation.x = -1.05;
-  const knot = at(ball(0.2, paper), [0.62, -0.42, 0.72]);
-  const drape = mesh(geometry(new SphereGeometry(1.04, 32, 12, 0, Math.PI * 2, Math.PI * 0.68, Math.PI * 0.32)), paper);
-
-  const hammer = group('hammer', [
-    at(rod(0.06, 0.8, wood), [0, 0.35, 0]),
-    at(cube(0.42, 0.18, 0.18, metal), [0, 0.78, 0])
-  ], [0.95, -0.1, 0.9]);
-  const gavel = group('gavel', [
-    at(rod(0.05, 0.75, wood), [0, 0.35, 0]),
-    at(rod(0.14, 0.45, wood), [0, 0.76, 0], [0, 0, Math.PI / 2])
-  ], [0.95, -0.1, 0.9]);
-  const magnifier = group('magnifier', [
-    mesh(geometry(new TorusGeometry(0.3, 0.06, 8, 24)), metal),
-    at(rod(0.06, 0.45, wood), [0.3, -0.38, 0], [0, 0, 0.7])
-  ], [-0.5, -0.1, 1.15]);
-  const checkMark = group('check', [
-    at(mesh(geometry(new CapsuleGeometry(0.05, 0.16, 4, 8)), check), [-0.08, -0.04, 0], [0, 0, 0.8]),
-    at(mesh(geometry(new CapsuleGeometry(0.05, 0.34, 4, 8)), check), [0.08, 0.06, 0], [0, 0, -0.6])
-  ], [1.15, 0.9, 0.8]);
-  checkMark.scale.setScalar(0.001);
-  const dots = [0.1, 0.13, 0.16].map((radius, index) => {
-    const dot = at(ball(radius, muted, `dot${index + 1}`), [0.9 + index * 0.28, 1.0 + index * 0.26, 0.8]);
-    dot.scale.setScalar(0.001);
-    return dot;
-  });
-  const hornShape = geometry(new ConeGeometry(0.16, 0.42, 10));
-  const wisps = [-1.15, 1.2, -1.3].map((x, index) => at(ball(0.16, wispMaterial, `wisp${index + 1}`), [x, 0.2 - index * 0.35, 0.3]));
-  const pack = group('package', [
-    cube(0.9, 0.6, 0.6, box),
-    at(cube(0.92, 0.1, 0.62, paper), [0, 0, 0])
-  ], [0, -0.85, 1.05]);
-
-  const props = {
-    goal: group('prop_goal', [drape, knot, scroll, quill, wreath]),
-    maker: group('prop_maker', [hammer, at(cube(0.4, 0.3, 0.3, wood), [1.55, -0.78, 0.6])]),
-    verify: group('prop_verify', [magnifier, checkMark]),
-    review: group('prop_review', [
-      at(mesh(hornShape, horn), [-0.45, 0.92, 0.1], [0, 0, 0.35]),
-      at(mesh(hornShape, horn), [0.45, 0.92, 0.1], [0, 0, -0.35]),
-      ...dots,
-      ...wisps
-    ]),
-    judge: group('prop_judge', [gavel, at(rod(0.3, 0.1, wood), [1.5, -0.82, 0.6])]),
-    deliver: group('prop_deliver', [pack])
-  };
-  Object.values(props).forEach((prop) => prop.scale.setScalar(0.001));
-
-  const bodyGroup = group('body', [sphere, face, ...Object.values(props)]);
-  const hop = group('hop', [bodyGroup]);
-  const shadowMaterial = material(new MeshBasicMaterial({ transparent: true, opacity: SHADOW_OPACITY, depthWrite: false, alphaMap: shadowTexture() }), '--shadow');
-  const shadow = at(mesh(geometry(new PlaneGeometry(2, 2)), shadowMaterial), [0, -1.02, -1.2], [0, 0, 0], [0.8, 0.16, 1]);
-  const root = group('root', [shadow, hop]);
-  root.scale.setScalar(BOT_RADIUS);
-
-  return { root, face, props, sphere, eyeLeft, geometries, materials, painted, shadowMaterial };
+  const inner = RING_BANDS[0][0];
+  const outer = RING_BANDS.at(-1)[1];
+  const positions = [];
+  for (let index = 0; index < DUST_COUNT; index += 1) {
+    const angle = random() * Math.PI * 2;
+    const radius = inner + (outer - inner) * Math.sqrt(random());
+    positions.push(radius * Math.cos(angle), radius * Math.sin(angle), (random() - 0.5) * 0.02);
+  }
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
+  return geometry;
 }
 
-function placeOnOrbit(object, angleDegrees) {
-  const radians = (angleDegrees * Math.PI) / 180;
-  object.position.set(BOT_ORBIT * Math.sin(radians), BOT_ORBIT * Math.cos(radians), 0);
-}
-
-function shortestTurn(from, to) {
-  return ((to - from + 540) % 360) - 180;
-}
-
-function ease(current, target, seconds, constant) {
-  return current + (target - current) * (1 - Math.exp(-seconds / constant));
-}
-
-export function mountBot(el, model, { reducedMotion = false, hoverTarget = null } = {}) {
+export function mountRing3d(el, model, { root, reducedMotion = false } = {}) {
   const renderer = new WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   el.appendChild(renderer.domElement);
 
   const scene = new Scene();
-  const camera = new OrthographicCamera(-VIEW_EXTENT, VIEW_EXTENT, VIEW_EXTENT, -VIEW_EXTENT, 0.1, 10);
-  camera.position.set(0, 0, 4);
-  camera.lookAt(0, 0, 0);
-  scene.add(new AmbientLight(undefined, 1.15));
-  const key = new DirectionalLight(undefined, 1.5);
-  key.position.set(-1.2, 1.6, 2.4);
+  const camera = new PerspectiveCamera(28, 1, 0.1, 50);
+  scene.add(new AmbientLight(undefined, 0.95));
+  const key = new DirectionalLight(undefined, 1.25);
+  key.position.set(-2, 3, 4);
   scene.add(key);
-  const fill = new DirectionalLight(undefined, 0.35);
-  fill.position.set(1.5, -1, 1);
-  scene.add(fill);
+  const rim = new DirectionalLight(undefined, 0.9);
+  rim.position.set(2.5, 1.5, -3);
+  scene.add(rim);
 
-  const rig = buildRig();
-  scene.add(rig.root);
+  const disposables = [];
+  const painted = [];
+  const keep = (value) => {
+    disposables.push(value);
+    return value;
+  };
+  const tinted = (value, token) => {
+    painted.push([keep(value), token]);
+    return value;
+  };
 
-  function paint() {
-    rig.painted.forEach(([surface, token]) => {
-      const value = readToken(token);
-      if (value) surface.color.setStyle(value);
-    });
-  }
-  paint();
+  const plane = new Group();
+  plane.rotation.order = 'ZYX';
+  scene.add(plane);
+  const bands = RING_BANDS.map(([inner, outer, opacity, token]) => {
+    const material = tinted(new MeshBasicMaterial({ transparent: true, opacity, side: DoubleSide, depthWrite: false }), token);
+    const band = new Mesh(keep(new RingGeometry(inner, outer, 192, 1)), material);
+    band.userData.opacity = opacity;
+    plane.add(band);
+    return band;
+  });
+  const glowTexture = keep(radialTexture(2));
+  const glow = new Mesh(keep(new CircleGeometry(RING_BANDS[0][0], 64)), tinted(new MeshBasicMaterial({ transparent: true, opacity: 0.5, alphaMap: glowTexture, depthWrite: false }), '--ring-glow'));
+  glow.position.z = -0.002;
+  plane.add(glow);
+  const dust = new Points(keep(dustGeometry()), tinted(new PointsMaterial({ size: 1.5, sizeAttenuation: false, transparent: true, opacity: 0.6, depthWrite: false }), '--ring-dust'));
+  plane.add(dust);
 
-  const clips = buildClips({ reviewBody: REVIEW_BODY, reviewEyes: REVIEW_EYES });
-  const mixer = new AnimationMixer(rig.root);
-  const stageActions = Object.fromEntries(RING_STAGES.map((stage) => [stage, mixer.clipAction(clips.stages[stage])]));
-  const waitingAction = mixer.clipAction(clips.waiting);
-  const reaction = mixer.clipAction(clips.reaction);
-  reaction.setLoop(LoopOnce, 1);
-  const fading = new Set();
-  let current = null;
-  let target = model;
+  const markerShape = keep(new SphereGeometry(MARKER_RADIUS, 20, 14));
+  const haloShape = keep(new SphereGeometry(HALO_RADIUS, 20, 14));
+  const markers = model.stages.map(() => {
+    const marker = new Mesh(markerShape, keep(new MeshStandardMaterial({ roughness: 0.35, transparent: true })));
+    const halo = new Mesh(haloShape, keep(new MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })));
+    marker.add(halo);
+    scene.add(marker);
+    return { marker, halo };
+  });
+
+  const bot = createBot({ reducedMotion, radius: BOT_WORLD_RADIUS });
+  scene.add(bot.root);
+
+  let current = model;
   let botAngle = model.botAngle;
-  const glance = { x: 0, y: 0, toX: 0, toY: 0 };
+  let view = ringView(el.clientWidth || 1);
+  let width = 1;
+  let height = 1;
   let frame = 0;
   let lastTime = 0;
+  let elapsed = 0;
 
-  function loopActionFor(next) {
-    if (next.mode === 'working') return stageActions[next.botStage];
-    if (next.mode === 'waiting') return waitingAction;
-    return null;
+  function cameraState() {
+    return { fov: view.fov, distance: camera.position.z };
   }
 
-  function staticPose(next) {
-    RING_STAGES.forEach((stage) => rig.props[stage].scale.setScalar(next.mode === 'working' && stage === next.botStage ? 1 : 0.001));
+  function point(angle, lift = 0) {
+    const value = tiltedPoint(angle, RING_MARK_RADIUS, view);
+    return { x: value.x, y: value.y + lift, z: value.z };
   }
 
-  function applyMode(next) {
-    if (reducedMotion) {
-      staticPose(next);
-      return;
+  function paint() {
+    painted.forEach(([material, token]) => {
+      const value = readToken(token);
+      if (value) material.color.setStyle(value);
+    });
+    current.stages.forEach(({ status }, index) => {
+      const value = readToken(STATUS_TOKENS[status] || STATUS_TOKENS.pending);
+      if (value) {
+        markers[index].marker.material.color.setStyle(value);
+        markers[index].halo.material.color.setStyle(value);
+      }
+    });
+    bot.paint(readToken);
+  }
+
+  function placeMarkers() {
+    current.stages.forEach(({ angle, status }, index) => {
+      const { marker, halo } = markers[index];
+      const value = point(angle);
+      marker.position.set(value.x, value.y, value.z);
+      const far = value.z < 0;
+      marker.scale.setScalar(far ? FAR_SCALE : 1);
+      marker.material.opacity = (status === 'skipped' ? 0.5 : 1) * (far ? FAR_OPACITY + 0.3 : 1);
+      halo.visible = status === 'now';
+    });
+  }
+
+  function placeLabels() {
+    const centre = root.querySelector('.ring-centre');
+    const box = root.getBoundingClientRect();
+    if (centre) {
+      const anchor = projectPoint({ x: 0, y: CENTRE_LIFT, z: 0 }, cameraState(), width, height);
+      centre.style.top = `${anchor.y.toFixed(1)}px`;
     }
-    const action = loopActionFor(next);
-    if (action === current) return;
-    if (action) {
-      fading.delete(action);
-      action.reset().setEffectiveWeight(1).play();
-      if (current) current.crossFadeTo(action, CROSSFADE_SECONDS, false);
-      else action.fadeIn(CROSSFADE_SECONDS);
-    } else if (current) {
-      current.fadeOut(CROSSFADE_SECONDS);
-    }
-    if (current) fading.add(current);
-    current = action;
+    const centreRect = centre ? centre.getBoundingClientRect() : null;
+    const centreBox = centreRect && {
+      left: centreRect.left - box.left,
+      right: centreRect.right - box.left,
+      top: centreRect.top - box.top,
+      bottom: centreRect.bottom - box.top
+    };
+    root.querySelectorAll('.stage[data-stage]').forEach((label) => {
+      const stage = current.stages.find((item) => item.stage === label.dataset.stage);
+      if (!stage) return;
+      const value = point(stage.angle);
+      const screen = projectPoint(value, cameraState(), width, height);
+      const labelWidth = label.offsetWidth;
+      const labelHeight = label.offsetHeight;
+      const placed = nudgeLabel({
+        left: screen.x - labelWidth / 2,
+        top: screen.y + LABEL_GAP,
+        width: labelWidth,
+        height: labelHeight
+      }, centreBox, value.z < 0 ? 'up' : 'down');
+      label.style.transform = `translate(${placed.left.toFixed(1)}px, ${placed.top.toFixed(1)}px)`;
+      label.dataset.depth = value.z < 0 ? 'far' : 'near';
+    });
+  }
+
+  function placeBot() {
+    const value = point(botAngle, BOT_WORLD_RADIUS + MARKER_RADIUS * 0.5);
+    bot.root.position.set(value.x, value.y, value.z);
+    const button = root.querySelector('.ring-bot');
+    if (!button) return;
+    const centre = projectPoint(value, cameraState(), width, height);
+    const top = projectPoint({ ...value, y: value.y + BOT_WORLD_RADIUS }, cameraState(), width, height);
+    const size = Math.max(32, (centre.y - top.y) * 2.4);
+    button.style.width = `${size.toFixed(1)}px`;
+    button.style.height = `${size.toFixed(1)}px`;
+    button.style.transform = `translate(${(centre.x - size / 2).toFixed(1)}px, ${(centre.y - size / 2).toFixed(1)}px)`;
   }
 
   function stepOrbit(seconds) {
-    const remaining = shortestTurn(botAngle, target.botAngle);
+    const remaining = shortestTurn(botAngle, current.botAngle);
     if (reducedMotion || Math.abs(remaining) < SETTLED_DEGREES) {
-      botAngle = target.botAngle;
+      botAngle = current.botAngle;
       return true;
     }
     botAngle += remaining * (1 - Math.exp(-seconds / ORBIT_EASE_SECONDS));
     return false;
   }
 
-  function stepGlance(seconds) {
-    glance.x = ease(glance.x, glance.toX, seconds, GLANCE_EASE_SECONDS);
-    glance.y = ease(glance.y, glance.toY, seconds, GLANCE_EASE_SECONDS);
-    rig.face.position.set(glance.x, glance.y, 0);
-    return Math.abs(glance.x - glance.toX) < SETTLED && Math.abs(glance.y - glance.toY) < SETTLED;
-  }
-
-  function settleFades() {
-    for (const action of fading) {
-      if (action.getEffectiveWeight() === 0) {
-        action.stop();
-        fading.delete(action);
-      }
-    }
+  function ambient(seconds) {
+    if (reducedMotion) return false;
+    elapsed += seconds;
+    dust.rotation.z += DUST_DRIFT * seconds;
+    bands.forEach((band, index) => {
+      band.material.opacity = band.userData.opacity * (1 + SHIMMER * Math.sin(elapsed * 0.7 + index * 1.3));
+    });
+    markers.forEach(({ halo }) => {
+      if (!halo.visible) return;
+      const pulse = (Math.sin(elapsed * 2.2) + 1) / 2;
+      halo.scale.setScalar(1 + pulse * 0.35);
+      halo.material.opacity = 0.32 - pulse * 0.2;
+    });
+    return true;
   }
 
   function tick(time) {
     frame = 0;
     const seconds = lastTime ? Math.min((time - lastTime) / 1000, MAX_FRAME_SECONDS) : 1 / 60;
     lastTime = time;
-    mixer.update(seconds);
-    settleFades();
+    const drifting = ambient(seconds);
     const orbitSettled = stepOrbit(seconds);
-    const glanceSettled = stepGlance(seconds);
-    placeOnOrbit(rig.root, botAngle);
+    const botMoving = bot.step(seconds);
+    placeBot();
     renderer.render(scene, camera);
-    const moving = current || fading.size || reaction.isRunning() || !orbitSettled || !glanceSettled;
-    if (moving) schedule();
+    if (drifting || botMoving || !orbitSettled) schedule();
     else lastTime = 0;
   }
 
@@ -474,8 +285,19 @@ export function mountBot(el, model, { reducedMotion = false, hoverTarget = null 
   }
 
   function resize() {
-    const size = el.clientWidth || 1;
-    renderer.setSize(size, el.clientHeight || size);
+    width = el.clientWidth || 1;
+    height = el.clientHeight || 1;
+    view = ringView(width);
+    plane.rotation.set((-view.tilt * Math.PI) / 180, 0, (view.roll * Math.PI) / 180);
+    renderer.setSize(width, height);
+    camera.fov = view.fov;
+    camera.aspect = width / height;
+    camera.position.set(0, 0, cameraDistance(view, width / height));
+    camera.lookAt(0, 0, 0);
+    camera.updateProjectionMatrix();
+    placeMarkers();
+    placeLabels();
+    placeBot();
     schedule();
   }
 
@@ -489,71 +311,63 @@ export function mountBot(el, model, { reducedMotion = false, hoverTarget = null 
     schedule();
   }
 
-  function onFinished(event) {
-    if (event.action === reaction) reaction.stop();
-  }
+  const darkScheme = window.matchMedia('(prefers-color-scheme: dark)');
+  const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
+  const glances = finePointer.matches && !reducedMotion;
 
   function onPointerMove(event) {
-    const rect = el.getBoundingClientRect();
-    const x = ((event.clientX - rect.left) / rect.width * 2 - 1) * VIEW_EXTENT - rig.root.position.x;
-    const y = -((event.clientY - rect.top) / rect.height * 2 - 1) * VIEW_EXTENT - rig.root.position.y;
-    const length = Math.hypot(x, y) || 1;
-    glance.toX = (x / length) * GLANCE_REACH * Math.min(1, length * 4);
-    glance.toY = (y / length) * GLANCE_REACH * Math.min(1, length * 4);
+    const box = el.getBoundingClientRect();
+    const centre = projectPoint(bot.root.position, cameraState(), width, height);
+    const dx = event.clientX - box.left - centre.x;
+    const dy = event.clientY - box.top - centre.y;
+    const length = Math.hypot(dx, dy) || 1;
+    const reach = Math.min(1, length / 80);
+    bot.lookAt((dx / length) * reach, (-dy / length) * reach);
     schedule();
   }
 
   function onPointerLeave() {
-    glance.toX = 0;
-    glance.toY = 0;
+    bot.lookAt(0, 0);
     schedule();
   }
 
-  const darkScheme = window.matchMedia('(prefers-color-scheme: dark)');
-  const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
-  const glances = Boolean(hoverTarget && finePointer.matches && !reducedMotion);
   const resizeObserver = new ResizeObserver(resize);
   resizeObserver.observe(el);
   document.addEventListener('visibilitychange', onVisibility);
   darkScheme.addEventListener('change', onTheme);
-  mixer.addEventListener('finished', onFinished);
   if (glances) {
-    hoverTarget.addEventListener('pointermove', onPointerMove);
-    hoverTarget.addEventListener('pointerleave', onPointerLeave);
+    root.addEventListener('pointermove', onPointerMove);
+    root.addEventListener('pointerleave', onPointerLeave);
   }
 
-  placeOnOrbit(rig.root, botAngle);
-  applyMode(model);
+  paint();
+  bot.update(model);
   resize();
 
   return {
     update(next) {
-      target = next;
-      applyMode(next);
+      current = next;
+      paint();
+      placeMarkers();
+      placeLabels();
+      bot.update(next);
       schedule();
     },
     react() {
-      if (reducedMotion) return;
-      reaction.reset().play();
-      schedule();
+      if (bot.react()) schedule();
     },
     dispose() {
       stop();
       resizeObserver.disconnect();
       document.removeEventListener('visibilitychange', onVisibility);
       darkScheme.removeEventListener('change', onTheme);
-      mixer.removeEventListener('finished', onFinished);
       if (glances) {
-        hoverTarget.removeEventListener('pointermove', onPointerMove);
-        hoverTarget.removeEventListener('pointerleave', onPointerLeave);
+        root.removeEventListener('pointermove', onPointerMove);
+        root.removeEventListener('pointerleave', onPointerLeave);
       }
-      mixer.stopAllAction();
-      mixer.uncacheRoot(rig.root);
-      rig.geometries.forEach((value) => value.dispose());
-      rig.materials.forEach((value) => {
-        if (value.alphaMap) value.alphaMap.dispose();
-        value.dispose();
-      });
+      root.querySelectorAll('.stage[data-stage], .ring-bot, .ring-centre').forEach((node) => node.removeAttribute('style'));
+      bot.dispose();
+      disposables.forEach((value) => value.dispose());
       renderer.dispose();
       renderer.forceContextLoss();
       renderer.domElement.remove();

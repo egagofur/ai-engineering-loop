@@ -1,5 +1,6 @@
 import { escapeHtml, formatElapsed, waitingLabel } from './list.js';
 import { renderMarkdown } from './markdown.js';
+import { ringEyebrow } from './ring2d.js';
 
 export const GOAL_VIEWS = ['formatted', 'markdown'];
 const GOAL_VIEW_LABELS = { formatted: 'Formatted', markdown: 'Markdown' };
@@ -31,14 +32,17 @@ function startedText(elapsedMs) {
   return elapsed === 'just now' ? 'Started just now' : `Started ${elapsed} ago`;
 }
 
-export function renderRunHead(summary, { actor = null } = {}) {
+export function renderRunHead(summary, { actor = null, projectName = '' } = {}) {
   if (!summary) return '';
-  const meta = escapeHtml(startedText(summary.elapsedMs));
-  const waiting = summary.waiting
-    ? `<div class="waiting" data-kind="${escapeHtml(summary.waiting.kind)}"><p><strong>${escapeHtml(waitingLabel(summary.waiting))}</strong> ${escapeHtml(WAITING_TEXT[summary.waiting.kind] || '')}</p>`
+  const title = summary.task || summary.runId;
+  const wait = summary.waiting
+    ? `<div class="stage-wait" data-kind="${escapeHtml(summary.waiting.kind)}"><span class="chip chip-waiting">${escapeHtml(waitingLabel(summary.waiting))}</span>`
+      + `<span class="visually-hidden">${escapeHtml(WAITING_TEXT[summary.waiting.kind] || '')}</span>`
       + `${renderFreezeButton(summary, actor)}</div>`
     : '';
-  return `<h2 class="run-task">${escapeHtml(summary.task || summary.runId)}</h2><p class="run-meta">${meta}</p>${waiting}`;
+  return `<p class="eyebrow">${escapeHtml(ringEyebrow(summary, projectName))}</p>`
+    + `<h2 class="run-task" title="${escapeHtml(title)}">${escapeHtml(title)}</h2>`
+    + `<p class="run-meta">${escapeHtml(startedText(summary.elapsedMs))}</p>${wait}`;
 }
 
 function goalTab(view, selected) {
