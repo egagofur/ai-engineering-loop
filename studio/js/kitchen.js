@@ -19,11 +19,11 @@ export function dinerSeats(named) {
 
 export const STATIONS = {
   goal: { label: 'Order', props: ['lectern', 'notepad', 'quill'], costume: 'philosopher', mood: 'bright' },
-  maker: { label: 'Cook', props: ['stove', 'pan', 'steam'], costume: 'chef', mood: 'bright' },
-  verify: { label: 'Taste', props: ['bowl', 'spoon', 'thermometer'], costume: 'chef', mood: 'bright' },
-  review: { label: 'Critic', props: ['plate', 'magnifier', 'redSpot'], costume: 'devil', mood: 'dim' },
-  judge: { label: 'Head chef', props: ['pass', 'bell', 'stamp'], costume: 'chef', mood: 'bright' },
-  deliver: { label: 'Serve', props: ['plate', 'cloche'], costume: 'chef', mood: 'bright' }
+  maker: { label: 'Cook', props: ['stove', 'pan', 'flame', 'steam'], costume: 'chef', mood: 'bright' },
+  verify: { label: 'Taste', props: ['bowl', 'spoon'], costume: 'chef', mood: 'bright' },
+  review: { label: 'Critic', props: ['plate', 'magnifier'], costume: 'devil', mood: 'dim' },
+  judge: { label: 'Head chef', props: ['plate', 'spoon', 'bell'], costume: 'chef', mood: 'bright' },
+  deliver: { label: 'Serve', props: ['tray', 'cloche', 'plate'], costume: 'chef', mood: 'bright' }
 };
 
 export function stationConfig(stage) {
@@ -99,10 +99,10 @@ export function screenPoint(ndc, width, height) {
 
 const STAGE_FACE = {
   goal: 'focus',
-  maker: 'focus',
-  verify: 'wide',
+  maker: 'stern',
+  verify: 'focus',
   review: 'squint',
-  judge: 'stern',
+  judge: 'focus',
   deliver: 'happy'
 };
 
@@ -114,6 +114,20 @@ export function botFace(model, { reacting = false } = {}) {
   if (model.mode === 'waiting') return WAIT_FACE[Math.min(WAIT_FACE.length, Math.max(1, model.waitLevel || 1)) - 1];
   if (model.mode === 'settled') return 'happy';
   return STAGE_FACE[model.botStage] || 'open';
+}
+
+export function flameBurst(phase) {
+  if (phase === null || phase === undefined) return 0;
+  const t = (((phase - 0.42) % 1) + 1.5) % 1 - 0.5;
+  const x = Math.max(0, 1 - Math.abs(t) / 0.22);
+  return Number((x * x * (3 - 2 * x)).toFixed(4));
+}
+
+export function judgeOutcome(before, after) {
+  if (!before || !after || before.judge !== 'now') return null;
+  if (after.judge === 'done') return 'pass';
+  if (after.judge !== 'now' && after.judge !== 'skipped') return 'iterate';
+  return null;
 }
 
 export const CAMERA_POSES = {

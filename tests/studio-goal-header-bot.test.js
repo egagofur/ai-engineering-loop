@@ -143,10 +143,16 @@ test('bot clips: one looping clip per stage with its prop, a blinking waiting cl
   assert.ok(review.includes('body.rotation[z]') && review.includes('face.rotation[z]'), 'Review tilts, thinking');
   const goal = clips.stages.goal.tracks.map((track) => track.name);
   assert.ok(goal.includes('prop_goal.rotation[z]') && goal.includes('face.rotation[x]'), 'Goal writes with the quill, looking down');
-  const maker = clips.stages.maker.tracks.find((track) => track.name === 'prop_maker.rotation[z]');
-  assert.ok(Math.max(...maker.values) > 1, 'Maker raises the spatula before the strike');
-  const judge = clips.stages.judge.tracks.map((track) => track.name);
-  assert.ok(judge.includes('prop_judge.rotation[z]') && judge.includes('hop.scale'), 'the Head chef strikes the gavel with a squash');
+  const track = (stage, name) => clips.stages[stage].tracks.find((item) => item.name === name);
+  const food = track('maker', 'pan_food.position[y]');
+  assert.ok(Math.max(...food.values) - food.values[0] > 0.25 && food.values.at(-1) === food.values[0], 'Maker tosses the food up out of the pan and it lands back');
+  assert.ok(Math.abs(track('maker', 'pan_food.rotation[x]').values.at(-1) + Math.PI * 2) < 1e-6, 'the food flips once per toss');
+  assert.ok(Math.min(...track('maker', 'prop_maker.rotation[x]').values) < -0.3, 'the pan flicks its front edge up');
+  assert.ok(Math.max(...track('judge', 'body.rotation[x]').values) > 0.15, 'the Head chef leans in over the plate');
+  const taste = track('judge', 'prop_judge.position').values;
+  const heights = taste.filter((_, index) => index % 3 === 1);
+  assert.ok(Math.min(...heights) < 0.15 && Math.max(...heights) > 0.4, 'the spoon dips into the plate, then up to taste');
+  assert.ok(track('judge', 'face.rotation[x]').values.filter((value) => value > 0.2).length >= 3, 'a nod after tasting');
 });
 
 test('bot runtime: crossfades, one paused render loop, reduced motion static, hover only on fine pointers, toned-down glow', () => {
@@ -172,6 +178,10 @@ test('bot runtime: crossfades, one paused render loop, reduced motion static, ho
   assert.match(bot, /costume === 'philosopher'/);
   assert.match(bot, /new SphereGeometry\(R, 64, 48\)/, 'one smooth sphere body');
   assert.doesNotMatch(bot, /visorMesh|armR|armL|neck/, 'no visor, arms or neck');
+  assert.doesNotMatch(bot, /gavel|hammer|spatula/i, 'no gavel or hammer: the chef cooks and tastes');
+  assert.match(bot, /targets\.chef = 1 - targets\.devil;/, 'the toque stays on at every station; only the Critic swaps it for a beret');
+  assert.match(bot, /costume_devil_hat/);
+  assert.match(bot, /const eyeSurface = material\(new MeshBasicMaterial\(\)\);/, 'flat unlit eyes, no blobby highlights');
   assert.match(main, /reducedMotion: reducedMotionQuery\.matches/);
 });
 
@@ -180,12 +190,20 @@ test('round bot: capsule eyes right of centre carry the moods, blink with jitter
   assert.ok(EYE_YAW > 0 && EYE_YAW - EYE_GAP / 2 > 0, 'both eyes sit right of centre, looking sideways');
   assert.equal(BOT_HEIGHT, 1, 'a unit sphere');
   const open = eyePose('open');
-  assert.deepStrictEqual(open.left, { sx: 1, sy: 1, rz: -0, dy: 0 });
+  assert.deepStrictEqual(open.left, { sx: 1, sy: 1, rz: -0, dy: 0, lid: 1, slope: 0 });
   assert.equal(open.arcs, false);
   assert.ok(eyePose('open', 0).left.sy < 0.1, 'a blink closes the lids');
-  assert.ok(eyePose('squint').left.sy < 0.4, 'squint');
+  assert.ok(eyePose('squint').left.sy < 0.4 && eyePose('squint').left.sy < eyePose('squint').right.sy, 'a narrow, lopsided suspicious squint');
   const angry = eyePose('angry');
-  assert.ok(angry.left.rz < 0 && angry.right.rz > 0, 'angry eyes tilt inward');
+  assert.ok(angry.left.lid < 0.5 && angry.left.slope > 0.5, 'angry lids slant down toward the nose');
+  assert.ok(eyePose('question').left.slope < 0, 'worried lids slant the other way');
+  assert.ok(eyePose('focus').left.lid < 1 && eyePose('stern').left.lid < eyePose('focus').left.lid, 'focused and serious faces lower the lids');
+  const { eyeOutline } = await load('bot.js');
+  const top = (pose, side) => Math.max(...eyeOutline(pose, side).map(([, y]) => y));
+  const edge = (pose, side, sign) => eyeOutline(pose, side).filter(([x]) => Math.sign(x) === sign).reduce((most, [, y]) => Math.max(most, y), -1);
+  assert.ok(top(angry.left, -1) < top(open.left, -1), 'the lid cuts the top of the capsule');
+  assert.ok(edge(angry.left, -1, 1) < edge(angry.left, -1, -1), 'left eye: inner corner lower when angry');
+  assert.ok(edge(angry.right, 1, -1) < edge(angry.right, 1, 1), 'right eye: inner corner lower when angry');
   assert.ok(eyePose('wide').left.sy > 1 && eyePose('question').mark, 'wide "?" eyes show a question mark');
   assert.equal(eyePose('happy').arcs, true, 'happy shows ^ ^');
   assert.equal(eyePose('happy', 0.2).arcs, false);
@@ -212,7 +230,14 @@ test('micro-interactions: station hover lift, Judge bell ding, diners glance at 
   assert.ok(dinerGlance(0.05, 0) > 0 && dinerGlance(0.05, 0) < 1, 'eases in');
   assert.ok(GLANCE_PERIOD > GLANCE_SECONDS * 4, 'occasionally');
   const restaurant = read('js/restaurant.js');
-  assert.match(restaurant, /if \(before\.judge === 'now' && current\.statuses\.judge === 'done' && !reducedMotion\) dingAt = elapsed;/);
+  assert.match(restaurant, /const outcome = reducedMotion \? null : judgeOutcome\(before, current\.statuses\);/);
+  assert.match(restaurant, /if \(outcome === 'pass'\) dingAt = elapsed;/, 'a pass rings the bell');
+  assert.match(restaurant, /if \(outcome === 'iterate'\) pushAt = elapsed;/, 'an iterate pushes the plate back toward Cook');
+  const { judgeOutcome } = await load('kitchen.js');
+  assert.equal(judgeOutcome({ judge: 'now' }, { judge: 'done' }), 'pass');
+  assert.equal(judgeOutcome({ judge: 'now' }, { judge: 'pending' }), 'iterate');
+  assert.equal(judgeOutcome({ judge: 'now' }, { judge: 'now' }), null);
+  assert.equal(judgeOutcome({ judge: 'pending' }, { judge: 'done' }), null);
   assert.match(restaurant, /if \(glances\) setHovered\(stationUnder\(event\)\);/);
   assert.match(restaurant, /const glances = finePointer\.matches && !reducedMotion;/);
   const diners = read('js/diners.js');

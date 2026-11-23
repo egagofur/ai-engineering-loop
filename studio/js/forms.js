@@ -59,8 +59,29 @@ export function roundedBox(width, height, depth, radius = 0.03, segments = 3) {
   return geometry;
 }
 
-export function lathe(points, segments = 40) {
-  return new LatheGeometry(points.map(([x, y]) => new Vector2(x, y)), segments);
+export function profileArea(points) {
+  return points.reduce((sum, [x, y], index) => {
+    const [nx, ny] = points[(index + 1) % points.length];
+    return sum + x * ny - nx * y;
+  }, 0) / 2;
+}
+
+export function lathe(points, segments = 40, { open = false } = {}) {
+  const outward = open || profileArea(points) >= 0 ? points : [...points].reverse();
+  return new LatheGeometry(outward.map(([x, y]) => new Vector2(x, y)), segments);
+}
+
+export function pleat(geometry, count, depth) {
+  const position = geometry.attributes.position;
+  for (let index = 0; index < position.count; index += 1) {
+    const x = position.getX(index);
+    const z = position.getZ(index);
+    const scale = 1 + depth * Math.cos(Math.atan2(z, x) * count);
+    position.setX(index, x * scale);
+    position.setZ(index, z * scale);
+  }
+  geometry.computeVertexNormals();
+  return geometry;
 }
 
 export function bakeInto(target, matrix) {

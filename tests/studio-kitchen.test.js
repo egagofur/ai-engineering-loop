@@ -27,7 +27,8 @@ test('six stations along one counter, left to right, evenly spaced and centred',
   assert.equal(stationConfig('review').mood, 'dim');
   for (const stage of ['maker', 'verify', 'judge', 'deliver']) assert.equal(stationConfig(stage).costume, 'chef', stage);
   assert.ok(stationConfig('maker').props.includes('steam'));
-  assert.ok(stationConfig('judge').props.includes('bell') && stationConfig('judge').props.includes('stamp'));
+  assert.ok(stationConfig('judge').props.includes('bell') && stationConfig('judge').props.includes('plate'), 'the Head chef tastes a plated dish at the pass');
+  assert.ok(stationConfig('maker').props.includes('flame'));
   assert.ok(stationConfig('deliver').props.includes('cloche'));
 });
 
@@ -148,7 +149,7 @@ test('premium rendering: sRGB, ACES, soft shadows, PMREM studio environment, bev
   for (const stage of STAGES) assert.match(stations, new RegExp(`${stage}: [a-zA-Z]+Station`), stage);
   const bot = read('js/bot.js');
   assert.match(bot, /costume_chef_head/);
-  assert.match(bot, /costume === 'chef'/);
+  assert.match(bot, /costume_devil_hat/);
   const tokens = read('tokens.css');
   for (const token of new Set([...stations.matchAll(/'(--kitchen-[a-z-]+)'/g)].map((m) => m[1]))) assert.match(tokens, new RegExp(`${token}:`), token);
 });
@@ -227,4 +228,37 @@ test('switching projects keeps one kitchen: the scene object count stays constan
   const restaurant = read('js/restaurant.js');
   assert.match(restaurant, /const mode = swapMode\(direction, \{ reducedMotion, mounted: Boolean\(current\) \}\);/);
   assert.match(restaurant, /if \(mode === 'reuse'\) \{\n\s+return cutTo\(\(\) => \{\n\s+retarget\(current, next\);/, 'a project switch repaints the same kitchen behind a short fade');
+});
+
+test('lathe props face outward whichever way the profile is drawn, so domes and bells are not inside out', async () => {
+  const { lathe, profileArea } = await load('forms.js');
+  const dome = [[0, 0.3], [0.14, 0.27], [0.25, 0.1], [0.27, 0.022], [0, 0.022]];
+  assert.ok(profileArea(dome) < 0, 'drawn top to bottom (clockwise)');
+  for (const points of [dome, [...dome].reverse()]) {
+    const geometry = lathe(points, 16);
+    const position = geometry.attributes.position;
+    const wall = [...Array(points.length).keys()].find((j) => Math.abs(position.getZ(j) - 0.25) < 1e-6 && Math.abs(position.getY(j) - 0.1) < 1e-6);
+    assert.ok(wall !== undefined);
+    assert.ok(geometry.attributes.normal.getZ(wall) > 0, 'the side wall normal points away from the axis');
+  }
+  const shade = lathe([[0, 0.28], [0.1, 0.18], [0.235, 0.005]], 8, { open: true });
+  assert.ok(shade.attributes.normal.getY(1) < 0, 'an open shell keeps its drawn order, so a lamp lining faces down');
+  const stations = read('js/stations.js');
+  assert.doesNotMatch(stations, /stamp|gavel/, 'the Head chef pass holds a plate, not a stamp');
+  assert.match(stations, /dynamic\.pass = pass;/);
+  assert.match(stations, /dynamic\.flame = flame;/);
+});
+
+test('cooking: the flame bursts when the pan tosses, flickers in sync with a warm light and holds still for reduced motion', async () => {
+  const { flameBurst } = await load('kitchen.js');
+  assert.equal(flameBurst(null), 0);
+  assert.equal(flameBurst(0.42), 1);
+  assert.equal(flameBurst(0.05), 0);
+  assert.ok(flameBurst(0.5) > 0 && flameBurst(0.5) < 1);
+  const { TOSS_SECONDS } = await load('bot.js');
+  assert.ok(TOSS_SECONDS > 1 && TOSS_SECONDS < 2);
+  const restaurant = read('js/restaurant.js');
+  assert.match(restaurant, /const burst = reducedMotion \? 0 : flameBurst\(bot\.cookPhase\(\)\);/);
+  assert.match(restaurant, /fire\.intensity = FLAME_POWER \* \(1 \+ glow\) \+ FLAME_BURST_POWER \* burst;/);
+  assert.match(restaurant, /new PointLight\(/);
 });

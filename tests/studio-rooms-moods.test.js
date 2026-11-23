@@ -87,6 +87,8 @@ test('bot waiting moods: calm look-around, foot tap, grumble, angry hops with st
   const wait = (waitLevel) => botFace({ mode: 'waiting', botStage: 'goal', waitLevel });
   assert.deepStrictEqual([1, 2, 3, 4].map(wait), ['question', 'open', 'annoyed', 'angry']);
   assert.equal(botFace({ mode: 'working', botStage: 'review' }), 'squint');
+  assert.equal(botFace({ mode: 'working', botStage: 'maker' }), 'stern', 'Maker cooks with a serious face');
+  assert.equal(botFace({ mode: 'working', botStage: 'goal' }), 'focus');
   assert.equal(botFace({ mode: 'settled', botStage: 'deliver' }), 'happy');
   assert.equal(botFace({ mode: 'working', botStage: 'maker' }, { reacting: true }), 'happy');
 });

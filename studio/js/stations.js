@@ -1,4 +1,5 @@
 import {
+  AdditiveBlending,
   CatmullRomCurve3,
   ConeGeometry,
   CylinderGeometry,
@@ -41,6 +42,7 @@ const BACK_COUNTER_Z = -2.08;
 const BACK_COUNTER_TOP = 0.62;
 const DASHES = 22;
 const STEAM_PUFFS = 5;
+const FLAME_TONGUES = 11;
 const PROP_SCALE = 1.5;
 const GUEST_SCALE = 1.3;
 const FRONT = 0.32;
@@ -146,6 +148,9 @@ function cookStation(k, textures, dynamic) {
   herb.scale.set(0.03, 0.008, 0.016);
   pan.add(herb);
   pan.position.set(-0.34, 0.1, 0);
+  pan.userData.dynamic = true;
+  const flame = buildFlame(k);
+  flame.position.set(-0.34, 0.108, 0);
   const pot = new Group();
   pot.add(
     k.mesh(lathe([[0, 0], [0.15, 0], [0.16, 0.02], [0.16, 0.22], [0.17, 0.23], [0.15, 0.23], [0.145, 0.02], [0, 0.02]], 40), body, [0, 0, 0]),
@@ -154,7 +159,7 @@ function cookStation(k, textures, dynamic) {
   );
   for (const side of [-1, 1]) pot.add(k.mesh(new TorusGeometry(0.035, 0.009, 8, 20, Math.PI), iron, [side * 0.17, 0.19, 0], [0, side > 0 ? 0 : Math.PI, Math.PI / 2]));
   pot.position.set(0.36, 0.1, 0);
-  stove.add(pan, pot);
+  stove.add(pan, pot, flame);
   const puffs = new Group();
   puffs.userData.dynamic = true;
   for (let index = 0; index < STEAM_PUFFS; index += 1) {
@@ -166,7 +171,40 @@ function cookStation(k, textures, dynamic) {
   stove.position.set(0, 0, FRONT - 0.04);
   dynamic.burners = burners;
   dynamic.steam = puffs;
+  dynamic.pan = pan;
+  dynamic.flame = flame;
   return [stove, k.blob(1.5, 0.85, 0, 0, FRONT - 0.04)];
+}
+
+function buildFlame(k) {
+  const glow = (token) => k.register(new MeshBasicMaterial({ transparent: true, opacity: 0.85, depthWrite: false, blending: AdditiveBlending, toneMapped: false }), token, { flat: true });
+  const outer = glow('--kitchen-flame');
+  const core = glow('--kitchen-flame-core');
+  const tongue = (radius, height) => {
+    const shape = new ConeGeometry(radius, height, 18, 1, true);
+    shape.translate(0, height / 2, 0);
+    return shape;
+  };
+  const flame = new Group();
+  flame.name = 'flame';
+  const ring = [];
+  for (let index = 0; index < FLAME_TONGUES; index += 1) {
+    const angle = (index / FLAME_TONGUES) * Math.PI * 2;
+    const tall = 0.09 + (index % 3) * 0.025;
+    const part = k.mesh(tongue(0.022, tall), outer, [Math.cos(angle) * 0.1, 0, Math.sin(angle) * 0.1], [Math.sin(angle) * 0.18, 0, -Math.cos(angle) * 0.18], { cast: false });
+    part.userData.phase = index * 1.7;
+    ring.push(part);
+  }
+  const heart = k.mesh(tongue(0.075, 0.17), outer, [0, 0, 0], [0, 0, 0], { cast: false });
+  const inner = k.mesh(tongue(0.045, 0.12), core, [0, 0, 0], [0, 0, 0], { cast: false });
+  heart.userData.phase = 0.4;
+  inner.userData.phase = 2.3;
+  flame.add(...ring, heart, inner);
+  flame.userData.dynamic = true;
+  flame.userData.tongues = [...ring, heart, inner];
+  flame.userData.materials = [outer, core];
+  flame.visible = false;
+  return flame;
 }
 
 function tasteStation(k, textures) {
@@ -224,77 +262,87 @@ function criticStation(k) {
     mound,
     garnish
   );
-  const stand = new Group();
-  stand.add(
-    k.mesh(new CylinderGeometry(0.06, 0.07, 0.02, 24), brass, [0, 0.01, 0]),
-    k.mesh(new CylinderGeometry(0.008, 0.008, 0.26, 10), brass, [0, 0.14, 0]),
-    k.mesh(new TorusGeometry(0.11, 0.014, 14, 44), brass, [0, 0.36, 0], [0.2, 0, 0]),
-    k.mesh(new CylinderGeometry(0.1, 0.1, 0.006, 36), glass, [0, 0.36, 0], [Math.PI / 2 + 0.2, 0, 0], { cast: false })
-  );
-  stand.position.set(0.32, 0, 0.12);
+  const pepper = new Group();
+  pepper.add(k.mesh(lathe([[0, 0], [0.04, 0], [0.045, 0.02], [0.03, 0.12], [0.036, 0.17], [0.02, 0.2], [0, 0.205]], 24), brass, [0, 0, 0]));
+  pepper.position.set(0.34, 0, -0.08);
   const goblet = new Group();
   goblet.add(
     k.mesh(lathe([[0, 0], [0.045, 0], [0.045, 0.006], [0.007, 0.014], [0.007, 0.1], [0.05, 0.14], [0.056, 0.2], [0.051, 0.2], [0.045, 0.145], [0, 0.13]], 28), glass, [0, 0, 0], [0, 0, 0], { cast: false }),
     k.mesh(lathe([[0, 0.12], [0.04, 0.135], [0.048, 0.16], [0, 0.16]], 24), wine, [0, 0, 0], [0, 0, 0], { cast: false })
   );
   goblet.position.set(-0.42, 0, -0.06);
-  group.add(stand, goblet);
+  group.add(pepper, goblet);
   group.position.set(0, 0, FRONT - 0.04);
   return [group, k.blob(1.1, 0.65, 0, 0, FRONT - 0.04)];
 }
 
+function plated(k, { ceramic, food, leaf, sauce }) {
+  const dish = new Group();
+  const mound = k.mesh(new SphereGeometry(1, 28, 16, 0, Math.PI * 2, 0, Math.PI / 2), food, [0, 0.026, 0]);
+  mound.scale.set(0.11, 0.07, 0.09);
+  const pool = k.mesh(new CylinderGeometry(0.15, 0.15, 0.004, 40), sauce, [0.01, 0.026, 0.01], [0, 0, 0], { cast: false });
+  dish.add(k.mesh(lathe([[0, 0], [0.15, 0], [0.24, 0.018], [0.25, 0.026], [0.14, 0.022], [0, 0.022]], 48), ceramic, [0, 0, 0]), pool, mound);
+  [[-0.03, 0.09, 0.02, 0.5], [0.04, 0.085, -0.02, -0.4], [0.0, 0.1, 0.0, 1.2]].forEach(([x, y, z, turn]) => {
+    const sprig = k.mesh(new SphereGeometry(1, 12, 8), leaf, [x, y, z], [0.3, turn, 0.5]);
+    sprig.scale.set(0.036, 0.008, 0.016);
+    dish.add(sprig);
+  });
+  return dish;
+}
+
 function headChefStation(k, textures, dynamic) {
-  const steel = k.physical('--kitchen-steel', { roughness: 0.26, metalness: 0.95, map: textures.brushed });
-  const brass = k.physical('--room-brass', { roughness: 0.2, metalness: 1, clearcoat: 0.6 });
-  const dark = k.physical('--plinth-base', { roughness: 0.4, clearcoat: 0.5 });
-  const wood = k.standard('--prop-wood', { roughness: 0.5, map: textures.grain });
-  const ink = k.standard('--brand', { roughness: 0.6 });
+  const steel = k.physical('--kitchen-steel', { roughness: 0.22, metalness: 1, map: textures.brushed });
+  const brass = k.physical('--room-brass', { roughness: 0.24, metalness: 0.88, clearcoat: 1, clearcoatRoughness: 0.06, envMapIntensity: 1.5 });
+  const wood = k.physical('--prop-wood', { roughness: 0.35, clearcoat: 0.7, clearcoatRoughness: 0.15, map: textures.grain });
   const paper = k.standard('--prop-paper', { roughness: 0.85, map: textures.paper });
+  const ceramic = k.physical('--prop-paper', { roughness: 0.22, clearcoat: 0.9 });
+  const food = k.physical('--kitchen-food', { roughness: 0.45, clearcoat: 0.5 });
+  const sauce = k.physical('--kitchen-soup', { roughness: 0.2, clearcoat: 0.8 });
+  const leaf = k.standard('--bot-leaf', { roughness: 0.5 });
   const group = new Group();
-  group.add(
-    k.box([0.34, 0.016, 0.26, 0.006], steel, [0.02, 0.008, FRONT + 0.06], [0, -0.12, 0]),
-    k.box([0.06, 0.02, 0.03, 0.006], steel, [0.02, 0.024, FRONT - 0.05], [0, -0.12, 0])
-  );
-  [0, 1, 2].forEach((index) => group.add(k.box([0.2, 0.004, 0.24, 0.002], paper, [0.02 + index * 0.012, 0.02 + index * 0.004, FRONT + 0.06], [0, -0.12 + (index - 1) * 0.1, 0])));
+  group.add(k.box([0.3, 0.016, 0.22, 0.006], steel, [0.42, 0.008, FRONT - 0.02], [0, -0.2, 0]));
+  [0, 1, 2].forEach((index) => group.add(k.box([0.18, 0.004, 0.2, 0.002], paper, [0.42 + index * 0.012, 0.02 + index * 0.004, FRONT - 0.02], [0, -0.2 + (index - 1) * 0.1, 0])));
   const bell = new Group();
   bell.add(
-    k.mesh(new CylinderGeometry(0.11, 0.12, 0.028, 32), dark, [0, 0.014, 0]),
-    k.mesh(lathe([[0, 0.13], [0.035, 0.128], [0.07, 0.11], [0.092, 0.075], [0.102, 0.038], [0.108, 0.03], [0, 0.03]], 40), brass, [0, 0, 0]),
-    k.mesh(new CylinderGeometry(0.009, 0.009, 0.03, 10), brass, [0, 0.14, 0]),
-    k.mesh(new SphereGeometry(0.018, 16, 10), brass, [0, 0.16, 0])
+    k.mesh(lathe([[0, 0], [0.112, 0], [0.12, 0.008], [0.12, 0.022], [0.112, 0.03], [0, 0.03]], 40), wood, [0, 0, 0]),
+    k.mesh(lathe([[0, 0.033], [0.104, 0.033], [0.106, 0.04], [0.1, 0.06], [0.088, 0.085], [0.066, 0.11], [0.036, 0.127], [0, 0.131]], 48), brass, [0, 0, 0]),
+    k.mesh(new CylinderGeometry(0.008, 0.008, 0.032, 12), brass, [0, 0.145, 0]),
+    k.mesh(new SphereGeometry(0.02, 20, 14), brass, [0, 0.166, 0])
   );
-  bell.position.set(-0.4, 0, FRONT);
+  bell.position.set(-0.42, 0, FRONT);
   bell.userData.dynamic = true;
   dynamic.bell = bell;
-  const stamp = new Group();
-  stamp.add(
-    k.mesh(lathe([[0, 0], [0.05, 0], [0.038, 0.06], [0.026, 0.16], [0.05, 0.2], [0.05, 0.23], [0, 0.245]], 28), wood, [0, 0.04, 0]),
-    k.box([0.16, 0.04, 0.12, 0.01], dark, [0, 0.02, 0])
-  );
-  stamp.position.set(0.4, 0, FRONT - 0.02);
-  stamp.rotation.y = -0.3;
-  const pad = k.box([0.2, 0.02, 0.14, 0.006], ink, [0.12, 0.01, FRONT + 0.06], [0, 0.2, 0]);
-  group.add(bell, stamp, pad);
+  const pass = plated(k, { ceramic, food, leaf, sauce });
+  pass.position.set(0.02, 0, FRONT + 0.04);
+  pass.userData.dynamic = true;
+  pass.userData.home = pass.position.x;
+  dynamic.pass = pass;
+  group.add(bell, pass);
   return [group, k.blob(1.5, 0.7, 0, 0, 0.1)];
 }
 
 function serveStation(k) {
   const ceramic = k.physical('--prop-paper', { roughness: 0.22, clearcoat: 0.9 });
-  const steel = k.physical('--kitchen-steel', { roughness: 0.1, metalness: 1, clearcoat: 1, clearcoatRoughness: 0.05 });
+  const steel = k.physical('--kitchen-steel', { roughness: 0.24, metalness: 0.85, clearcoat: 1, clearcoatRoughness: 0.05, envMapIntensity: 1.6 });
   const napkin = k.physical('--brand-soft', { roughness: 0.85, sheen: 0.5 });
+  const food = k.physical('--kitchen-food', { roughness: 0.45, clearcoat: 0.5 });
+  const sauce = k.physical('--kitchen-soup', { roughness: 0.2, clearcoat: 0.8 });
+  const leaf = k.standard('--bot-leaf', { roughness: 0.5 });
   const group = new Group();
   const cloche = new Group();
   cloche.add(
     k.mesh(lathe([[0, 0], [0.22, 0], [0.32, 0.02], [0.33, 0.028], [0.19, 0.016], [0, 0.016]], 48), ceramic, [0, 0, 0]),
-    k.mesh(lathe([[0, 0.3], [0.06, 0.296], [0.14, 0.27], [0.21, 0.2], [0.25, 0.1], [0.26, 0.03], [0.27, 0.022], [0, 0.022]], 48), steel, [0, 0, 0]),
-    k.mesh(new SphereGeometry(0.032, 20, 14), steel, [0, 0.325, 0]),
-    k.mesh(new CylinderGeometry(0.008, 0.008, 0.03, 10), steel, [0, 0.305, 0])
+    k.mesh(lathe([[0, 0.025], [0.255, 0.025], [0.262, 0.031], [0.258, 0.046], [0.25, 0.1], [0.21, 0.2], [0.14, 0.27], [0.06, 0.296], [0, 0.3]], 64), steel, [0, 0, 0]),
+    k.mesh(new CylinderGeometry(0.009, 0.009, 0.03, 12), steel, [0, 0.312, 0]),
+    k.mesh(new SphereGeometry(0.032, 24, 16), steel, [0, 0.338, 0])
   );
-  cloche.position.set(-0.4, 0, FRONT);
-  group.add(cloche);
-  for (let index = 0; index < 4; index += 1) group.add(k.mesh(new CylinderGeometry(0.19, 0.16, 0.022, 40), ceramic, [0.46, 0.011 + index * 0.024, FRONT - 0.06]));
-  group.add(k.box([0.22, 0.03, 0.16, 0.01], napkin, [0.08, 0.015, FRONT + 0.12], [0, 0.4, 0]));
-  return [group, k.blob(1.4, 0.7, 0, 0, FRONT)];
+  cloche.position.set(-0.44, 0, FRONT);
+  const dish = plated(k, { ceramic, food, leaf, sauce });
+  dish.position.set(0.08, 0, FRONT + 0.06);
+  group.add(cloche, dish);
+  for (let index = 0; index < 4; index += 1) group.add(k.mesh(lathe([[0, 0], [0.13, 0], [0.19, 0.016], [0.19, 0.022], [0, 0.02]], 40), ceramic, [0.56, index * 0.024, FRONT - 0.1]));
+  group.add(k.box([0.22, 0.03, 0.16, 0.01], napkin, [0.42, 0.015, FRONT + 0.16], [0, 0.4, 0]));
+  return [group, k.blob(1.5, 0.7, 0, 0, FRONT)];
 }
 
 const BUILDERS = { goal: orderStation, maker: cookStation, verify: tasteStation, review: criticStation, judge: headChefStation, deliver: serveStation };
@@ -447,7 +495,7 @@ function buildPendants(k) {
   for (const x of PENDANT_XS) {
     group.add(
       k.mesh(lathe([[0.04, 0.32], [0.06, 0.3], [0.12, 0.2], [0.24, 0.04], [0.26, 0], [0.25, 0], [0.23, 0.035], [0.11, 0.19], [0.05, 0.29], [0.03, 0.31]], 40), shade, [x, PENDANT_Y, PENDANT_Z], [0, 0, 0], { cast: false }),
-      k.mesh(lathe([[0.235, 0.005], [0.22, 0.035], [0.1, 0.18], [0.045, 0.27], [0, 0.28]], 32), inner, [x, PENDANT_Y, PENDANT_Z], [0, 0, 0], { cast: false }),
+      k.mesh(lathe([[0, 0.28], [0.045, 0.27], [0.1, 0.18], [0.22, 0.035], [0.235, 0.005]], 32, { open: true }), inner, [x, PENDANT_Y, PENDANT_Z], [0, 0, 0], { cast: false }),
       k.mesh(new SphereGeometry(0.06, 16, 12), bulb, [x, PENDANT_Y + 0.08, PENDANT_Z], [0, 0, 0], { cast: false }),
       k.mesh(new CylinderGeometry(0.008, 0.008, 3, 6), cord, [x, PENDANT_Y + 1.8, PENDANT_Z], [0, 0, 0], { cast: false })
     );
@@ -545,7 +593,7 @@ export function buildKitchen({ registry, textures }) {
   const ticket = buildTicket(k);
   const arc = buildReturnArc(k);
   carrier.add(shell, buildGuest(k, textures), ticket, arc);
-  return { carrier, stations, lamps, ticket, arc, burners: dynamic.burners || [], steam: dynamic.steam || null, bell: dynamic.bell || null };
+  return { carrier, stations, lamps, ticket, arc, burners: dynamic.burners || [], steam: dynamic.steam || null, bell: dynamic.bell || null, pan: dynamic.pan || null, flame: dynamic.flame || null, pass: dynamic.pass || null };
 }
 
 export const STATION_WIDTH = STATION_SPACING;

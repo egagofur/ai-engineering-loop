@@ -6,6 +6,7 @@ import {
   HemisphereLight,
   PCFShadowMap,
   PerspectiveCamera,
+  PointLight,
   Raycaster,
   Scene,
   SpotLight,
@@ -21,7 +22,9 @@ import {
   CUT_FADE_MS,
   GUEST_SPOT,
   cameraPose,
+  flameBurst,
   hopHeight,
+  judgeOutcome,
   lampGlow,
   returnPath,
   screenPoint,
@@ -53,6 +56,10 @@ const GUEST_REACH = 0.85;
 const HOVER_LIFT = 0.035;
 const HOVER_EASE_SECONDS = 0.09;
 const DING_SECONDS = 0.9;
+const PUSH_SECONDS = 1.4;
+const PUSH_DISTANCE = 0.28;
+const FLAME_POWER = 1.6;
+const FLAME_BURST_POWER = 5;
 
 function toneColor(color, { tone, saturation }) {
   if (saturation !== 1) {
@@ -137,10 +144,12 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
   });
   const spot = new SpotLight(undefined, 0, 0, 0.42, 0.8, 2);
   spot.position.set(0, 3.4, 1.6);
+  const fire = new PointLight(undefined, 0, 3.2, 2);
+  fire.position.set(stationX('maker') - 0.5, COUNTER_TOP + 0.35, 0.34);
   const critic = new SpotLight(undefined, 0, 0, 0.32, 0.7, 2);
   critic.position.set(stationX('review'), 3.1, 0.9);
   critic.target.position.set(stationX('review'), 0.45, 0.04);
-  scene.add(hemisphere, key, key.target, fill, rim, spot, spot.target, critic, critic.target);
+  scene.add(hemisphere, key, key.target, fill, rim, spot, spot.target, critic, critic.target, fire);
   pendants.forEach((light) => scene.add(light, light.target));
 
   const textures = buildTextures();
@@ -175,6 +184,7 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
   let wakeTimer = 0;
   let hovered = null;
   let dingAt = -1;
+  let pushAt = -1;
 
   function statusMap(next) {
     return Object.fromEntries(next.stages.map((item) => [item.stage, item.status]));
@@ -262,6 +272,7 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
     renderer.toneMappingExposure = Number(read('--kitchen-exposure')) || 1;
     hemisphere.intensity = Number(read('--kitchen-ambient')) || 0.6;
     critic.color.setStyle(read('--bot-devil-eye'));
+    fire.color.setStyle(read('--kitchen-flame'));
     if (environment) environment.dispose();
     environment = studioEnvironment(renderer, read);
     scene.environment = environment.texture;
@@ -449,6 +460,21 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
       });
       moving = moving || (cooking && !reducedMotion);
     }
+    stepFire(cooking);
+    if (current.pan) current.pan.visible = !(current.model.mode === 'working' && current.model.botStage === 'maker');
+    if (current.pass && pushAt >= 0) {
+      const t = elapsed - pushAt;
+      const home = current.pass.userData.home;
+      if (t >= PUSH_SECONDS) {
+        pushAt = -1;
+        current.pass.position.x = home;
+      } else {
+        const out = Math.min(1, t / (PUSH_SECONDS * 0.4));
+        const back = Math.max(0, (t - PUSH_SECONDS * 0.55) / (PUSH_SECONDS * 0.45));
+        current.pass.position.x = home - PUSH_DISTANCE * Math.sin((out * Math.PI) / 2) * (1 - back * back * (3 - 2 * back));
+        moving = true;
+      }
+    }
     STAGES.forEach((name) => {
       const group = current.stations[name];
       const want = hovered === name ? HOVER_LIFT : 0;
@@ -480,6 +506,27 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
     critic.position.x = stationX('review') + current.carrier.position.x;
     critic.target.position.x = critic.position.x;
     return moving || spotLevel !== target;
+  }
+
+  function stepFire(cooking) {
+    const flame = current.flame;
+    if (!flame) return;
+    flame.visible = cooking;
+    fire.position.x = stationX('maker') - 0.5 + current.carrier.position.x;
+    if (!cooking) {
+      fire.intensity = 0;
+      return;
+    }
+    const burst = reducedMotion ? 0 : flameBurst(bot.cookPhase());
+    flame.userData.tongues.forEach((part) => {
+      const flicker = reducedMotion ? 0 : Math.sin(elapsed * 17 + part.userData.phase) * 0.12 + Math.sin(elapsed * 29 + part.userData.phase * 2) * 0.08;
+      part.scale.set(1 + burst * 0.5, 0.55 + burst * 2.1 + flicker, 1 + burst * 0.5);
+    });
+    const glow = reducedMotion ? 0 : Math.sin(elapsed * 23) * 0.18 + Math.sin(elapsed * 41) * 0.1;
+    flame.userData.materials.forEach((material) => {
+      material.opacity = Math.min(1, 0.45 + burst * 0.35 + glow * 0.2);
+    });
+    fire.intensity = FLAME_POWER * (1 + glow) + FLAME_BURST_POWER * burst;
   }
 
   function render() {
@@ -697,7 +744,9 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
       else if (current) {
         const before = current.statuses;
         current.statuses = statusMap(next);
-        if (before.judge === 'now' && current.statuses.judge === 'done' && !reducedMotion) dingAt = elapsed;
+        const outcome = reducedMotion ? null : judgeOutcome(before, current.statuses);
+        if (outcome === 'pass') dingAt = elapsed;
+        if (outcome === 'iterate') pushAt = elapsed;
         current.model = next;
         current.arc.visible = Boolean(returnPath(next));
         paintCarrier(current);
@@ -748,6 +797,7 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
       key.shadow.map?.dispose();
       spot.shadow.map?.dispose();
       pendants.forEach((light) => light.dispose());
+      fire.dispose();
       critic.shadow.map?.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
