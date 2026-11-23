@@ -34,6 +34,7 @@ import {
 import { cubicBezier, EASE_OUT, ROOM_SWITCH_MS, ZOOM_MS } from './mood.js';
 import { patternTexture, radialTexture, readToken, studioEnvironment } from './forms.js';
 import { buildDiners, dinerHeadY, poseDiners } from './diners.js';
+import { createCarriers, swapMode } from './carriers.js';
 import { BOT_Z, COUNTER_FRONT, GUEST_TOP, RAIL_Z, TICKET_Y, buildKitchen } from './stations.js';
 
 const BOT_SIZE = 0.8;
@@ -149,6 +150,8 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
   let spotLevel = 0;
   let elapsed = 0;
   let cutTimer = 0;
+  let cutApply = null;
+  const cutWaiters = [];
   let heading = 0;
 
   function statusMap(next) {
@@ -165,6 +168,29 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
     built.ticket.position.x = target.x;
     built.arc.visible = Boolean(returnPath(next));
     return { ...built, figures: dining.figures, registry, statuses: statusMap(next), botStage: target.stage, botX: target.x, ticketX: target.x, ticketTo: target.x, model: next };
+  }
+
+  function retarget(target, next) {
+    const ticket = ticketTarget(next);
+    target.statuses = statusMap(next);
+    target.model = next;
+    target.arc.visible = Boolean(returnPath(next));
+    target.botStage = ticket.stage;
+    target.botX = ticket.x;
+    target.ticketX = ticket.x;
+    target.ticketTo = ticket.x;
+    target.ticket.position.x = ticket.x;
+    paintCarrier(target);
+  }
+
+  const carriers = createCarriers(stage, {
+    build: buildCarrier,
+    dispose: (target) => disposeTree(target.carrier)
+  });
+
+  function syncCarriers() {
+    current = carriers.current;
+    outgoing = carriers.outgoing;
   }
 
   function paintCarrier(target) {
@@ -336,8 +362,8 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
     if (!swapTween) return;
     const done = swapTween.resolve;
     swapTween = null;
-    if (outgoing) disposeTree(outgoing.carrier);
-    outgoing = null;
+    carriers.finish();
+    syncCarriers();
     current.carrier.position.set(0, 0, 0);
     current.carrier.scale.setScalar(1);
     placeBot(0);
@@ -448,14 +474,22 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
   }
 
   function cutTo(apply) {
-    window.clearTimeout(cutTimer);
-    el.dataset.cut = 'out';
-    cutTimer = window.setTimeout(() => {
-      apply();
-      render();
-      el.dataset.cut = 'in';
-      cutTimer = window.setTimeout(() => delete el.dataset.cut, CUT_FADE_MS);
-    }, CUT_FADE_MS);
+    cutApply = apply;
+    return new Promise((resolve) => {
+      cutWaiters.push(resolve);
+      if (el.dataset.cut === 'out') return;
+      window.clearTimeout(cutTimer);
+      el.dataset.cut = 'out';
+      cutTimer = window.setTimeout(() => {
+        const run = cutApply;
+        cutApply = null;
+        if (run) run();
+        render();
+        el.dataset.cut = 'in';
+        cutWaiters.splice(0).forEach((done) => done());
+        cutTimer = window.setTimeout(() => delete el.dataset.cut, CUT_FADE_MS);
+      }, CUT_FADE_MS);
+    });
   }
 
   function walkTo(next) {
@@ -478,27 +512,23 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
   function swapTo(next, direction) {
     finishSwap();
     walkTween = null;
-    const incoming = buildCarrier(next);
-    paintCarrier(incoming);
-    stage.add(incoming.carrier);
-    if (reducedMotion || !current) {
-      const previous = current;
-      current = incoming;
-      const apply = () => {
-        if (previous) disposeTree(previous.carrier);
-        placeBot(0);
-      };
-      if (previous && reducedMotion) {
-        incoming.carrier.visible = false;
-        cutTo(() => {
-          incoming.carrier.visible = true;
-          apply();
-        });
-      } else apply();
+    const mode = swapMode(direction, { reducedMotion, mounted: Boolean(current) });
+    if (mode === 'mount') {
+      carriers.mount(next);
+      syncCarriers();
+      paintCarrier(current);
+      placeBot(0);
       return Promise.resolve();
     }
-    outgoing = current;
-    current = incoming;
+    if (mode === 'reuse') {
+      return cutTo(() => {
+        retarget(current, next);
+        placeBot(0);
+      });
+    }
+    carriers.slide(next);
+    syncCarriers();
+    paintCarrier(current);
     if (bot.react()) schedule();
     return new Promise((resolve) => {
       swapTween = { start: null, duration: ROOM_SWITCH_MS * 1.3, direction, resolve };
@@ -565,8 +595,8 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
   el.addEventListener('pointerleave', onPointerLeave);
   el.addEventListener('click', onClick);
 
-  current = buildCarrier(model);
-  stage.add(current.carrier);
+  carriers.mount(model);
+  syncCarriers();
   paintScene();
   bot.update(model);
   placeBot(0);
@@ -623,8 +653,9 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
       delete el.dataset.hover;
       delete el.dataset.cut;
       root.querySelectorAll('.stage[data-stage], .ring-bot, .ring-centre, .bot-bubble, .kitchen-ticket, .kitchen-return, .guest, .diner-tag').forEach((node) => node.removeAttribute('style'));
+      cutWaiters.splice(0).forEach((done) => done());
       bot.dispose();
-      if (current) disposeTree(current.carrier);
+      carriers.dispose();
       Object.values(textures).forEach((texture) => texture.dispose());
       if (environment) environment.dispose();
       key.shadow.map?.dispose();

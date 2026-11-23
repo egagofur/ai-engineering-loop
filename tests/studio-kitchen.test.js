@@ -152,3 +152,55 @@ test('premium rendering: sRGB, ACES, soft shadows, PMREM studio environment, bev
   const tokens = read('tokens.css');
   for (const token of new Set([...stations.matchAll(/'(--kitchen-[a-z-]+)'/g)].map((m) => m[1]))) assert.match(tokens, new RegExp(`${token}:`), token);
 });
+
+test('switching projects keeps one kitchen: the scene object count stays constant', async () => {
+  const { Scene, Group } = await import(pathToFileURL(path.join(studio, 'vendor', 'three.module.min.js')).href);
+  const { createCarriers, swapMode } = await load('carriers.js');
+  const { buildKitchen } = await load('stations.js');
+  const { patternTexture, radialTexture } = await load('forms.js');
+  const textures = Object.fromEntries(['planks', 'marble', 'tiles', 'paper', 'panels', 'fabric'].map((name) => [name, patternTexture(name, { size: 8 })]));
+  textures.blob = radialTexture(1.8, 8);
+  assert.equal(swapMode(0, { mounted: false }), 'mount');
+  assert.equal(swapMode(0), 'reuse', 'a project switch reuses the kitchen');
+  assert.equal(swapMode(1, { reducedMotion: true }), 'reuse');
+  assert.equal(swapMode(-1), 'slide', 'Previous/Next slides a second kitchen in');
+  const scene = new Scene();
+  const stage = new Group();
+  scene.add(stage);
+  let built = 0;
+  let disposed = 0;
+  const carriers = createCarriers(stage, {
+    build: () => {
+      built += 1;
+      return buildKitchen({ registry: [], textures });
+    },
+    dispose: (target) => {
+      disposed += 1;
+      target.carrier.removeFromParent();
+    }
+  });
+  const count = () => {
+    let total = 0;
+    scene.traverse(() => { total += 1; });
+    return total;
+  };
+  carriers.mount({});
+  const baseline = count();
+  assert.equal(stage.children.length, 1);
+  for (let index = 0; index < 4; index += 1) {
+    carriers.slide({});
+    assert.equal(stage.children.length, 2, 'two kitchens only while sliding');
+    carriers.slide({});
+    assert.equal(stage.children.length, 2, 'an interrupted slide drops the oldest kitchen');
+    carriers.finish();
+    assert.equal(count(), baseline, `switch ${index}`);
+  }
+  carriers.mount({});
+  assert.equal(count(), baseline);
+  assert.equal(built - disposed, 1, 'every replaced kitchen is disposed');
+  carriers.dispose();
+  assert.equal(stage.children.length, 0);
+  const restaurant = read('js/restaurant.js');
+  assert.match(restaurant, /const mode = swapMode\(direction, \{ reducedMotion, mounted: Boolean\(current\) \}\);/);
+  assert.match(restaurant, /if \(mode === 'reuse'\) \{\n\s+return cutTo\(\(\) => \{\n\s+retarget\(current, next\);/, 'a project switch repaints the same kitchen behind a short fade');
+});

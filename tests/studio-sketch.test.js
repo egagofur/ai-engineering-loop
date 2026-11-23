@@ -73,6 +73,13 @@ test('the goal diagram route renders the draft under its own sandboxed CSP and n
       const csp = response.headers.get('content-security-policy');
       assert.equal(csp, `default-src 'none'; style-src 'sha256-${hash}'; img-src data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'; sandbox`);
     }
+    assert.equal((await get(base, `${route}?view=state`)).headers.get('cache-control'), 'no-store');
+    const detail = (await (await get(base, `/api/projects/${id}/runs/${runId}`)).json()).detail;
+    assert.ok(detail.goalHash);
+    const cached = await get(base, `${route}?view=state&rev=${encodeURIComponent(detail.goalHash)}`);
+    assert.equal(cached.status, 200);
+    assert.equal(cached.headers.get('cache-control'), 'private, max-age=3600, immutable', 'a URL pinned to the current draft hash is cacheable');
+    assert.equal((await get(base, `${route}?view=state&rev=stale`)).headers.get('cache-control'), 'no-store', 'a stale hash is never cached');
     assert.equal((await get(base, `${route}?view=gantt`)).status, 400);
     assert.equal((await get(base, route)).status, 400);
     assert.equal((await get(base, `/api/projects/${id}/runs/nope-run/goal/diagram?view=state`)).status, 404);
@@ -126,7 +133,7 @@ test('the run detail carries diagramOptions and flow counts only while the draft
 });
 
 test('the order sketch sheet: tabs recommended first, counts, no Revise button, Freeze on the same hash path', async () => {
-  const { renderSketch, sketchCounts, REVISE_HINT, renderRunHead } = await load('detail.js');
+  const { renderSketch, sketchCounts, sketchFrame, recommendedView, REVISE_HINT, renderRunHead } = await load('detail.js');
   const detail = {
     diagramOptions: [
       { view: 'state', recommended: true, reason: 'the Goal changes the status of order' },
@@ -135,17 +142,21 @@ test('the order sketch sheet: tabs recommended first, counts, no Revise button, 
     ],
     flowCounts: { undecided: 3, hotspots: 1, sideEffects: 2 }
   };
-  const html = renderSketch(detail, { actor: 'Ega', urlFor: (view) => `/diagram?view=${view}` });
+  const html = renderSketch(detail, { actor: 'Ega' });
   assert.match(html, /<p class="sketch-counts">3 undecided, 1 hotspot, 2 side effects<\/p>/);
   const tabs = [...html.matchAll(/data-sketch-view="([a-z]+)"[^>]*>([A-Za-z]+)/g)].map((match) => `${match[1]}:${match[2]}`);
   assert.deepEqual(tabs, ['state:State', 'storyboard:Storyboard', 'lanes:Lanes']);
   assert.match(html, /aria-selected="true" tabindex="0" data-sketch-view="state"[^>]*>State <span class="tab-note">Recommended<\/span>/);
-  assert.match(html, /<iframe class="sketch-frame" title="State sketch of the Goal" sandbox="" referrerpolicy="no-referrer" src="\/diagram\?view=state"><\/iframe>/);
+  assert.match(html, /<div id="sketch-panel" class="sketch-panel" role="tabpanel" aria-labelledby="sketch-tab-state" aria-busy="true" data-loaded="false"><div class="sketch-skeleton" aria-hidden="true">/, 'the sheet opens on a skeleton');
+  assert.doesNotMatch(html, /<iframe/, 'frames are added lazily, one per visited tab');
+  assert.equal(sketchFrame('state', '/diagram?view=state&rev=h'), '<iframe class="sketch-frame" title="State sketch of the Goal" sandbox="" referrerpolicy="no-referrer" data-view="state" src="/diagram?view=state&amp;rev=h"></iframe>');
+  assert.equal(recommendedView(detail), 'state');
+  assert.equal(recommendedView({ diagramOptions: [{ view: 'lanes' }, { view: 'state', recommended: true }] }), 'state');
   assert.match(html, /data-action="freeze">Freeze as Ega<\/button>/);
   assert.ok(html.includes(REVISE_HINT));
   assert.equal(REVISE_HINT, 'To change the Goal, answer Revise in your agent host.');
   assert.doesNotMatch(html, />Revise</, 'no Revise button in Studio');
-  assert.match(renderSketch(detail, { view: 'lanes', urlFor: (view) => view }), /src="lanes"/);
+  assert.match(renderSketch(detail, { view: 'lanes' }), /aria-selected="true" tabindex="0" data-sketch-view="lanes"/);
   assert.match(renderSketch(detail, {}), /data-action="sketch-freeze-name">Freeze…<\/button>/);
   assert.match(renderSketch({}, {}), /no order sketch/);
   assert.equal(sketchCounts({ undecided: 1, hotspots: 2, sideEffects: 1 }), '1 undecided, 2 hotspots, 1 side effect');
@@ -161,6 +172,7 @@ test('the order sketch sheet: tabs recommended first, counts, no Revise button, 
   const index = fs.readFileSync(path.join(studio, 'index.html'), 'utf8');
   assert.match(index, /<div id="sketch-sheet" class="sheet sketch-sheet" role="dialog" aria-modal="true" aria-labelledby="sketch-title" hidden>/);
   const main = fs.readFileSync(path.join(studio, 'js', 'main.js'), 'utf8');
-  assert.match(main, /diagramUrl\(project\.id, detail\.summary\.runId, view\)/);
+  assert.match(main, /diagramUrl\(target\.project\.id, target\.detail\.summary\.runId, view, target\.detail\.goalHash\)/, 'frame URLs carry the draft hash so the browser can cache them');
+  assert.match(main, /if \(sketchSheet\.isOpen\(\) \|\| waitsForFreeze\(target\.detail\)/, 'the recommended view is prepared while the Run waits for Freeze');
   assert.match(main, /if \(action\.dataset\.action === 'freeze'\) freeze\(undefined, action\);/, 'the sheet Freeze uses the same expectedHash path');
 });

@@ -94,8 +94,13 @@ body[data-sheet="open"] .run{transform:scale(.985)}
 .sketch{display:flex;flex-direction:column;gap:12px;min-height:0;padding:0 20px 20px}
 .sketch-counts{color:var(--text-2);font-variant-numeric:tabular-nums}
 .tab-note{margin-left:4px;color:var(--brand-text);font-size:11px;font-weight:600}
-.sketch-panel{min-height:0;border:1px solid var(--line);border-radius:var(--radius-panel);overflow:hidden;background:var(--surface-2)}
-.sketch-frame{display:block;width:100%;height:min(56dvh,560px);border:0}
+.sketch-panel{position:relative;min-height:min(56dvh,560px);border:1px solid var(--line);border-radius:var(--radius-panel);overflow:hidden;background:var(--surface-2)}
+.sketch-frame{display:block;width:100%;height:min(56dvh,560px);border:0;opacity:1;transition:opacity var(--enter) var(--ease-out)}
+.sketch-panel[data-loaded="false"] .sketch-frame{opacity:0}
+.sketch-skeleton{position:absolute;inset:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:center;gap:28px;padding:48px;pointer-events:none;transition:opacity var(--enter) var(--ease-out)}
+.sketch-skeleton span{height:84px;border-radius:var(--radius-panel);background:var(--surface-3)}
+.sketch-skeleton span:nth-child(2){height:120px}
+.sketch-panel[data-loaded="true"] .sketch-skeleton{opacity:0}
 .sketch-foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
 .sketch-sheet .sheet-panel{width:min(1100px,100%)}
 .freeze-form{display:flex;flex-wrap:wrap;align-items:center;gap:8px}

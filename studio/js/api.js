@@ -43,8 +43,9 @@ export async function fetchDetail(projectId, runId) {
   return (await request(`/api/projects/${segment(projectId)}/runs/${segment(runId)}`)).detail;
 }
 
-export function diagramUrl(projectId, runId, view) {
-  return `/api/projects/${segment(projectId)}/runs/${segment(runId)}/goal/diagram?view=${encodeURIComponent(view)}`;
+export function diagramUrl(projectId, runId, view, rev = null) {
+  const base = `/api/projects/${segment(projectId)}/runs/${segment(runId)}/goal/diagram?view=${encodeURIComponent(view)}`;
+  return rev ? `${base}&rev=${encodeURIComponent(rev)}` : base;
 }
 
 export async function fetchMe() {

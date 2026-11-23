@@ -124,7 +124,7 @@ test('kitchen modules: no raw colours, three imported by relative path, one paus
   assert.equal(scene.reduce((sum, [, source]) => sum + (source.match(/requestAnimationFrame\(/g) || []).length, 0), 1, 'one render loop');
   assert.match(restaurant, /document\.hidden/);
   assert.match(restaurant, /renderer\.dispose\(\)/);
-  assert.match(restaurant, /disposeTree\(outgoing\.carrier\)/, 'the old kitchen is disposed after a swap');
+  assert.match(restaurant, /dispose: \(target\) => disposeTree\(target\.carrier\)/, 'the old kitchen is disposed after a swap');
   for (const gone of ['turntable.js', 'diorama.js', 'rooms.js']) assert.ok(!fs.existsSync(path.join(studio, 'js', gone)), gone);
 });
 

@@ -1,6 +1,6 @@
 import { diagramUrl, fetchDetail, fetchMe, fetchProjects, freezeGoal, saveActor } from './api.js';
 import { renderOverview, renderProjectList, sortProjects, worktreeState } from './list.js';
-import { renderDetail, renderRoomCard, renderRunHead, renderSketch } from './detail.js';
+import { recommendedView, renderDetail, renderRoomCard, renderRunHead, renderSketch, renderSketchFoot, sketchFrame, sketchOptions } from './detail.js';
 import { mountRing2d, ringMode, ringModel } from './ring2d.js';
 import { createSheet, trapFocus } from './sheet.js';
 import { roomTargets, stepTarget, waitBubble, waitLevel, waitSeconds } from './mood.js';
@@ -49,6 +49,8 @@ const state = {
   goalView: 'formatted',
   sketchView: null,
   sketchKey: null,
+  sketchActor: null,
+  sketchWarm: null,
   pendingSketch: null
 };
 
@@ -275,39 +277,103 @@ const sheet = createSheet(elements.sheet, {
 const sketchSheet = createSheet(elements.sketchSheet, {
   onOpenChange(open) {
     document.body.dataset.sheet = open ? 'open' : 'closed';
-    if (!open) state.sketchKey = null;
   }
 });
 
 function hasSketch(detail) {
-  return Boolean(detail && Array.isArray(detail.diagramOptions) && detail.diagramOptions.length);
+  return sketchOptions(detail).length > 0;
 }
 
-function renderSketchSheet({ force = false } = {}) {
+function sketchTarget() {
   const project = selectedProject();
   const detail = state.detail;
-  if (!project || !hasSketch(detail)) return;
-  const views = detail.diagramOptions.map((option) => option.view);
-  if (!views.includes(state.sketchView)) state.sketchView = views[0];
-  const key = [project.id, detail.summary.runId, detail.goalHash, state.sketchView, validActor()].join('|');
-  if (!force && key === state.sketchKey) return;
-  state.sketchKey = key;
-  const focused = document.activeElement && elements.sketch.contains(document.activeElement) ? document.activeElement.dataset.sketchView : null;
-  elements.sketch.innerHTML = renderSketch(detail, {
-    view: state.sketchView,
-    actor: validActor(),
-    urlFor: (view) => diagramUrl(project.id, detail.summary.runId, view)
-  });
-  if (focused) {
-    const tab = elements.sketch.querySelector(`[data-sketch-view="${focused}"]`);
-    if (tab) tab.focus();
+  if (!project || !hasSketch(detail)) return null;
+  return { project, detail, key: [project.id, detail.summary.runId, detail.goalHash].join('|') };
+}
+
+function sketchPanel() {
+  return elements.sketch.querySelector('#sketch-panel');
+}
+
+function markFrame(frame) {
+  frame.dataset.loaded = 'true';
+  const panel = sketchPanel();
+  if (panel && !frame.hidden) {
+    panel.dataset.loaded = 'true';
+    panel.removeAttribute('aria-busy');
   }
 }
 
+function addFrame(target, view) {
+  const panel = sketchPanel();
+  if (!panel) return null;
+  const existing = panel.querySelector(`iframe[data-view="${view}"]`);
+  if (existing) return existing;
+  panel.insertAdjacentHTML('beforeend', sketchFrame(view, diagramUrl(target.project.id, target.detail.summary.runId, view, target.detail.goalHash)));
+  const frame = panel.lastElementChild;
+  frame.hidden = view !== state.sketchView;
+  frame.addEventListener('load', () => markFrame(frame), { once: true });
+  return frame;
+}
+
+function showFrame(target, view) {
+  const panel = sketchPanel();
+  const frame = addFrame(target, view);
+  if (!panel || !frame) return;
+  for (const other of panel.querySelectorAll('iframe[data-view]')) other.hidden = other !== frame;
+  const loaded = frame.dataset.loaded === 'true';
+  panel.dataset.loaded = String(loaded);
+  if (loaded) panel.removeAttribute('aria-busy');
+  else panel.setAttribute('aria-busy', 'true');
+  panel.setAttribute('aria-labelledby', `sketch-tab-${view}`);
+  for (const tab of elements.sketch.querySelectorAll('[role="tab"][data-sketch-view]')) {
+    const on = tab.dataset.sketchView === view;
+    tab.setAttribute('aria-selected', String(on));
+    tab.tabIndex = on ? 0 : -1;
+  }
+}
+
+function prepareSketch() {
+  const target = sketchTarget();
+  if (!target) return false;
+  const actor = validActor();
+  if (target.key !== state.sketchKey) {
+    state.sketchKey = target.key;
+    state.sketchActor = actor;
+    state.sketchView = recommendedView(target.detail);
+    elements.sketch.innerHTML = renderSketch(target.detail, { view: state.sketchView, actor });
+  } else if (actor !== state.sketchActor) {
+    state.sketchActor = actor;
+    const foot = elements.sketch.querySelector('.sketch-foot');
+    if (foot) foot.innerHTML = renderSketchFoot(actor);
+  }
+  showFrame(target, state.sketchView);
+  return true;
+}
+
+function waitsForFreeze(detail) {
+  return Boolean(detail && detail.summary && detail.summary.waiting && detail.summary.waiting.kind === 'freeze');
+}
+
 function syncSketch() {
-  if (!sketchSheet.isOpen()) return;
-  if (!hasSketch(state.detail)) sketchSheet.close();
-  else renderSketchSheet();
+  const target = sketchTarget();
+  if (!target) {
+    if (sketchSheet.isOpen()) sketchSheet.close();
+    return;
+  }
+  if (sketchSheet.isOpen() || waitsForFreeze(target.detail) || target.key === state.sketchKey) prepareSketch();
+}
+
+function warmSketchTabs() {
+  const target = sketchTarget();
+  if (!target || state.sketchWarm === target.key) return;
+  state.sketchWarm = target.key;
+  const idle = window.requestIdleCallback || ((run) => window.setTimeout(run, 200));
+  idle(() => {
+    const live = sketchTarget();
+    if (!live || live.key !== target.key) return;
+    for (const option of sketchOptions(target.detail)) addFrame(target, option.view);
+  });
 }
 
 function openSketch(opener) {
@@ -317,9 +383,9 @@ function openSketch(opener) {
   }
   if (roomView.open) return;
   if (sheet.isOpen()) sheet.close();
-  state.sketchView = null;
-  renderSketchSheet({ force: true });
+  prepareSketch();
   sketchSheet.open(opener || null);
+  warmSketchTabs();
 }
 
 const narrowQuery = window.matchMedia('(max-width: 899px)');
@@ -574,8 +640,10 @@ document.addEventListener('keydown', (event) => {
 });
 
 function showSketchView(view, { focus = false } = {}) {
+  const target = sketchTarget();
+  if (!target) return;
   state.sketchView = view;
-  renderSketchSheet();
+  showFrame(target, view);
   if (focus) {
     const tab = elements.sketch.querySelector(`[data-sketch-view="${view}"]`);
     if (tab) tab.focus();

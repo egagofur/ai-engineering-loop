@@ -29,23 +29,42 @@ export function sketchCounts(counts) {
   return [part(counts.undecided, 'undecided', 'undecided'), part(counts.hotspots, 'hotspot', 'hotspots'), part(counts.sideEffects, 'side effect', 'side effects')].join(', ');
 }
 
-export function renderSketch(detail, { view = null, actor = null, urlFor = () => '' } = {}) {
-  const options = detail && Array.isArray(detail.diagramOptions) ? detail.diagramOptions.filter((option) => SKETCH_VIEWS[option.view]) : [];
-  if (!options.length) return '<p class="quiet-text">There is no order sketch for this Goal.</p>';
-  const selected = options.some((option) => option.view === view) ? view : options[0].view;
-  const tab = (option) => {
-    const on = option.view === selected;
-    const note = option.recommended ? ' <span class="tab-note">Recommended</span>' : '';
-    return `<button type="button" role="tab" id="sketch-tab-${option.view}" aria-controls="sketch-panel" aria-selected="${on}" tabindex="${on ? 0 : -1}" data-sketch-view="${option.view}" title="${escapeHtml(option.reason || '')}">${SKETCH_VIEWS[option.view]}${note}</button>`;
-  };
+export function sketchOptions(detail) {
+  return detail && Array.isArray(detail.diagramOptions) ? detail.diagramOptions.filter((option) => SKETCH_VIEWS[option.view]) : [];
+}
+
+export function recommendedView(detail) {
+  const options = sketchOptions(detail);
+  const pick = options.find((option) => option.recommended) || options[0];
+  return pick ? pick.view : null;
+}
+
+export function sketchTab(option, selected) {
+  const on = option.view === selected;
+  const note = option.recommended ? ' <span class="tab-note">Recommended</span>' : '';
+  return `<button type="button" role="tab" id="sketch-tab-${option.view}" aria-controls="sketch-panel" aria-selected="${on}" tabindex="${on ? 0 : -1}" data-sketch-view="${option.view}" title="${escapeHtml(option.reason || '')}">${SKETCH_VIEWS[option.view]}${note}</button>`;
+}
+
+export function sketchFrame(view, url) {
+  return `<iframe class="sketch-frame" title="${SKETCH_VIEWS[view]} sketch of the Goal" sandbox="" referrerpolicy="no-referrer" data-view="${view}" src="${escapeHtml(url)}"></iframe>`;
+}
+
+export function renderSketchFoot(actor = null) {
   const freeze = actor
     ? `<button type="button" class="primary" data-action="freeze">Freeze as ${escapeHtml(actor)}</button>`
     : '<button type="button" class="primary" data-action="sketch-freeze-name">Freeze…</button>';
+  return `<p class="quiet-text">${REVISE_HINT}</p>${freeze}`;
+}
+
+export function renderSketch(detail, { view = null, actor = null } = {}) {
+  const options = sketchOptions(detail);
+  if (!options.length) return '<p class="quiet-text">There is no order sketch for this Goal.</p>';
+  const selected = options.some((option) => option.view === view) ? view : recommendedView(detail);
   return `<p class="sketch-counts">${escapeHtml(sketchCounts(detail.flowCounts))}</p>`
-    + `<div class="tabs" role="tablist" aria-label="Sketch view">${options.map(tab).join('')}</div>`
-    + `<div id="sketch-panel" class="sketch-panel" role="tabpanel" aria-labelledby="sketch-tab-${selected}">`
-    + `<iframe class="sketch-frame" title="${SKETCH_VIEWS[selected]} sketch of the Goal" sandbox="" referrerpolicy="no-referrer" src="${escapeHtml(urlFor(selected))}"></iframe></div>`
-    + `<div class="sketch-foot"><p class="quiet-text">${REVISE_HINT}</p>${freeze}</div>`;
+    + `<div class="tabs" role="tablist" aria-label="Sketch view">${options.map((option) => sketchTab(option, selected)).join('')}</div>`
+    + `<div id="sketch-panel" class="sketch-panel" role="tabpanel" aria-labelledby="sketch-tab-${selected}" aria-busy="true" data-loaded="false">`
+    + '<div class="sketch-skeleton" aria-hidden="true"><span></span><span></span><span></span></div></div>'
+    + `<div class="sketch-foot">${renderSketchFoot(actor)}</div>`;
 }
 
 export function renderFreezeButton(summary, actor) {
