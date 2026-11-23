@@ -152,6 +152,7 @@ test('C-52 CLI basics: unknown command, help, bare ael, empty run, gate without 
   assert.strictEqual(help.status, 0);
   assert.ok(help.stdout.split('\n').length <= 30, `short help, got ${help.stdout.split('\n').length} lines`);
   assert.match(help.stdout, /ael setup/);
+  assert.match(help.stdout, /ael studio\s+watch every project's bot on this machine \(read-only, Freeze\)/);
   assert.match(cli('help', 'run').stdout, /^Usage: npx ai-engineering-loop run/);
   assert.match(cli('help', '--all').stdout, /generate-adapter/);
   const bare = cli();

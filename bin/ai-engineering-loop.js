@@ -5587,7 +5587,7 @@ Everyday:
   ael status                     is this project ready, and what is running?
   ael run "<task>"               start or resume a Run; the agent drives the rest
   ael quick start "<task>"       a tiny change in two calls (T0)
-  ael studio                     watch the Run in your browser
+  ael studio                     watch every project's bot on this machine (read-only, Freeze)
   ael doctor                     check this machine (git, agent skill, gh/glab)
 
 Help:

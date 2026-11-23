@@ -231,7 +231,7 @@ Smart context keeps review path-first instead of transcript-heavy. It can build 
 
 ```bash
 npx ai-engineering-loop context index
-npx ai-engineering-loop context query createStudioRun
+npx ai-engineering-loop context query createRun
 npx ai-engineering-loop context related lib/studio-server.js
 npx ai-engineering-loop context fast-path --json
 npx ai-engineering-loop context diff-hunks --run <run-id>
