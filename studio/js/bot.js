@@ -26,7 +26,7 @@ import {
 } from '../vendor/three.module.min.js';
 
 import { RING_STAGES } from './ring2d.js';
-import { botFace, roomConfig } from './diorama.js';
+import { botFace, stationConfig } from './kitchen.js';
 import { contactShadow, lathe, radialTexture, roundedBox } from './forms.js';
 
 export const REACTION_SECONDS = 0.7;
@@ -99,10 +99,10 @@ function verifyClip() {
   return new AnimationClip('verify', duration, [
     shown('prop_verify', duration),
     ...breathe(duration, 0.02),
-    hold('armR.rotation[x]', duration, -1.35),
-    number('armR.rotation[z]', [0, duration / 2, duration], [0.35, -0.25, 0.35]),
-    number('neck.rotation[y]', [0, duration / 2, duration], [0.3, -0.25, 0.3]),
-    hold('head.rotation[x]', duration, 0.18),
+    number('armR.rotation[x]', [0, duration * 0.35, duration * 0.55, duration * 0.8, duration], [-0.9, -2.15, -2.15, -0.9, -0.9]),
+    number('armR.rotation[z]', [0, duration * 0.35, duration], [0.2, -0.35, 0.2]),
+    number('neck.rotation[y]', [0, duration * 0.6, duration * 0.8, duration], [0, 0, 0.25, 0]),
+    number('head.rotation[x]', [0, duration * 0.35, duration * 0.6, duration], [0.3, -0.12, -0.05, 0.3]),
     hold('armL.rotation[z]', duration, 0.3)
   ]);
 }
@@ -112,10 +112,11 @@ function reviewClip() {
   return new AnimationClip('review', duration, [
     shown('prop_review', duration),
     ...breathe(duration, 0.015),
-    hold('armR.rotation[x]', duration, -2.2),
-    hold('armR.rotation[z]', duration, -0.5),
-    hold('armL.rotation[x]', duration, -0.8),
-    hold('armL.rotation[z]', duration, 0.7),
+    number('armR.rotation[x]', [0, duration / 2, duration], [-1.25, -1.05, -1.25]),
+    number('armR.rotation[z]', [0, duration / 2, duration], [-0.25, -0.45, -0.25]),
+    hold('armL.rotation[x]', duration, -0.3),
+    hold('armL.rotation[z]', duration, 0.55),
+    number('head.rotation[x]', [0, duration / 2, duration], [0.32, 0.26, 0.32]),
     number('head.rotation[z]', [0, duration * 0.4, duration * 0.7, duration], [0.12, 0.18, 0.05, 0.12]),
     number('body.rotation[z]', [0, duration / 2, duration], [0.04, -0.03, 0.04])
   ]);
@@ -331,6 +332,7 @@ function buildRig() {
   const card = material(new MeshStandardMaterial({ roughness: 0.75 }));
   const glass = material(new MeshPhysicalMaterial({ roughness: 0.02, transparent: true, opacity: 0.28, clearcoat: 1, depthWrite: false }));
   const ink = material(new MeshStandardMaterial({ roughness: 0.5 }));
+  const hat = material(new MeshPhysicalMaterial({ roughness: 0.7, sheen: 0.6, sheenRoughness: 0.6 }));
   const steamMaterial = material(new MeshStandardMaterial({ roughness: 1, transparent: true, opacity: 0.55, depthWrite: false }));
 
   const canvas = document.createElement('canvas');
@@ -382,7 +384,11 @@ function buildRig() {
   const horns = [-1, 1].map((side) => mesh(hornShape, horn, [side * 0.24, 0.32, 0.05], [0.15, 0, -side * 0.5]));
   const devilHead = group('costume_devil_head', horns);
 
-  const head = group('head', [headShell, visorMesh, eyePlane, ...ears, antenna, philosopherHead, devilHead]);
+  const hatBand = mesh(geometry(new CylinderGeometry(0.36, 0.38, 0.14, 40)), hat, [0, 0.36, -0.02]);
+  const hatPuff = mesh(geometry(lathe([[0, 0], [0.34, 0], [0.42, 0.05], [0.47, 0.14], [0.46, 0.24], [0.38, 0.3], [0.2, 0.33], [0, 0.335]], 40)), hat, [0, 0.42, -0.02]);
+  const chefHead = group('costume_chef_head', [hatBand, hatPuff]);
+  chefHead.userData.size = 0.82;
+  const head = group('head', [headShell, visorMesh, eyePlane, ...ears, antenna, philosopherHead, devilHead, chefHead]);
   const neck = group('neck', [head], [0, 1.16, 0]);
 
   const drape = mesh(geometry(lathe([[0.445, 0.12], [0.455, 0.28], [0.445, 0.46], [0.4, 0.62], [0.37, 0.66]], 48)), cloth);
@@ -425,27 +431,33 @@ function buildRig() {
   leftScroll.scale.setScalar(0.001);
   left.value.add(leftScroll);
 
-  const hammer = toolAt('prop_maker', [
-    mesh(geometry(new CylinderGeometry(0.025, 0.03, 0.42, 16)), wood, [0, 0.12, 0]),
-    mesh(geometry(roundedBox(0.24, 0.1, 0.1, 0.03)), metal, [0, 0.34, 0])
+  const spatula = toolAt('prop_maker', [
+    mesh(geometry(new CylinderGeometry(0.022, 0.026, 0.34, 16)), wood, [0, 0.08, 0]),
+    mesh(geometry(roundedBox(0.16, 0.2, 0.018, 0.008)), metal, [0, 0.34, 0])
   ], [0, -0.36, 0.06], [-Math.PI / 2, 0, 0]);
-  const magnifier = toolAt('prop_verify', [
+  const spoon = toolAt('prop_verify', [
+    mesh(geometry(new CylinderGeometry(0.014, 0.016, 0.3, 12)), metal, [0, 0.08, 0]),
+    mesh(geometry(new SphereGeometry(1, 20, 12)), metal, [0, 0.26, 0.01])
+  ], [0, -0.36, 0.06], [-1.3, 0, 0]);
+  spoon.children[1].scale.set(0.05, 0.07, 0.022);
+  const magnifier = toolAt('prop_review', [
     mesh(geometry(new CylinderGeometry(0.022, 0.026, 0.22, 16)), wood, [0, 0.06, 0]),
     mesh(geometry(new TorusGeometry(0.13, 0.022, 16, 40)), metal, [0, 0.32, 0]),
     mesh(geometry(new CylinderGeometry(0.12, 0.12, 0.01, 40)), glass, [0, 0.32, 0], [Math.PI / 2, 0, 0])
   ], [0, -0.36, 0.06], [-1.4, 0, 0]);
-  const gavel = toolAt('prop_judge', [
-    mesh(geometry(new CylinderGeometry(0.022, 0.026, 0.38, 16)), wood, [0, 0.1, 0]),
-    mesh(geometry(lathe([[0, -0.13], [0.06, -0.13], [0.075, -0.1], [0.07, -0.03], [0.055, 0], [0.07, 0.03], [0.075, 0.1], [0.06, 0.13], [0, 0.13]], 28)), wood, [0, 0.32, 0], [0, 0, Math.PI / 2])
-  ], [0, -0.36, 0.06], [-Math.PI / 2, 0, 0]);
+  const stamp = toolAt('prop_judge', [
+    mesh(geometry(lathe([[0, 0], [0.04, 0], [0.03, 0.08], [0.022, 0.2], [0.05, 0.24], [0.05, 0.28], [0, 0.3]], 24)), wood, [0, 0, 0]),
+    mesh(geometry(roundedBox(0.2, 0.05, 0.14, 0.012)), ink, [0, -0.01, 0])
+  ], [0, -0.36, 0.06], [Math.PI, 0, 0]);
   const parcel = group('prop_deliver', [
-    mesh(geometry(roundedBox(0.5, 0.36, 0.36, 0.04)), card),
-    mesh(geometry(roundedBox(0.08, 0.372, 0.372, 0.01)), paper)
-  ], [0, 0.36, 0.52]);
+    mesh(geometry(new CylinderGeometry(0.3, 0.27, 0.025, 40)), paper, [0, 0, 0]),
+    mesh(geometry(lathe([[0, 0.22], [0.08, 0.215], [0.17, 0.18], [0.23, 0.11], [0.26, 0.03], [0.265, 0.01], [0, 0.01]], 40)), metal, [0, 0.01, 0]),
+    mesh(geometry(new SphereGeometry(0.03, 16, 10)), metal, [0, 0.245, 0])
+  ], [0, 0.38, 0.5]);
   parcel.scale.setScalar(0.001);
-  const review = group('prop_review', [], [0, 0, 0]);
+  const review = group('prop_review_spot', [], [0, 0, 0]);
   review.scale.setScalar(0.001);
-  right.value.add(quill, hammer, magnifier, gavel);
+  right.value.add(quill, spatula, spoon, magnifier, stamp);
 
   const puffShape = geometry(new SphereGeometry(0.16, 20, 14));
   const steam = group('steam', [-0.55, 0.55, 0].map((x, index) => {
@@ -479,10 +491,12 @@ function buildRig() {
     shadow,
     costumes: {
       philosopher: [philosopherHead, philosopherBody],
-      devil: [devilHead]
+      devil: [devilHead],
+      chef: [chefHead]
     },
     scroll: leftScroll,
-    materials: { shell, trim, visor, glow, cloth, leaf, horn, wood, metal, paper, card, glass, ink, steam: steamMaterial, eye: eyeMaterial },
+    antenna,
+    materials: { shell, trim, visor, glow, cloth, leaf, horn, wood, metal, paper, card, glass, ink, hat, steam: steamMaterial, eye: eyeMaterial },
     geometries,
     allMaterials: materials,
     textures
@@ -503,6 +517,7 @@ const PAINT = {
   card: '--prop-box',
   glass: '--prop-paper',
   ink: '--on-brand',
+  hat: '--prop-paper',
   steam: '--prop-paper',
   eye: '--bot-eye'
 };
@@ -522,8 +537,8 @@ export function createBot({ reducedMotion = false, size = 1, read } = {}) {
   reaction.setLoop(LoopOnce, 1);
   const fading = new Set();
   const glance = { x: 0, y: 0, toX: 0, toY: 0 };
-  const tones = { devil: 0, philosopher: 0, anger: 0, scroll: 0 };
-  const targets = { devil: 0, philosopher: 0, anger: 0, scroll: 0 };
+  const tones = { devil: 0, philosopher: 0, chef: 0, anger: 0, scroll: 0 };
+  const targets = { devil: 0, philosopher: 0, chef: 0, anger: 0, scroll: 0 };
   const palette = {};
   const scratch = new Color();
   let current = null;
@@ -563,18 +578,21 @@ export function createBot({ reducedMotion = false, size = 1, read } = {}) {
     if (!palette.shell) return;
     shell.color.copy(palette.shell).lerp(palette.devilShell, tones.devil);
     if (tones.anger > 0) shell.color.lerp(palette.danger, tones.anger * 0.45);
-    shell.roughness = 0.32 + tones.devil * 0.3;
-    shell.clearcoat = 1 - tones.devil * 0.75;
+    shell.roughness = 0.32 + tones.devil * 0.46;
+    shell.clearcoat = 1 - tones.devil * 0.9;
     trim.color.copy(palette.trim).lerp(palette.devilTrim, tones.devil);
     visor.color.copy(palette.visor);
     eye.color.copy(palette.eye).lerp(palette.devilEye, Math.max(tones.devil, tones.anger * 0.8));
+    if (tones.devil > 0) eye.color.multiplyScalar(1 - tones.devil * 0.3);
     glow.color.copy(palette.glow).lerp(palette.devilEye, tones.devil);
     glow.emissive.copy(glow.color);
     glow.emissiveIntensity = 0.9 - tones.devil * 0.5;
     const show = (list, amount) => list.forEach((part) => part.scale.setScalar(Math.max(0.001, amount)));
     show(rig.costumes.philosopher, tones.philosopher);
     show(rig.costumes.devil, tones.devil);
+    rig.costumes.chef.forEach((part) => part.scale.setScalar(Math.max(0.001, tones.chef * (part.userData.size || 1))));
     rig.scroll.scale.setScalar(Math.max(0.001, tones.scroll));
+    rig.antenna.scale.setScalar(Math.max(0.001, 1 - tones.chef));
   }
 
   function staticPose(next) {
@@ -654,9 +672,10 @@ export function createBot({ reducedMotion = false, size = 1, read } = {}) {
     },
     update(next) {
       model = next;
-      const costume = roomConfig(next.botStage).costume;
+      const costume = stationConfig(next.botStage).costume;
       targets.philosopher = costume === 'philosopher' ? 1 : 0;
       targets.devil = costume === 'devil' ? 1 : 0;
+      targets.chef = costume === 'chef' ? 1 : 0;
       targets.anger = next.mode === 'waiting' ? Math.max(0, ((next.waitLevel || 1) - 2) / 2) : 0;
       targets.scroll = next.mode === 'working' && next.botStage === 'goal' ? 1 : 0;
       setFace(botFace(next));

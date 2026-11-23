@@ -59,40 +59,6 @@ export function roundedBox(width, height, depth, radius = 0.03, segments = 3) {
   return geometry;
 }
 
-export function sectorSlab({ inner, outer, start, end, thickness, bevel = 0.02, curve = 24 }) {
-  const shape = new Shape();
-  const a0 = (start * Math.PI) / 180;
-  const a1 = (end * Math.PI) / 180;
-  shape.moveTo(Math.sin(a0) * inner, Math.cos(a0) * inner);
-  shape.lineTo(Math.sin(a0) * outer, Math.cos(a0) * outer);
-  for (let index = 1; index <= curve; index += 1) {
-    const a = a0 + ((a1 - a0) * index) / curve;
-    shape.lineTo(Math.sin(a) * outer, Math.cos(a) * outer);
-  }
-  shape.lineTo(Math.sin(a1) * inner, Math.cos(a1) * inner);
-  for (let index = curve - 1; index >= 0; index -= 1) {
-    const a = a0 + ((a1 - a0) * index) / curve;
-    shape.lineTo(Math.sin(a) * inner, Math.cos(a) * inner);
-  }
-  const geometry = new ExtrudeGeometry(shape, {
-    depth: Math.max(0.0001, thickness - bevel * 2),
-    bevelEnabled: true,
-    bevelThickness: bevel,
-    bevelSize: bevel,
-    bevelSegments: 3,
-    curveSegments: 4
-  });
-  geometry.rotateX(Math.PI / 2);
-  geometry.translate(0, thickness - bevel, 0);
-  geometry.computeVertexNormals();
-  return geometry;
-}
-
-export function wallPanel({ radius, start, end, height, thickness, bevel = 0.015 }) {
-  const geometry = sectorSlab({ inner: radius - thickness, outer: radius, start, end, thickness: height, bevel });
-  return geometry;
-}
-
 export function lathe(points, segments = 40) {
   return new LatheGeometry(points.map(([x, y]) => new Vector2(x, y)), segments);
 }
@@ -223,22 +189,8 @@ const PATTERNS = {
     const grout = Math.min(fu, 1 - fu, fv, 1 - fv) < 0.04 ? 0.72 : 1;
     return grout * (0.95 + hash(Math.floor(u * n), Math.floor(v * n), 2) * 0.05);
   },
-  stone(u, v) {
-    const n = fbm(u * 6, v * 6, 21, 6, 5);
-    const slab = Math.min((u * 3) % 1, 1 - ((u * 3) % 1), (v * 3) % 1, 1 - ((v * 3) % 1)) < 0.02 ? 0.7 : 1;
-    return slab * (0.78 + n * 0.3);
-  },
-  concrete(u, v) {
-    return 0.86 + fbm(u * 16, v * 16, 31, 16, 5) * 0.16 + (hash(Math.floor(u * 256), Math.floor(v * 256), 9) - 0.5) * 0.04;
-  },
   paper(u, v) {
     return 0.93 + fbm(u * 10, v * 10, 41, 10, 4) * 0.07;
-  },
-  pegboard(u, v) {
-    const n = 12;
-    const fu = (u * n) % 1 - 0.5;
-    const fv = (v * n) % 1 - 0.5;
-    return Math.hypot(fu, fv) < 0.14 ? 0.45 : 0.97;
   },
   panels(u, v) {
     const fu = (u * 3) % 1;
@@ -246,10 +198,6 @@ const PATTERNS = {
     const edge = Math.min(fu, 1 - fu, fv, 1 - fv);
     const bevel = edge < 0.03 ? 0.7 : edge < 0.07 ? 1.05 : 1;
     return bevel * (0.88 + 0.12 * (0.5 + 0.5 * Math.sin((v * 40 + fbm(u * 6, v * 20, 5, 6) * 4) * Math.PI)));
-  },
-  shutter(u, v) {
-    const f = (v * 14) % 1;
-    return f < 0.12 ? 0.68 : 0.92 + f * 0.08;
   },
   fabric(u, v) {
     const weave = 0.5 + 0.25 * Math.sin(u * 160 * Math.PI) * Math.sin(v * 160 * Math.PI);

@@ -21,20 +21,20 @@ test('wait levels escalate at 30 s, 2 min and 5 min from one constant', async ()
   assert.equal(waitSeconds(null, 0), 0);
 });
 
-test('bubble copy is fixed per wait kind and level; only levels 3 and 4 rotate; reduced motion shows one line', async () => {
+test('bubble copy is restaurant-flavoured, fixed per wait kind and level; only levels 3 and 4 rotate; reduced motion shows one line', async () => {
   const { WAIT_COPY, waitBubble } = await load('mood.js');
   assert.deepStrictEqual(Object.keys(WAIT_COPY).sort(), ['approval', 'freeze', 'question']);
   for (const kind of Object.keys(WAIT_COPY)) {
     assert.equal(WAIT_COPY[kind].length, 4, kind);
     for (const lines of WAIT_COPY[kind]) for (const line of lines) assert.ok(line.length <= 32, line);
   }
-  assert.deepStrictEqual(waitBubble('freeze', 5), { level: 1, text: '?', rotates: false });
+  assert.deepStrictEqual(waitBubble('freeze', 5), { level: 1, text: 'Your order, please?', rotates: false });
   assert.deepStrictEqual(waitBubble('freeze', 60, 1), { level: 2, text: '…', rotates: false });
-  assert.deepStrictEqual(waitBubble('freeze', 200, 0), { level: 3, text: 'Freeze me already!', rotates: true });
-  assert.equal(waitBubble('approval', 200, 0).text, 'Approve the delivery, please!');
+  assert.deepStrictEqual(waitBubble('freeze', 200, 0), { level: 3, text: 'The kitchen is waiting…', rotates: true });
+  assert.equal(waitBubble('approval', 200, 0).text, "The food's getting cold!");
   assert.equal(waitBubble('freeze', 400, 1).text, "I've been waiting ages!");
-  assert.deepStrictEqual(waitBubble('freeze', 400, 3, { reducedMotion: true }), { level: 4, text: 'Freeze me already!', rotates: false });
-  assert.equal(waitBubble('unknown', 5).text, '?');
+  assert.deepStrictEqual(waitBubble('freeze', 400, 3, { reducedMotion: true }), { level: 4, text: 'Confirm the order!', rotates: false });
+  assert.equal(waitBubble('unknown', 5).text, 'A quick question?');
 });
 
 test('Next/Previous walk the projects with an active Run in list order and wrap', async () => {
@@ -73,26 +73,6 @@ test('motion uses one ease-out curve: cubic-bezier(0.23, 1, 0.32, 1), zoom 600-9
   assert.ok(Math.abs(linear(0.3) - 0.3) < 1e-4);
 });
 
-test('each stage has a room on the turntable: props, floor and wall tokens, Review is dim', async () => {
-  const { ROOM_CONFIG, roomConfig } = await load('diorama.js');
-  assert.deepStrictEqual(Object.keys(ROOM_CONFIG), STAGES);
-  assert.equal(roomConfig('review').mood, 'dim');
-  assert.equal(roomConfig('review').costume, 'devil');
-  assert.equal(roomConfig('goal').costume, 'philosopher');
-  assert.ok(roomConfig('goal').props.includes('column') && roomConfig('goal').props.includes('scroll'), 'the philosopher gets a column and a scroll');
-  assert.ok(roomConfig('judge').props.includes('scales'));
-  assert.ok(roomConfig('deliver').props.includes('crates'));
-  assert.equal(roomConfig('nope'), ROOM_CONFIG.goal);
-  const tokens = read('tokens.css');
-  for (const config of Object.values(ROOM_CONFIG)) {
-    for (const token of [config.floorToken, config.wallToken]) assert.match(tokens, new RegExp(`${token}:`), token);
-  }
-  const rooms = read('js/rooms.js');
-  for (const stage of STAGES) assert.match(rooms, new RegExp(`${stage}: ${stage}Room`), stage);
-  assert.match(rooms, /mergeStatic\(group\)/, 'static room geometry is merged per material');
-  assert.match(rooms, /new InstancedMesh\(/, 'repeated items are instanced');
-});
-
 test('bot waiting moods: calm look-around, foot tap, crossed arms, angry hops with steam', async () => {
   const { buildClips } = await load('bot.js');
   const waiting = buildClips().waiting;
@@ -103,7 +83,7 @@ test('bot waiting moods: calm look-around, foot tap, crossed arms, angry hops wi
   assert.ok(names[2].includes('armR.rotation[z]') && names[2].includes('armL.rotation[z]'), 'level 3 crosses the arms');
   assert.ok(names[3].includes('steam.scale') && names[3].includes('puff1.position[y]'), 'steam puffs');
   assert.ok(!names[2].includes('steam.scale'));
-  const { botFace } = await load('diorama.js');
+  const { botFace } = await load('kitchen.js');
   const wait = (waitLevel) => botFace({ mode: 'waiting', botStage: 'goal', waitLevel });
   assert.deepStrictEqual([1, 2, 3, 4].map(wait), ['question', 'open', 'annoyed', 'angry']);
   assert.equal(botFace({ mode: 'working', botStage: 'review' }), 'squint');
@@ -132,10 +112,10 @@ test('room card: project, title, activity, stage, iteration, wait and the same F
   assert.doesNotMatch(renderRoomCard({ ...summary, waiting: { kind: 'approval' } }, { actor: 'Ega' }), /data-action="freeze"/);
 });
 
-test('the room is a labelled modal dialog over the zoomed turntable with Previous, Next and Close, arrow keys and Esc', () => {
+test('the room is a labelled modal dialog over the zoomed kitchen with Previous, Next and Close, arrow keys and Esc', () => {
   const html = read('index.html');
   assert.match(html, /<div id="room" class="room" role="dialog" aria-modal="true" aria-labelledby="room-title" hidden>/);
-  assert.doesNotMatch(html, /room-scene/, 'no separate room scene: the turntable camera zooms in');
+  assert.doesNotMatch(html, /room-scene/, 'no separate room scene: the kitchen camera zooms in');
   assert.ok(html.indexOf('id="room"') > html.indexOf('id="run"') && html.indexOf('id="room"') < html.indexOf('id="details-sheet"'), 'the room overlays the stage');
   assert.match(html, /<button type="button" data-action="room-prev" aria-keyshortcuts="ArrowLeft">← Previous<\/button>/);
   assert.match(html, /<button type="button" data-action="room-next" aria-keyshortcuts="ArrowRight">Next →<\/button>/);
@@ -146,8 +126,8 @@ test('the room is a labelled modal dialog over the zoomed turntable with Previou
   assert.match(main, /trapFocus\(event, elements\.room\)/);
   assert.match(main, /stepTarget\(roomTargets\(state\.projects\), state\.selectedId, direction\)/);
   assert.match(main, /ringView\.gl\.zoom\('in'\)/);
-  assert.match(main, /ringView\.gl\.update\(ringView\.model, \{ swap, direction: swap \? roomView\.direction : 0 \}\)/, 'Previous/Next swap the turntable');
+  assert.match(main, /ringView\.gl\.update\(ringView\.model, \{ swap, direction: swap \? roomView\.direction : 0 \}\)/, 'Previous/Next swap the kitchen');
   const server = fs.readFileSync(path.join(__dirname, '..', 'lib', 'studio-server.js'), 'utf8');
-  for (const file of ['mood.js', 'diorama.js', 'forms.js', 'rooms.js', 'turntable.js', 'bot.js']) assert.ok(server.includes(`['/js/${file}', 'js/${file}']`), file);
-  assert.doesNotMatch(server, /js\/ring\.js|js\/room\.js/);
+  for (const file of ['mood.js', 'kitchen.js', 'forms.js', 'stations.js', 'restaurant.js', 'bot.js']) assert.ok(server.includes(`['/js/${file}', 'js/${file}']`), file);
+  assert.doesNotMatch(server, /js\/ring\.js|js\/room\.js|turntable|diorama|rooms\.js/);
 });

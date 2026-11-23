@@ -44,13 +44,13 @@ export async function fetchDetail(projectId, runId) {
 }
 
 export async function fetchMe() {
-  const { actor, actorValid } = await request('/api/me');
-  return { actor, actorValid };
+  const { actor, actorValid, diners = [] } = await request('/api/me');
+  return { actor, actorValid, diners: Array.isArray(diners) ? diners : [] };
 }
 
 export async function saveActor(actor) {
-  const { actor: saved, actorValid } = await request('/api/me', { method: 'PUT', body: { actor } });
-  return { actor: saved, actorValid };
+  const { actor: saved, actorValid, diners = [] } = await request('/api/me', { method: 'PUT', body: { actor } });
+  return { actor: saved, actorValid, diners: Array.isArray(diners) ? diners : [] };
 }
 
 export async function freezeGoal(projectId, runId, expectedHash) {

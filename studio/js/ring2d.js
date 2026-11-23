@@ -1,6 +1,8 @@
-import { escapeHtml, stageLabel } from './list.js';
+import { STAGES, escapeHtml, stageLabel } from './list.js';
+import { returnPath, stationConfig, ticketLabel } from './kitchen.js';
+import { guestPrompt } from './mood.js';
 
-export const RING_STAGES = ['goal', 'maker', 'verify', 'review', 'judge', 'deliver'];
+export const RING_STAGES = STAGES;
 export const RING_STATUSES = ['done', 'now', 'pending', 'skipped'];
 
 const STAGE_SPACING_DEGREES = 360 / RING_STAGES.length;
@@ -107,18 +109,51 @@ export function ringEyebrow(summary, projectName = '') {
 
 function stageItem({ stage, angle, status }) {
   return `<li class="stage ${status}" data-stage="${escapeHtml(stage)}" data-status="${status}" data-angle="${angle}">`
-    + `<i aria-hidden="true"></i>${escapeHtml(stageLabel(stage))}`
+    + `<i aria-hidden="true"></i><b class="stage-station">${escapeHtml(stationConfig(stage).label)}</b> <span class="stage-agent">${escapeHtml(stageLabel(stage))}</span>`
     + `<span class="visually-hidden">, ${STATUS_TEXT[status]}</span></li>`;
 }
 
-export function renderRingFace({ summary, findings = null }) {
+function guestActions(summary, actor) {
+  if (!summary.waiting || summary.waiting.kind !== 'freeze') return '';
+  const freeze = actor
+    ? `<button type="button" class="primary" data-action="freeze">Freeze as ${escapeHtml(actor)}</button>`
+    : '<button type="button" class="primary" data-action="guest-freeze-name">Freeze…</button>';
+  return `<div class="guest-actions">${freeze}</div>`;
+}
+
+export function renderGuest({ summary, actor = null }) {
+  const prompt = guestPrompt(summary && summary.waiting);
+  const ask = prompt
+    ? `<p class="guest-ask"><b>${escapeHtml(prompt.ask)}</b> <span class="guest-note">${escapeHtml(prompt.note)}</span></p>${guestActions(summary, actor)}`
+    : '';
+  return `<div class="guest" data-asking="${prompt ? 'true' : 'false'}"><p class="eyebrow guest-name">You, the guest</p>${ask}</div>`;
+}
+
+export const DINER_SUBTITLE = 'Eating while their workflow cooks';
+
+export function renderDiners(diners) {
+  const list = (Array.isArray(diners) ? diners : []).slice(0, 6).filter((diner) => diner && diner.name);
+  if (!list.length) return '';
+  const item = (diner, index) => `<li><button type="button" class="diner-tag" data-diner="${index}">`
+    + `<span class="diner-dot" aria-hidden="true"></span><span class="diner-card"><b class="diner-name">${escapeHtml(diner.name)}</b>`
+    + (diner.note ? `<span class="diner-note">${escapeHtml(diner.note)}</span>` : '')
+    + `<span class="diner-sub">${DINER_SUBTITLE}</span></span></button></li>`;
+  return `<ul class="diners" aria-label="Diners">${list.map(item).join('')}</ul>`;
+}
+
+export function renderRingFace({ summary, findings = null, actor = null, diners = [] }) {
   const model = ringModel(summary && summary.ring, summary || {});
   const activity = ringActivity(summary, findings);
+  const back = returnPath(model);
   return '<div class="loop">'
-    + `<ol class="stages" aria-label="Run stages">${model.stages.map(stageItem).join('')}</ol>`
+    + `<ol class="stages" aria-label="Kitchen stations">${model.stages.map(stageItem).join('')}</ol>`
     + `<div class="ring-centre" aria-live="polite"><b class="ring-activity">${escapeHtml(activity.title)}</b>`
     + `<span class="eyebrow ring-note">${escapeHtml(activity.note)}</span></div>`
-    + '</div>';
+    + `<p class="kitchen-ticket" data-back="${back ? 'true' : 'false'}">${escapeHtml(ticketLabel(model))}</p>`
+    + (back ? `<p class="kitchen-return">${escapeHtml(back.label)}: ${escapeHtml(stationConfig(back.from).label)} → ${escapeHtml(stationConfig(back.to).label)}</p>` : '')
+    + '</div>'
+    + renderGuest({ summary: summary || {}, actor })
+    + renderDiners(diners);
 }
 
 export function renderRingBot(model, label) {

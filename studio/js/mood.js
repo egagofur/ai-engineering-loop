@@ -4,24 +4,34 @@ export const WAIT_LEVEL_SECONDS = [30, 120, 300];
 
 export const WAIT_COPY = {
   freeze: [
-    ['?'],
-    ['…', 'Hello?'],
-    ['Freeze me already!', 'Hmph.', 'Still here…'],
-    ['Freeze me already!', "I've been waiting ages!", 'Any day now!', 'Hello?!']
+    ['Your order, please?'],
+    ['…', 'Ready to order?'],
+    ['The kitchen is waiting…', 'Hmph.', 'Any time now…'],
+    ['Confirm the order!', "I've been waiting ages!", 'The kitchen is idle!', 'Hello?!']
   ],
   approval: [
-    ['?'],
-    ['…', 'Hello?'],
-    ['Approve the delivery, please!', 'Hmph.', 'Still here…'],
-    ['Approve the delivery, please!', "I've been waiting ages!", 'Ship it already!', 'Hello?!']
+    ['Bring it out?'],
+    ['…', 'Shall I serve?'],
+    ["The food's getting cold!", 'Hmph.', 'Still on the pass…'],
+    ["The food's getting cold!", "I've been waiting ages!", 'Serve it already!', 'Hello?!']
   ],
   question: [
-    ['?'],
-    ['…', 'Hello?'],
-    ['I asked you something!', 'Hmph.', 'Still here…'],
-    ['Answer me, please!', "I've been waiting ages!", 'Any day now!', 'Hello?!']
+    ['A quick question?'],
+    ['…', 'Excuse me?'],
+    ['The waiter asked you!', 'Hmph.', 'Still here…'],
+    ['Answer the waiter!', "I've been waiting ages!", 'Any day now!', 'Hello?!']
   ]
 };
+
+export const GUEST_PROMPT = {
+  freeze: { ask: 'Confirm the order?', note: 'Freeze the Goal here or answer in your agent host.' },
+  approval: { ask: 'Bring it out?', note: 'Approve the delivery in your agent host.' },
+  question: { ask: 'The waiter asks you something.', note: 'Answer in your agent host.' }
+};
+
+export function guestPrompt(waiting) {
+  return waiting ? GUEST_PROMPT[waiting.kind] || GUEST_PROMPT.question : null;
+}
 
 export function waitSeconds(waiting, now = Date.now()) {
   const since = Date.parse(waiting && waiting.since);

@@ -139,14 +139,15 @@ function syncGl(swap) {
     ringView.threeFailed = true;
     if (ticket === ringView.ticket) disposeGl();
   };
-  import('./turntable.js').then(({ mountTurntable }) => {
+  import('./restaurant.js').then(({ mountKitchen }) => {
     if (ticket !== ringView.ticket || !ringView.handle) return;
     ringView.loading = false;
     try {
       elements.ring.dataset.ring = '3d';
-      ringView.gl = mountTurntable(ringView.handle.gl, ringView.model, {
+      ringView.gl = mountKitchen(ringView.handle.gl, ringView.model, {
         root: elements.ring,
         reducedMotion: reducedMotionQuery.matches,
+        diners: (state.me.diners || []).length,
         onOpen: () => openRoom()
       });
       elements.ring.dataset.bot = '3d';
@@ -164,7 +165,7 @@ function syncRing() {
     return;
   }
   const key = `${project.id}|${summary.runId}`;
-  const view = { summary, findings: state.detail.findings, projectName: project.name };
+  const view = { summary, findings: state.detail.findings, projectName: project.name, actor: validActor(), diners: state.me.diners || [] };
   const swap = ringView.key !== null && ringView.key !== key;
   ringView.model = currentModel(summary);
   elements.ring.hidden = false;
@@ -515,6 +516,11 @@ elements.detail.addEventListener('keydown', (event) => {
   showGoalView(tabs[move(tabs.indexOf(tab), tabs.length)].dataset.goalView, { focus: true });
 });
 
+function focusActorInput() {
+  const input = elements.head.querySelector('#freeze-actor');
+  if (input) input.focus();
+}
+
 function wait(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
@@ -564,6 +570,12 @@ function roomStep(direction) {
 }
 
 elements.ring.addEventListener('click', (event) => {
+  const action = event.target.closest('.guest [data-action]');
+  if (action) {
+    if (action.dataset.action === 'freeze') freeze(undefined, action);
+    else if (action.dataset.action === 'guest-freeze-name') focusActorInput();
+    return;
+  }
   if (!event.target.closest('.ring-bot')) return;
   if (ringView.gl) ringView.gl.react();
   openRoom();
@@ -581,10 +593,7 @@ elements.room.addEventListener('click', (event) => {
   else if (name === 'room-prev') roomStep(-1);
   else if (name === 'freeze') freeze(undefined, action);
   else if (name === 'room-freeze-name') {
-    closeRoom().then(() => {
-      const input = elements.head.querySelector('#freeze-actor');
-      if (input) input.focus();
-    });
+    closeRoom().then(focusActorInput);
   }
 });
 

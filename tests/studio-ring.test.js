@@ -44,17 +44,17 @@ test('the ring face is option C: six labelled stages on the circle, status class
   const { renderRing, stagePosition } = await load('ring2d.js');
   const html = renderRing({ summary: summary(['done', 'done', 'done', 'now', 'pending', 'skipped']), findings: { total: 3, blocking: 1 }, projectName: 'socialcrab/orch' });
   assert.doesNotMatch(html, /ring-eyebrow/, 'the eyebrow lives in the stage overlay now');
-  const stages = [...html.matchAll(/<li class="stage ([a-z]+)" data-stage="([a-z]+)" data-status="\1" data-angle="(\d+)"><i aria-hidden="true"><\/i>([A-Za-z]+)<span class="visually-hidden">, ([a-z ]+)<\/span><\/li>/g)]
-    .map((m) => `${m[2]}:${m[1]}:${m[3]}:${m[4]}:${m[5]}`);
+  const stages = [...html.matchAll(/<li class="stage ([a-z]+)" data-stage="([a-z]+)" data-status="\1" data-angle="(\d+)"><i aria-hidden="true"><\/i><b class="stage-station">([A-Za-z ]+)<\/b> <span class="stage-agent">([A-Za-z]+)<\/span><span class="visually-hidden">, ([a-z ]+)<\/span><\/li>/g)]
+    .map((m) => `${m[2]}:${m[1]}:${m[3]}:${m[4]}:${m[5]}:${m[6]}`);
   assert.deepStrictEqual(stages, [
-    'goal:done:0:Goal:done',
-    'maker:done:60:Maker:done',
-    'verify:done:120:Verify:done',
-    'review:now:180:Review:in progress',
-    'judge:pending:240:Judge:not started',
-    'deliver:skipped:300:Deliver:skipped'
+    'goal:done:0:Order:Goal:done',
+    'maker:done:60:Cook:Maker:done',
+    'verify:done:120:Taste:Verify:done',
+    'review:now:180:Critic:Review:in progress',
+    'judge:pending:240:Head chef:Judge:not started',
+    'deliver:skipped:300:Serve:Deliver:skipped'
   ]);
-  assert.match(html, /<ol class="stages" aria-label="Run stages">/);
+  assert.match(html, /<ol class="stages" aria-label="Kitchen stations">/);
   assert.match(html, /<b class="ring-activity">Devil&#39;s Advocate<\/b><span class="eyebrow ring-note">3 findings · 1 blocking<\/span>/);
   assert.match(html, /<div class="ring-orbit" data-at="review"><button type="button" class="bot ring-bot" aria-label="Bot is reviewing: [^"]+"><\/button><p class="bot-bubble" aria-hidden="true" hidden><\/p><\/div>/);
   assert.match(html, /<div class="ring-gl" aria-hidden="true"><\/div>/);
@@ -107,24 +107,25 @@ test('mountRing2d keeps the bot orbit element across updates so it can glide, an
   assert.equal(el.innerHTML, '');
 });
 
-test('turntable modules: no raw colours, three imported by relative path, one paused render loop', () => {
+test('kitchen modules: no raw colours, three imported by relative path, one paused render loop', () => {
   const read = (file) => fs.readFileSync(path.join(studio, 'js', file), 'utf8');
   const ring2d = read('ring2d.js');
-  const diorama = read('diorama.js');
+  const kitchen = read('kitchen.js');
   assert.doesNotMatch(ring2d, /\b(document|window)\b/);
-  assert.doesNotMatch(diorama, /\b(document|window)\b|three\.module/, 'the pure helpers stay DOM and WebGL free');
-  const scene = ['turntable.js', 'rooms.js', 'forms.js', 'bot.js'].map((file) => [file, read(file)]);
-  for (const [name, source] of [['ring2d.js', ring2d], ['diorama.js', diorama], ...scene]) {
+  assert.doesNotMatch(kitchen, /\b(document|window)\b|three\.module/, 'the pure helpers stay DOM and WebGL free');
+  const scene = ['restaurant.js', 'stations.js', 'forms.js', 'bot.js'].map((file) => [file, read(file)]);
+  for (const [name, source] of [['ring2d.js', ring2d], ['kitchen.js', kitchen], ...scene]) {
     assert.doesNotMatch(source, /#[0-9a-fA-F]{3,8}\b|0x[0-9a-fA-F]{6}\b|rgba?\(|hsla?\(/, name);
     assert.doesNotMatch(source, /GLTFLoader|\.glb\b|\.gltf\b|https?:/, name);
   }
   for (const [name, source] of scene) assert.match(source, /from '\.\.\/vendor\/three\.module\.min\.js'/, name);
   assert.match(read('forms.js'), /getComputedStyle\(document\.documentElement\)\.getPropertyValue\(/);
-  const turntable = read('turntable.js');
+  const restaurant = read('restaurant.js');
   assert.equal(scene.reduce((sum, [, source]) => sum + (source.match(/requestAnimationFrame\(/g) || []).length, 0), 1, 'one render loop');
-  assert.match(turntable, /document\.hidden/);
-  assert.match(turntable, /renderer\.dispose\(\)/);
-  assert.match(turntable, /disposeTree\(outgoing\.carrier\)/, 'the old turntable is disposed after a swap');
+  assert.match(restaurant, /document\.hidden/);
+  assert.match(restaurant, /renderer\.dispose\(\)/);
+  assert.match(restaurant, /disposeTree\(outgoing\.carrier\)/, 'the old kitchen is disposed after a swap');
+  for (const gone of ['turntable.js', 'diorama.js', 'rooms.js']) assert.ok(!fs.existsSync(path.join(studio, 'js', gone)), gone);
 });
 
 test('vendored three.js is pinned, licensed and its core import is vendored too', () => {
@@ -141,7 +142,7 @@ test('main.js draws the DOM ring always and the WebGL ring only with WebGL and a
   const main = fs.readFileSync(path.join(studio, 'js', 'main.js'), 'utf8');
   assert.match(main, /prefers-reduced-motion: reduce/);
   assert.match(main, /getContext\('webgl2'\)/);
-  assert.match(main, /import\('\.\/turntable\.js'\)/);
+  assert.match(main, /import\('\.\/restaurant\.js'\)/);
   assert.match(main, /ringMode\(\{ webgl: HAS_WEBGL, threeFailed: ringView\.threeFailed \}\) === '3d'/);
   assert.match(main, /dataset\.bot = 'css'/);
   const css = fs.readFileSync(path.join(studio, 'styles.css'), 'utf8');

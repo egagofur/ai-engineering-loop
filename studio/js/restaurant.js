@@ -4,11 +4,8 @@ import {
   DirectionalLight,
   Group,
   HemisphereLight,
-  Mesh,
-  MeshBasicMaterial,
   PCFShadowMap,
   PerspectiveCamera,
-  PlaneGeometry,
   Raycaster,
   Scene,
   SpotLight,
@@ -18,36 +15,39 @@ import {
   WebGLRenderer
 } from '../vendor/three.module.min.js';
 
-import { RING_STAGES } from './ring2d.js';
+import { STAGES } from './list.js';
 import { createBot } from './bot.js';
 import {
   CUT_FADE_MS,
+  GUEST_SPOT,
   cameraPose,
-  facing,
   hopHeight,
-  labelVisibility,
-  roomAngle,
-  roomConfig,
-  roomLighting,
+  lampGlow,
+  returnPath,
   screenPoint,
+  stationLighting,
+  stationX,
   swapOffset,
-  turnPlan
-} from './diorama.js';
+  ticketTarget,
+  walkPlan
+} from './kitchen.js';
 import { cubicBezier, EASE_OUT, ROOM_SWITCH_MS, ZOOM_MS } from './mood.js';
 import { patternTexture, radialTexture, readToken, studioEnvironment } from './forms.js';
-import { BOT_SPOT, FLOOR_TOP, PLAQUE_HEIGHT, PLAQUE_RADIUS, buildPlatter, buildRoom } from './rooms.js';
+import { buildDiners, dinerHeadY, poseDiners } from './diners.js';
+import { BOT_Z, COUNTER_FRONT, GUEST_TOP, RAIL_Z, TICKET_Y, buildKitchen } from './stations.js';
 
-const BOT_SIZE = 0.34;
-const DIM_ROOM = 0.5;
-const HOP = 0.42;
+const BOT_SIZE = 0.8;
+const DIM_STATION = 0.55;
+const HOP = 0.14;
 const MAX_FRAME_SECONDS = 0.1;
-const LABEL_GAP = 12;
-const CENTRE_DROP = -0.62;
-const CENTRE_GAP = 26;
-const SPOT_ON = 14;
+const LABEL_GAP = 8;
+const SPOT_ON = 16;
+const CRITIC_SPOT = 7;
 const SPOT_EASE_SECONDS = 0.35;
-const CANDLE_BASE = 0.9;
-const RADIANS = Math.PI / 180;
+const TICKET_EASE_SECONDS = 0.28;
+const TURN_EASE_SECONDS = 0.16;
+const STEAM_SECONDS = 1.8;
+const GUEST_REACH = 0.85;
 
 function toneColor(color, { tone, saturation }) {
   if (saturation !== 1) {
@@ -62,14 +62,10 @@ function toneColor(color, { tone, saturation }) {
 function buildTextures() {
   return {
     planks: patternTexture('planks', { repeat: 0.9 }),
-    marble: patternTexture('marble', { repeat: 0.55 }),
-    tiles: patternTexture('tiles', { repeat: 0.8 }),
-    stone: patternTexture('stone', { repeat: 0.7 }),
-    concrete: patternTexture('concrete', { repeat: 0.8 }),
+    marble: patternTexture('marble', { repeat: 0.35 }),
+    tiles: patternTexture('tiles', { repeat: 5 }),
     paper: patternTexture('paper', { repeat: 1 }),
-    pegboard: patternTexture('pegboard', { repeat: 2.5 }),
-    panels: patternTexture('panels', { repeat: 1.6 }),
-    shutter: patternTexture('shutter', { repeat: 1.6 }),
+    panels: patternTexture('panels', { repeat: 2 }),
     fabric: patternTexture('fabric', { repeat: 2 }),
     blob: radialTexture(1.8)
   };
@@ -81,14 +77,18 @@ function disposeTree(object) {
   object.traverse((child) => {
     if (child.geometry) geometries.add(child.geometry);
     if (child.material) [].concat(child.material).forEach((material) => materials.add(material));
-    if (child.isLight && child.shadow && child.shadow.map) child.shadow.map.dispose();
   });
   object.removeFromParent();
   geometries.forEach((geometry) => geometry.dispose());
   materials.forEach((material) => material.dispose());
 }
 
-export function mountTurntable(el, model, { root, reducedMotion = false, onOpen = null } = {}) {
+function settle(current, target, seconds, constant) {
+  const next = current + (target - current) * (1 - Math.exp(-seconds / constant));
+  return Math.abs(next - target) < 0.002 ? target : next;
+}
+
+export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = null, diners = 0 } = {}) {
   const renderer = new WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.outputColorSpace = SRGBColorSpace;
@@ -99,27 +99,29 @@ export function mountTurntable(el, model, { root, reducedMotion = false, onOpen 
   el.appendChild(renderer.domElement);
 
   const scene = new Scene();
-  const camera = new PerspectiveCamera(30, 1, 0.1, 60);
-  const hemisphere = new HemisphereLight(undefined, undefined, 0.7);
-  const key = new DirectionalLight(undefined, 2.4);
-  key.position.set(-3.6, 7.2, 5.2);
-  key.target.position.set(0, 0, 0.4);
+  const camera = new PerspectiveCamera(36, 1, 0.1, 80);
+  const hemisphere = new HemisphereLight(undefined, undefined, 0.75);
+  const key = new DirectionalLight(undefined, 2.3);
+  key.position.set(-4.5, 9, 6.5);
+  key.target.position.set(0, 0, 0.6);
   key.castShadow = true;
   key.shadow.mapSize.set(2048, 2048);
-  Object.assign(key.shadow.camera, { left: -3.3, right: 3.3, top: 3.3, bottom: -3.3, near: 3, far: 16 });
+  Object.assign(key.shadow.camera, { left: -9, right: 9, top: 6, bottom: -6, near: 3, far: 24 });
   key.shadow.camera.updateProjectionMatrix();
   key.shadow.bias = -0.0004;
   key.shadow.normalBias = 0.02;
   key.shadow.radius = 5;
   key.shadow.blurSamples = 16;
-  const fill = new DirectionalLight(undefined, 0.55);
-  fill.position.set(5, 3, 3);
-  const rim = new DirectionalLight(undefined, 1.1);
-  rim.position.set(1.5, 4, -6);
-  const spot = new SpotLight(undefined, 0, 0, 0.4, 0.85, 2);
-  spot.position.set(0, 3.1, 3.7);
-  spot.target.position.set(0, FLOOR_TOP, BOT_SPOT - 0.45);
-  scene.add(hemisphere, key, key.target, fill, rim, spot, spot.target);
+  const fill = new DirectionalLight(undefined, 0.5);
+  fill.position.set(6, 3, 4);
+  const rim = new DirectionalLight(undefined, 0.9);
+  rim.position.set(2, 5, -7);
+  const spot = new SpotLight(undefined, 0, 0, 0.42, 0.8, 2);
+  spot.position.set(0, 3.4, 1.6);
+  const critic = new SpotLight(undefined, 0, 0, 0.32, 0.7, 2);
+  critic.position.set(stationX('review'), 3.1, 0.9);
+  critic.target.position.set(stationX('review'), 0.45, 0.04);
+  scene.add(hemisphere, key, key.target, fill, rim, spot, spot.target, critic, critic.target);
 
   const textures = buildTextures();
   const stage = new Group();
@@ -136,18 +138,18 @@ export function mountTurntable(el, model, { root, reducedMotion = false, onOpen 
   const scratch = new Vector3();
   let current = null;
   let outgoing = null;
-  let modelNow = model;
   let width = 1;
   let height = 1;
   let frame = 0;
   let lastTime = 0;
   let zoomed = 0;
   let zoomTween = null;
-  let turnTween = null;
+  let walkTween = null;
   let swapTween = null;
   let spotLevel = 0;
   let elapsed = 0;
   let cutTimer = 0;
+  let heading = 0;
 
   function statusMap(next) {
     return Object.fromEntries(next.stages.map((item) => [item.stage, item.status]));
@@ -155,38 +157,26 @@ export function mountTurntable(el, model, { root, reducedMotion = false, onOpen 
 
   function buildCarrier(next) {
     const registry = [];
-    const lights = [];
-    const carrier = new Group();
-    const { platter, base } = buildPlatter({ registry, textures });
-    const rooms = {};
-    RING_STAGES.forEach((name) => {
-      const built = buildRoom(name, { registry, lights, textures });
-      built.group.rotation.y = roomAngle(name) * RADIANS;
-      platter.add(built.group);
-      rooms[name] = built.group;
-    });
-    const floatMaterial = new MeshBasicMaterial({ transparent: true, opacity: 0.28, depthWrite: false, alphaMap: textures.blob });
-    registry.push({ material: floatMaterial, token: '--shadow' });
-    const floatGeometry = new PlaneGeometry(6.4, 6.4);
-    floatGeometry.rotateX(-Math.PI / 2);
-    const floating = new Mesh(floatGeometry, floatMaterial);
-    floating.position.y = -1.05;
-    carrier.add(base, platter, floating);
-    const angle = -roomAngle(next.botStage);
-    platter.rotation.y = angle * RADIANS;
-    return { carrier, platter, rooms, registry, lights, angle, statuses: statusMap(next), botStage: next.botStage };
+    const built = buildKitchen({ registry, textures });
+    const dining = buildDiners({ registry, textures, count: diners });
+    built.carrier.add(dining.group);
+    poseDiners(dining.figures, 0, { reducedMotion: true });
+    const target = ticketTarget(next);
+    built.ticket.position.x = target.x;
+    built.arc.visible = Boolean(returnPath(next));
+    return { ...built, figures: dining.figures, registry, statuses: statusMap(next), botStage: target.stage, botX: target.x, ticketX: target.x, ticketTo: target.x, model: next };
   }
 
   function paintCarrier(target) {
     for (const entry of target.registry) {
       const status = entry.stage ? target.statuses[entry.stage] : null;
-      const light = roomLighting(status);
+      const light = stationLighting(status);
       const material = entry.material;
-      if (entry.plaque || entry.lamp) {
-        const value = read(light.plaque);
+      if (entry.lamp) {
+        const value = read(light.lamp);
         material.color.setStyle(value);
         material.emissive.setStyle(value);
-        material.emissiveIntensity = entry.plaque ? light.glow * 0.6 : light.glow * 1.6;
+        material.emissiveIntensity = lampGlow(status, elapsed, { reducedMotion }) * 1.6;
         if (!light.glow) material.color.multiplyScalar(0.7);
         continue;
       }
@@ -194,28 +184,22 @@ export function mountTurntable(el, model, { root, reducedMotion = false, onOpen 
       if (!value) continue;
       material.color.setStyle(value);
       if (entry.emissive) material.emissive.setStyle(read(entry.emissive));
+      if (entry.burner) material.emissive.setStyle(read('--kitchen-flame'));
       if (entry.sheen && material.sheenColor) material.sheenColor.setStyle(read(entry.sheen));
       if (entry.stage && !entry.flat) toneColor(material.color, light);
-      if (entry.stage && !entry.flat && roomConfig(entry.stage).mood === 'dim') {
-        material.color.multiplyScalar(DIM_ROOM);
-        material.envMapIntensity = DIM_ROOM * 0.6;
+      if (entry.stage === 'review' && !entry.flat) {
+        material.color.multiplyScalar(DIM_STATION);
+        material.envMapIntensity = DIM_STATION;
       }
-      if (entry.stage && entry.emissive) toneColor(material.emissive, light);
     }
     target.carrier.traverse((child) => {
       if (!child.isInstancedMesh || !child.userData.colors) return;
-      const status = target.statuses[child.parent && child.parent.name.replace('room_', '')];
       const color = new Color();
       for (let index = 0; index < child.count; index += 1) {
         color.setStyle(read(child.userData.colors[index % child.userData.colors.length]));
-        toneColor(color, roomLighting(status));
         child.setColorAt(index, color);
       }
       if (child.instanceColor) child.instanceColor.needsUpdate = true;
-    });
-    target.lights.forEach((entry) => {
-      entry.light.color.setStyle(read(entry.token));
-      entry.light.intensity = CANDLE_BASE;
     });
   }
 
@@ -226,6 +210,7 @@ export function mountTurntable(el, model, { root, reducedMotion = false, onOpen 
     fill.color.setStyle(read('--light-fill'));
     rim.color.setStyle(read('--light-key'));
     spot.color.setStyle(read('--light-now'));
+    critic.color.setStyle(read('--bot-devil-eye'));
     if (environment) environment.dispose();
     environment = studioEnvironment(renderer, read);
     scene.environment = environment.texture;
@@ -235,12 +220,13 @@ export function mountTurntable(el, model, { root, reducedMotion = false, onOpen 
     if (outgoing) paintCarrier(outgoing);
   }
 
-  function frontStage() {
-    return current ? current.botStage : modelNow.botStage;
+  function offset() {
+    return current ? current.carrier.position : scratch.set(0, 0, 0);
   }
 
   function applyCamera() {
-    const pose = cameraPose(zoomed, width / height);
+    const focus = current ? current.botX + current.carrier.position.x : 0;
+    const pose = cameraPose(zoomed, width / height, focus);
     camera.position.set(...pose.position);
     camera.fov = pose.fov;
     camera.aspect = width / height;
@@ -253,32 +239,39 @@ export function mountTurntable(el, model, { root, reducedMotion = false, onOpen 
     return screenPoint(scratch, width, height);
   }
 
+  function place(node, point, { anchor = 'top', gap = 0 } = {}) {
+    if (!node) return;
+    const screen = project(point);
+    const w = node.offsetWidth;
+    const h = node.offsetHeight;
+    if (anchor === 'side') {
+      node.style.transform = `translate(${(screen.x + gap).toFixed(1)}px, ${(screen.y - h / 2).toFixed(1)}px)`;
+      return;
+    }
+    const y = anchor === 'top' ? screen.y + gap : screen.y - h - gap;
+    node.style.transform = `translate(${(screen.x - w / 2).toFixed(1)}px, ${y.toFixed(1)}px)`;
+  }
+
   function placeOverlay() {
     if (!current) return;
-    const offset = current.carrier.position;
+    const base = current.carrier.position;
     root.querySelectorAll('.stage[data-stage]').forEach((label) => {
-      const name = label.dataset.stage;
-      const a = (roomAngle(name) + current.angle) * RADIANS;
-      const radius = PLAQUE_RADIUS + 0.04;
-      const screen = project(new Vector3(Math.sin(a) * radius + offset.x, PLAQUE_HEIGHT + offset.y, Math.cos(a) * radius + offset.z));
-      const visibility = labelVisibility(facing(name, current.angle));
-      const labelWidth = label.offsetWidth;
-      label.style.transform = `translate(${(screen.x - labelWidth / 2).toFixed(1)}px, ${(screen.y + LABEL_GAP).toFixed(1)}px)`;
-      label.style.opacity = String(visibility.opacity);
-      label.dataset.depth = visibility.depth;
+      place(label, new Vector3(stationX(label.dataset.stage) + base.x, 0.12 + base.y, COUNTER_FRONT + 0.02 + base.z), { gap: LABEL_GAP });
     });
-    const centre = root.querySelector('.ring-centre');
-    if (centre) {
-      const anchor = project(new Vector3(offset.x, CENTRE_DROP + offset.y, PLAQUE_RADIUS + offset.z));
-      centre.style.top = `${(anchor.y + CENTRE_GAP).toFixed(1)}px`;
-      centre.style.left = `${anchor.x.toFixed(1)}px`;
-    }
+    place(root.querySelector('.kitchen-ticket'), new Vector3(current.ticketX + base.x, TICKET_Y + 0.2 + base.y, RAIL_Z + base.z), { anchor: 'bottom', gap: 4 });
+    if (current.arc.visible) place(root.querySelector('.kitchen-return'), current.arc.userData.apex.clone().add(base), { anchor: 'bottom', gap: 10 });
+    place(root.querySelector('.guest'), new Vector3(GUEST_SPOT.x + GUEST_REACH + base.x, GUEST_TOP + base.y, GUEST_SPOT.z + base.z), { anchor: 'side', gap: 14 });
+    root.querySelectorAll('.diner-tag[data-diner]').forEach((tag) => {
+      const figure = current.figures[Number(tag.dataset.diner)];
+      if (!figure) return;
+      place(tag, new Vector3(figure.x + base.x, dinerHeadY() + 0.08 + base.y, figure.z + base.z), { anchor: 'bottom', gap: 2 });
+    });
     const button = root.querySelector('.ring-bot');
     if (!button) return;
     bot.root.getWorldPosition(scratch);
-    const base = scratch.clone();
-    const middle = project(base.clone().setY(base.y + bot.height * 0.5));
-    const top = project(base.clone().setY(base.y + bot.height));
+    const foot = scratch.clone();
+    const middle = project(foot.clone().setY(foot.y + bot.height * 0.55));
+    const top = project(foot.clone().setY(foot.y + bot.height));
     const size = Math.max(40, (middle.y - top.y) * 2.4);
     button.style.width = `${size.toFixed(1)}px`;
     button.style.height = `${size.toFixed(1)}px`;
@@ -288,10 +281,12 @@ export function mountTurntable(el, model, { root, reducedMotion = false, onOpen 
   }
 
   function placeBot(lift = 0) {
-    const offset = current ? current.carrier.position : scratch.set(0, 0, 0);
+    const base = offset();
     const scale = current ? current.carrier.scale.x : 1;
-    bot.root.position.set(offset.x, FLOOR_TOP * scale + offset.y + lift, BOT_SPOT * scale + offset.z);
+    const x = current ? current.botX : 0;
+    bot.root.position.set(base.x + x * scale, base.y + lift, base.z + BOT_Z * scale);
     bot.root.scale.setScalar(BOT_SIZE * scale);
+    bot.root.rotation.y = heading;
   }
 
   function stepTween(tween, time) {
@@ -299,26 +294,35 @@ export function mountTurntable(el, model, { root, reducedMotion = false, onOpen 
     return Math.min(1, (time - tween.start) / tween.duration);
   }
 
-  function stepTurn(time) {
-    if (!turnTween || !current) return false;
-    const progress = stepTween(turnTween, time);
-    const eased = ease(progress);
-    current.angle = turnTween.from + (turnTween.to - turnTween.from) * eased;
-    current.platter.rotation.y = current.angle * RADIANS;
-    placeBot(hopHeight(eased, turnTween.steps) * HOP);
-    if (progress >= 1) {
-      turnTween = null;
+  function stepWalk(time, seconds) {
+    const wanted = walkTween ? Math.sign(walkTween.to - walkTween.from) * Math.PI / 2 : 0;
+    heading = reducedMotion ? 0 : settle(heading, wanted, seconds, TURN_EASE_SECONDS);
+    if (!walkTween || !current) {
       placeBot(0);
-      return false;
+      return heading !== 0;
+    }
+    const progress = stepTween(walkTween, time);
+    const eased = ease(progress);
+    current.botX = walkTween.from + (walkTween.to - walkTween.from) * eased;
+    placeBot(hopHeight(progress, walkTween.hops) * HOP);
+    if (progress >= 1) {
+      walkTween = null;
+      placeBot(0);
     }
     return true;
+  }
+
+  function stepTicket(seconds) {
+    if (!current) return false;
+    current.ticketX = reducedMotion ? current.ticketTo : settle(current.ticketX, current.ticketTo, seconds, TICKET_EASE_SECONDS);
+    current.ticket.position.x = current.ticketX;
+    return current.ticketX !== current.ticketTo;
   }
 
   function stepZoom(time) {
     if (!zoomTween) return false;
     const progress = stepTween(zoomTween, time);
     zoomed = zoomTween.from + (zoomTween.to - zoomTween.from) * ease(progress);
-    applyCamera();
     if (progress >= 1) {
       const done = zoomTween.resolve;
       zoomTween = null;
@@ -358,23 +362,53 @@ export function mountTurntable(el, model, { root, reducedMotion = false, onOpen 
     return true;
   }
 
-  function stepLights(seconds) {
-    const target = current && current.statuses[frontStage()] === 'now' ? SPOT_ON * roomLighting('now').spot : 0;
-    spotLevel = reducedMotion ? target : spotLevel + (target - spotLevel) * (1 - Math.exp(-seconds / SPOT_EASE_SECONDS));
-    if (Math.abs(spotLevel - target) < 0.01) spotLevel = target;
-    spot.intensity = spotLevel;
-    if (!reducedMotion && current) {
-      elapsed += seconds;
-      current.lights.forEach((entry) => {
-        const flicker = 0.85 + 0.1 * Math.sin(elapsed * 11) + 0.05 * Math.sin(elapsed * 23 + 1.3);
-        entry.light.intensity = CANDLE_BASE * flicker;
-        if (entry.flicker) entry.flicker.scale.set(1, 0.9 + 0.12 * flicker, 1);
-      });
+  function stepStation(seconds) {
+    if (!current) return false;
+    elapsed += seconds;
+    const statuses = current.statuses;
+    const now = STAGES.find((name) => statuses[name] === 'now');
+    let moving = false;
+    if (now && !reducedMotion) {
+      const lamp = current.lamps[now];
+      lamp.emissiveIntensity = lampGlow('now', elapsed) * 1.6;
+      moving = true;
     }
-    return spotLevel !== target;
+    if (current.figures.length && !reducedMotion && current.model.mode !== 'settled') {
+      poseDiners(current.figures, elapsed);
+      moving = true;
+    }
+    const cooking = statuses.maker === 'now';
+    current.burners.forEach((ring) => {
+      ring.material.emissiveIntensity = cooking ? 1.1 : 0;
+    });
+    if (current.steam) {
+      current.steam.children.forEach((puff, index) => {
+        if (!cooking || reducedMotion) {
+          puff.scale.setScalar(cooking ? 0.8 : 0.001);
+          puff.position.y = 0.3;
+          return;
+        }
+        const t = ((elapsed / STEAM_SECONDS) + index / current.steam.children.length) % 1;
+        puff.position.y = 0.26 + t * 0.55;
+        puff.scale.setScalar(Math.max(0.001, Math.sin(Math.PI * t) * (0.8 + t * 0.6)));
+      });
+      moving = moving || (cooking && !reducedMotion);
+    }
+    const target = statuses[current.botStage] === 'now' ? SPOT_ON : 0;
+    spotLevel = reducedMotion ? target : settle(spotLevel, target, seconds, SPOT_EASE_SECONDS);
+    spot.intensity = spotLevel;
+    const focus = current.botX + current.carrier.position.x;
+    spot.position.x = focus;
+    spot.target.position.set(focus, 0.45, 0);
+    const criticOn = statuses.review !== 'skipped';
+    critic.intensity = criticOn ? CRITIC_SPOT * (statuses.review === 'now' ? 1.6 : 1) : 0;
+    critic.position.x = stationX('review') + current.carrier.position.x;
+    critic.target.position.x = critic.position.x;
+    return moving || spotLevel !== target;
   }
 
   function render() {
+    applyCamera();
     placeOverlay();
     renderer.render(scene, camera);
   }
@@ -385,11 +419,12 @@ export function mountTurntable(el, model, { root, reducedMotion = false, onOpen 
     lastTime = time;
     const swapping = stepSwap(time);
     const zooming = stepZoom(time);
-    const turning = stepTurn(time);
+    const walking = stepWalk(time, seconds);
+    const sliding = stepTicket(seconds);
     const botMoving = bot.step(seconds);
-    const lighting = stepLights(seconds);
+    const station = stepStation(seconds);
     render();
-    if (swapping || zooming || turning || botMoving || lighting) schedule();
+    if (swapping || zooming || walking || sliding || botMoving || station) schedule();
     else lastTime = 0;
   }
 
@@ -408,7 +443,6 @@ export function mountTurntable(el, model, { root, reducedMotion = false, onOpen 
     width = el.clientWidth || 1;
     height = el.clientHeight || 1;
     renderer.setSize(width, height);
-    applyCamera();
     render();
     schedule();
   }
@@ -424,24 +458,26 @@ export function mountTurntable(el, model, { root, reducedMotion = false, onOpen 
     }, CUT_FADE_MS);
   }
 
-  function turnTo(next) {
-    const plan = turnPlan(current.angle, next.botStage, { reducedMotion });
-    current.botStage = next.botStage;
-    if (!plan.steps) return;
+  function walkTo(next) {
+    const target = ticketTarget(next);
+    current.botStage = target.stage;
+    current.ticketTo = target.x;
+    const plan = walkPlan(current.botX, target.x, { reducedMotion });
+    if (!plan.steps && !plan.fade) return;
     if (plan.fade) {
-      turnTween = null;
+      walkTween = null;
       cutTo(() => {
-        current.angle = plan.to;
-        current.platter.rotation.y = plan.to * RADIANS;
+        current.botX = target.x;
+        placeBot(0);
       });
       return;
     }
-    turnTween = { start: null, duration: plan.ms, from: current.angle, to: plan.to, steps: plan.steps };
+    walkTween = { start: null, duration: plan.ms, from: current.botX, to: target.x, hops: plan.hops };
   }
 
   function swapTo(next, direction) {
     finishSwap();
-    turnTween = null;
+    walkTween = null;
     const incoming = buildCarrier(next);
     paintCarrier(incoming);
     stage.add(incoming.carrier);
@@ -486,12 +522,12 @@ export function mountTurntable(el, model, { root, reducedMotion = false, onOpen 
   const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
   const glances = finePointer.matches && !reducedMotion;
 
-  function hitsFrontRoom(event) {
+  function hitsBotStation(event) {
     if (!current || zoomed > 0.01) return false;
     const box = el.getBoundingClientRect();
     pointer.set(((event.clientX - box.left) / box.width) * 2 - 1, -((event.clientY - box.top) / box.height) * 2 + 1);
     raycaster.setFromCamera(pointer, camera);
-    return raycaster.intersectObject(current.rooms[frontStage()], true).length > 0;
+    return raycaster.intersectObjects([current.stations[current.botStage], bot.root], true).length > 0;
   }
 
   function onPointerMove(event) {
@@ -506,8 +542,7 @@ export function mountTurntable(el, model, { root, reducedMotion = false, onOpen 
       const reach = Math.min(1, length / 160);
       bot.lookAt((dx / length) * reach, (-dy / length) * reach);
     }
-    const hover = hitsFrontRoom(event);
-    if (hover) el.dataset.hover = 'room';
+    if (hitsBotStation(event)) el.dataset.hover = 'room';
     else delete el.dataset.hover;
     schedule();
   }
@@ -519,7 +554,7 @@ export function mountTurntable(el, model, { root, reducedMotion = false, onOpen 
   }
 
   function onClick(event) {
-    if (onOpen && hitsFrontRoom(event)) onOpen();
+    if (onOpen && hitsBotStation(event)) onOpen();
   }
 
   const resizeObserver = new ResizeObserver(resize);
@@ -538,19 +573,19 @@ export function mountTurntable(el, model, { root, reducedMotion = false, onOpen 
   width = el.clientWidth || 1;
   height = el.clientHeight || 1;
   renderer.setSize(width, height);
-  applyCamera();
   render();
   schedule();
 
   return {
     update(next, { swap = false, direction = 0 } = {}) {
-      modelNow = next;
       let done = Promise.resolve();
       if (swap) done = swapTo(next, direction);
       else if (current) {
         current.statuses = statusMap(next);
+        current.model = next;
+        current.arc.visible = Boolean(returnPath(next));
         paintCarrier(current);
-        if (next.botStage !== current.botStage) turnTo(next);
+        if (ticketTarget(next).stage !== current.botStage) walkTo(next);
       }
       bot.update(next);
       render();
@@ -566,7 +601,6 @@ export function mountTurntable(el, model, { root, reducedMotion = false, onOpen 
       zoomTween = null;
       if (reducedMotion) {
         zoomed = to;
-        applyCamera();
         render();
         return Promise.resolve();
       }
@@ -588,12 +622,14 @@ export function mountTurntable(el, model, { root, reducedMotion = false, onOpen 
       el.removeEventListener('click', onClick);
       delete el.dataset.hover;
       delete el.dataset.cut;
-      root.querySelectorAll('.stage[data-stage], .ring-bot, .ring-centre, .bot-bubble').forEach((node) => node.removeAttribute('style'));
+      root.querySelectorAll('.stage[data-stage], .ring-bot, .ring-centre, .bot-bubble, .kitchen-ticket, .kitchen-return, .guest, .diner-tag').forEach((node) => node.removeAttribute('style'));
       bot.dispose();
       if (current) disposeTree(current.carrier);
       Object.values(textures).forEach((texture) => texture.dispose());
       if (environment) environment.dispose();
       key.shadow.map?.dispose();
+      spot.shadow.map?.dispose();
+      critic.shadow.map?.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
       renderer.domElement.remove();

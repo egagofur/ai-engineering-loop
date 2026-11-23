@@ -1,3 +1,5 @@
+export const STAGES = ['goal', 'maker', 'verify', 'review', 'judge', 'deliver'];
+
 const STATE_ORDER = { waiting: 0, working: 1, idle: 2, missing: 3 };
 
 const STAGE_LABELS = {

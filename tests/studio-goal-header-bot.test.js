@@ -149,7 +149,7 @@ test('bot clips: one looping clip per stage with its prop, a blinking waiting cl
 
 test('bot runtime: crossfades, one paused render loop, reduced motion static, hover only on fine pointers, toned-down glow', () => {
   const bot = read('js/bot.js');
-  const ring = read('js/turntable.js');
+  const ring = read('js/restaurant.js');
   assert.match(bot, /crossFadeTo\(/);
   assert.match(bot, /new AnimationMixer\(/);
   assert.equal((bot.match(/requestAnimationFrame\(/g) || []).length, 0, 'the bot steps inside the ring loop');

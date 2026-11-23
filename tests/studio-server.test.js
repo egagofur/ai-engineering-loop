@@ -345,7 +345,10 @@ test('/api/me resolves the actor from config, then git user.name, and PUT saves 
   fs.writeFileSync(path.join(home, '.gitconfig'), '[user]\n\tname = Fixture Person\n');
   await withStudio({ home }, async ({ base }) => {
     const fromGit = await (await api(base, '/api/me')).json();
-    assert.deepEqual(fromGit, { ok: true, actor: 'Fixture Person', actorValid: true });
+    const { diners, customDiners, ...me } = fromGit;
+    assert.deepEqual(me, { ok: true, actor: 'Fixture Person', actorValid: true });
+    assert.deepEqual(diners.map((diner) => diner.name), ['Matt Pocock', 'Claude'], 'default diners');
+    assert.equal(customDiners, false);
 
     const refused = await api(base, '/api/me', { method: 'PUT', body: { actor: 'gpt-5' } });
     assert.equal(refused.status, 403);
@@ -354,13 +357,14 @@ test('/api/me resolves the actor from config, then git user.name, and PUT saves 
 
     const saved = await api(base, '/api/me', { method: 'PUT', body: { actor: 'Ega Gofur' } });
     assert.equal(saved.status, 200);
-    assert.deepEqual(await saved.json(), { ok: true, actor: 'Ega Gofur', actorValid: true });
+    const { diners: _savedDiners, customDiners: _savedCustom, ...savedMe } = await saved.json();
+    assert.deepEqual(savedMe, { ok: true, actor: 'Ega Gofur', actorValid: true });
     assert.deepEqual(readConfig(home), { hostPacks: ['core'], studioActor: 'Ega Gofur' });
     assert.equal((await (await api(base, '/api/me')).json()).actor, 'Ega Gofur');
   });
-  const agentConfigured = fixture({ config: { studioActor: 'assistant' } });
+  const agentConfigured = fixture({ config: { studioActor: 'assistant', studio: { diners: [{ name: '<i>Night owl</i>', note: 'x' }, { name: '' }] } } });
   await withStudio({ home: agentConfigured.home }, async ({ base }) => {
-    assert.deepEqual(await (await api(base, '/api/me')).json(), { ok: true, actor: 'assistant', actorValid: false });
+    assert.deepEqual(await (await api(base, '/api/me')).json(), { ok: true, actor: 'assistant', actorValid: false, diners: [{ name: '<i>Night owl</i>', note: 'x' }], customDiners: true });
   });
 });
 
@@ -383,7 +387,7 @@ test('the ring modules and vendored three.js are served as JavaScript; other ven
   const { home } = fixture();
   await withStudio({ home }, async ({ port }) => {
     const headers = { 'x-ael-studio-token': TOKEN };
-    for (const file of ['/js/turntable.js', '/js/ring2d.js', '/js/diorama.js', '/vendor/three.module.min.js', '/vendor/three.core.min.js']) {
+    for (const file of ['/js/restaurant.js', '/js/ring2d.js', '/js/kitchen.js', '/js/stations.js', '/vendor/three.module.min.js', '/vendor/three.core.min.js']) {
       const response = await rawGet(port, file, headers);
       assert.equal(response.status, 200, file);
       assert.match(response.headers['content-type'], /^text\/javascript/, file);
