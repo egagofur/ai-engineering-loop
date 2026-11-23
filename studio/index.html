@@ -33,6 +33,15 @@
       <button type="button" id="details-open" class="details-button" aria-haspopup="dialog" aria-controls="details-sheet" aria-keyshortcuts="d" hidden>Details <kbd aria-hidden="true">D</kbd></button>
     </section>
   </main>
+  <div id="room" class="room" role="dialog" aria-modal="true" aria-labelledby="room-title" hidden>
+    <div class="room-scene" aria-hidden="true"></div>
+    <div class="room-card"></div>
+    <div class="room-nav">
+      <button type="button" data-action="room-prev" aria-keyshortcuts="ArrowLeft">← Previous</button>
+      <button type="button" data-action="room-close" aria-keyshortcuts="Escape">Close</button>
+      <button type="button" data-action="room-next" aria-keyshortcuts="ArrowRight">Next →</button>
+    </div>
+  </div>
   <div id="details-sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="details-title" hidden>
     <div class="sheet-backdrop" data-action="close-details"></div>
     <div class="sheet-panel" tabindex="-1">

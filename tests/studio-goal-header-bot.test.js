@@ -114,7 +114,7 @@ test('the bot is an accessible button whose label says what it is doing', async 
   assert.equal(botLabel(summary('goal', { waiting: { kind: 'freeze' } }), null), 'Bot is waiting for you: Waiting for Freeze');
   assert.equal(botLabel({ state: 'DELIVERED', ring: STAGES.map((stage) => ({ stage, status: 'done' })) }, null), 'Bot is done: Delivered');
   const html = renderRing({ summary: summary('review'), findings: { total: 3, blocking: 1 } });
-  assert.match(html, /<div class="ring-orbit" data-at="review"><button type="button" class="bot ring-bot" aria-label="Bot is reviewing: Devil&#39;s Advocate, 3 findings · 1 blocking"><\/button><\/div>/);
+  assert.match(html, /<div class="ring-orbit" data-at="review"><button type="button" class="bot ring-bot" aria-label="Bot is reviewing: Devil&#39;s Advocate, 3 findings · 1 blocking"><\/button><p class="bot-bubble" aria-hidden="true" hidden><\/p><\/div>/);
 });
 
 test('bot clips: one looping clip per stage with its prop, a blinking waiting clip, and a short interruptible reaction', async () => {
@@ -128,7 +128,7 @@ test('bot clips: one looping clip per stage with its prop, a blinking waiting cl
     assert.ok(tracks.includes('body.position[y]'), `${stage} breathes`);
     for (const other of STAGES.filter((name) => name !== stage)) assert.ok(!tracks.includes(`prop_${other}.scale`), `${stage} hides ${other}`);
   }
-  assert.ok(clips.waiting.tracks.some((track) => track.name === 'eyes.scale[y]'), 'waiting blinks');
+  assert.ok(clips.waiting[0].tracks.some((track) => track.name === 'eyes.scale[y]'), 'waiting blinks');
   const reaction = clips.reaction;
   assert.ok(REACTION_SECONDS >= 0.6 && REACTION_SECONDS <= 0.8);
   assert.equal(reaction.duration, REACTION_SECONDS);

@@ -56,7 +56,7 @@ test('the ring face is option C: six labelled stages on the circle, status class
   ]);
   assert.match(html, /<ol class="stages" aria-label="Run stages">/);
   assert.match(html, /<b class="ring-activity">Devil&#39;s Advocate<\/b><span class="eyebrow ring-note">3 findings · 1 blocking<\/span>/);
-  assert.match(html, /<div class="ring-orbit" data-at="review"><button type="button" class="bot ring-bot" aria-label="Bot is reviewing: [^"]+"><\/button><\/div>/);
+  assert.match(html, /<div class="ring-orbit" data-at="review"><button type="button" class="bot ring-bot" aria-label="Bot is reviewing: [^"]+"><\/button><p class="bot-bubble" aria-hidden="true" hidden><\/p><\/div>/);
   assert.match(html, /<div class="ring-gl" aria-hidden="true"><\/div>/);
   assert.doesNotMatch(html, /style=|#[0-9a-fA-F]{3,8}\b/, 'positions and colours come from styles.css');
   const css = fs.readFileSync(path.join(studio, 'styles.css'), 'utf8');

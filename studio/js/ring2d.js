@@ -123,14 +123,15 @@ export function renderRingFace({ summary, findings = null }) {
 }
 
 export function renderRingBot(model, label) {
-  return `<div class="ring-orbit" data-at="${escapeHtml(model.botStage)}"><button type="button" class="bot ring-bot" aria-label="${escapeHtml(label)}"></button></div>`;
+  return `<div class="ring-orbit" data-at="${escapeHtml(model.botStage)}"><button type="button" class="bot ring-bot" aria-label="${escapeHtml(label)}"></button><p class="bot-bubble" aria-hidden="true" hidden></p></div>`;
 }
 
 export function renderRing(view) {
   const model = ringModel(view.summary && view.summary.ring, view.summary || {});
   return `<div class="ring-face">${renderRingFace(view)}</div>`
     + renderRingBot(model, botLabel(view.summary, view.findings))
-    + '<div class="ring-gl" aria-hidden="true"></div>';
+    + '<div class="ring-gl" aria-hidden="true"></div>'
+    + '<p class="visually-hidden bot-mood" aria-live="polite"></p>';
 }
 
 export function mountRing2d(el, view) {
@@ -141,6 +142,8 @@ export function mountRing2d(el, view) {
   let faceHtml = renderRingFace(view);
   return {
     gl: el.querySelector('.ring-gl'),
+    bubble: el.querySelector('.bot-bubble'),
+    mood: el.querySelector('.bot-mood'),
     update(next) {
       const html = renderRingFace(next);
       if (html !== faceHtml) {

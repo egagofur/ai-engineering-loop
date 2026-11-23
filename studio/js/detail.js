@@ -1,6 +1,6 @@
-import { escapeHtml, formatElapsed, waitingLabel } from './list.js';
+import { escapeHtml, formatElapsed, stageLabel, waitingLabel } from './list.js';
 import { renderMarkdown } from './markdown.js';
-import { ringEyebrow } from './ring2d.js';
+import { ringActivity, ringEyebrow, ringModel } from './ring2d.js';
 
 export const GOAL_VIEWS = ['formatted', 'markdown'];
 const GOAL_VIEW_LABELS = { formatted: 'Formatted', markdown: 'Markdown' };
@@ -95,4 +95,26 @@ export function renderDetail(detail, { goalView = 'formatted' } = {}) {
     + goalSection(detail.goalMarkdown, goalView)
     + `<section class="detail-card" aria-labelledby="assumptions-title"><h3 id="assumptions-title">Unconfirmed assumptions</h3>${listOrNone(detail.unconfirmed)}</section>`
     + extra;
+}
+
+export function renderRoomCard(summary, { findings = null, projectName = '', actor = null } = {}) {
+  if (!summary) return '';
+  const model = ringModel(summary.ring, summary);
+  const activity = ringActivity(summary, findings);
+  const iteration = `Iteration ${Number(summary.iteration) || 1} of ${Number(summary.maxIterations) || 1}`;
+  const facts = [stageLabel(model.botStage), summary.tier, iteration].filter(Boolean)
+    .map((fact) => `<span class="chip">${escapeHtml(fact)}</span>`).join('');
+  let wait = '';
+  if (summary.waiting) {
+    const action = summary.waiting.kind !== 'freeze'
+      ? ''
+      : actor
+        ? `<button type="button" class="primary" data-action="freeze">Freeze as ${escapeHtml(actor)}</button>`
+        : '<button type="button" class="primary" data-action="room-freeze-name">Freeze…</button>';
+    wait = `<div class="stage-wait"><span class="chip chip-waiting">${escapeHtml(waitingLabel(summary.waiting))}</span>${action}</div>`;
+  }
+  return `<p class="eyebrow">${escapeHtml(projectName)}</p>`
+    + `<h2 id="room-title" class="room-title">${escapeHtml(summary.task || summary.runId)}</h2>`
+    + `<p class="room-activity"><strong>${escapeHtml(activity.title)}</strong> · ${escapeHtml(activity.note)}</p>`
+    + `<div class="room-facts">${facts}</div>${wait}`;
 }

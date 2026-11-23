@@ -68,7 +68,7 @@ function runMeta(run) {
   return parts.map(escapeHtml).join(' · ');
 }
 
-const FINISHED_RUN_STATES = new Set(['REPORTED', 'DELIVERED', 'CANCELLED', 'ESCALATED']);
+export const FINISHED_RUN_STATES = new Set(['REPORTED', 'DELIVERED', 'CANCELLED', 'ESCALATED']);
 
 export function worktreeState(run) {
   if (run.waiting) return 'waiting';

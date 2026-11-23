@@ -30,6 +30,7 @@ import {
   tiltedPoint
 } from './ring2d.js';
 import { createBot } from './bot.js';
+import { cubicBezier, EASE_OUT, ZOOM_MS } from './mood.js';
 
 const DUST_COUNT = 900;
 const DUST_DRIFT = 0.012;
@@ -43,6 +44,8 @@ const LABEL_GAP = 9;
 const CENTRE_LIFT = 0.16;
 const FAR_SCALE = 0.8;
 const FAR_OPACITY = 0.55;
+const ZOOM_DISTANCE = 0.75;
+const ZOOM_FOV = 16;
 const STATUS_TOKENS = { done: '--ok-fill', now: '--brand', pending: '--line-strong', skipped: '--faint' };
 
 function readToken(name) {
@@ -152,6 +155,12 @@ export function mountRing3d(el, model, { root, reducedMotion = false } = {}) {
   let frame = 0;
   let lastTime = 0;
   let elapsed = 0;
+  let zoomed = 0;
+  let zoomTween = null;
+  let zoomFrom = 0;
+  let zoomTo = 0;
+  const ease = cubicBezier(...EASE_OUT);
+  const rest = { z: 1, fov: 28 };
 
   function cameraState() {
     return { fov: view.fov, distance: camera.position.z };
@@ -221,17 +230,46 @@ export function mountRing3d(el, model, { root, reducedMotion = false } = {}) {
     });
   }
 
+  function applyCamera() {
+    const target = bot.root.position;
+    const amount = zoomed;
+    const x = target.x * amount;
+    const y = target.y * amount;
+    const z = rest.z + (target.z + ZOOM_DISTANCE - rest.z) * amount;
+    camera.position.set(x, y, z);
+    camera.fov = rest.fov + (ZOOM_FOV - rest.fov) * amount;
+    camera.updateProjectionMatrix();
+    camera.lookAt(target.x * amount, target.y * amount, target.z * amount);
+  }
+
   function placeBot() {
     const value = point(botAngle, BOT_WORLD_RADIUS + MARKER_RADIUS * 0.5);
     bot.root.position.set(value.x, value.y, value.z);
     const button = root.querySelector('.ring-bot');
-    if (!button) return;
+    if (!button || zoomed) return;
     const centre = projectPoint(value, cameraState(), width, height);
     const top = projectPoint({ ...value, y: value.y + BOT_WORLD_RADIUS }, cameraState(), width, height);
     const size = Math.max(32, (centre.y - top.y) * 2.4);
     button.style.width = `${size.toFixed(1)}px`;
     button.style.height = `${size.toFixed(1)}px`;
     button.style.transform = `translate(${(centre.x - size / 2).toFixed(1)}px, ${(centre.y - size / 2).toFixed(1)}px)`;
+    const bubble = root.querySelector('.bot-bubble');
+    if (bubble) bubble.style.transform = `translate(${(centre.x + size * 0.32).toFixed(1)}px, ${(centre.y - size * 0.55 - (bubble.offsetHeight || 28)).toFixed(1)}px)`;
+  }
+
+  function stepZoom(time) {
+    if (!zoomTween) return false;
+    if (zoomTween.start === null) zoomTween.start = time;
+    const progress = Math.min(1, (time - zoomTween.start) / zoomTween.duration);
+    zoomed = zoomFrom + (zoomTo - zoomFrom) * ease(progress);
+    applyCamera();
+    if (progress >= 1) {
+      const done = zoomTween.resolve;
+      zoomTween = null;
+      done();
+      return false;
+    }
+    return true;
   }
 
   function stepOrbit(seconds) {
@@ -264,12 +302,13 @@ export function mountRing3d(el, model, { root, reducedMotion = false } = {}) {
     frame = 0;
     const seconds = lastTime ? Math.min((time - lastTime) / 1000, MAX_FRAME_SECONDS) : 1 / 60;
     lastTime = time;
+    const zooming = stepZoom(time);
     const drifting = ambient(seconds);
     const orbitSettled = stepOrbit(seconds);
     const botMoving = bot.step(seconds);
     placeBot();
     renderer.render(scene, camera);
-    if (drifting || botMoving || !orbitSettled) schedule();
+    if (zooming || drifting || botMoving || !orbitSettled) schedule();
     else lastTime = 0;
   }
 
@@ -292,9 +331,12 @@ export function mountRing3d(el, model, { root, reducedMotion = false } = {}) {
     renderer.setSize(width, height);
     camera.fov = view.fov;
     camera.aspect = width / height;
-    camera.position.set(0, 0, cameraDistance(view, width / height));
+    rest.z = cameraDistance(view, width / height);
+    rest.fov = view.fov;
+    camera.position.set(0, 0, rest.z);
     camera.lookAt(0, 0, 0);
     camera.updateProjectionMatrix();
+    if (zoomed) applyCamera();
     placeMarkers();
     placeLabels();
     placeBot();
@@ -356,6 +398,25 @@ export function mountRing3d(el, model, { root, reducedMotion = false } = {}) {
     react() {
       if (bot.react()) schedule();
     },
+    zoom(direction) {
+      zoomFrom = zoomed;
+      zoomTo = direction === 'in' ? 1 : 0;
+      if (zoomTween) zoomTween.resolve();
+      if (reducedMotion) {
+        zoomed = zoomTo;
+        applyCamera();
+        if (!zoomed) placeBot();
+        schedule();
+        return Promise.resolve();
+      }
+      return new Promise((resolve) => {
+        zoomTween = { start: null, duration: direction === 'in' ? ZOOM_MS : ZOOM_MS * 0.8, resolve: () => {
+          if (!zoomed) placeBot();
+          resolve();
+        } };
+        schedule();
+      });
+    },
     dispose() {
       stop();
       resizeObserver.disconnect();
@@ -365,7 +426,7 @@ export function mountRing3d(el, model, { root, reducedMotion = false } = {}) {
         root.removeEventListener('pointermove', onPointerMove);
         root.removeEventListener('pointerleave', onPointerLeave);
       }
-      root.querySelectorAll('.stage[data-stage], .ring-bot, .ring-centre').forEach((node) => node.removeAttribute('style'));
+      root.querySelectorAll('.stage[data-stage], .ring-bot, .ring-centre, .bot-bubble').forEach((node) => node.removeAttribute('style'));
       bot.dispose();
       disposables.forEach((value) => value.dispose());
       renderer.dispose();

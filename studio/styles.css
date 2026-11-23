@@ -134,6 +134,27 @@ body[data-sheet="open"] .run{transform:scale(.985)}
 #ring[data-bot="3d"] .ring-bot{background:transparent;box-shadow:none}
 #ring[data-bot="3d"] .ring-bot::before,#ring[data-bot="3d"] .ring-bot::after{visibility:hidden}
 
+.bot-bubble{position:absolute;top:0;left:0;z-index:4;max-width:180px;padding:6px 10px;border:1px solid var(--line);border-radius:12px 12px 12px 4px;background:var(--surface-2);color:var(--text);font-size:12.5px;font-weight:600;line-height:1.25;white-space:nowrap;box-shadow:var(--shadow-raised);pointer-events:none;transform-origin:0 100%;transition:opacity var(--enter) var(--ease-out),scale var(--enter) var(--ease-out)}
+.bot-bubble[data-level="3"]{border-color:var(--brand);color:var(--brand-text)}
+.bot-bubble[data-level="4"]{border-color:var(--danger);background:var(--danger-soft);color:var(--danger-text)}
+.bot-bubble[data-pop]{animation:bubble-pop var(--enter) var(--ease-out)}
+#ring:not([data-ring="3d"]) .bot-bubble{top:calc(50% - 50% * .74 - var(--loop) * .2);left:calc(50% + var(--loop) * .05)}
+#ring[data-ring="3d"] .bot-bubble{transition:opacity var(--enter) var(--ease-out)}
+.run[data-zoom="in"] .loop,.run[data-zoom="in"] .ring-orbit,.run[data-zoom="in"] .stage-head,.run[data-zoom="in"] .details-button,.run[data-zoom="in"] .run-status{opacity:0;scale:1.06;pointer-events:none}
+.loop,.stage-head,.details-button{transition:opacity 600ms var(--ease-out),scale 600ms var(--ease-out)}
+.room{position:fixed;inset:0;z-index:50;display:grid;opacity:0;transition:opacity 260ms var(--ease-out)}
+.room[data-open="true"]{opacity:1}
+.room-scene{position:absolute;inset:0;background:radial-gradient(120% 90% at 50% 40%,var(--stage-top) 0%,var(--stage-bottom) 100%)}
+.room-scene canvas{display:block}
+.room-card{position:absolute;top:20px;left:20px;z-index:1;display:flex;flex-direction:column;gap:4px;width:min(380px,calc(100% - 40px));padding:16px 18px;border:1px solid color-mix(in srgb,var(--line) 70%,transparent);border-radius:var(--radius-card);background:color-mix(in srgb,var(--surface-2) 70%,transparent);-webkit-backdrop-filter:blur(16px) saturate(1.3);backdrop-filter:blur(16px) saturate(1.3);box-shadow:var(--shadow-panel)}
+.room-title{font-size:20px;font-weight:650;letter-spacing:-.015em;overflow-wrap:anywhere}
+.room-activity{color:var(--text-2)}
+.room-activity strong{color:var(--text)}
+.room-facts{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.room-nav{position:absolute;right:20px;bottom:20px;left:20px;z-index:1;display:flex;align-items:center;justify-content:center;gap:10px}
+.room-nav button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:44px;height:40px;padding:0 14px;border:1px solid color-mix(in srgb,var(--line) 70%,transparent);border-radius:999px;background:color-mix(in srgb,var(--surface-2) 72%,transparent);font-weight:600;cursor:pointer;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);box-shadow:var(--shadow-raised);transition:background-color var(--press) ease,transform var(--press) var(--ease-out)}
+.room-nav button:active{transform:scale(.97)}
+.room-nav button:disabled{cursor:default;opacity:.45}
 .run-detail{display:flex;flex-direction:column;gap:16px;min-height:0;overflow:auto;padding:4px 20px 28px;overscroll-behavior:contain}
 .sheet{position:fixed;inset:0;z-index:40}
 .sheet-backdrop{position:absolute;inset:0;background:color-mix(in srgb,var(--shadow) 38%,transparent);opacity:0;transition:opacity 450ms cubic-bezier(.32,.72,0,1)}
@@ -197,6 +218,10 @@ body[data-sheet="open"] .run{transform:scale(.985)}
   .details-button{right:10px;bottom:10px}
   .run-status{left:10px;bottom:56px;max-width:calc(100% - 20px)}
   .facts{grid-template-columns:minmax(0,1fr)}
+  .room-card{top:12px;left:12px;width:calc(100% - 24px);padding:12px 14px}
+  .room-title{font-size:17px}
+  .room-nav{right:12px;bottom:12px;left:12px;gap:8px}
+  .room-nav button{flex:1;padding:0 10px}
 }
 
 @media (hover:hover) and (pointer:fine){
@@ -206,7 +231,11 @@ body[data-sheet="open"] .run{transform:scale(.985)}
   .worktree-row[aria-current="true"]:hover{background:var(--surface-2)}
   .tabs [role="tab"]:hover{color:var(--text)}
   .primary:hover:not(:disabled){background:var(--brand-hover)}
-  .details-button:hover,.sheet-close:hover,.projects-toggle:hover{background:var(--surface-2)}
+  .details-button:hover,.sheet-close:hover,.projects-toggle:hover,.room-nav button:hover:not(:disabled){background:var(--surface-2)}
+}
+
+@keyframes bubble-pop{
+  from{opacity:0;scale:.85}
 }
 
 @keyframes detail-in{
@@ -223,5 +252,8 @@ body[data-sheet="open"] .run{transform:scale(.985)}
   .run,body[data-sheet="open"] .run{transform:none;transition:none}
   .sheet-panel{opacity:0;transform:none;transition:opacity 200ms var(--ease-out)}
   .sheet[data-open="true"] .sheet-panel{opacity:1;transform:none}
+  .bot-bubble[data-pop]{animation:none}
+  .loop,.stage-head,.details-button{transition-property:opacity}
+  .run[data-zoom="in"] .loop,.run[data-zoom="in"] .ring-orbit,.run[data-zoom="in"] .stage-head,.run[data-zoom="in"] .details-button,.run[data-zoom="in"] .run-status{scale:1}
   .project-row,.worktree-row,.primary{transition-property:background-color,border-color}
 }

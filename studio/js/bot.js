@@ -31,6 +31,8 @@ const CROSSFADE_SECONDS = 0.45;
 const SHADOW_OPACITY = 0.16;
 const REVIEW_BODY = [0.09, 0.085, 0.1];
 const REVIEW_EYES = [0.78, 0.2, 0.14];
+const ANNOYED_BODY = [0.9, 0.07, 0.02];
+const ANGRY_BODY = [0.78, 0.025, 0.015];
 
 const number = (name, times, values) => new NumberKeyframeTrack(name, times, values);
 const vector = (name, times, values) => new VectorKeyframeTrack(name, times, values);
@@ -136,12 +138,53 @@ function deliverClip() {
   ]);
 }
 
-function waitingClip() {
-  const duration = 3.2;
-  return new AnimationClip('waiting', duration, [
-    ...breathe(duration, 0.02),
-    number('eyes.scale[y]', [0, 2.6, 2.7, 2.8, duration], [1, 1, 0.1, 1, 1])
-  ]);
+const tint = (color, duration) => new ColorKeyframeTrack('sphere.material.color', [0, duration], [...color, ...color]);
+const browsDown = (angle, duration) => [
+  shown('brows', duration),
+  number('browLeft.rotation[z]', [0, duration], [-angle, -angle]),
+  number('browRight.rotation[z]', [0, duration], [angle, angle])
+];
+
+function puff(name, start, duration) {
+  const end = Math.min(duration, start + 0.6);
+  return [
+    number(`${name}.position[y]`, [0, start, end, duration], [0.9, 0.9, 1.5, 1.5]),
+    vector(`${name}.scale`, [0, start, start + 0.1, end, duration], [0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 1, 1, 1, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001])
+  ];
+}
+
+function waitingClips(colors) {
+  const calm = 3.2;
+  const tap = 1.2;
+  const grumble = 1.6;
+  const rant = 0.9;
+  return [
+    new AnimationClip('waiting-1', calm, [
+      ...breathe(calm, 0.02),
+      number('eyes.scale[y]', [0, 2.6, 2.7, 2.8, calm], [1, 1, 0.1, 1, 1])
+    ]),
+    new AnimationClip('waiting-2', tap, [
+      number('body.position[y]', [0, 0.15, 0.3, 0.6, 0.75, 0.9, tap], [0, 0.06, 0, 0, 0.06, 0, 0]),
+      number('body.rotation[z]', [0, 0.3, 0.6, 0.9, tap], [0, 0.05, 0, -0.05, 0]),
+      number('eyes.scale[y]', [0, 0.95, 1.02, 1.1, tap], [1, 1, 0.15, 1, 1])
+    ]),
+    new AnimationClip('waiting-3', grumble, [
+      ...breathe(grumble, 0.02),
+      ...browsDown(0.32, grumble),
+      tint(colors.annoyed, grumble),
+      number('body.rotation[z]', [0, 0.1, 0.2, 0.3, 0.4, grumble], [0, 0.05, -0.05, 0.05, 0, 0])
+    ]),
+    new AnimationClip('waiting-4', rant, [
+      number('body.position[y]', [0, rant * 0.25, rant * 0.5, rant * 0.75, rant], [0, 0.35, 0, 0.3, 0]),
+      vector('body.scale', [0, rant * 0.5, rant * 0.55, rant], [1, 1, 1, 1.08, 0.9, 1.08, 1, 1, 1, 1, 1, 1]),
+      ...browsDown(0.5, rant),
+      tint(colors.angry, rant),
+      shown('steam', rant),
+      ...puff('puff1', 0, rant),
+      ...puff('puff2', 0.3, rant),
+      ...puff('puff3', 0.55, rant)
+    ])
+  ];
 }
 
 function reactionClip() {
@@ -153,7 +196,7 @@ function reactionClip() {
   ]);
 }
 
-export function buildClips(colors = { reviewBody: REVIEW_BODY, reviewEyes: REVIEW_EYES }) {
+export function buildClips(colors = { reviewBody: REVIEW_BODY, reviewEyes: REVIEW_EYES, annoyed: ANNOYED_BODY, angry: ANGRY_BODY }) {
   return {
     stages: {
       goal: goalClip(),
@@ -163,7 +206,7 @@ export function buildClips(colors = { reviewBody: REVIEW_BODY, reviewEyes: REVIE
       judge: swingClip('judge', 'gavel', 1.4),
       deliver: deliverClip()
     },
-    waiting: waitingClip(),
+    waiting: waitingClips(colors),
     reaction: reactionClip()
   };
 }
@@ -236,7 +279,13 @@ function buildRig() {
   const eyeLeft = at(mesh(eyeShape, eye, 'eyeLeft'), [-0.22, 0.12, 0.96]);
   const eyeRight = at(mesh(eyeShape, eye, 'eyeRight'), [0.22, 0.12, 0.96]);
   const eyes = group('eyes', [eyeLeft, eyeRight]);
-  const face = group('face', [eyes]);
+  const browShape = geometry(new BoxGeometry(0.34, 0.07, 0.05));
+  const brows = group('brows', [
+    at(mesh(browShape, eye, 'browLeft'), [-0.24, 0.43, 0.93]),
+    at(mesh(browShape, eye, 'browRight'), [0.24, 0.43, 0.93])
+  ]);
+  brows.scale.setScalar(0.001);
+  const face = group('face', [eyes, brows]);
   const sphere = mesh(geometry(new SphereGeometry(1, 48, 32)), body, 'sphere');
 
   const rod = (radius, length, surface, name) => mesh(geometry(new CylinderGeometry(radius, radius, length, 10)), surface, name);
@@ -313,13 +362,20 @@ function buildRig() {
   };
   Object.values(props).forEach((prop) => prop.scale.setScalar(0.001));
 
-  const bodyGroup = group('body', [sphere, face, ...Object.values(props)]);
+  const puffMaterial = material(new MeshBasicMaterial({ transparent: true, opacity: 0.6, depthWrite: false }), '--prop-paper');
+  const steam = group('steam', [-0.75, 0.75, 0].map((x, index) => {
+    const value = at(ball(0.2, puffMaterial, `puff${index + 1}`), [x, 0.9, 0.3]);
+    value.scale.setScalar(0.001);
+    return value;
+  }));
+  steam.scale.setScalar(0.001);
+  const bodyGroup = group('body', [sphere, face, steam, ...Object.values(props)]);
   const hop = group('hop', [bodyGroup]);
   const shadowMaterial = material(new MeshBasicMaterial({ transparent: true, opacity: SHADOW_OPACITY, depthWrite: false, alphaMap: shadowTexture() }), '--shadow');
   const shadow = at(mesh(geometry(new PlaneGeometry(2, 2)), shadowMaterial), [0, -1.02, -1.2], [0, 0, 0], [0.8, 0.16, 1]);
   const root = group('root', [shadow, hop]);
 
-  return { root, face, props, sphere, eyeLeft, geometries, materials, painted, shadowMaterial };
+  return { root, face, brows, props, sphere, eyeLeft, geometries, materials, painted, shadowMaterial };
 }
 
 function ease(current, target, seconds, constant) {
@@ -329,15 +385,16 @@ function ease(current, target, seconds, constant) {
 export function createBot({ reducedMotion = false, radius = 1 } = {}) {
   const rig = buildRig();
   rig.root.scale.setScalar(radius);
-  const clips = buildClips({ reviewBody: REVIEW_BODY, reviewEyes: REVIEW_EYES });
+  const clips = buildClips({ reviewBody: REVIEW_BODY, reviewEyes: REVIEW_EYES, annoyed: ANNOYED_BODY, angry: ANGRY_BODY });
   const mixer = new AnimationMixer(rig.root);
   const stageActions = Object.fromEntries(RING_STAGES.map((stage) => [stage, mixer.clipAction(clips.stages[stage])]));
-  const waitingAction = mixer.clipAction(clips.waiting);
+  const waitingActions = clips.waiting.map((clip) => mixer.clipAction(clip));
   const reaction = mixer.clipAction(clips.reaction);
   reaction.setLoop(LoopOnce, 1);
   const fading = new Set();
   const glance = { x: 0, y: 0, toX: 0, toY: 0 };
   let current = null;
+  let lastKey = null;
 
   function onFinished(event) {
     if (event.action === reaction) reaction.stop();
@@ -346,12 +403,16 @@ export function createBot({ reducedMotion = false, radius = 1 } = {}) {
 
   function loopActionFor(model) {
     if (model.mode === 'working') return stageActions[model.botStage];
-    if (model.mode === 'waiting') return waitingAction;
+    if (model.mode === 'waiting') return waitingActions[Math.min(Math.max((model.waitLevel || 1) - 1, 0), waitingActions.length - 1)];
     return null;
   }
 
   function staticPose(model) {
     RING_STAGES.forEach((stage) => rig.props[stage].scale.setScalar(model.mode === 'working' && stage === model.botStage ? 1 : 0.001));
+    const cross = model.mode === 'waiting' && (model.waitLevel || 1) >= 3;
+    rig.brows.scale.setScalar(cross ? 1 : 0.001);
+    rig.brows.children[0].rotation.z = cross ? -0.4 : 0;
+    rig.brows.children[1].rotation.z = cross ? 0.4 : 0;
   }
 
   function settleFades() {
@@ -372,6 +433,9 @@ export function createBot({ reducedMotion = false, radius = 1 } = {}) {
       });
     },
     update(model) {
+      const key = `${model.mode}|${model.botStage}|${model.waitLevel || 1}`;
+      if (key === lastKey) return;
+      lastKey = key;
       if (reducedMotion) {
         staticPose(model);
         return;

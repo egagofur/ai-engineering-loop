@@ -1,8 +1,9 @@
 import { fetchDetail, fetchMe, fetchProjects, freezeGoal, saveActor } from './api.js';
 import { renderOverview, renderProjectList, sortProjects, worktreeState } from './list.js';
-import { renderDetail, renderRunHead } from './detail.js';
+import { renderDetail, renderRoomCard, renderRunHead } from './detail.js';
 import { mountRing2d, ringMode, ringModel } from './ring2d.js';
-import { createSheet } from './sheet.js';
+import { createSheet, trapFocus } from './sheet.js';
+import { roomTargets, stepTarget, waitBubble, waitLevel, waitSeconds } from './mood.js';
 
 const ELAPSED_REFRESH_MS = 60_000;
 
@@ -20,8 +21,16 @@ const elements = {
   detailsButton: document.getElementById('details-open'),
   sheet: document.getElementById('details-sheet'),
   projects: document.getElementById('projects'),
-  projectsToggle: document.getElementById('projects-toggle')
+  projectsToggle: document.getElementById('projects-toggle'),
+  room: document.getElementById('room'),
+  roomScene: document.querySelector('#room .room-scene'),
+  roomCard: document.querySelector('#room .room-card')
 };
+
+const MOOD_TURN_MS = 3000;
+const ROOM_FADE_MS = 260;
+const moodView = { level: 0, turn: 0 };
+const roomView = { open: false, busy: false, handle: null, ticket: 0, direction: 0 };
 
 const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
 const HAS_WEBGL = webglAvailable();
@@ -72,7 +81,47 @@ function clearRing() {
   if (ringView.handle) ringView.handle.dispose();
   ringView.handle = null;
   ringView.key = null;
+  moodView.level = 0;
   elements.ring.hidden = true;
+}
+
+function currentModel(summary) {
+  const model = ringModel(summary.ring, summary);
+  model.waitLevel = summary.waiting ? waitLevel(waitSeconds(summary.waiting)) : 0;
+  return model;
+}
+
+function popBubble(bubble) {
+  delete bubble.dataset.pop;
+  void bubble.offsetWidth;
+  bubble.dataset.pop = '';
+}
+
+function updateMood() {
+  const handle = ringView.handle;
+  const summary = state.detail && state.detail.summary;
+  if (!handle || !handle.bubble) return;
+  if (!summary || !summary.waiting) {
+    handle.bubble.hidden = true;
+    moodView.level = 0;
+    return;
+  }
+  const bubble = waitBubble(summary.waiting.kind, waitSeconds(summary.waiting), moodView.turn, { reducedMotion: reducedMotionQuery.matches });
+  handle.bubble.hidden = false;
+  handle.bubble.dataset.level = String(bubble.level);
+  if (handle.bubble.textContent !== bubble.text) {
+    handle.bubble.textContent = bubble.text;
+    if (!reducedMotionQuery.matches) popBubble(handle.bubble);
+  }
+  if (bubble.level !== moodView.level) {
+    moodView.level = bubble.level;
+    handle.mood.textContent = `The bot says: ${bubble.text}`;
+    if (ringView.model) {
+      ringView.model.waitLevel = bubble.level;
+      if (ringView.bot) ringView.bot.update(ringView.model);
+      if (roomView.handle) roomView.handle.update(ringView.model);
+    }
+  }
 }
 
 function syncBot() {
@@ -113,7 +162,7 @@ function syncRing() {
   }
   const key = `${project.id}|${summary.runId}`;
   const view = { summary, findings: state.detail.findings, projectName: project.name };
-  ringView.model = ringModel(summary.ring, summary);
+  ringView.model = currentModel(summary);
   elements.ring.hidden = false;
   if (ringView.key !== key) {
     clearRing();
@@ -124,6 +173,7 @@ function syncRing() {
     ringView.handle.update(view);
   }
   syncBot();
+  updateMood();
 }
 
 function selectableTargets() {
@@ -203,6 +253,7 @@ function renderRun() {
   const next = elements.head.querySelector('#freeze-actor');
   if (next && typed) next.value = typed;
   if (next && typing) next.focus();
+  syncRoom();
 }
 
 const sheet = createSheet(elements.sheet, {
@@ -331,14 +382,14 @@ async function withFreezeLock(button, operation) {
   await loadDetail();
 }
 
-async function freeze(name) {
+async function freeze(name, button = elements.head.querySelector('button[data-action="freeze"]')) {
   const project = selectedProject();
   const detail = state.detail;
   if (!project || !detail || !detail.goalHash) {
     setStatus('There is no Goal draft to freeze. Reload the page.');
     return;
   }
-  await withFreezeLock(elements.head.querySelector('button[data-action="freeze"]'), async () => {
+  await withFreezeLock(button, async () => {
     if (name !== undefined) state.me = await saveActor(name);
     await submitFreeze(project.id, detail.summary.runId, detail.goalHash);
   });
@@ -442,6 +493,7 @@ document.addEventListener('keydown', (event) => {
     elements.projectsToggle.focus();
     return;
   }
+  if (roomView.open) return;
   if ((event.key === 'd' || event.key === 'D') && !sheet.isOpen() && !elements.detailsButton.hidden) {
     event.preventDefault();
     sheet.open(elements.detailsButton);
@@ -462,9 +514,119 @@ elements.detail.addEventListener('keydown', (event) => {
   showGoalView(tabs[move(tabs.indexOf(tab), tabs.length)].dataset.goalView, { focus: true });
 });
 
+function wait(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function syncRoom() {
+  if (!roomView.open || !state.detail) return;
+  const project = selectedProject();
+  if (!project) return;
+  elements.roomCard.innerHTML = renderRoomCard(state.detail.summary, { findings: state.detail.findings, projectName: project.name, actor: validActor() });
+  const direction = roomView.direction;
+  roomView.direction = 0;
+  if (roomView.handle && ringView.model) roomView.handle.update(ringView.model, { direction });
+}
+
+async function mountRoomScene() {
+  if (!wantsGlBot()) return;
+  const ticket = ++roomView.ticket;
+  try {
+    const { mountRoom } = await import('./room.js');
+    if (ticket !== roomView.ticket || !roomView.open) return;
+    roomView.handle = mountRoom(elements.roomScene, ringView.model, { reducedMotion: reducedMotionQuery.matches });
+    await roomView.handle.enter();
+  } catch {
+    roomView.handle = null;
+  }
+}
+
+async function openRoom() {
+  if (roomView.open || roomView.busy || !ringView.handle || !state.detail) return;
+  roomView.busy = true;
+  roomView.open = true;
+  elements.run.dataset.zoom = 'in';
+  if (!reducedMotionQuery.matches && ringView.bot) await ringView.bot.zoom('in');
+  syncRoom();
+  elements.room.hidden = false;
+  void elements.room.offsetWidth;
+  elements.room.dataset.open = 'true';
+  elements.room.querySelector('[data-action="room-close"]').focus();
+  await mountRoomScene();
+  roomView.busy = false;
+}
+
+async function closeRoom() {
+  if (!roomView.open || roomView.busy) return;
+  roomView.busy = true;
+  roomView.ticket += 1;
+  if (roomView.handle) await roomView.handle.leave();
+  elements.room.dataset.open = 'false';
+  await wait(reducedMotionQuery.matches ? 0 : ROOM_FADE_MS);
+  elements.room.hidden = true;
+  if (roomView.handle) roomView.handle.dispose();
+  roomView.handle = null;
+  delete elements.run.dataset.zoom;
+  roomView.open = false;
+  const bot = elements.ring.querySelector('.ring-bot');
+  if (bot) bot.focus();
+  if (ringView.bot) await ringView.bot.zoom('out');
+  roomView.busy = false;
+}
+
+function roomStep(direction) {
+  if (roomView.busy) return;
+  const id = stepTarget(roomTargets(state.projects), state.selectedId, direction);
+  if (!id || id === state.selectedId) return;
+  roomView.direction = direction;
+  select(id);
+}
+
 elements.ring.addEventListener('click', (event) => {
-  if (event.target.closest('.ring-bot') && ringView.bot) ringView.bot.react();
+  if (!event.target.closest('.ring-bot')) return;
+  if (ringView.bot) ringView.bot.react();
+  openRoom();
 });
+
+elements.room.addEventListener('click', (event) => {
+  const action = event.target.closest('[data-action]');
+  if (!action) {
+    if (event.target.closest('.room-scene') && roomView.handle) roomView.handle.react();
+    return;
+  }
+  const name = action.dataset.action;
+  if (name === 'room-close') closeRoom();
+  else if (name === 'room-next') roomStep(1);
+  else if (name === 'room-prev') roomStep(-1);
+  else if (name === 'freeze') freeze(undefined, action);
+  else if (name === 'room-freeze-name') {
+    closeRoom().then(() => {
+      const input = elements.head.querySelector('#freeze-actor');
+      if (input) input.focus();
+    });
+  }
+});
+
+elements.room.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeRoom();
+  } else if (event.key === 'ArrowRight') {
+    event.preventDefault();
+    roomStep(1);
+  } else if (event.key === 'ArrowLeft') {
+    event.preventDefault();
+    roomStep(-1);
+  } else {
+    trapFocus(event, elements.room);
+  }
+});
+
+window.setInterval(() => {
+  if (document.visibilityState !== 'visible') return;
+  moodView.turn += 1;
+  updateMood();
+}, MOOD_TURN_MS);
 
 elements.head.addEventListener('click', (event) => {
   const button = event.target.closest('button[data-action="freeze"]');
