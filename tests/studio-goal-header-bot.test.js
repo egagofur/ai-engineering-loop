@@ -128,23 +128,28 @@ test('bot clips: one looping clip per stage with its prop, a blinking waiting cl
     assert.ok(tracks.includes('body.position[y]'), `${stage} breathes`);
     for (const other of STAGES.filter((name) => name !== stage)) assert.ok(!tracks.includes(`prop_${other}.scale`), `${stage} hides ${other}`);
   }
-  assert.ok(clips.waiting[0].tracks.some((track) => track.name === 'eyes.scale[y]'), 'waiting blinks');
+  assert.ok(clips.waiting[0].tracks.some((track) => track.name === 'neck.rotation[y]'), 'waiting looks around');
+  const { EYE_SHAPES } = await load('bot.js');
+  assert.ok(['open', 'happy', 'question', 'angry', 'squint'].every((shape) => EYE_SHAPES.includes(shape)), 'eyes change shape by mood');
+  assert.match(read('js/bot.js'), /BLINK_SECONDS/, 'the eyes blink');
   const reaction = clips.reaction;
   assert.ok(REACTION_SECONDS >= 0.6 && REACTION_SECONDS <= 0.8);
   assert.equal(reaction.duration, REACTION_SECONDS);
   const spin = reaction.tracks.find((track) => track.name === 'hop.rotation[y]');
   assert.ok(spin && Math.abs(spin.values.at(-1) - Math.PI * 2) < 1e-6, 'a full spin on Y');
   assert.ok(reaction.tracks.some((track) => track.name === 'hop.position[y]'), 'a hop');
-  assert.ok(reaction.tracks.some((track) => track.name === 'face.scale[y]'), 'eyes squint');
+  assert.ok(reaction.tracks.some((track) => track.name === 'hop.scale'), 'squash and stretch');
   const review = clips.stages.review.tracks.map((track) => track.name);
-  assert.ok(review.includes('sphere.material.color') && review.includes('eyeLeft.material.color'), 'Review turns the bot dark with red eyes');
+  assert.ok(review.includes('armR.rotation[x]') && review.includes('head.rotation[z]'), 'Review thinks with a hand to the chin');
   const goal = clips.stages.goal.tracks.map((track) => track.name);
-  assert.ok(['quill.position', 'line1.scale', 'line2.scale', 'line3.scale'].every((name) => goal.includes(name)), 'Goal writes lines on the scroll');
+  assert.ok(goal.includes('armR.rotation[x]') && goal.includes('head.rotation[x]'), 'Goal writes, looking down');
+  const maker = clips.stages.maker.tracks.find((track) => track.name === 'armR.rotation[x]');
+  assert.ok(Math.min(...maker.values) < -2, 'Maker raises the hammer before the strike');
 });
 
 test('bot runtime: crossfades, one paused render loop, reduced motion static, hover only on fine pointers, toned-down glow', () => {
   const bot = read('js/bot.js');
-  const ring = read('js/ring.js');
+  const ring = read('js/turntable.js');
   assert.match(bot, /crossFadeTo\(/);
   assert.match(bot, /new AnimationMixer\(/);
   assert.equal((bot.match(/requestAnimationFrame\(/g) || []).length, 0, 'the bot steps inside the ring loop');
@@ -159,6 +164,9 @@ test('bot runtime: crossfades, one paused render loop, reduced motion static, ho
   assert.doesNotMatch(css, /\.ring-gl\{[^}]*filter:/, 'no glow filter on the WebGL bot');
   assert.match(read('tokens.css'), /--shadow-bot: 0 3px 6px color-mix\(in srgb, var\(--brand\) 22%, transparent\);/);
   const main = read('js/main.js');
-  assert.match(main, /ringView\.bot\.react\(\)/);
+  assert.match(main, /ringView\.gl\.react\(\)/);
+  assert.match(bot, /new MeshPhysicalMaterial\(\{ roughness: 0\.32, metalness: 0, clearcoat: 1/, 'clearcoat shell');
+  assert.match(bot, /costume === 'devil'/);
+  assert.match(bot, /costume === 'philosopher'/);
   assert.match(main, /reducedMotion: reducedMotionQuery\.matches/);
 });

@@ -23,18 +23,17 @@ const elements = {
   projects: document.getElementById('projects'),
   projectsToggle: document.getElementById('projects-toggle'),
   room: document.getElementById('room'),
-  roomScene: document.querySelector('#room .room-scene'),
   roomCard: document.querySelector('#room .room-card')
 };
 
 const MOOD_TURN_MS = 3000;
 const ROOM_FADE_MS = 260;
 const moodView = { level: 0, turn: 0 };
-const roomView = { open: false, busy: false, handle: null, ticket: 0, direction: 0 };
+const roomView = { open: false, busy: false, direction: 0 };
 
 const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
 const HAS_WEBGL = webglAvailable();
-const ringView = { key: null, handle: null, bot: null, model: null, ticket: 0, loading: false, threeFailed: false };
+const ringView = { key: null, handle: null, gl: null, model: null, ticket: 0, loading: false, threeFailed: false };
 
 const state = {
   projects: [],
@@ -63,21 +62,21 @@ function webglAvailable() {
   }
 }
 
-function wantsGlBot() {
+function wantsGl() {
   return ringMode({ webgl: HAS_WEBGL, threeFailed: ringView.threeFailed }) === '3d';
 }
 
-function disposeBot() {
+function disposeGl() {
   ringView.ticket += 1;
   ringView.loading = false;
-  if (ringView.bot) ringView.bot.dispose();
-  ringView.bot = null;
+  if (ringView.gl) ringView.gl.dispose();
+  ringView.gl = null;
   elements.ring.dataset.bot = 'css';
   elements.ring.dataset.ring = 'flat';
 }
 
 function clearRing() {
-  disposeBot();
+  disposeGl();
   if (ringView.handle) ringView.handle.dispose();
   ringView.handle = null;
   ringView.key = null;
@@ -118,19 +117,19 @@ function updateMood() {
     handle.mood.textContent = `The bot says: ${bubble.text}`;
     if (ringView.model) {
       ringView.model.waitLevel = bubble.level;
-      if (ringView.bot) ringView.bot.update(ringView.model);
-      if (roomView.handle) roomView.handle.update(ringView.model);
+      if (ringView.gl) ringView.gl.update(ringView.model);
     }
   }
 }
 
-function syncBot() {
-  if (!wantsGlBot()) {
-    disposeBot();
+function syncGl(swap) {
+  if (!wantsGl()) {
+    disposeGl();
     return;
   }
-  if (ringView.bot) {
-    ringView.bot.update(ringView.model);
+  if (ringView.gl) {
+    ringView.gl.update(ringView.model, { swap, direction: swap ? roomView.direction : 0 });
+    roomView.direction = 0;
     return;
   }
   if (ringView.loading) return;
@@ -138,14 +137,18 @@ function syncBot() {
   const ticket = ringView.ticket;
   const failed = () => {
     ringView.threeFailed = true;
-    if (ticket === ringView.ticket) disposeBot();
+    if (ticket === ringView.ticket) disposeGl();
   };
-  import('./ring.js').then(({ mountRing3d }) => {
+  import('./turntable.js').then(({ mountTurntable }) => {
     if (ticket !== ringView.ticket || !ringView.handle) return;
     ringView.loading = false;
     try {
       elements.ring.dataset.ring = '3d';
-      ringView.bot = mountRing3d(ringView.handle.gl, ringView.model, { root: elements.ring, reducedMotion: reducedMotionQuery.matches });
+      ringView.gl = mountTurntable(ringView.handle.gl, ringView.model, {
+        root: elements.ring,
+        reducedMotion: reducedMotionQuery.matches,
+        onOpen: () => openRoom()
+      });
       elements.ring.dataset.bot = '3d';
     } catch {
       failed();
@@ -162,17 +165,14 @@ function syncRing() {
   }
   const key = `${project.id}|${summary.runId}`;
   const view = { summary, findings: state.detail.findings, projectName: project.name };
+  const swap = ringView.key !== null && ringView.key !== key;
   ringView.model = currentModel(summary);
   elements.ring.hidden = false;
-  if (ringView.key !== key) {
-    clearRing();
-    elements.ring.hidden = false;
-    ringView.key = key;
-    ringView.handle = mountRing2d(elements.ring, view);
-  } else {
-    ringView.handle.update(view);
-  }
-  syncBot();
+  if (!ringView.handle) ringView.handle = mountRing2d(elements.ring, view);
+  else ringView.handle.update(view);
+  if (ringView.key !== key) moodView.level = 0;
+  ringView.key = key;
+  syncGl(swap);
   updateMood();
 }
 
@@ -228,6 +228,7 @@ function emptyMessage(project) {
 
 function renderRun() {
   const project = selectedProject();
+  if (project && project.run && !state.detail && !state.detailError && ringView.handle) return;
   const showing = Boolean(project && project.run && state.detail);
   elements.empty.hidden = showing;
   elements.empty.textContent = showing ? '' : emptyMessage(project);
@@ -305,7 +306,7 @@ async function loadDetail({ enter = false } = {}) {
     state.detailError = error.message;
   }
   renderRun();
-  if (enter) playEnter();
+  if (enter && !ringView.gl) playEnter();
 }
 
 function fallbackSelection() {
@@ -523,22 +524,6 @@ function syncRoom() {
   const project = selectedProject();
   if (!project) return;
   elements.roomCard.innerHTML = renderRoomCard(state.detail.summary, { findings: state.detail.findings, projectName: project.name, actor: validActor() });
-  const direction = roomView.direction;
-  roomView.direction = 0;
-  if (roomView.handle && ringView.model) roomView.handle.update(ringView.model, { direction });
-}
-
-async function mountRoomScene() {
-  if (!wantsGlBot()) return;
-  const ticket = ++roomView.ticket;
-  try {
-    const { mountRoom } = await import('./room.js');
-    if (ticket !== roomView.ticket || !roomView.open) return;
-    roomView.handle = mountRoom(elements.roomScene, ringView.model, { reducedMotion: reducedMotionQuery.matches });
-    await roomView.handle.enter();
-  } catch {
-    roomView.handle = null;
-  }
 }
 
 async function openRoom() {
@@ -546,31 +531,27 @@ async function openRoom() {
   roomView.busy = true;
   roomView.open = true;
   elements.run.dataset.zoom = 'in';
-  if (!reducedMotionQuery.matches && ringView.bot) await ringView.bot.zoom('in');
   syncRoom();
   elements.room.hidden = false;
   void elements.room.offsetWidth;
   elements.room.dataset.open = 'true';
   elements.room.querySelector('[data-action="room-close"]').focus();
-  await mountRoomScene();
+  if (ringView.gl) await ringView.gl.zoom('in');
   roomView.busy = false;
 }
 
 async function closeRoom() {
   if (!roomView.open || roomView.busy) return;
   roomView.busy = true;
-  roomView.ticket += 1;
-  if (roomView.handle) await roomView.handle.leave();
   elements.room.dataset.open = 'false';
+  const zoomOut = ringView.gl ? ringView.gl.zoom('out') : Promise.resolve();
   await wait(reducedMotionQuery.matches ? 0 : ROOM_FADE_MS);
   elements.room.hidden = true;
-  if (roomView.handle) roomView.handle.dispose();
-  roomView.handle = null;
   delete elements.run.dataset.zoom;
   roomView.open = false;
   const bot = elements.ring.querySelector('.ring-bot');
   if (bot) bot.focus();
-  if (ringView.bot) await ringView.bot.zoom('out');
+  await zoomOut;
   roomView.busy = false;
 }
 
@@ -584,14 +565,14 @@ function roomStep(direction) {
 
 elements.ring.addEventListener('click', (event) => {
   if (!event.target.closest('.ring-bot')) return;
-  if (ringView.bot) ringView.bot.react();
+  if (ringView.gl) ringView.gl.react();
   openRoom();
 });
 
 elements.room.addEventListener('click', (event) => {
   const action = event.target.closest('[data-action]');
   if (!action) {
-    if (event.target.closest('.room-scene') && roomView.handle) roomView.handle.react();
+    if (!event.target.closest('.room-card') && ringView.gl) ringView.gl.react();
     return;
   }
   const name = action.dataset.action;
@@ -643,7 +624,7 @@ elements.head.addEventListener('submit', (event) => {
 });
 
 reducedMotionQuery.addEventListener('change', () => {
-  disposeBot();
+  disposeGl();
   syncRing();
 });
 

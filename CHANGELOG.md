@@ -4,6 +4,7 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+- **Changed:** the Studio Saturn ring is now a turntable diorama: six procedural stage rooms on a round plinth (philosopher's study, workshop, lab, a dim Devil's Advocate room, courtroom, shipping dock) that turns the current stage to the front, status plaques and lamps per room, and the room view zooms into the same room instead of opening a separate scene. The bot is redesigned as a small robot with a clearcoat shell, glass visor and mood eyes. Rendering uses ACES tone mapping, soft shadows and a generated studio environment, all with core three.js (no addons, no downloaded models).
 AEL Studio rebuilt as a read-only bot monitor with one action, Freeze (`docs/superpowers/specs/2026-11-22-studio-redesign-design.md`).
 
 - **Breaking:** Studio is machine-wide. `ael studio` shows every project in the registry (`ael projects list`) and their worktree Runs, and reuses a running instance recorded in `~/.ai-engineering-loop/studio.json` (pid, port, URL; never the token). New flags: `--background` (detached, log in `~/.ai-engineering-loop/studio.log`), `--stop`, `--no-notify`; `--port` and `--no-open` stay. The per-project `<project>/.ai-engineering-loop/studio.json` is no longer written. `studio-layouts/` is no longer written either; it stays in the private runtime ignore list for one more release so 2.17 folders do not show as untracked, and is safe to delete.

@@ -383,7 +383,7 @@ test('the ring modules and vendored three.js are served as JavaScript; other ven
   const { home } = fixture();
   await withStudio({ home }, async ({ port }) => {
     const headers = { 'x-ael-studio-token': TOKEN };
-    for (const file of ['/js/ring.js', '/js/ring2d.js', '/vendor/three.module.min.js', '/vendor/three.core.min.js']) {
+    for (const file of ['/js/turntable.js', '/js/ring2d.js', '/js/diorama.js', '/vendor/three.module.min.js', '/vendor/three.core.min.js']) {
       const response = await rawGet(port, file, headers);
       assert.equal(response.status, 200, file);
       assert.match(response.headers['content-type'], /^text\/javascript/, file);

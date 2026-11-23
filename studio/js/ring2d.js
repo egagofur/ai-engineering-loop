@@ -2,7 +2,6 @@ import { escapeHtml, stageLabel } from './list.js';
 
 export const RING_STAGES = ['goal', 'maker', 'verify', 'review', 'judge', 'deliver'];
 export const RING_STATUSES = ['done', 'now', 'pending', 'skipped'];
-export const BOT_ORBIT = 0.74;
 
 const STAGE_SPACING_DEGREES = 360 / RING_STAGES.length;
 
@@ -159,62 +158,6 @@ export function mountRing2d(el, view) {
   };
 }
 
-export const RING_MARK_RADIUS = 1;
-export const RING_FIT_RADIUS = 1.2;
-export const BOT_WORLD_RADIUS = 0.12;
-const NARROW_WIDTH = 520;
-
-export function ringView(width) {
-  const narrow = width < NARROW_WIDTH;
-  return { tilt: narrow ? 50 : 62, roll: narrow ? -4 : -7, fov: 28, narrow };
-}
-
-export function tiltedPoint(angleDegrees, radius, { tilt, roll }) {
-  const a = (angleDegrees * Math.PI) / 180;
-  const t = (tilt * Math.PI) / 180;
-  const r = (roll * Math.PI) / 180;
-  const x = radius * Math.sin(a);
-  const y0 = radius * Math.cos(a);
-  const y = y0 * Math.cos(t);
-  const z = -y0 * Math.sin(t);
-  return { x: x * Math.cos(r) - y * Math.sin(r), y: x * Math.sin(r) + y * Math.cos(r), z };
-}
-
-export function cameraDistance({ fov, tilt }, aspect) {
-  const half = Math.tan((fov * Math.PI) / 360);
-  const byWidth = RING_FIT_RADIUS / (half * aspect);
-  const byHeight = (RING_FIT_RADIUS * Math.cos((tilt * Math.PI) / 180) + BOT_WORLD_RADIUS * 3) / half;
-  return Math.max(byWidth, byHeight) + RING_FIT_RADIUS * Math.sin((tilt * Math.PI) / 180);
-}
-
-export function projectPoint(point, { fov, distance }, width, height) {
-  const f = 1 / Math.tan((fov * Math.PI) / 360);
-  const aspect = width / height;
-  const depth = distance - point.z;
-  return {
-    x: width / 2 + ((point.x * f) / aspect / depth) * (width / 2),
-    y: height / 2 - ((point.y * f) / depth) * (height / 2),
-    depth
-  };
-}
-
-export const RING_BANDS = [
-  [0.72, 0.84, 0.14, '--ring-inner'],
-  [0.85, 0.95, 0.42, '--ring-band'],
-  [0.975, 1.06, 0.3, '--ring-band'],
-  [1.072, 1.12, 0.18, '--ring-outer'],
-  [1.15, 1.156, 0.3, '--ring-outer']
-];
-
 export function ringMode({ webgl = false, threeFailed = false } = {}) {
   return webgl && !threeFailed ? '3d' : 'flat';
-}
-
-export function nudgeLabel(label, centre, direction = 'down') {
-  if (!centre) return label;
-  const overlaps = label.left < centre.right && label.left + label.width > centre.left
-    && label.top < centre.bottom && label.top + label.height > centre.top;
-  if (!overlaps) return label;
-  const top = direction === 'up' ? centre.top - label.height - 2 : centre.bottom + 2;
-  return { ...label, top };
 }

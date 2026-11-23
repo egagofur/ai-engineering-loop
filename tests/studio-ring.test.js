@@ -107,23 +107,24 @@ test('mountRing2d keeps the bot orbit element across updates so it can glide, an
   assert.equal(el.innerHTML, '');
 });
 
-test('ring modules: no hex colours, three imported by relative path, one paused render loop', () => {
-  const ring2d = fs.readFileSync(path.join(studio, 'js', 'ring2d.js'), 'utf8');
-  const ring3d = fs.readFileSync(path.join(studio, 'js', 'ring.js'), 'utf8');
-  const bot = fs.readFileSync(path.join(studio, 'js', 'bot.js'), 'utf8');
+test('turntable modules: no raw colours, three imported by relative path, one paused render loop', () => {
+  const read = (file) => fs.readFileSync(path.join(studio, 'js', file), 'utf8');
+  const ring2d = read('ring2d.js');
+  const diorama = read('diorama.js');
   assert.doesNotMatch(ring2d, /\b(document|window)\b/);
-  for (const [name, source] of [['ring2d.js', ring2d], ['ring.js', ring3d]]) {
-    assert.doesNotMatch(source, /#[0-9a-fA-F]{3,8}\b|0x[0-9a-fA-F]{6}\b/, name);
+  assert.doesNotMatch(diorama, /\b(document|window)\b|three\.module/, 'the pure helpers stay DOM and WebGL free');
+  const scene = ['turntable.js', 'rooms.js', 'forms.js', 'bot.js'].map((file) => [file, read(file)]);
+  for (const [name, source] of [['ring2d.js', ring2d], ['diorama.js', diorama], ...scene]) {
+    assert.doesNotMatch(source, /#[0-9a-fA-F]{3,8}\b|0x[0-9a-fA-F]{6}\b|rgba?\(|hsla?\(/, name);
+    assert.doesNotMatch(source, /GLTFLoader|\.glb\b|\.gltf\b|https?:/, name);
   }
-  assert.match(ring3d, /from '\.\.\/vendor\/three\.module\.min\.js'/);
-  assert.match(ring3d, /getComputedStyle\(document\.documentElement\)\.getPropertyValue\(/);
-  assert.match(bot, /new MeshPhysicalMaterial\([^)]*\), '--brand'\)/);
-  assert.match(bot, /new MeshBasicMaterial\(\), '--on-brand'\)/);
-  assert.match(bot, /from '\.\.\/vendor\/three\.module\.min\.js'/);
-  assert.doesNotMatch(ring3d, /RING_TILT|TRACK_RADIUS/, 'the tilted ellipse scene is gone');
-  assert.equal((ring3d.match(/requestAnimationFrame\(/g) || []).length, 1);
-  assert.match(ring3d, /document\.hidden/);
-  assert.match(ring3d, /renderer\.dispose\(\)/);
+  for (const [name, source] of scene) assert.match(source, /from '\.\.\/vendor\/three\.module\.min\.js'/, name);
+  assert.match(read('forms.js'), /getComputedStyle\(document\.documentElement\)\.getPropertyValue\(/);
+  const turntable = read('turntable.js');
+  assert.equal(scene.reduce((sum, [, source]) => sum + (source.match(/requestAnimationFrame\(/g) || []).length, 0), 1, 'one render loop');
+  assert.match(turntable, /document\.hidden/);
+  assert.match(turntable, /renderer\.dispose\(\)/);
+  assert.match(turntable, /disposeTree\(outgoing\.carrier\)/, 'the old turntable is disposed after a swap');
 });
 
 test('vendored three.js is pinned, licensed and its core import is vendored too', () => {
@@ -140,7 +141,7 @@ test('main.js draws the DOM ring always and the WebGL ring only with WebGL and a
   const main = fs.readFileSync(path.join(studio, 'js', 'main.js'), 'utf8');
   assert.match(main, /prefers-reduced-motion: reduce/);
   assert.match(main, /getContext\('webgl2'\)/);
-  assert.match(main, /import\('\.\/ring\.js'\)/);
+  assert.match(main, /import\('\.\/turntable\.js'\)/);
   assert.match(main, /ringMode\(\{ webgl: HAS_WEBGL, threeFailed: ringView\.threeFailed \}\) === '3d'/);
   assert.match(main, /dataset\.bot = 'css'/);
   const css = fs.readFileSync(path.join(studio, 'styles.css'), 'utf8');

@@ -140,12 +140,11 @@ body[data-sheet="open"] .run{transform:scale(.985)}
 .bot-bubble[data-pop]{animation:bubble-pop var(--enter) var(--ease-out)}
 #ring:not([data-ring="3d"]) .bot-bubble{top:calc(50% - 50% * .74 - var(--loop) * .2);left:calc(50% + var(--loop) * .05)}
 #ring[data-ring="3d"] .bot-bubble{transition:opacity var(--enter) var(--ease-out)}
-.run[data-zoom="in"] .loop,.run[data-zoom="in"] .ring-orbit,.run[data-zoom="in"] .stage-head,.run[data-zoom="in"] .details-button,.run[data-zoom="in"] .run-status{opacity:0;scale:1.06;pointer-events:none}
+.run[data-zoom="in"] .loop,.run[data-zoom="in"] .stage-head,.run[data-zoom="in"] .details-button,.run[data-zoom="in"] .run-status{opacity:0;scale:1.06;pointer-events:none}
+.run[data-zoom="in"] .ring-bot{visibility:hidden}
 .loop,.stage-head,.details-button{transition:opacity 600ms var(--ease-out),scale 600ms var(--ease-out)}
-.room{position:fixed;inset:0;z-index:50;display:grid;opacity:0;transition:opacity 260ms var(--ease-out)}
+.room{position:absolute;inset:0;z-index:5;opacity:0;transition:opacity 260ms var(--ease-out)}
 .room[data-open="true"]{opacity:1}
-.room-scene{position:absolute;inset:0;background:radial-gradient(120% 90% at 50% 40%,var(--stage-top) 0%,var(--stage-bottom) 100%)}
-.room-scene canvas{display:block}
 .room-card{position:absolute;top:20px;left:20px;z-index:1;display:flex;flex-direction:column;gap:4px;width:min(380px,calc(100% - 40px));padding:16px 18px;border:1px solid color-mix(in srgb,var(--line) 70%,transparent);border-radius:var(--radius-card);background:color-mix(in srgb,var(--surface-2) 70%,transparent);-webkit-backdrop-filter:blur(16px) saturate(1.3);backdrop-filter:blur(16px) saturate(1.3);box-shadow:var(--shadow-panel)}
 .room-title{font-size:20px;font-weight:650;letter-spacing:-.015em;overflow-wrap:anywhere}
 .room-activity{color:var(--text-2)}
@@ -167,14 +166,20 @@ body[data-sheet="open"] .run{transform:scale(.985)}
 .sheet-title{font-size:15px;font-weight:650}
 .sheet-close{height:30px;padding:0 12px;border:1px solid var(--line);border-radius:999px;background:var(--surface-2);font-size:12.5px;font-weight:600;cursor:pointer;transition:background-color var(--press) ease,transform var(--press) var(--ease-out)}
 .sheet-close:active{transform:scale(.97)}
-#ring[data-ring="3d"] .loop{inset:0;width:auto;height:auto;margin:0}
+#ring[data-ring="3d"] .loop{inset:0;z-index:1;width:auto;height:auto;margin:0;pointer-events:none}
 #ring[data-ring="3d"] .loop::before{display:none}
-#ring[data-ring="3d"] .stage{top:0;left:0;transform:none;font-size:11px;text-shadow:0 0 6px var(--stage-bottom),0 0 2px var(--stage-bottom)}
-#ring[data-ring="3d"] .stage i{display:none}
-#ring[data-ring="3d"] .stage[data-depth="far"]{opacity:.62}
-#ring[data-ring="3d"] .ring-centre{width:min(280px,46%);z-index:1;text-shadow:0 0 12px var(--stage-bottom)}
+#ring[data-ring="3d"] .stage{top:0;left:0;padding:3px 9px;border:1px solid color-mix(in srgb,var(--line) 70%,transparent);border-radius:999px;background:color-mix(in srgb,var(--surface-2) 74%,transparent);color:var(--text-2);font-size:10.5px;transform:none;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);box-shadow:var(--shadow-raised)}
+#ring[data-ring="3d"] .stage i{display:inline-block;width:6px;height:6px;margin:0 6px 1px 0;border-width:0;vertical-align:middle;background:var(--line-strong)}
+#ring[data-ring="3d"] .stage.done i{background:var(--ok-fill)}
+#ring[data-ring="3d"] .stage.now{border-color:color-mix(in srgb,var(--brand) 45%,transparent);color:var(--text)}
+#ring[data-ring="3d"] .stage.now i{background:var(--brand);box-shadow:none}
+#ring[data-ring="3d"] .stage[data-depth="back"]{box-shadow:none}
+#ring[data-ring="3d"] .ring-centre{width:min(320px,60%);z-index:1;transform:translate(-50%,0)}
 #ring[data-ring="3d"] .ring-activity{font-size:20px}
-#ring[data-ring="3d"] .ring-gl{inset:0;width:auto;height:auto;margin:0}
+#ring[data-ring="3d"] .ring-gl{inset:0;width:auto;height:auto;margin:0;pointer-events:auto}
+.ring-gl canvas{transition:opacity 160ms var(--ease-out)}
+.ring-gl[data-cut="out"] canvas{opacity:0}
+.ring-gl[data-hover="room"]{cursor:pointer}
 #ring[data-ring="3d"] .ring-orbit{inset:0;width:auto;height:auto;margin:0;transform:none;transition:none}
 #ring[data-ring="3d"] .ring-bot{top:0;left:0;z-index:2;border-radius:50%;transition:none}
 .facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}

@@ -73,39 +73,42 @@ test('motion uses one ease-out curve: cubic-bezier(0.23, 1, 0.32, 1), zoom 600-9
   assert.ok(Math.abs(linear(0.3) - 0.3) < 1e-4);
 });
 
-test('each stage has a room: dressing from primitives, token colours, Review is dim, phones keep it in frame', async () => {
-  const { ROOM_CONFIG, roomConfig } = await load('room.js');
+test('each stage has a room on the turntable: props, floor and wall tokens, Review is dim', async () => {
+  const { ROOM_CONFIG, roomConfig } = await load('diorama.js');
   assert.deepStrictEqual(Object.keys(ROOM_CONFIG), STAGES);
   assert.equal(roomConfig('review').mood, 'dim');
-  assert.ok(roomConfig('goal').dressing.includes('columns'), 'the philosopher gets columns');
+  assert.equal(roomConfig('review').costume, 'devil');
+  assert.equal(roomConfig('goal').costume, 'philosopher');
+  assert.ok(roomConfig('goal').props.includes('column') && roomConfig('goal').props.includes('scroll'), 'the philosopher gets a column and a scroll');
+  assert.ok(roomConfig('judge').props.includes('scales'));
+  assert.ok(roomConfig('deliver').props.includes('crates'));
   assert.equal(roomConfig('nope'), ROOM_CONFIG.goal);
-  const { fitFov } = await load('room.js');
-  assert.equal(fitFov(36, 1.8), 36);
-  assert.ok(fitFov(36, 0.46) > 70, 'a phone keeps the room in frame by widening the vertical field of view');
   const tokens = read('tokens.css');
   for (const config of Object.values(ROOM_CONFIG)) {
-    for (const token of [config.floor, config.wall]) assert.match(tokens, new RegExp(`${token}:`), token);
+    for (const token of [config.floorToken, config.wallToken]) assert.match(tokens, new RegExp(`${token}:`), token);
   }
-  const room = read('js/room.js');
-  assert.doesNotMatch(room, /#[0-9a-fA-F]{3,8}\b|0x[0-9a-fA-F]{6}\b|rgba?\(|GLTFLoader|\.glb|\.gltf|https?:/);
-  assert.equal((room.match(/requestAnimationFrame\(/g) || []).length, 1);
-  assert.match(room, /document\.hidden/);
-  assert.match(room, /if \(reducedMotion \|\| duration <= 0\)/, 'reduced motion: instant cut');
+  const rooms = read('js/rooms.js');
+  for (const stage of STAGES) assert.match(rooms, new RegExp(`${stage}: ${stage}Room`), stage);
+  assert.match(rooms, /mergeStatic\(group\)/, 'static room geometry is merged per material');
+  assert.match(rooms, /new InstancedMesh\(/, 'repeated items are instanced');
 });
 
-test('bot waiting moods: calm blink, foot tap, annoyed brows and tint, angry hops with steam', async () => {
+test('bot waiting moods: calm look-around, foot tap, crossed arms, angry hops with steam', async () => {
   const { buildClips } = await load('bot.js');
   const waiting = buildClips().waiting;
   assert.equal(waiting.length, 4);
   const names = waiting.map((clip) => clip.tracks.map((track) => track.name));
-  assert.ok(names[0].includes('eyes.scale[y]'));
+  assert.ok(names[0].includes('neck.rotation[y]'));
   assert.ok(names[1].includes('body.rotation[z]'));
-  for (const level of [2, 3]) {
-    assert.ok(names[level].includes('brows.scale'), `level ${level + 1} brows`);
-    assert.ok(names[level].includes('sphere.material.color'), `level ${level + 1} red tint`);
-  }
+  assert.ok(names[2].includes('armR.rotation[z]') && names[2].includes('armL.rotation[z]'), 'level 3 crosses the arms');
   assert.ok(names[3].includes('steam.scale') && names[3].includes('puff1.position[y]'), 'steam puffs');
   assert.ok(!names[2].includes('steam.scale'));
+  const { botFace } = await load('diorama.js');
+  const wait = (waitLevel) => botFace({ mode: 'waiting', botStage: 'goal', waitLevel });
+  assert.deepStrictEqual([1, 2, 3, 4].map(wait), ['question', 'open', 'annoyed', 'angry']);
+  assert.equal(botFace({ mode: 'working', botStage: 'review' }), 'squint');
+  assert.equal(botFace({ mode: 'settled', botStage: 'deliver' }), 'happy');
+  assert.equal(botFace({ mode: 'working', botStage: 'maker' }, { reacting: true }), 'happy');
 });
 
 test('the ring renders a bubble near the bot and a polite live region for the wait level', async () => {
@@ -129,10 +132,11 @@ test('room card: project, title, activity, stage, iteration, wait and the same F
   assert.doesNotMatch(renderRoomCard({ ...summary, waiting: { kind: 'approval' } }, { actor: 'Ega' }), /data-action="freeze"/);
 });
 
-test('the room is a labelled modal dialog with Previous, Next and Close, arrow keys and Esc', () => {
+test('the room is a labelled modal dialog over the zoomed turntable with Previous, Next and Close, arrow keys and Esc', () => {
   const html = read('index.html');
   assert.match(html, /<div id="room" class="room" role="dialog" aria-modal="true" aria-labelledby="room-title" hidden>/);
-  assert.match(html, /<div class="room-scene" aria-hidden="true"><\/div>/);
+  assert.doesNotMatch(html, /room-scene/, 'no separate room scene: the turntable camera zooms in');
+  assert.ok(html.indexOf('id="room"') > html.indexOf('id="run"') && html.indexOf('id="room"') < html.indexOf('id="details-sheet"'), 'the room overlays the stage');
   assert.match(html, /<button type="button" data-action="room-prev" aria-keyshortcuts="ArrowLeft">← Previous<\/button>/);
   assert.match(html, /<button type="button" data-action="room-next" aria-keyshortcuts="ArrowRight">Next →<\/button>/);
   assert.match(html, /<button type="button" data-action="room-close" aria-keyshortcuts="Escape">Close<\/button>/);
@@ -141,9 +145,9 @@ test('the room is a labelled modal dialog with Previous, Next and Close, arrow k
   assert.match(main, /event\.key === 'ArrowLeft'/);
   assert.match(main, /trapFocus\(event, elements\.room\)/);
   assert.match(main, /stepTarget\(roomTargets\(state\.projects\), state\.selectedId, direction\)/);
-  assert.match(main, /if \(!reducedMotionQuery\.matches && ringView\.bot\) await ringView\.bot\.zoom\('in'\)/, 'reduced motion: no dolly');
-  const ringSource = read('js/ring.js');
-  assert.match(ringSource, /zoom\(direction\)/);
+  assert.match(main, /ringView\.gl\.zoom\('in'\)/);
+  assert.match(main, /ringView\.gl\.update\(ringView\.model, \{ swap, direction: swap \? roomView\.direction : 0 \}\)/, 'Previous/Next swap the turntable');
   const server = fs.readFileSync(path.join(__dirname, '..', 'lib', 'studio-server.js'), 'utf8');
-  for (const file of ['mood.js', 'room.js']) assert.ok(server.includes(`['/js/${file}', 'js/${file}']`), file);
+  for (const file of ['mood.js', 'diorama.js', 'forms.js', 'rooms.js', 'turntable.js', 'bot.js']) assert.ok(server.includes(`['/js/${file}', 'js/${file}']`), file);
+  assert.doesNotMatch(server, /js\/ring\.js|js\/room\.js/);
 });
