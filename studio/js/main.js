@@ -1,6 +1,7 @@
 import { fetchDetail, fetchMe, fetchProjects, freezeGoal, saveActor } from './api.js';
 import { renderOverview, renderProjectList, sortProjects } from './list.js';
 import { renderDetail, renderRunHead } from './detail.js';
+import { mountRing2d, ringModel } from './ring2d.js';
 
 const ELAPSED_REFRESH_MS = 60_000;
 
@@ -12,8 +13,14 @@ const elements = {
   empty: document.getElementById('run-empty'),
   head: document.getElementById('run-head'),
   status: document.getElementById('run-status'),
-  detail: document.getElementById('run-detail')
+  detail: document.getElementById('run-detail'),
+  ring: document.getElementById('ring')
 };
+
+const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+const narrowQuery = window.matchMedia('(max-width: 899px)');
+const HAS_WEBGL = webglAvailable();
+const ringView = { key: null, flat: null, model: null, handle: null, ticket: 0, threeFailed: false };
 
 const state = {
   projects: [],
@@ -27,6 +34,70 @@ const state = {
 };
 
 let detailTicket = 0;
+
+function webglAvailable() {
+  try {
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('webgl2') || canvas.getContext('webgl');
+    if (!context) return false;
+    const loseContext = context.getExtension('WEBGL_lose_context');
+    if (loseContext) loseContext.loseContext();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function wantsFlatRing() {
+  return !HAS_WEBGL || ringView.threeFailed || reducedMotionQuery.matches || narrowQuery.matches;
+}
+
+function clearRing() {
+  ringView.ticket += 1;
+  if (ringView.handle) ringView.handle.dispose();
+  ringView.handle = null;
+  ringView.key = null;
+  ringView.flat = null;
+}
+
+function mountFlatRing() {
+  ringView.flat = true;
+  ringView.handle = mountRing2d(elements.ring, ringView.model);
+}
+
+function showRing(key, model) {
+  const flat = wantsFlatRing();
+  ringView.model = model;
+  if (ringView.key === key && ringView.flat === flat) {
+    if (ringView.handle) ringView.handle.update(model);
+    return;
+  }
+  clearRing();
+  ringView.key = key;
+  if (flat) {
+    mountFlatRing();
+    return;
+  }
+  ringView.flat = false;
+  const ticket = ringView.ticket;
+  import('./ring.js').then(({ mountRing }) => {
+    if (ticket !== ringView.ticket) return;
+    ringView.handle = mountRing(elements.ring, ringView.model, { reducedMotion: reducedMotionQuery.matches });
+  }).catch(() => {
+    ringView.threeFailed = true;
+    if (ticket === ringView.ticket) mountFlatRing();
+  });
+}
+
+function syncRing() {
+  const project = selectedProject();
+  const summary = state.detail && state.detail.summary;
+  if (!project || !project.run || !summary) {
+    clearRing();
+    return;
+  }
+  showRing(`${project.id}|${summary.runId}`, ringModel(summary.ring, summary));
+}
 
 function selectableTargets() {
   return state.projects.flatMap((project) => [
@@ -84,6 +155,7 @@ function renderRun() {
   elements.empty.hidden = showing;
   elements.empty.textContent = showing ? '' : emptyMessage(project);
   elements.run.dataset.showing = String(showing);
+  syncRing();
   if (!showing) {
     elements.head.innerHTML = '';
     elements.detail.innerHTML = '';
@@ -287,6 +359,9 @@ elements.head.addEventListener('submit', (event) => {
   const name = form.elements.actor.value.trim();
   if (name) freeze(name);
 });
+
+reducedMotionQuery.addEventListener('change', syncRing);
+narrowQuery.addEventListener('change', syncRing);
 
 setInterval(() => {
   if (document.visibilityState === 'visible') refreshProjects();

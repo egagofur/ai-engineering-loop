@@ -9,6 +9,14 @@ AEL vendors design and animation skills from `emilkowalski/skills` so `ai-engine
 
 The vendored skill text remains authored by the original project. See the upstream repository for updates and full project context.
 
+## three.js
+
+Studio's loop ring renders with a vendored, unmodified copy of three.js. It is a shipped static file, not an npm dependency.
+
+- Source: https://github.com/mrdoob/three.js (npm package `three`, version 0.185.1, fetched with `npm pack three@0.185.1`)
+- License: MIT, shipped as `studio/vendor/three.LICENSE`
+- AEL files shipped: `studio/vendor/three.module.min.js` and the `studio/vendor/three.core.min.js` it imports, both copied from the package `build/` folder.
+
 ## google/elephant-goldfish-model (Elephant-Goldfish Model, EGM)
 
 AEL ships a modified derivative of EGM as the `spec` host pack (issue #96; installed by default since 2.17).

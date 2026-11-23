@@ -358,6 +358,21 @@ test('static files come only from the allowlist; traversal and app.js are 404', 
   });
 });
 
+test('the ring modules and vendored three.js are served as JavaScript; other vendor files are 404', async () => {
+  const { home } = fixture();
+  await withStudio({ home }, async ({ port }) => {
+    const headers = { 'x-ael-studio-token': TOKEN };
+    for (const file of ['/js/ring.js', '/js/ring2d.js', '/vendor/three.module.min.js', '/vendor/three.core.min.js']) {
+      const response = await rawGet(port, file, headers);
+      assert.equal(response.status, 200, file);
+      assert.match(response.headers['content-type'], /^text\/javascript/, file);
+    }
+    for (const file of ['/vendor/three.LICENSE', '/vendor/three.webgpu.min.js', '/vendor/']) {
+      assert.equal((await rawGet(port, file, headers)).status, 404, file);
+    }
+  });
+});
+
 test('SSE sends projects on connect and again within pollMs after a fixture Run changes', async () => {
   const { home, roots } = fixture();
   const pollMs = 150;

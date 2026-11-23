@@ -74,6 +74,18 @@ button,input{font:inherit;color:inherit}
 
 #ring{height:320px;margin:20px 0 4px}
 #ring:empty{display:none}
+#ring canvas{display:block}
+.ring-2d{display:block;width:100%;height:100%}
+.ring-track{fill:none;stroke:var(--line-strong);stroke-width:2}
+.ring-marker{fill:var(--surface-2);stroke:var(--line-strong);stroke-width:2}
+.ring-stage[data-status="done"] .ring-marker{fill:var(--ok);stroke:var(--ok)}
+.ring-stage[data-status="now"] .ring-marker{fill:var(--brand);stroke:var(--brand)}
+.ring-stage[data-status="skipped"]{opacity:.5}
+.ring-stage[data-status="skipped"] .ring-marker{stroke-dasharray:3 3}
+.ring-label{fill:var(--text-2);font-size:12.5px;font-weight:600}
+.ring-stage[data-status="now"] .ring-label{fill:var(--brand-text)}
+.ring-bot{fill:var(--brand)}
+.ring-iteration{fill:var(--muted);font-size:12px}
 
 .run-detail{display:flex;flex-direction:column;gap:16px;margin-top:20px}
 .stage-rail{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
