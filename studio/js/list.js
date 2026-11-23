@@ -125,7 +125,11 @@ export function renderOverview(projects) {
   const list = projects || [];
   const working = list.filter((project) => project.state === 'working').length;
   const waiting = list.filter((project) => project.state === 'waiting').length;
-  const parts = [`${list.length} ${list.length === 1 ? 'project' : 'projects'}`, `${working} ${working === 1 ? 'bot' : 'bots'} working`];
-  if (waiting) parts.push(`${waiting} waiting for you`);
-  return escapeHtml(parts.join(' · '));
+  const chips = [`<li class="chip">${list.length} ${list.length === 1 ? 'project' : 'projects'}</li>`];
+  const workingText = `${working} ${working === 1 ? 'bot' : 'bots'} working`;
+  chips.push(working
+    ? `<li class="chip chip-working"><span class="chip-dot" aria-hidden="true"></span>${workingText}</li>`
+    : `<li class="chip">${workingText}</li>`);
+  if (waiting) chips.push(`<li class="chip chip-waiting">${waiting} waiting for you</li>`);
+  return chips.join('');
 }

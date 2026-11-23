@@ -1,4 +1,8 @@
 import { escapeHtml, formatElapsed, waitingLabel } from './list.js';
+import { renderMarkdown } from './markdown.js';
+
+export const GOAL_VIEWS = ['formatted', 'markdown'];
+const GOAL_VIEW_LABELS = { formatted: 'Formatted', markdown: 'Markdown' };
 
 const WAITING_TEXT = {
   freeze: 'The Goal draft is waiting for you to freeze it. You can also answer in the agent host; whichever comes first wins.',
@@ -37,11 +41,22 @@ export function renderRunHead(summary, { actor = null } = {}) {
   return `<h2 class="run-task">${escapeHtml(summary.task || summary.runId)}</h2><p class="run-meta">${meta}</p>${waiting}`;
 }
 
-function goalSection(markdown) {
-  const body = markdown
-    ? `<pre class="goal-text">${escapeHtml(markdown)}</pre>`
-    : '<p class="quiet-text">No Goal draft yet.</p>';
-  return `<section class="detail-card goal" aria-labelledby="goal-title"><h3 id="goal-title">Goal</h3>${body}</section>`;
+function goalTab(view, selected) {
+  return `<button type="button" role="tab" id="goal-tab-${view}" aria-controls="goal-panel-${view}" aria-selected="${selected}" tabindex="${selected ? 0 : -1}" data-goal-view="${view}">${GOAL_VIEW_LABELS[view]}</button>`;
+}
+
+function goalSection(markdown, goalView) {
+  if (!markdown) {
+    return '<section class="detail-card goal" aria-labelledby="goal-title"><h3 id="goal-title">Goal</h3><p class="quiet-text">No Goal draft yet.</p></section>';
+  }
+  const view = GOAL_VIEWS.includes(goalView) ? goalView : 'formatted';
+  const hidden = (name) => (name === view ? '' : ' hidden');
+  return '<section class="detail-card goal" aria-labelledby="goal-title">'
+    + '<div class="goal-head"><h3 id="goal-title">Goal</h3>'
+    + `<div class="tabs" role="tablist" aria-label="Goal view">${GOAL_VIEWS.map((name) => goalTab(name, name === view)).join('')}</div></div>`
+    + `<div role="tabpanel" id="goal-panel-formatted" aria-labelledby="goal-tab-formatted" class="goal-formatted" tabindex="0"${hidden('formatted')}>${renderMarkdown(markdown)}</div>`
+    + `<div role="tabpanel" id="goal-panel-markdown" aria-labelledby="goal-tab-markdown" tabindex="0"${hidden('markdown')}><pre class="goal-text">${escapeHtml(markdown)}</pre></div>`
+    + '</section>';
 }
 
 function findingsText(findings) {
@@ -62,7 +77,7 @@ function listOrNone(items) {
   return `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
 }
 
-export function renderDetail(detail) {
+export function renderDetail(detail, { goalView = 'formatted' } = {}) {
   if (!detail) return '';
   const facts = '<dl class="facts">'
     + `<div><dt>Findings</dt><dd>${escapeHtml(findingsText(detail.findings))}</dd></div>`
@@ -73,7 +88,7 @@ export function renderDetail(detail) {
     ? `<section class="detail-card" aria-labelledby="extra-title"><h3 id="extra-title">Other steps</h3>${listOrNone(detail.extraNodes)}</section>`
     : '';
   return facts
-    + goalSection(detail.goalMarkdown)
+    + goalSection(detail.goalMarkdown, goalView)
     + `<section class="detail-card" aria-labelledby="assumptions-title"><h3 id="assumptions-title">Unconfirmed assumptions</h3>${listOrNone(detail.unconfirmed)}</section>`
     + extra;
 }

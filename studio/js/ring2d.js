@@ -30,7 +30,7 @@ const FINISHED_ACTIVITY = {
   ESCALATED: 'Escalated'
 };
 
-export function ringModel(ring, { iteration = 1, maxIterations = 1 } = {}) {
+export function ringModel(ring, { iteration = 1, maxIterations = 1, waiting = null } = {}) {
   const statusByStage = new Map((Array.isArray(ring) ? ring : []).map((item) => [item && item.stage, item && item.status]));
   const stages = RING_STAGES.map((stage, index) => {
     const status = statusByStage.get(stage);
@@ -43,8 +43,12 @@ export function ringModel(ring, { iteration = 1, maxIterations = 1 } = {}) {
   const now = stages.find((item) => item.status === 'now');
   const lastDone = stages.filter((item) => item.status === 'done').at(-1);
   const parked = now || lastDone || stages[0];
+  let mode = now ? 'working' : 'settled';
+  if (waiting) mode = 'waiting';
   return {
     stages,
+    mode,
+    waitingKind: waiting ? waiting.kind || null : null,
     botStage: parked.stage,
     botAngle: parked.angle,
     iteration: Number(iteration) || 1,
@@ -80,6 +84,23 @@ export function ringActivity(summary, findings = null) {
   return { title, note };
 }
 
+const STAGE_VERBS = {
+  goal: 'planning',
+  maker: 'building',
+  verify: 'checking',
+  review: 'reviewing',
+  judge: 'judging',
+  deliver: 'delivering'
+};
+
+export function botLabel(summary, findings = null) {
+  const model = ringModel(summary && summary.ring, summary || {});
+  const { title, note } = ringActivity(summary, findings);
+  if (model.mode === 'waiting') return `Bot is waiting for you: ${title}`;
+  if (model.mode === 'settled') return `Bot is done: ${title}`;
+  return `Bot is ${STAGE_VERBS[model.botStage]}: ${title}, ${note}`;
+}
+
 export function ringEyebrow(summary, projectName = '') {
   const iteration = `iteration ${Number(summary && summary.iteration) || 1}/${Number(summary && summary.maxIterations) || 1}`;
   return [projectName, summary && summary.tier, iteration].filter(Boolean).join(' · ');
@@ -102,14 +123,14 @@ export function renderRingFace({ summary, findings = null, projectName = '' }) {
     + '</div>';
 }
 
-export function renderRingBot(model) {
-  return `<div class="ring-orbit" data-at="${escapeHtml(model.botStage)}" aria-hidden="true"><span class="bot ring-bot"></span></div>`;
+export function renderRingBot(model, label) {
+  return `<div class="ring-orbit" data-at="${escapeHtml(model.botStage)}"><button type="button" class="bot ring-bot" aria-label="${escapeHtml(label)}"></button></div>`;
 }
 
 export function renderRing(view) {
   const model = ringModel(view.summary && view.summary.ring, view.summary || {});
   return `<div class="ring-face">${renderRingFace(view)}</div>`
-    + renderRingBot(model)
+    + renderRingBot(model, botLabel(view.summary, view.findings))
     + '<div class="ring-gl" aria-hidden="true"></div>';
 }
 
@@ -117,6 +138,7 @@ export function mountRing2d(el, view) {
   el.innerHTML = renderRing(view);
   const face = el.querySelector('.ring-face');
   const orbit = el.querySelector('.ring-orbit');
+  const button = el.querySelector('.ring-bot');
   let faceHtml = renderRingFace(view);
   return {
     gl: el.querySelector('.ring-gl'),
@@ -127,6 +149,7 @@ export function mountRing2d(el, view) {
         faceHtml = html;
       }
       orbit.dataset.at = ringModel(next.summary && next.summary.ring, next.summary || {}).botStage;
+      button.setAttribute('aria-label', botLabel(next.summary, next.findings));
     },
     dispose() {
       el.innerHTML = '';

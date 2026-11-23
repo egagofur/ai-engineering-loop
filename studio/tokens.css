@@ -30,6 +30,11 @@
   --idle-highlight: #d9d7d2;
   --idle: #b9b7b1;
   --idle-deep: #8b8a86;
+  --prop-paper: #fbfaf7;
+  --prop-wood: #a8703c;
+  --prop-metal: #8b8a86;
+  --prop-box: #d6a66a;
+  --prop-pencil: #f2b632;
   --warn: #9a6200;
   --warn-soft: #fbf1dc;
   --danger: #c4282d;
@@ -45,8 +50,7 @@
   --radius-panel: 12px;
   --radius-card: 16px;
   --shadow-raised: 0 6px 16px color-mix(in srgb, var(--shadow) 5%, transparent);
-  --shadow-bot: 0 6px 14px color-mix(in srgb, var(--brand) 35%, transparent);
-  --shadow-bot-drop: 0 6px 7px color-mix(in srgb, var(--brand) 35%, transparent);
+  --shadow-bot: 0 3px 6px color-mix(in srgb, var(--brand) 22%, transparent);
   --halo-now: 0 0 0 5px color-mix(in srgb, var(--brand) 15%, transparent);
   --shadow-panel: 0 1px 2px color-mix(in srgb, var(--shadow) 6%, transparent), 0 12px 32px color-mix(in srgb, var(--shadow) 10%, transparent);
 
@@ -76,6 +80,11 @@
   --idle-highlight: #7a7b82;
   --idle: #55565d;
   --idle-deep: #3a3b41;
+  --prop-paper: #e9e7e2;
+  --prop-wood: #9a6a3a;
+  --prop-metal: #a3a3aa;
+  --prop-box: #c4955c;
+  --prop-pencil: #e0a92e;
   --ok-soft: #14261a;
   --warn: #e4a853;
   --warn-soft: #3a3018;
@@ -105,6 +114,11 @@
     --idle-highlight: #7a7b82;
     --idle: #55565d;
     --idle-deep: #3a3b41;
+    --prop-paper: #e9e7e2;
+    --prop-wood: #9a6a3a;
+    --prop-metal: #a3a3aa;
+    --prop-box: #c4955c;
+    --prop-pencil: #e0a92e;
     --ok-soft: #14261a;
     --warn: #e4a853;
     --warn-soft: #3a3018;

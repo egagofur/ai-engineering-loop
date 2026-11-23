@@ -50,7 +50,7 @@ function detail(overrides = {}) {
 }
 
 test('render modules import in Node without touching document or window', async () => {
-  for (const file of ['list.js', 'detail.js', 'api.js']) {
+  for (const file of ['list.js', 'detail.js', 'api.js', 'markdown.js']) {
     const source = fs.readFileSync(path.join(studio, 'js', file), 'utf8');
     assert.doesNotMatch(source, /\b(document|window)\b/, file);
   }

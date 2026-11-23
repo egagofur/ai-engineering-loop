@@ -56,7 +56,7 @@ test('the ring face is option C: six labelled stages on the circle, status class
   ]);
   assert.match(html, /<ol class="stages" aria-label="Run stages">/);
   assert.match(html, /<b class="ring-activity">Devil&#39;s Advocate<\/b><span class="eyebrow ring-note">3 findings · 1 blocking<\/span>/);
-  assert.match(html, /<div class="ring-orbit" data-at="review" aria-hidden="true"><span class="bot ring-bot"><\/span><\/div>/);
+  assert.match(html, /<div class="ring-orbit" data-at="review"><button type="button" class="bot ring-bot" aria-label="Bot is reviewing: [^"]+"><\/button><\/div>/);
   assert.match(html, /<div class="ring-gl" aria-hidden="true"><\/div>/);
   assert.doesNotMatch(html, /style=|#[0-9a-fA-F]{3,8}\b/, 'positions and colours come from styles.css');
   const css = fs.readFileSync(path.join(studio, 'styles.css'), 'utf8');
@@ -94,13 +94,15 @@ test('mountRing2d keeps the bot orbit element across updates so it can glide, an
   const face = { innerHTML: '' };
   const orbit = { dataset: {} };
   const gl = {};
-  const el = { innerHTML: '', querySelector: (selector) => ({ '.ring-face': face, '.ring-orbit': orbit, '.ring-gl': gl })[selector] };
+  const button = { label: null, setAttribute(name, value) { this.label = `${name}=${value}`; } };
+  const el = { innerHTML: '', querySelector: (selector) => ({ '.ring-face': face, '.ring-orbit': orbit, '.ring-gl': gl, '.ring-bot': button })[selector] };
   const handle = mountRing2d(el, { summary: summary(['now', 'pending', 'pending', 'pending', 'pending', 'pending']) });
   assert.match(el.innerHTML, /data-stage="goal" data-status="now"/);
   assert.equal(handle.gl, gl);
   handle.update({ summary: summary(['done', 'now', 'pending', 'pending', 'pending', 'pending']) });
   assert.match(face.innerHTML, /data-stage="maker" data-status="now"/);
   assert.equal(orbit.dataset.at, 'maker');
+  assert.equal(button.label, 'aria-label=Bot is building: Maker, in progress');
   handle.dispose();
   assert.equal(el.innerHTML, '');
 });
@@ -114,9 +116,10 @@ test('ring modules: no hex colours, three imported by relative path, one paused 
   }
   assert.match(ring3d, /from '\.\.\/vendor\/three\.module\.min\.js'/);
   assert.match(ring3d, /getComputedStyle\(document\.documentElement\)\.getPropertyValue\(/);
-  assert.match(ring3d, /body: '--brand', eyes: '--on-brand'/);
+  assert.match(ring3d, /new MeshPhysicalMaterial\([^)]*\), '--brand'\)/);
+  assert.match(ring3d, /new MeshBasicMaterial\(\), '--on-brand'\)/);
   assert.match(ring3d, /BOT_ORBIT/, 'the 3D bot uses the same orbit as the CSS bot');
-  assert.doesNotMatch(ring3d, /TorusGeometry|PerspectiveCamera/, 'the tilted ellipse scene is gone');
+  assert.doesNotMatch(ring3d, /RING_TILT|TRACK_RADIUS/, 'the tilted ellipse scene is gone');
   assert.equal((ring3d.match(/requestAnimationFrame\(/g) || []).length, 1);
   assert.match(ring3d, /document\.hidden/);
   assert.match(ring3d, /renderer\.dispose\(\)/);
@@ -132,15 +135,15 @@ test('vendored three.js is pinned, licensed and its core import is vendored too'
   assert.match(notices, /three\.js[\s\S]*0\.185\.1[\s\S]*MIT/);
 });
 
-test('main.js draws the DOM ring always and the WebGL bot only with WebGL, motion and a working three.js', () => {
+test('main.js draws the DOM ring always and the WebGL bot only with WebGL and a working three.js', () => {
   const main = fs.readFileSync(path.join(studio, 'js', 'main.js'), 'utf8');
   assert.match(main, /prefers-reduced-motion: reduce/);
   assert.match(main, /getContext\('webgl2'\)/);
   assert.match(main, /import\('\.\/ring\.js'\)/);
-  assert.match(main, /HAS_WEBGL && !ringView\.threeFailed && !reducedMotionQuery\.matches/);
+  assert.match(main, /return HAS_WEBGL && !ringView\.threeFailed;/);
   assert.match(main, /dataset\.bot = 'css'/);
   const css = fs.readFileSync(path.join(studio, 'styles.css'), 'utf8');
-  assert.match(css, /#ring\[data-bot="3d"\] \.ring-orbit\{opacity:0\}/);
+  assert.match(css, /#ring\[data-bot="3d"\] \.ring-bot\{background:transparent;box-shadow:none\}/, 'the CSS bot steps aside but its button keeps focus');
   assert.match(css, /@media \(max-width:899px\)\{[^@]*\.ringbox\{--loop:220px/, 'the ring stays visible, scaled down, at narrow widths');
   assert.doesNotMatch(css, /stage-rail/);
 });

@@ -7,6 +7,7 @@ const ELAPSED_REFRESH_MS = 60_000;
 
 const elements = {
   overview: document.getElementById('overview'),
+  live: document.getElementById('live'),
   connection: document.getElementById('connection'),
   list: document.getElementById('project-list'),
   run: document.getElementById('run'),
@@ -29,7 +30,8 @@ const state = {
   detailKey: null,
   detailError: null,
   me: { actor: null, actorValid: false },
-  freezing: false
+  freezing: false,
+  goalView: 'formatted'
 };
 
 let detailTicket = 0;
@@ -48,7 +50,7 @@ function webglAvailable() {
 }
 
 function wantsGlBot() {
-  return HAS_WEBGL && !ringView.threeFailed && !reducedMotionQuery.matches;
+  return HAS_WEBGL && !ringView.threeFailed;
 }
 
 function disposeBot() {
@@ -87,7 +89,7 @@ function syncBot() {
     if (ticket !== ringView.ticket || !ringView.handle) return;
     ringView.loading = false;
     try {
-      ringView.bot = mountBot(ringView.handle.gl, ringView.model);
+      ringView.bot = mountBot(ringView.handle.gl, ringView.model, { reducedMotion: reducedMotionQuery.matches, hoverTarget: elements.ring });
       elements.ring.dataset.bot = '3d';
     } catch {
       failed();
@@ -151,7 +153,7 @@ function focusedListButton() {
 function renderList() {
   const focused = focusedListButton();
   elements.list.innerHTML = state.loaded ? renderProjectList(state.projects, { selectedId: state.selectedId, actor: validActor() }) : '';
-  elements.overview.innerHTML = state.loaded ? renderOverview(state.projects) : 'Loading projects…';
+  elements.overview.innerHTML = state.loaded ? renderOverview(state.projects) : '<li class="chip">Loading projects…</li>';
   if (!focused) return;
   const match = [...elements.list.querySelectorAll('[data-project-id]')]
     .find((button) => button.dataset.projectId === focused.id && (button.dataset.action || 'select') === focused.action);
@@ -183,7 +185,12 @@ function renderRun() {
   const typed = input ? input.value : '';
   const typing = input && document.activeElement === input;
   elements.head.innerHTML = renderRunHead(state.detail.summary, { actor: validActor() });
-  elements.detail.innerHTML = renderDetail(state.detail);
+  const focusedTab = document.activeElement && elements.detail.contains(document.activeElement) ? document.activeElement.dataset.goalView : null;
+  elements.detail.innerHTML = renderDetail(state.detail, { goalView: state.goalView });
+  if (focusedTab) {
+    const tab = elements.detail.querySelector(`[data-goal-view="${focusedTab}"]`);
+    if (tab) tab.focus();
+  }
   const next = elements.head.querySelector('#freeze-actor');
   if (next && typed) next.value = typed;
   if (next && typing) next.focus();
@@ -328,6 +335,33 @@ async function freezeFromList(button) {
   await withFreezeLock(liveButton, () => submitFreeze(targetId, runId, goalHash));
 }
 
+const LIVE_TEXT = { connecting: 'Connecting…', live: 'Live', reconnecting: 'Reconnecting…', offline: 'Offline' };
+
+function setLive(next) {
+  if (elements.live.dataset.state === next) return;
+  elements.live.dataset.state = next;
+  elements.live.querySelector('.live-text').textContent = LIVE_TEXT[next];
+}
+
+function showGoalView(view, { focus = false } = {}) {
+  state.goalView = view;
+  for (const tab of elements.detail.querySelectorAll('[role="tab"][data-goal-view]')) {
+    const selected = tab.dataset.goalView === view;
+    tab.setAttribute('aria-selected', String(selected));
+    tab.tabIndex = selected ? 0 : -1;
+    const panel = document.getElementById(tab.getAttribute('aria-controls'));
+    if (panel) panel.hidden = !selected;
+    if (selected && focus) tab.focus();
+  }
+}
+
+const TAB_KEYS = {
+  'ArrowRight': (index, count) => (index + 1) % count,
+  'ArrowLeft': (index, count) => (index - 1 + count) % count,
+  'Home': () => 0,
+  'End': (index, count) => count - 1
+};
+
 function setConnection(message) {
   elements.connection.hidden = !message;
   elements.connection.textContent = message || '';
@@ -335,8 +369,10 @@ function setConnection(message) {
 
 function connect() {
   const source = new EventSource('/api/events');
+  source.addEventListener('open', () => setLive('live'));
   source.addEventListener('projects', (event) => {
     setConnection(null);
+    setLive('live');
     let payload;
     try {
       payload = JSON.parse(event.data);
@@ -346,6 +382,7 @@ function connect() {
     applyProjects(payload.projects);
   });
   source.addEventListener('error', () => {
+    setLive(source.readyState === EventSource.CLOSED ? 'offline' : 'reconnecting');
     setConnection(source.readyState === EventSource.CLOSED
       ? 'Lost the Studio connection. Start `ael studio` again, then reload this page.'
       : 'Reconnecting to Studio…');
@@ -362,6 +399,24 @@ elements.list.addEventListener('click', (event) => {
   if (row) select(row.dataset.projectId);
 });
 
+elements.detail.addEventListener('click', (event) => {
+  const tab = event.target.closest('[role="tab"][data-goal-view]');
+  if (tab) showGoalView(tab.dataset.goalView);
+});
+
+elements.detail.addEventListener('keydown', (event) => {
+  const tab = event.target.closest('[role="tab"][data-goal-view]');
+  const move = TAB_KEYS[event.key];
+  if (!tab || !move) return;
+  event.preventDefault();
+  const tabs = [...tab.parentElement.querySelectorAll('[role="tab"]')];
+  showGoalView(tabs[move(tabs.indexOf(tab), tabs.length)].dataset.goalView, { focus: true });
+});
+
+elements.ring.addEventListener('click', (event) => {
+  if (event.target.closest('.ring-bot') && ringView.bot) ringView.bot.react();
+});
+
 elements.head.addEventListener('click', (event) => {
   const button = event.target.closest('button[data-action="freeze"]');
   if (!button || button.type === 'submit') return;
@@ -376,7 +431,10 @@ elements.head.addEventListener('submit', (event) => {
   if (name) freeze(name);
 });
 
-reducedMotionQuery.addEventListener('change', syncRing);
+reducedMotionQuery.addEventListener('change', () => {
+  disposeBot();
+  syncRing();
+});
 
 setInterval(() => {
   if (document.visibilityState === 'visible') refreshProjects();
