@@ -55,7 +55,9 @@ test('motion: named properties, no ease-in, a short keyframe list, press feedbac
   assert.doesNotMatch(css, /transition-property:\s*all\b/);
   assert.doesNotMatch(css, /\bease-in\b(?!-out)/);
   const keyframes = [...css.matchAll(/@keyframes ([a-z-]+)/g)].map((match) => match[1]).sort();
-  assert.deepStrictEqual(keyframes, ['bubble-pop', 'detail-fade', 'detail-in'], 'no looping animation in CSS');
+  assert.deepStrictEqual(keyframes, ['bubble-pop', 'detail-fade', 'detail-in', 'freeze-done'], 'a short keyframe list');
+  assert.doesNotMatch(css, /animation:[^;}]*infinite/, 'no looping animation in CSS');
+  assert.match(css, /\.primary\[data-done="true"\]\{[^}]*animation:freeze-done 420ms var\(--ease-out\)/, 'Freeze morphs to a check with one pulse');
   assert.match(css, /:active:not\(:disabled\)[^{]*\{transform:scale\(\.97\)\}/);
   assert.match(css, /:focus-visible\{outline:2px solid var\(--focus\)/);
   const gate = css.indexOf('@media (hover:hover) and (pointer:fine){');

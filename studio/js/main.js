@@ -496,12 +496,22 @@ async function submitFreeze(targetId, runId, expectedHash) {
   setStatus(result.alreadyFrozen ? 'This Goal was already frozen in the agent host.' : `Goal frozen as ${state.me.actor}.`);
 }
 
+const FREEZE_DONE_MS = 650;
+
+function showFrozen(button) {
+  if (!button || !button.isConnected) return Promise.resolve();
+  button.dataset.done = 'true';
+  button.textContent = 'Frozen';
+  return wait(reducedMotionQuery.matches ? 0 : FREEZE_DONE_MS);
+}
+
 async function withFreezeLock(button, operation) {
   if (state.freezing) return;
   state.freezing = true;
   setBusy(button, true);
   try {
     await operation();
+    await showFrozen(button);
   } catch (error) {
     setStatus(freezeFailure(error));
   } finally {

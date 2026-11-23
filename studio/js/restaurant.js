@@ -49,6 +49,9 @@ const TICKET_EASE_SECONDS = 0.28;
 const TURN_EASE_SECONDS = 0.16;
 const STEAM_SECONDS = 1.8;
 const GUEST_REACH = 0.85;
+const HOVER_LIFT = 0.035;
+const HOVER_EASE_SECONDS = 0.09;
+const DING_SECONDS = 0.9;
 
 function toneColor(color, { tone, saturation }) {
   if (saturation !== 1) {
@@ -153,6 +156,9 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
   let cutApply = null;
   const cutWaiters = [];
   let heading = 0;
+  let wakeTimer = 0;
+  let hovered = null;
+  let dingAt = -1;
 
   function statusMap(next) {
     return Object.fromEntries(next.stages.map((item) => [item.stage, item.status]));
@@ -329,10 +335,13 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
     }
     const progress = stepTween(walkTween, time);
     const eased = ease(progress);
+    const lift = hopHeight(progress, walkTween.hops);
     current.botX = walkTween.from + (walkTween.to - walkTween.from) * eased;
-    placeBot(hopHeight(progress, walkTween.hops) * HOP);
+    placeBot(lift * HOP);
+    bot.stride(lift, progress < 1);
     if (progress >= 1) {
       walkTween = null;
+      bot.stride(0, false);
       placeBot(0);
     }
     return true;
@@ -400,7 +409,7 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
       moving = true;
     }
     if (current.figures.length && !reducedMotion && current.model.mode !== 'settled') {
-      poseDiners(current.figures, elapsed);
+      poseDiners(current.figures, elapsed, { bot: { x: current.botX, z: BOT_Z } });
       moving = true;
     }
     const cooking = statuses.maker === 'now';
@@ -419,6 +428,26 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
         puff.scale.setScalar(Math.max(0.001, Math.sin(Math.PI * t) * (0.8 + t * 0.6)));
       });
       moving = moving || (cooking && !reducedMotion);
+    }
+    STAGES.forEach((name) => {
+      const group = current.stations[name];
+      const want = hovered === name ? HOVER_LIFT : 0;
+      const y = reducedMotion ? want : settle(group.position.y, want, seconds, HOVER_EASE_SECONDS);
+      group.position.y = Math.abs(y - want) < 0.0005 ? want : y;
+      if (group.position.y !== want) moving = true;
+    });
+    if (current.bell && dingAt >= 0) {
+      const t = elapsed - dingAt;
+      if (t >= DING_SECONDS) {
+        dingAt = -1;
+        current.bell.rotation.z = 0;
+        current.bell.scale.setScalar(1);
+      } else {
+        const decay = 1 - t / DING_SECONDS;
+        current.bell.rotation.z = Math.sin(t * 38) * 0.22 * decay * decay;
+        current.bell.scale.setScalar(1 + Math.max(0, 0.08 - t * 0.4));
+        moving = true;
+      }
     }
     const target = statuses[current.botStage] === 'now' ? SPOT_ON : 0;
     spotLevel = reducedMotion ? target : settle(spotLevel, target, seconds, SPOT_EASE_SECONDS);
@@ -451,7 +480,17 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
     const station = stepStation(seconds);
     render();
     if (swapping || zooming || walking || sliding || botMoving || station) schedule();
-    else lastTime = 0;
+    else {
+      lastTime = 0;
+      sleepUntilBlink();
+    }
+  }
+
+  function sleepUntilBlink() {
+    window.clearTimeout(wakeTimer);
+    const wait = bot.wakeIn();
+    if (!Number.isFinite(wait) || document.hidden) return;
+    wakeTimer = window.setTimeout(schedule, wait * 1000 + 16);
   }
 
   function schedule() {
@@ -460,6 +499,7 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
   }
 
   function stop() {
+    window.clearTimeout(wakeTimer);
     if (frame) cancelAnimationFrame(frame);
     frame = 0;
     lastTime = 0;
@@ -552,18 +592,40 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
   const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
   const glances = finePointer.matches && !reducedMotion;
 
-  function hitsBotStation(event) {
-    if (!current || zoomed > 0.01) return false;
+  function aim(event) {
     const box = el.getBoundingClientRect();
     pointer.set(((event.clientX - box.left) / box.width) * 2 - 1, -((event.clientY - box.top) / box.height) * 2 + 1);
     raycaster.setFromCamera(pointer, camera);
+  }
+
+  function hitsBotStation(event) {
+    if (!current || zoomed > 0.01) return false;
+    aim(event);
     return raycaster.intersectObjects([current.stations[current.botStage], bot.root], true).length > 0;
+  }
+
+  function stationUnder(event) {
+    if (!current || zoomed > 0.01) return null;
+    aim(event);
+    const hit = raycaster.intersectObjects(STAGES.map((name) => current.stations[name]), true)[0];
+    let node = hit && hit.object;
+    while (node && !node.userData.stage) node = node.parent;
+    return node ? node.userData.stage : null;
+  }
+
+  function setHovered(next) {
+    if (next === hovered) return;
+    hovered = next;
+    root.querySelectorAll('.stage[data-stage]').forEach((label) => {
+      if (label.dataset.stage === hovered) label.dataset.hover = 'true';
+      else delete label.dataset.hover;
+    });
   }
 
   function onPointerMove(event) {
     if (glances) {
       bot.root.getWorldPosition(scratch);
-      scratch.y += bot.height * 0.75;
+      scratch.y += bot.height * 0.5;
       const centre = project(scratch);
       const box = el.getBoundingClientRect();
       const dx = event.clientX - box.left - centre.x;
@@ -572,6 +634,7 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
       const reach = Math.min(1, length / 160);
       bot.lookAt((dx / length) * reach, (-dy / length) * reach);
     }
+    if (glances) setHovered(stationUnder(event));
     if (hitsBotStation(event)) el.dataset.hover = 'room';
     else delete el.dataset.hover;
     schedule();
@@ -579,6 +642,7 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
 
   function onPointerLeave() {
     bot.lookAt(0, 0);
+    setHovered(null);
     delete el.dataset.hover;
     schedule();
   }
@@ -611,7 +675,9 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
       let done = Promise.resolve();
       if (swap) done = swapTo(next, direction);
       else if (current) {
+        const before = current.statuses;
         current.statuses = statusMap(next);
+        if (before.judge === 'now' && current.statuses.judge === 'done' && !reducedMotion) dingAt = elapsed;
         current.model = next;
         current.arc.visible = Boolean(returnPath(next));
         paintCarrier(current);
@@ -641,6 +707,7 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
     },
     dispose() {
       stop();
+      setHovered(null);
       window.clearTimeout(cutTimer);
       finishSwap();
       if (zoomTween) zoomTween.resolve();

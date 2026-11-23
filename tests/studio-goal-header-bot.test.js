@@ -128,7 +128,7 @@ test('bot clips: one looping clip per stage with its prop, a blinking waiting cl
     assert.ok(tracks.includes('body.position[y]'), `${stage} breathes`);
     for (const other of STAGES.filter((name) => name !== stage)) assert.ok(!tracks.includes(`prop_${other}.scale`), `${stage} hides ${other}`);
   }
-  assert.ok(clips.waiting[0].tracks.some((track) => track.name === 'neck.rotation[y]'), 'waiting looks around');
+  assert.ok(clips.waiting[0].tracks.some((track) => track.name === 'face.rotation[y]'), 'waiting looks around');
   const { EYE_SHAPES } = await load('bot.js');
   assert.ok(['open', 'happy', 'question', 'angry', 'squint'].every((shape) => EYE_SHAPES.includes(shape)), 'eyes change shape by mood');
   assert.match(read('js/bot.js'), /BLINK_SECONDS/, 'the eyes blink');
@@ -140,11 +140,13 @@ test('bot clips: one looping clip per stage with its prop, a blinking waiting cl
   assert.ok(reaction.tracks.some((track) => track.name === 'hop.position[y]'), 'a hop');
   assert.ok(reaction.tracks.some((track) => track.name === 'hop.scale'), 'squash and stretch');
   const review = clips.stages.review.tracks.map((track) => track.name);
-  assert.ok(review.includes('armR.rotation[x]') && review.includes('head.rotation[z]'), 'Review thinks with a hand to the chin');
+  assert.ok(review.includes('body.rotation[z]') && review.includes('face.rotation[z]'), 'Review tilts, thinking');
   const goal = clips.stages.goal.tracks.map((track) => track.name);
-  assert.ok(goal.includes('armR.rotation[x]') && goal.includes('head.rotation[x]'), 'Goal writes, looking down');
-  const maker = clips.stages.maker.tracks.find((track) => track.name === 'armR.rotation[x]');
-  assert.ok(Math.min(...maker.values) < -2, 'Maker raises the hammer before the strike');
+  assert.ok(goal.includes('prop_goal.rotation[z]') && goal.includes('face.rotation[x]'), 'Goal writes with the quill, looking down');
+  const maker = clips.stages.maker.tracks.find((track) => track.name === 'prop_maker.rotation[z]');
+  assert.ok(Math.max(...maker.values) > 1, 'Maker raises the spatula before the strike');
+  const judge = clips.stages.judge.tracks.map((track) => track.name);
+  assert.ok(judge.includes('prop_judge.rotation[z]') && judge.includes('hop.scale'), 'the Head chef strikes the gavel with a squash');
 });
 
 test('bot runtime: crossfades, one paused render loop, reduced motion static, hover only on fine pointers, toned-down glow', () => {
@@ -168,5 +170,56 @@ test('bot runtime: crossfades, one paused render loop, reduced motion static, ho
   assert.match(bot, /new MeshPhysicalMaterial\(\{ roughness: 0\.32, metalness: 0, clearcoat: 1/, 'clearcoat shell');
   assert.match(bot, /costume === 'devil'/);
   assert.match(bot, /costume === 'philosopher'/);
+  assert.match(bot, /new SphereGeometry\(R, 64, 48\)/, 'one smooth sphere body');
+  assert.doesNotMatch(bot, /visorMesh|armR|armL|neck/, 'no visor, arms or neck');
   assert.match(main, /reducedMotion: reducedMotionQuery\.matches/);
+});
+
+test('round bot: capsule eyes right of centre carry the moods, blink with jitter and squash on hops', async () => {
+  const { eyePose, nextBlink, EYE_YAW, EYE_GAP, BLINK_SECONDS, BOT_HEIGHT } = await load('bot.js');
+  assert.ok(EYE_YAW > 0 && EYE_YAW - EYE_GAP / 2 > 0, 'both eyes sit right of centre, looking sideways');
+  assert.equal(BOT_HEIGHT, 1, 'a unit sphere');
+  const open = eyePose('open');
+  assert.deepStrictEqual(open.left, { sx: 1, sy: 1, rz: -0, dy: 0 });
+  assert.equal(open.arcs, false);
+  assert.ok(eyePose('open', 0).left.sy < 0.1, 'a blink closes the lids');
+  assert.ok(eyePose('squint').left.sy < 0.4, 'squint');
+  const angry = eyePose('angry');
+  assert.ok(angry.left.rz < 0 && angry.right.rz > 0, 'angry eyes tilt inward');
+  assert.ok(eyePose('wide').left.sy > 1 && eyePose('question').mark, 'wide "?" eyes show a question mark');
+  assert.equal(eyePose('happy').arcs, true, 'happy shows ^ ^');
+  assert.equal(eyePose('happy', 0.2).arcs, false);
+  assert.ok(BLINK_SECONDS <= 0.2);
+  assert.equal(nextBlink(() => 0), 2.6);
+  assert.ok(nextBlink(() => 1) <= 6, 'blinks every few seconds with jitter');
+  const { stride } = await load('kitchen.js');
+  assert.deepStrictEqual(stride(0.5, false), { y: 1, xz: 1 });
+  assert.ok(stride(0, true).y < 1, 'squash on landing');
+  assert.ok(stride(1, true).y > 1, 'stretch at the top of the hop');
+  for (const lift of [0, 0.3, 1]) {
+    const shape = stride(lift, true);
+    assert.ok(Math.abs(shape.y * shape.xz * shape.xz - 1) < 0.01, 'volume is kept');
+  }
+  const restaurant = read('js/restaurant.js');
+  assert.match(restaurant, /bot\.stride\(lift, progress < 1\)/, 'the bot squashes and stretches while hopping between stations');
+  assert.match(restaurant, /wakeTimer = window\.setTimeout\(schedule, wait \* 1000/, 'an idle scene wakes only to blink');
+});
+
+test('micro-interactions: station hover lift, Judge bell ding, diners glance at the bot, all off for reduced motion', async () => {
+  const { dinerGlance, GLANCE_PERIOD, GLANCE_SECONDS } = await load('kitchen.js');
+  assert.equal(dinerGlance(GLANCE_SECONDS + 0.1, 0), 0);
+  assert.ok(dinerGlance(GLANCE_SECONDS / 2, 0) === 1, 'a full glance in the middle of the window');
+  assert.ok(dinerGlance(0.05, 0) > 0 && dinerGlance(0.05, 0) < 1, 'eases in');
+  assert.ok(GLANCE_PERIOD > GLANCE_SECONDS * 4, 'occasionally');
+  const restaurant = read('js/restaurant.js');
+  assert.match(restaurant, /if \(before\.judge === 'now' && current\.statuses\.judge === 'done' && !reducedMotion\) dingAt = elapsed;/);
+  assert.match(restaurant, /if \(glances\) setHovered\(stationUnder\(event\)\);/);
+  assert.match(restaurant, /const glances = finePointer\.matches && !reducedMotion;/);
+  const diners = read('js/diners.js');
+  assert.match(diners, /const look = bot && !reducedMotion \? dinerGlance\(seconds, figure\.phase\) : 0;/);
+  const css = read('styles.css');
+  assert.match(css, /\.stage\[data-hover="true"\]/, 'the hovered station label lights up');
+  const main = read('js/main.js');
+  assert.match(main, /await operation\(\);\n\s+await showFrozen\(button\);/, 'a successful Freeze morphs the button before the view refreshes');
+  assert.match(main, /wait\(reducedMotionQuery\.matches \? 0 : FREEZE_DONE_MS\)/);
 });

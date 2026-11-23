@@ -164,3 +164,23 @@ export function dinerPose(loop, seconds, phase = 0, { reducedMotion = false } = 
   if (loop === 'sip') return { armR: -0.5, armL: -0.3 - lift * 1.7, head: 0.1 - lift * 0.25, tilt: 0, sway: 0 };
   return { armR: -0.6 - lift * 0.4, armL: -0.3, head: Math.sin(t * Math.PI * 4) * 0.08, tilt: Math.sin(t * Math.PI * 2) * 0.14, sway: Math.sin(t * Math.PI * 2) * 0.04 };
 }
+
+export const GLANCE_PERIOD = 8.5;
+export const GLANCE_SECONDS = 1.4;
+
+export function dinerGlance(seconds, phase = 0) {
+  const t = ((((seconds / GLANCE_PERIOD) + phase) % 1) + 1) % 1 * GLANCE_PERIOD;
+  if (t >= GLANCE_SECONDS) return 0;
+  const x = Math.min(1, t / (GLANCE_SECONDS * 0.2), (GLANCE_SECONDS - t) / (GLANCE_SECONDS * 0.2));
+  return Number((x * x * (3 - 2 * x)).toFixed(4));
+}
+
+export const HOP_SQUASH = 0.12;
+export const HOP_STRETCH = 0.1;
+
+export function stride(lift, moving) {
+  if (!moving) return { y: 1, xz: 1 };
+  const clamped = Math.min(1, Math.max(0, lift));
+  const y = 1 + clamped * HOP_STRETCH - Math.max(0, 1 - clamped * 3) * HOP_SQUASH;
+  return { y: Number(y.toFixed(4)), xz: Number((1 / Math.sqrt(y)).toFixed(4)) };
+}

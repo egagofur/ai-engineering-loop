@@ -73,14 +73,14 @@ test('motion uses one ease-out curve: cubic-bezier(0.23, 1, 0.32, 1), zoom 600-9
   assert.ok(Math.abs(linear(0.3) - 0.3) < 1e-4);
 });
 
-test('bot waiting moods: calm look-around, foot tap, crossed arms, angry hops with steam', async () => {
+test('bot waiting moods: calm look-around, foot tap, grumble, angry hops with steam', async () => {
   const { buildClips } = await load('bot.js');
   const waiting = buildClips().waiting;
   assert.equal(waiting.length, 4);
   const names = waiting.map((clip) => clip.tracks.map((track) => track.name));
-  assert.ok(names[0].includes('neck.rotation[y]'));
+  assert.ok(names[0].includes('face.rotation[y]'));
   assert.ok(names[1].includes('body.rotation[z]'));
-  assert.ok(names[2].includes('armR.rotation[z]') && names[2].includes('armL.rotation[z]'), 'level 3 crosses the arms');
+  assert.ok(names[2].includes('face.rotation[y]') && names[2].includes('body.rotation[z]'), 'level 3 grumbles, shaking its face');
   assert.ok(names[3].includes('steam.scale') && names[3].includes('puff1.position[y]'), 'steam puffs');
   assert.ok(!names[2].includes('steam.scale'));
   const { botFace } = await load('kitchen.js');

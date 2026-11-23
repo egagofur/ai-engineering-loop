@@ -88,6 +88,8 @@ body[data-sheet="open"] .run{transform:scale(.985)}
 .primary{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 14px;border:0;border-radius:var(--radius-control);background:var(--brand);color:var(--on-brand);font-weight:600;cursor:pointer;transition:background-color var(--press) ease,transform var(--press) var(--ease-out)}
 .primary:active:not(:disabled){transform:scale(.97)}
 .primary:disabled{cursor:progress;opacity:.6}
+.primary[data-done="true"]{background:var(--ok-fill);color:var(--on-brand);opacity:1;cursor:default;animation:freeze-done 420ms var(--ease-out)}
+.primary[data-done="true"]::before{content:"";width:12px;height:7px;margin:-3px 2px 0 0;border-bottom:2px solid currentColor;border-left:2px solid currentColor;transform:rotate(-45deg)}
 .ghost{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;border:1px solid var(--line-strong);border-radius:var(--radius-control);background:var(--surface-2);color:var(--text);font-weight:600;cursor:pointer;transition:background-color var(--press) ease,transform var(--press) var(--ease-out)}
 .ghost:active:not(:disabled){transform:scale(.97)}
 .list-sketch{height:28px;margin:2px 0 6px 6px;padding:0 10px;font-size:12.5px}
@@ -212,10 +214,13 @@ body[data-sheet="open"] .run{transform:scale(.985)}
 #ring[data-ring="3d"] .stage.now{border-color:color-mix(in srgb,var(--brand) 45%,transparent);color:var(--text)}
 #ring[data-ring="3d"] .stage.now i{background:var(--brand);box-shadow:none}
 #ring[data-ring="3d"] .stage.skipped{opacity:.55}
+#ring[data-ring="3d"] .stage{transition:border-color var(--press) ease,color var(--press) ease,background-color var(--press) ease,translate var(--press) var(--ease-out)}
+#ring[data-ring="3d"] .stage[data-hover="true"]{border-color:color-mix(in srgb,var(--brand) 55%,transparent);background:color-mix(in srgb,var(--surface-2) 94%,transparent);color:var(--text);translate:0 -2px}
 #ring[data-ring="3d"] .kitchen-ticket,#ring[data-ring="3d"] .kitchen-return{top:0;left:0;transform:none}
 #ring[data-ring="3d"] .kitchen-return{padding:2px 8px;border-radius:999px;background:color-mix(in srgb,var(--surface-2) 80%,transparent)}
 #ring[data-ring="3d"] .guest{top:0;bottom:auto;left:0;transform:none}
-#ring[data-ring="3d"] .ring-centre{top:20px;right:20px;left:auto;align-items:flex-end;width:min(320px,40%);z-index:1;text-align:right;transform:none}
+#ring[data-ring="3d"] .ring-centre{top:16px;right:16px;left:auto;align-items:flex-end;width:min(300px,34%);z-index:1;padding:12px 14px;text-align:right;transform:none}
+.run[data-showing="true"] .stage-head{max-width:min(460px,calc(66% - 48px))}
 #ring[data-ring="3d"] .ring-activity{font-size:20px}
 #ring[data-ring="3d"] .ring-gl{inset:0;width:auto;height:auto;margin:0;pointer-events:auto}
 .ring-gl canvas{transition:opacity 160ms var(--ease-out)}
@@ -234,7 +239,8 @@ body[data-sheet="open"] .run{transform:scale(.985)}
 .goal-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 12px;margin-bottom:10px}
 .detail-card .goal-head h3{margin:0}
 .tabs{display:inline-flex;padding:2px;border:1px solid var(--line);border-radius:8px;background:var(--surface-1)}
-.tabs [role="tab"]{-webkit-tap-highlight-color:transparent;height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--muted);font-size:12.5px;font-weight:550;cursor:pointer;transition:background-color var(--press) ease,color var(--press) ease,box-shadow var(--press) ease}
+.tabs [role="tab"]{-webkit-tap-highlight-color:transparent;height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--muted);font-size:12.5px;font-weight:550;cursor:pointer;transition:background-color var(--press) ease,color var(--press) ease,box-shadow var(--press) ease,transform var(--press) var(--ease-out)}
+.tabs [role="tab"]:active{transform:scale(.97)}
 .tabs [role="tab"][aria-selected="true"]{background:var(--surface-2);color:var(--text);box-shadow:var(--shadow-raised)}
 .goal-formatted{max-height:420px;overflow:auto;color:var(--text-2);line-height:1.6;overflow-wrap:anywhere}
 .goal-formatted h4{margin:0 0 8px;color:var(--text);font-size:15px;font-weight:650}
@@ -259,7 +265,7 @@ body[data-sheet="open"] .run{transform:scale(.985)}
   .ringbox{--loop:min(220px,62vw)}
   #ring[data-ring="3d"] .ring-centre{top:auto;bottom:56px;width:60%}
   #ring[data-ring="3d"] .ring-activity{font-size:17px}
-  .stage-head{top:10px;right:10px;left:10px;max-width:none;padding:10px 12px}
+  .stage-head,.run[data-showing="true"] .stage-head{top:10px;right:10px;left:10px;max-width:none;padding:10px 12px}
   .run-task{font-size:14.5px;-webkit-line-clamp:1}
   .details-button{right:10px;bottom:10px}
   .run-status{left:10px;bottom:56px;max-width:calc(100% - 20px)}
@@ -290,6 +296,10 @@ body[data-sheet="open"] .run{transform:scale(.985)}
   from{opacity:0;transform:translateY(4px)}
 }
 
+@keyframes freeze-done{
+  40%{scale:1.04}
+}
+
 @keyframes detail-fade{
   from{opacity:0}
 }
@@ -301,6 +311,7 @@ body[data-sheet="open"] .run{transform:scale(.985)}
   .sheet-panel{opacity:0;transform:none;transition:opacity 200ms var(--ease-out)}
   .sheet[data-open="true"] .sheet-panel{opacity:1;transform:none}
   .bot-bubble[data-pop]{animation:none}
+  .primary[data-done="true"]{animation:detail-fade 200ms var(--ease-out)}
   .loop,.stage-head,.details-button{transition-property:opacity}
   .run[data-zoom="in"] .loop,.run[data-zoom="in"] .ring-orbit,.run[data-zoom="in"] .stage-head,.run[data-zoom="in"] .details-button,.run[data-zoom="in"] .run-status{scale:1}
   .project-row,.worktree-row,.primary{transition-property:background-color,border-color}
