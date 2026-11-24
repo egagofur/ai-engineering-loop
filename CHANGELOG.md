@@ -4,6 +4,10 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+## 3.2.0 - 2026-11-24
+
+Studio rewritten in Svelte 5 with a smoother 3D kitchen (#182, #183).
+
 - **Changed:** Studio's interface is rewritten in Svelte 5, compiled with Vite into `studio/app/` (committed and shipped; Svelte and Vite are devDependencies, the CLI still has no runtime dependencies). A projects snapshot now patches only the rows, labels and chips that changed instead of rebuilding the list, the Run header, the details and the ring with `innerHTML`, so focus and typed names survive refreshes and animations no longer stutter on every update.
 - **Changed:** smoother kitchen: the 3D scene renders at most 1.5x device pixel ratio and drops to 1x when frames run slow, and the overlay labels read cached sizes instead of forcing a layout per label on every frame.
 - **Changed:** Studio's hashed JS/CSS assets are cached by the browser for a year; the page itself still revalidates on every load. Old `/js/*.js`, `/vendor/*` and `/styles.css` URLs are gone.
