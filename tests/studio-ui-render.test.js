@@ -297,3 +297,8 @@ test('index.html loads only the built bundle and the app reserves the ring befor
   assert.match(app, /id="project-list"/);
   assert.match(app, /id="run-detail"/);
 });
+
+test('Studio sources check out with LF on every OS, so source checks and the build match', () => {
+  const attributes = fs.readFileSync(path.join(__dirname, '..', '.gitattributes'), 'utf8');
+  for (const ext of ['svelte', 'js', 'css', 'html', 'json', 'mjs']) assert.match(attributes, new RegExp(`^studio/\\*\\*/\\*\\.${ext} text eol=lf$`, 'm'), ext);
+});

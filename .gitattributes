@@ -5,3 +5,5 @@ studio/**/*.js text eol=lf
 studio/**/*.css text eol=lf
 studio/**/*.html text eol=lf
 studio/**/*.json text eol=lf
+studio/**/*.svelte text eol=lf
+studio/**/*.mjs text eol=lf
