@@ -272,6 +272,30 @@ test('freeze twice: the first freezes as the Studio actor, the second answers al
   });
 });
 
+test('GET runs lists the newest Runs with their last Judge verdict and marks the current one; writes are 405', async () => {
+  const { home, roots } = fixture();
+  const root = roots[0];
+  const iterationsPath = (dir, runId) => path.join(dir, '.ai-engineering-loop', 'runs', runId, 'iterations.jsonl');
+  createRun(root, { runId: '20261101T000000Z-aaaaaaaa', task: 'old pass' });
+  fs.writeFileSync(iterationsPath(root, '20261101T000000Z-aaaaaaaa'), `${JSON.stringify({ iteration: 1, verdict: 'ITERATE' })}\n${JSON.stringify({ iteration: 2, verdict: 'PASS' })}\n`);
+  createRun(root, { runId: '20261102T000000Z-bbbbbbbb', task: 'newer' });
+  fs.mkdirSync(path.join(root, '.ai-engineering-loop', 'runs', 'not a run'), { recursive: true });
+  const id = projectId(root);
+  await withStudio({ home }, async ({ base }) => {
+    const response = await api(base, `/api/projects/${id}/runs`);
+    assert.equal(response.status, 200);
+    const { runs } = await response.json();
+    assert.deepEqual(runs.map((run) => run.runId), ['20261102T000000Z-bbbbbbbb', '20261101T000000Z-aaaaaaaa']);
+    assert.equal(runs[1].verdict, 'PASS');
+    assert.equal(runs[1].task, 'old pass');
+    assert.equal(runs[0].verdict, null);
+    assert.equal(runs[0].current, true);
+    assert.equal(runs[1].current, false);
+    assert.equal((await api(base, `/api/projects/${id}/runs`, { method: 'POST', body: {} })).status, 405);
+    assert.equal((await api(base, '/api/projects/ffffffffffff/runs')).status, 404);
+  });
+});
+
 test('a Studio freeze records one GOAL_FROZEN lifecycle event and drafts the impact map, like the CLI', async () => {
   const { listRunLifecycle } = require('../lib/run-lifecycle.js');
   const { loadImpactMap } = require('../lib/impact-map.js');

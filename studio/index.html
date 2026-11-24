@@ -30,6 +30,7 @@
       <section id="ring" class="ringbox" aria-label="Run loop" hidden></section>
       <header id="run-head" class="stage-head"></header>
       <p id="run-status" class="run-status" role="status"></p>
+      <button type="button" id="orders-open" class="details-button orders-button" aria-haspopup="dialog" aria-controls="orders-sheet" aria-keyshortcuts="o" hidden>Order book <kbd aria-hidden="true">O</kbd></button>
       <button type="button" id="details-open" class="details-button" aria-haspopup="dialog" aria-controls="details-sheet" aria-keyshortcuts="d" hidden>Details <kbd aria-hidden="true">D</kbd></button>
       <div id="room" class="room" role="dialog" aria-modal="true" aria-labelledby="room-title" hidden>
         <div class="room-card"></div>
@@ -50,6 +51,17 @@
         <button type="button" class="sheet-close" data-action="close-details" aria-label="Close order sketch">Close</button>
       </div>
       <div id="sketch" class="sketch"></div>
+    </div>
+  </div>
+  <div id="orders-sheet" class="sheet orders-sheet" role="dialog" aria-modal="true" aria-labelledby="orders-title" hidden>
+    <div class="sheet-backdrop" data-action="close-details"></div>
+    <div class="sheet-panel" tabindex="-1">
+      <div class="sheet-grab">
+        <span class="sheet-handle" aria-hidden="true"></span>
+        <h2 id="orders-title" class="sheet-title">Order book</h2>
+        <button type="button" class="sheet-close" data-action="close-details" aria-label="Close order book">Close</button>
+      </div>
+      <div id="orders" class="orders-body"></div>
     </div>
   </div>
   <div id="details-sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="details-title" hidden>

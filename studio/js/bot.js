@@ -279,12 +279,12 @@ export function nextBlink(random = Math.random) {
   return 2.6 + random() * 3.2;
 }
 
-function onSphere(target, offset, x, y) {
-  const length = Math.hypot(x, y, BOT_RADIUS);
-  const scale = (BOT_RADIUS + EYE_LIFT) / length;
+function onSphere(target, offset, x, y, radius = BOT_RADIUS) {
+  const length = Math.hypot(x, y, radius);
+  const scale = (radius + EYE_LIFT * (radius / BOT_RADIUS)) / length;
   target[offset] = x * scale;
   target[offset + 1] = y * scale;
-  target[offset + 2] = BOT_RADIUS * scale;
+  target[offset + 2] = radius * scale;
 }
 
 function decalGeometry(count) {
@@ -296,7 +296,7 @@ function decalGeometry(count) {
   return geometry;
 }
 
-function shapeEye(geometry, outline) {
+function shapeEye(geometry, outline, radius = BOT_RADIUS) {
   const array = geometry.attributes.position.array;
   let cx = 0;
   let cy = 0;
@@ -304,10 +304,26 @@ function shapeEye(geometry, outline) {
     cx += x / outline.length;
     cy += y / outline.length;
   });
-  onSphere(array, 0, cx, cy);
-  outline.forEach(([x, y], index) => onSphere(array, (index + 1) * 3, x, y));
+  onSphere(array, 0, cx, cy, radius);
+  outline.forEach(([x, y], index) => onSphere(array, (index + 1) * 3, x, y, radius));
   geometry.attributes.position.needsUpdate = true;
   geometry.computeBoundingSphere();
+}
+
+export function eyeDecal(side, radius = BOT_RADIUS) {
+  const geometry = decalGeometry(EYE_POINTS);
+  const ratio = radius / BOT_RADIUS;
+  const shape = (openness = 1, expression = 'open') => {
+    const pose = eyePose(expression, openness)[side < 0 ? 'left' : 'right'];
+    shapeEye(geometry, eyeOutline(pose, side).map(([x, y]) => [x * ratio, y * ratio]), radius);
+  };
+  shape();
+  return { geometry, shape };
+}
+
+export function blinkOpenness(sinceBlink) {
+  if (sinceBlink < 0 || sinceBlink >= BLINK_SECONDS) return 1;
+  return Math.abs(1 - (2 * sinceBlink) / BLINK_SECONDS);
 }
 
 function arcGeometry() {

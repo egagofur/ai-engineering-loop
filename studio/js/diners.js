@@ -1,5 +1,4 @@
 import {
-  CapsuleGeometry,
   CylinderGeometry,
   Group,
   Mesh,
@@ -12,6 +11,7 @@ import {
 
 import { DINER_TABLES, dinerGlance, dinerLayout, dinerPose, dinerSeats } from './kitchen.js';
 import { lathe, mergeStatic, roundedBox } from './forms.js';
+import { BLINK_SECONDS, EYE_GAP, EYE_PITCH, blinkOpenness, eyeDecal, nextBlink } from './bot.js';
 
 export const DINER_SCALE = 0.62;
 export const DINER_RADIUS = 0.42;
@@ -69,12 +69,13 @@ function buildFigure(m, shared, token) {
   const head = new Group();
   head.position.y = DINER_RADIUS + 0.12;
   const gaze = new Group();
+  const decals = [];
   const eyes = [-1, 1].map((side) => {
     const pivot = new Group();
-    const pupil = m.mesh(new CapsuleGeometry(0.04, 0.09, 4, 12), shared.eye, [0, 0, DINER_RADIUS * 0.975], [0, 0, 0], false);
-    pupil.scale.z = 0.3;
-    pivot.add(pupil);
-    pivot.rotation.set(-0.32, side * 0.2, 0);
+    const decal = eyeDecal(side, DINER_RADIUS);
+    decals.push(decal);
+    pivot.add(m.mesh(decal.geometry, shared.eye, [0, 0, 0], [0, 0, 0], false));
+    pivot.rotation.set(-EYE_PITCH, side * EYE_GAP / 2, 0);
     return pivot;
   });
   gaze.add(...eyes);
@@ -98,7 +99,7 @@ function buildFigure(m, shared, token) {
   armL.add(cup);
   body.add(sphere, head, armL, armR);
   root.add(body);
-  return { root, body, head, gaze, armL, armR };
+  return { root, body, head, gaze, armL, armR, decals, open: 1, blinkAt: null };
 }
 
 export function buildDiners({ registry, textures, count }) {
@@ -108,7 +109,7 @@ export function buildDiners({ registry, textures, count }) {
     wood: m.register(new MeshStandardMaterial({ roughness: 0.5, map: textures.planks }), '--prop-wood'),
     paper: m.register(new MeshPhysicalMaterial({ roughness: 0.3, clearcoat: 0.7 }), '--prop-paper'),
     metal: m.register(new MeshStandardMaterial({ roughness: 0.25, metalness: 1 }), '--prop-metal'),
-    eye: m.register(new MeshPhysicalMaterial({ roughness: 0.18, clearcoat: 1 }), '--bot-visor'),
+    eye: m.register(new MeshBasicMaterial(), '--bot-visor'),
     food: m.register(new MeshPhysicalMaterial({ roughness: 0.45, clearcoat: 0.5 }), '--kitchen-food'),
     blob: m.register(new MeshBasicMaterial({ transparent: true, opacity: 0.28, depthWrite: false, alphaMap: textures.blob, polygonOffset: true, polygonOffsetFactor: -2 }), '--shadow', { flat: true })
   };
@@ -153,9 +154,19 @@ export function poseDiners(figures, seconds, { reducedMotion = false, bot = null
     const look = bot && !reducedMotion ? dinerGlance(seconds, figure.phase) : 0;
     const toward = bot ? Math.max(-1.3, Math.min(1.3, Math.atan2(bot.x - figure.x, Math.abs(bot.z - figure.z)) * 1.6)) : 0;
     figure.gaze.rotation.set(-look * 0.25, look * toward, 0);
+    blinkDiner(figure, seconds, reducedMotion);
   }
 }
 
-export function dinerHeadY() {
-  return SEAT + DINER_HEAD * DINER_SCALE;
+export function blinkDiner(figure, seconds, reducedMotion = false, random = Math.random) {
+  let open = 1;
+  if (!reducedMotion) {
+    if (figure.blinkAt === null || seconds - figure.blinkAt > 30) figure.blinkAt = seconds + nextBlink(random);
+    if (seconds - figure.blinkAt >= BLINK_SECONDS) figure.blinkAt = seconds + nextBlink(random);
+    open = blinkOpenness(seconds - figure.blinkAt);
+  }
+  if (open === figure.open) return false;
+  figure.open = open;
+  figure.decals.forEach((decal) => decal.shape(open));
+  return true;
 }

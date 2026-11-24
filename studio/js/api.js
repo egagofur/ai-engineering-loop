@@ -64,3 +64,7 @@ export async function freezeGoal(projectId, runId, expectedHash) {
     body: { expectedHash }
   });
 }
+
+export async function fetchRuns(projectId) {
+  return (await request(`/api/projects/${segment(projectId)}/runs`)).runs;
+}

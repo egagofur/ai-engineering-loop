@@ -35,15 +35,20 @@ import {
   stationX,
   swapOffset,
   ticketTarget,
-  walkPlan
+  walkPlan,
+  crewSlots,
+  MAX_CREW,
+  stationCrowd
 } from './kitchen.js';
 import { cubicBezier, EASE_OUT, ROOM_SWITCH_MS, ZOOM_MS } from './mood.js';
 import { patternTexture, radialTexture, readToken, studioEnvironment } from './forms.js';
-import { buildDiners, dinerHeadY, poseDiners } from './diners.js';
+import { buildDiners, poseDiners } from './diners.js';
+import { WORKSTATION, buildWorkstation } from './workstation.js';
 import { createCarriers, swapMode } from './carriers.js';
 import { BOT_Y, BOT_Z, COUNTER_FRONT, COUNTER_TOP, GUEST_TOP, PENDANT_XS, PENDANT_Y, PENDANT_Z, RAIL_Z, TICKET_Y, buildKitchen } from './stations.js';
 
 const BOT_SIZE = 1.05;
+const CREW_SIZE = 0.6;
 const BOT_BOX = { top: 1.6, half: 0.9 };
 const CAMERA_EASE_SECONDS = 0.32;
 const OVERLAY_PAD = 8;
@@ -114,7 +119,7 @@ function settle(current, target, seconds, constant) {
   return Math.abs(next - target) < 0.002 ? target : next;
 }
 
-export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = null, diners = 0 } = {}) {
+export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = null, onBook = null, onCrew = null, diners = 0 } = {}) {
   const renderer = new WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.outputColorSpace = SRGBColorSpace;
@@ -167,6 +172,12 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
 
   const bot = createBot({ reducedMotion, size: BOT_SIZE, read });
   stage.add(bot.root);
+  const crew = [];
+  const crewTip = document.createElement('p');
+  crewTip.className = 'crew-tip';
+  crewTip.hidden = true;
+  root.appendChild(crewTip);
+  let crewHover = null;
 
   const ease = cubicBezier(...EASE_OUT);
   const raycaster = new Raycaster();
@@ -288,6 +299,10 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
     scene.environment = environment.texture;
     scene.environmentIntensity = 0.7;
     bot.paint(read);
+    crew.forEach((member) => {
+      member.bot.paint(read);
+      member.station.paint(read);
+    });
     if (current) paintCarrier(current);
     if (outgoing) paintCarrier(outgoing);
   }
@@ -395,11 +410,6 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
     }
     if (current.arc.visible) place(root.querySelector('.kitchen-return'), current.arc.userData.apex.clone().add(base), { anchor: 'bottom', gap: 10 });
     placeGuest(compact, base);
-    root.querySelectorAll('.diner-tag[data-diner]').forEach((tag) => {
-      const figure = current.figures[Number(tag.dataset.diner)];
-      if (!figure) return;
-      place(tag, new Vector3(figure.x + base.x, dinerHeadY() + 0.08 + base.y, figure.z + base.z), { anchor: 'bottom', gap: 2 });
-    });
     const button = root.querySelector('.ring-bot');
     if (!button) {
       placeTicket(base, null);
@@ -603,9 +613,30 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
     fire.intensity = FLAME_POWER * (1 + glow) + FLAME_BURST_POWER * burst;
   }
 
+  function placeCrew() {
+    if (!current) return;
+    const base = current.carrier.position;
+    const scale = current.carrier.scale.x;
+    const slots = crewSlots(crew.map((member) => member.stage));
+    crew.forEach((member, index) => {
+      const x = base.x + slots[index].x * scale;
+      const z = base.z + WORKSTATION.z * scale;
+      member.bot.root.position.set(x, base.y + WORKSTATION.top * scale, z - 0.06 * scale);
+      member.station.group.position.set(x, base.y, z);
+      member.station.group.scale.setScalar(scale);
+      member.bot.root.scale.setScalar(BOT_SIZE * CREW_SIZE * scale);
+    });
+    if (!crewHover || crewTip.hidden) return;
+    crewHover.bot.root.getWorldPosition(scratch);
+    scratch.y += crewHover.bot.height * scale * 1.45;
+    place(crewTip, scratch, { anchor: 'bottom', gap: 6 });
+  }
+
   function render() {
     applyCamera();
+    placeCrew();
     placeOverlay();
+    markCrowds();
     renderer.render(scene, camera);
   }
 
@@ -619,9 +650,10 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
     const sliding = stepTicket(seconds);
     const panning = stepCamera(seconds);
     const botMoving = bot.step(seconds);
+    const crewMoving = crew.reduce((moving, member) => member.bot.step(seconds) || moving, false);
     const station = stepStation(seconds);
     render();
-    if (swapping || zooming || walking || sliding || panning || botMoving || station) schedule();
+    if (swapping || zooming || walking || sliding || panning || botMoving || crewMoving || station) schedule();
     else {
       lastTime = 0;
       sleepUntilBlink();
@@ -630,7 +662,7 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
 
   function sleepUntilBlink() {
     window.clearTimeout(wakeTimer);
-    const wait = bot.wakeIn();
+    const wait = Math.min(bot.wakeIn(), ...crew.map((member) => member.bot.wakeIn()));
     if (!Number.isFinite(wait) || document.hidden) return;
     wakeTimer = window.setTimeout(schedule, wait * 1000 + 16);
   }
@@ -763,6 +795,31 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
     return node ? node.userData.stage : null;
   }
 
+  function crewUnder(event) {
+    if (!crew.length || !current || zoomed > 0.01) return null;
+    aim(event);
+    const hit = raycaster.intersectObjects(crew.map((member) => member.bot.root), true)[0];
+    if (!hit) return null;
+    return crew.find((member) => {
+      let node = hit.object;
+      while (node && node !== member.bot.root) node = node.parent;
+      return Boolean(node);
+    }) || null;
+  }
+
+  function hitsBook(event) {
+    if (!current || !current.book || zoomed > 0.01) return false;
+    aim(event);
+    return raycaster.intersectObject(current.book, true).length > 0;
+  }
+
+  function showCrewTip(member) {
+    if (member === crewHover) return;
+    crewHover = member;
+    crewTip.hidden = !member;
+    if (member) crewTip.textContent = member.label;
+  }
+
   function setHovered(next) {
     if (next === hovered) return;
     hovered = next;
@@ -785,7 +842,9 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
       bot.lookAt((dx / length) * reach, (-dy / length) * reach);
     }
     if (glances) setHovered(stationUnder(event));
-    if (hitsBotStation(event)) el.dataset.hover = 'room';
+    const member = crewUnder(event);
+    showCrewTip(member);
+    if (member || hitsBook(event) || hitsBotStation(event)) el.dataset.hover = 'room';
     else delete el.dataset.hover;
     schedule();
   }
@@ -793,12 +852,66 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
   function onPointerLeave() {
     bot.lookAt(0, 0);
     setHovered(null);
+    showCrewTip(null);
     delete el.dataset.hover;
     schedule();
   }
 
   function onClick(event) {
+    const member = crewUnder(event);
+    if (member) {
+      if (onCrew) onCrew(member.id);
+      return;
+    }
+    if (onBook && hitsBook(event)) {
+      onBook();
+      return;
+    }
     if (onOpen && hitsBotStation(event)) onOpen();
+  }
+
+  function setCrew(list) {
+    const next = (Array.isArray(list) ? list : []).slice(0, MAX_CREW);
+    for (let index = crew.length - 1; index >= 0; index -= 1) {
+      if (next.some((entry) => entry.id === crew[index].id)) continue;
+      const [gone] = crew.splice(index, 1);
+      if (gone === crewHover) showCrewTip(null);
+      gone.bot.root.removeFromParent();
+      gone.bot.dispose();
+      gone.station.dispose();
+    }
+    next.forEach((entry, index) => {
+      let member = crew.find((item) => item.id === entry.id);
+      if (!member) {
+        const helper = createBot({ reducedMotion, size: BOT_SIZE * CREW_SIZE, read });
+        helper.paint(read);
+        stage.add(helper.root);
+        member = { id: entry.id, bot: helper };
+        crew.splice(index, 0, member);
+      }
+      member.label = entry.label;
+      const nextStage = ticketTarget(entry.model).stage;
+      if (!member.station || member.stage !== nextStage) {
+        if (member.station) member.station.dispose();
+        member.station = buildWorkstation(nextStage);
+        member.station.paint(read);
+        stage.add(member.station.group);
+      }
+      member.stage = nextStage;
+      member.bot.update(entry.model);
+    });
+    crew.sort((a, b) => next.findIndex((entry) => entry.id === a.id) - next.findIndex((entry) => entry.id === b.id));
+    if (crewHover) crewTip.textContent = crewHover.label;
+    markCrowds();
+  }
+
+  function markCrowds() {
+    const counts = current ? stationCrowd(current.botStage, crew.map((member) => member.stage)) : {};
+    root.querySelectorAll('.stage[data-stage]').forEach((label) => {
+      const count = counts[label.dataset.stage] || 0;
+      if (count > 1) label.dataset.crowd = String(count);
+      else delete label.dataset.crowd;
+    });
   }
 
   const resizeObserver = new ResizeObserver(resize);
@@ -844,6 +957,11 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
     react() {
       if (bot.react()) schedule();
     },
+    setCrew(list) {
+      setCrew(list);
+      render();
+      schedule();
+    },
     zoom(direction) {
       const to = direction === 'in' ? 1 : 0;
       if (zoomTween) zoomTween.resolve();
@@ -874,9 +992,14 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
       el.removeEventListener('click', onClick);
       delete el.dataset.hover;
       delete el.dataset.cut;
-      root.querySelectorAll('.stage[data-stage], .ring-bot, .ring-centre, .bot-bubble, .kitchen-ticket, .kitchen-return, .guest, .diner-tag').forEach((node) => node.removeAttribute('style'));
+      root.querySelectorAll('.stage[data-stage], .ring-bot, .ring-centre, .bot-bubble, .kitchen-ticket, .kitchen-return, .guest').forEach((node) => node.removeAttribute('style'));
       cutWaiters.splice(0).forEach((done) => done());
       bot.dispose();
+      crew.splice(0).forEach((member) => {
+        member.bot.dispose();
+        member.station.dispose();
+      });
+      crewTip.remove();
       carriers.dispose();
       Object.values(textures).forEach((texture) => texture.dispose());
       if (environment) environment.dispose();

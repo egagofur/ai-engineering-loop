@@ -1,4 +1,5 @@
-import { diagramUrl, fetchDetail, fetchMe, fetchProjects, freezeGoal, saveActor } from './api.js';
+import { diagramUrl, fetchDetail, fetchMe, fetchProjects, fetchRuns, freezeGoal, saveActor } from './api.js';
+import { crewLabel, crewRuns, renderOrders, withLiveOrders } from './orders.js';
 import { renderOverview, renderProjectList, sortProjects, worktreeState } from './list.js';
 import { recommendedView, renderDetail, renderRoomCard, renderRunHead, renderSketch, renderSketchFoot, sketchFrame, sketchOptions } from './detail.js';
 import { mountRing2d, ringMode, ringModel } from './ring2d.js';
@@ -19,6 +20,9 @@ const elements = {
   detail: document.getElementById('run-detail'),
   ring: document.getElementById('ring'),
   detailsButton: document.getElementById('details-open'),
+  ordersButton: document.getElementById('orders-open'),
+  ordersSheet: document.getElementById('orders-sheet'),
+  orders: document.getElementById('orders'),
   sheet: document.getElementById('details-sheet'),
   projects: document.getElementById('projects'),
   projectsToggle: document.getElementById('projects-toggle'),
@@ -128,6 +132,10 @@ function updateMood() {
   }
 }
 
+function crewModels() {
+  return crewRuns(state.projects, state.selectedId).map(({ id, run }) => ({ id, label: crewLabel(run), model: currentModel(run) }));
+}
+
 function syncGl(swap) {
   if (!wantsGl()) {
     disposeGl();
@@ -135,6 +143,7 @@ function syncGl(swap) {
   }
   if (ringView.gl) {
     ringView.gl.update(ringView.model, { swap, direction: swap ? roomView.direction : 0 });
+    ringView.gl.setCrew(crewModels());
     roomView.direction = 0;
     return;
   }
@@ -154,8 +163,11 @@ function syncGl(swap) {
         root: elements.ring,
         reducedMotion: reducedMotionQuery.matches,
         diners: (state.me.diners || []).length,
-        onOpen: () => openRoom()
+        onOpen: () => openRoom(),
+        onBook: () => openOrders(null),
+        onCrew: (id) => select(id)
       });
+      ringView.gl.setCrew(crewModels());
       elements.ring.dataset.bot = '3d';
     } catch {
       failed();
@@ -241,10 +253,12 @@ function renderRun() {
   elements.empty.textContent = showing ? '' : emptyMessage(project);
   elements.run.dataset.showing = String(showing);
   elements.detailsButton.hidden = !showing;
+  elements.ordersButton.hidden = !showing;
   syncRing();
   if (!showing) {
     if (sheet.isOpen()) sheet.close();
     if (sketchSheet.isOpen()) sketchSheet.close();
+    if (ordersSheet.isOpen()) ordersSheet.close();
     elements.head.innerHTML = '';
     elements.detail.innerHTML = '';
     return;
@@ -278,6 +292,28 @@ const sketchSheet = createSheet(elements.sketchSheet, {
     document.body.dataset.sheet = open ? 'open' : 'closed';
   }
 });
+
+const ordersSheet = createSheet(elements.ordersSheet, {
+  onOpenChange(open) {
+    document.body.dataset.sheet = open ? 'open' : 'closed';
+    elements.ordersButton.setAttribute('aria-expanded', String(open));
+  }
+});
+let ordersTicket = 0;
+
+async function openOrders(opener) {
+  const project = selectedProject();
+  if (!project || ordersSheet.isOpen() || sheet.isOpen() || sketchSheet.isOpen()) return;
+  const ticket = ++ordersTicket;
+  elements.orders.innerHTML = renderOrders([], { projectName: project.name, loading: true });
+  ordersSheet.open(opener || null);
+  try {
+    const runs = await fetchRuns(project.id);
+    if (ticket === ordersTicket) elements.orders.innerHTML = renderOrders(withLiveOrders(runs, crewRuns(state.projects, state.selectedId)), { projectName: project.name });
+  } catch (error) {
+    if (ticket === ordersTicket) elements.orders.innerHTML = renderOrders([], { projectName: project.name, error: error.message });
+  }
+}
 
 function hasSketch(detail) {
   return sketchOptions(detail).length > 0;
@@ -629,6 +665,7 @@ elements.list.addEventListener('click', (event) => {
 });
 
 elements.detailsButton.addEventListener('click', () => sheet.open(elements.detailsButton));
+elements.ordersButton.addEventListener('click', () => openOrders(elements.ordersButton));
 
 elements.projectsToggle.addEventListener('click', () => {
   setProjectsOpen(elements.projectsToggle.getAttribute('aria-expanded') !== 'true');
@@ -642,7 +679,12 @@ document.addEventListener('keydown', (event) => {
     return;
   }
   if (roomView.open) return;
-  if ((event.key === 'd' || event.key === 'D') && !sheet.isOpen() && !sketchSheet.isOpen() && !elements.detailsButton.hidden) {
+  if ((event.key === 'o' || event.key === 'O') && !sheet.isOpen() && !sketchSheet.isOpen() && !ordersSheet.isOpen() && !elements.ordersButton.hidden) {
+    event.preventDefault();
+    openOrders(elements.ordersButton);
+    return;
+  }
+  if ((event.key === 'd' || event.key === 'D') && !sheet.isOpen() && !sketchSheet.isOpen() && !ordersSheet.isOpen() && !elements.detailsButton.hidden) {
     event.preventDefault();
     sheet.open(elements.detailsButton);
   }

@@ -269,3 +269,23 @@ export function stride(lift, moving) {
   const y = 1 + clamped * HOP_STRETCH - Math.max(0, 1 - clamped * 3) * HOP_SQUASH;
   return { y: Number(y.toFixed(4)), xz: Number((1 / Math.sqrt(y)).toFixed(4)) };
 }
+
+export const MAX_CREW = 5;
+export const BACK_LINE_OFFSETS = [-0.7, 0.7, 0, -0.35, 0.35];
+
+export function crewSlots(crewStages) {
+  const taken = new Map();
+  return crewStages.slice(0, MAX_CREW).map((stage) => {
+    const used = taken.get(stage) || 0;
+    taken.set(stage, used + 1);
+    return { stage, x: stationX(stage) + BACK_LINE_OFFSETS[used % BACK_LINE_OFFSETS.length] };
+  });
+}
+
+export function stationCrowd(mainStage, crewStages) {
+  const counts = {};
+  [mainStage, ...crewStages].filter(Boolean).forEach((stage) => {
+    counts[stage] = (counts[stage] || 0) + 1;
+  });
+  return counts;
+}

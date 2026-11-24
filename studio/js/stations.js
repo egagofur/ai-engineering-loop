@@ -11,6 +11,7 @@ import {
   MeshStandardMaterial,
   Object3D,
   PlaneGeometry,
+  PointLight,
   SphereGeometry,
   TorusGeometry,
   Vector3
@@ -38,8 +39,10 @@ export const SHELF_Y = 2.62;
 export const PENDANT_XS = [-4.2, -1.4, 1.4, 4.2];
 export const PENDANT_Y = 2.72;
 export const PENDANT_Z = 0.05;
-const BACK_COUNTER_Z = -2.08;
-const BACK_COUNTER_TOP = 0.62;
+export const BACK_COUNTER_Z = -2.08;
+export const BACK_COUNTER_TOP = 0.62;
+export const PASS_WINDOW = { left: -6.3, right: 6.3, bottom: 0.95, top: 2.0 };
+export const BACKROOM_Z = -5.6;
 const DASHES = 22;
 const STEAM_PUFFS = 5;
 const FLAME_TONGUES = 11;
@@ -76,7 +79,7 @@ function kit(registry, textures, stage = null) {
   return { register, standard, physical, mesh, box, blob };
 }
 
-function orderStation(k, textures) {
+function orderStation(k, textures, dynamic = {}) {
   const wood = k.standard('--prop-wood', { roughness: 0.45, map: textures.grain });
   const paper = k.standard('--prop-paper', { roughness: 0.85, map: textures.paper });
   const ink = k.physical('--on-brand', { roughness: 0.12, clearcoat: 1 });
@@ -91,6 +94,9 @@ function orderStation(k, textures) {
   );
   book.position.set(-0.42, 0, FRONT);
   book.rotation.y = 0.25;
+  book.name = 'orderBook';
+  book.userData.dynamic = true;
+  dynamic.book = book;
   const pot = new Group();
   pot.add(
     k.mesh(lathe([[0, 0], [0.05, 0], [0.056, 0.03], [0.04, 0.07], [0.026, 0.08], [0, 0.08]], 24), ink, [0, 0, 0])
@@ -382,6 +388,52 @@ function bracket(k, material, x) {
   ];
 }
 
+function passWall(k, tile, steel) {
+  const { left, right, bottom, top } = PASS_WINDOW;
+  const side = 13 - right;
+  const middle = (bottom + top) / 2;
+  return [
+    k.box([26, bottom, 0.12, 0.02], tile, [0, bottom / 2, WALL_Z]),
+    k.box([26, 2.3 - top, 0.12, 0.02], tile, [0, (2.3 + top) / 2, WALL_Z]),
+    k.box([side, top - bottom, 0.12, 0.02], tile, [left - side / 2, middle, WALL_Z]),
+    k.box([side, top - bottom, 0.12, 0.02], tile, [right + side / 2, middle, WALL_Z]),
+    k.box([right - left + 0.12, 0.05, 0.2, 0.01], steel, [0, bottom, WALL_Z + 0.02]),
+    k.box([right - left + 0.12, 0.05, 0.16, 0.01], steel, [0, top, WALL_Z + 0.02]),
+    k.box([0.05, top - bottom, 0.16, 0.01], steel, [left, middle, WALL_Z + 0.02]),
+    k.box([0.05, top - bottom, 0.16, 0.01], steel, [right, middle, WALL_Z + 0.02])
+  ];
+}
+
+function buildBackroom(k) {
+  const floor = k.standard('--backroom-floor', { roughness: 0.35 });
+  const wall = k.physical('--backroom-tile', { roughness: 0.2, clearcoat: 0.6 });
+  const steel = k.physical('--kitchen-steel', { roughness: 0.28, metalness: 0.95 });
+  const dark = k.physical('--kitchen-iron', { roughness: 0.4, metalness: 0.6 });
+  const group = new Group();
+  group.name = 'backroom';
+  const depth = WALL_Z - BACKROOM_Z;
+  const floorShape = new PlaneGeometry(15, depth);
+  floorShape.rotateX(-Math.PI / 2);
+  group.add(
+    k.mesh(floorShape, floor, [0, 0, (WALL_Z + BACKROOM_Z) / 2], [0, 0, 0], { cast: false }),
+    k.box([15, 2.6, 0.1, 0.02], wall, [0, 1.3, BACKROOM_Z]),
+    k.box([0.1, 2.6, depth, 0.02], wall, [-7.4, 1.3, (WALL_Z + BACKROOM_Z) / 2]),
+    k.box([0.1, 2.6, depth, 0.02], wall, [7.4, 1.3, (WALL_Z + BACKROOM_Z) / 2]),
+    k.box([10, 0.82, 0.55, 0.01], steel, [0, 0.41, BACKROOM_Z + 0.33]),
+    k.box([10, 0.03, 0.6, 0.008], steel, [0, 0.83, BACKROOM_Z + 0.33]),
+    k.box([10, 0.03, 0.26, 0.008], steel, [0, 1.42, BACKROOM_Z + 0.16]),
+    k.box([0.9, 2.1, 0.7, 0.03], steel, [-6.4, 1.05, BACKROOM_Z + 0.42]),
+    k.box([0.02, 1.6, 0.04, 0.01], dark, [-6.02, 1.15, BACKROOM_Z + 0.78]),
+    k.box([0.9, 2.1, 0.7, 0.03], steel, [6.4, 1.05, BACKROOM_Z + 0.42]),
+    k.box([0.02, 1.6, 0.04, 0.01], dark, [6.02, 1.15, BACKROOM_Z + 0.78])
+  );
+  const light = new PointLight(undefined, 26, 0, 1.2);
+  light.position.set(0, 2.3, (WALL_Z + BACKROOM_Z) / 2);
+  k.register(light, '--light-backroom');
+  group.add(light);
+  return group;
+}
+
 function buildShell(k, textures) {
   const floor = k.physical('--kitchen-floor', { roughness: 0.5, clearcoat: 0.25, clearcoatRoughness: 0.35, map: textures.checker });
   const backFloor = k.physical('--kitchen-floor-back', { roughness: 0.55, map: textures.tiles });
@@ -402,7 +454,7 @@ function buildShell(k, textures) {
   group.add(
     k.mesh(floorShape, floor, [0, 0, 7.6], [0, 0, 0], { cast: false }),
     k.mesh(backShape, backFloor, [0, 0.001, -1.0], [0, 0, 0], { cast: false }),
-    k.box([26, 2.3, 0.12, 0.02], tile, [0, 1.15, WALL_Z]),
+    ...passWall(k, tile, steel),
     k.box([26, 4.2, 0.12, 0.02], plaster, [0, 4.4, WALL_Z - 0.01]),
     k.box([26, 0.06, 0.08, 0.02], trim, [0, 2.31, WALL_Z + 0.06]),
     k.box([COUNTER_LENGTH, COUNTER_TOP - 0.1, COUNTER_DEPTH - 0.1, 0.03], front, [0, (COUNTER_TOP - 0.1) / 2 + 0.06, 0]),
@@ -579,6 +631,7 @@ export function buildKitchen({ registry, textures }) {
   const carrier = new Group();
   const shell = buildShell(k, textures);
   shell.add(buildPendants(k));
+  shell.add(buildBackroom(k));
   mergeStatic(shell);
   const stations = {};
   const lamps = {};
@@ -593,7 +646,7 @@ export function buildKitchen({ registry, textures }) {
   const ticket = buildTicket(k);
   const arc = buildReturnArc(k);
   carrier.add(shell, buildGuest(k, textures), ticket, arc);
-  return { carrier, stations, lamps, ticket, arc, burners: dynamic.burners || [], steam: dynamic.steam || null, bell: dynamic.bell || null, pan: dynamic.pan || null, flame: dynamic.flame || null, pass: dynamic.pass || null };
+  return { carrier, stations, lamps, ticket, arc, burners: dynamic.burners || [], steam: dynamic.steam || null, bell: dynamic.bell || null, pan: dynamic.pan || null, flame: dynamic.flame || null, pass: dynamic.pass || null, book: dynamic.book || null };
 }
 
 export const STATION_WIDTH = STATION_SPACING;
