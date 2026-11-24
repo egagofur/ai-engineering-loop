@@ -4,6 +4,8 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+- **Changed:** AEL Studio is lighter and faster with the same scene and interactions. First load sends about 238 KB instead of 990 KB (brotli/gzip), and a reload sends about 7 KB (ETag revalidation, `304`). The kitchen's first frame comes sooner: three.js loads in parallel with the API calls, there is no throwaway WebGL probe context at boot, the procedural textures are built without per-pixel allocations, and shader compile no longer blocks on info-log reads. The 2 s project poll walks each Run tree once, which cuts filesystem calls per poll about 8x and the server's idle CPU about 4x with 28 projects. Report: `docs/audit/studio-perf-2026-11.md`.
+
 ## 3.0.0 - 2026-11-24
 
 AEL Studio rebuilt as a read-only, machine-wide bot monitor with one action, Freeze: every project's bot works in a 3D restaurant kitchen (`docs/superpowers/specs/2026-11-22-studio-redesign-design.md`). Breaking for `ael studio`; see the Breaking entries and `core/local-workflow-studio.md`.

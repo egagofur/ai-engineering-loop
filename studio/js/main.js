@@ -36,6 +36,14 @@ const roomView = { open: false, busy: false, direction: 0 };
 const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
 const HAS_WEBGL = webglAvailable();
 const ringView = { key: null, handle: null, gl: null, model: null, ticket: 0, loading: false, threeFailed: false };
+let kitchenModule = null;
+
+function loadKitchen() {
+  if (!kitchenModule) kitchenModule = import('./restaurant.js');
+  return kitchenModule;
+}
+
+if (HAS_WEBGL) loadKitchen().catch(() => {});
 
 const state = {
   projects: [],
@@ -57,16 +65,7 @@ const state = {
 let detailTicket = 0;
 
 function webglAvailable() {
-  try {
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('webgl2') || canvas.getContext('webgl');
-    if (!context) return false;
-    const loseContext = context.getExtension('WEBGL_lose_context');
-    if (loseContext) loseContext.loseContext();
-    return true;
-  } catch {
-    return false;
-  }
+  return typeof window.WebGL2RenderingContext === 'function';
 }
 
 function wantsGl() {
@@ -146,7 +145,7 @@ function syncGl(swap) {
     ringView.threeFailed = true;
     if (ticket === ringView.ticket) disposeGl();
   };
-  import('./restaurant.js').then(({ mountKitchen }) => {
+  loadKitchen().then(({ mountKitchen }) => {
     if (ticket !== ringView.ticket || !ringView.handle) return;
     ringView.loading = false;
     try {

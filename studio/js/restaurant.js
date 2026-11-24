@@ -122,6 +122,7 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
   renderer.toneMappingExposure = 1.05;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = PCFShadowMap;
+  renderer.debug.checkShaderErrors = false;
   el.appendChild(renderer.domElement);
 
   const scene = new Scene();

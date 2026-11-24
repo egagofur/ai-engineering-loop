@@ -52,7 +52,7 @@ The named diners are a nod to people who inspired AEL, relaxing over dinner whil
 
 Each entry needs a `name` (at most 40 characters) and may have a `note` (at most 60); Studio keeps the first 6 valid entries, drops the rest, and shows names as escaped text. When no entry is valid it falls back to `studio/diners.json`. `GET /api/me` returns the list as `diners`; there is no endpoint that writes it.
 
-Studio polls the registered projects every 2 s and pushes a `projects` snapshot over server-sent events only when something changed.
+Studio polls the registered projects every 2 s and pushes a `projects` snapshot over server-sent events only when something changed. Each poll walks a Run's directory once to refuse symlinks that leave `.ai-engineering-loop/`. Studio's own page files (HTML, CSS, JS, three.js) are sent with an `ETag` and `cache-control: no-cache`, so a reload revalidates and gets `304 Not Modified` instead of the files again; files of 1 KiB or more are brotli- or gzip-compressed when the browser accepts it. API responses stay `no-store`. The kitchen's three.js module starts loading as soon as the page boots, in parallel with the first API calls.
 
 ## Freeze
 

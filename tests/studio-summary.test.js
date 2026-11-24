@@ -265,3 +265,29 @@ test('a tier object without a current tier is shown as no tier', () => {
   frozen(root, 'r1', { tier: { auto: 'T1', source: 'auto' } });
   assert.equal(summarizeProject(project(root)).run.tier, null);
 });
+
+test('one summary walks each run directory once and still refuses a nested symlink that escapes', () => {
+  const root = tempRoot();
+  frozen(root, 'r1');
+  const runDir = path.join(root, '.ai-engineering-loop', 'runs', 'r1');
+  fs.mkdirSync(path.join(runDir, 'evidence', 'deep'), { recursive: true });
+  fs.writeFileSync(path.join(runDir, 'evidence', 'deep', 'log.txt'), 'ok');
+  const reads = [];
+  const original = fs.readdirSync;
+  fs.readdirSync = function readdirSpy(target, ...rest) {
+    reads.push(String(target));
+    return original.call(this, target, ...rest);
+  };
+  try {
+    assert.equal(summarizeProject(project(root)).state, 'working');
+  } finally {
+    fs.readdirSync = original;
+  }
+  for (const dir of [runDir, path.join(runDir, 'evidence'), path.join(runDir, 'evidence', 'deep')]) {
+    assert.equal(reads.filter((entry) => entry === dir).length, 1, dir);
+  }
+  const outside = outsideFile('{"leak":true}');
+  fs.symlinkSync(outside.file, path.join(runDir, 'evidence', 'deep', 'link.json'));
+  assert.equal(summarizeProject(project(root)).run, null);
+  assert.throws(() => runDetail({ project: project(root), root, worktree: null }, 'r1'), { code: 'PATH_OUTSIDE_SCOPE' });
+});

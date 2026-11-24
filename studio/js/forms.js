@@ -158,16 +158,23 @@ function smooth(t) {
   return t * t * (3 - 2 * t);
 }
 
+function wrap(value, period) {
+  return ((value % period) + period) % period;
+}
+
 function valueNoise(x, y, seed, period) {
   const x0 = Math.floor(x);
   const y0 = Math.floor(y);
   const fx = smooth(x - x0);
   const fy = smooth(y - y0);
-  const wrap = (value) => ((value % period) + period) % period;
-  const a = hash(wrap(x0), wrap(y0), seed);
-  const b = hash(wrap(x0 + 1), wrap(y0), seed);
-  const c = hash(wrap(x0), wrap(y0 + 1), seed);
-  const d = hash(wrap(x0 + 1), wrap(y0 + 1), seed);
+  const left = wrap(x0, period);
+  const right = wrap(x0 + 1, period);
+  const top = wrap(y0, period);
+  const bottom = wrap(y0 + 1, period);
+  const a = hash(left, top, seed);
+  const b = hash(right, top, seed);
+  const c = hash(left, bottom, seed);
+  const d = hash(right, bottom, seed);
   return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
 }
 
@@ -263,16 +270,31 @@ const PATTERNS = {
   }
 };
 
-export function patternTexture(name, { size = 256, repeat = 1 } = {}) {
+const PATTERN_PIXELS = new Map();
+
+function patternPixels(name, size) {
+  const key = `${name}|${size}`;
+  if (PATTERN_PIXELS.has(key)) return PATTERN_PIXELS.get(key);
   const pattern = PATTERNS[name] || PATTERNS.paper;
   const data = new Uint8Array(size * size * 4);
+  let offset = 0;
   for (let y = 0; y < size; y += 1) {
+    const v = y / size;
     for (let x = 0; x < size; x += 1) {
-      const value = Math.round(255 * Math.min(1, Math.max(0, pattern(x / size, y / size))));
-      data.set([value, value, value, 255], (y * size + x) * 4);
+      const value = Math.round(255 * Math.min(1, Math.max(0, pattern(x / size, v))));
+      data[offset] = value;
+      data[offset + 1] = value;
+      data[offset + 2] = value;
+      data[offset + 3] = 255;
+      offset += 4;
     }
   }
-  const texture = new DataTexture(data, size, size);
+  PATTERN_PIXELS.set(key, data);
+  return data;
+}
+
+export function patternTexture(name, { size = 256, repeat = 1 } = {}) {
+  const texture = new DataTexture(patternPixels(name, size), size, size);
   texture.wrapS = RepeatWrapping;
   texture.wrapT = RepeatWrapping;
   texture.repeat.set(repeat, repeat);
@@ -292,7 +314,11 @@ export function radialTexture(power = 2, size = 64) {
       const dx = ((x + 0.5) / size) * 2 - 1;
       const dy = ((y + 0.5) / size) * 2 - 1;
       const value = Math.round(255 * Math.max(0, 1 - Math.hypot(dx, dy)) ** power);
-      data.set([value, value, value, 255], (y * size + x) * 4);
+      const offset = (y * size + x) * 4;
+      data[offset] = value;
+      data[offset + 1] = value;
+      data[offset + 2] = value;
+      data[offset + 3] = 255;
     }
   }
   const texture = new DataTexture(data, size, size);
