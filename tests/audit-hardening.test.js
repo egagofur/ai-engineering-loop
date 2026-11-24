@@ -60,18 +60,17 @@ function gatedRepo() {
 }
 
 async function withStudio(operation) {
-  const root = tempDir('ael-audit-studio-');
-  const instance = createStudioServer(root, { token: 'audit-token', watch: false, pollMs: 60_000 });
+  const home = tempDir('ael-audit-studio-home-');
+  const instance = createStudioServer({ home, token: 'audit-token', pollMs: 60_000 });
   await new Promise((resolve, reject) => {
     instance.server.once('error', reject);
     instance.server.listen(0, '127.0.0.1', resolve);
   });
   try {
     const { port } = instance.server.address();
-    await operation(`http://127.0.0.1:${port}`, root);
+    await operation(`http://127.0.0.1:${port}`);
   } finally {
-    instance.watcher.stop();
-    await new Promise((resolve) => instance.server.close(resolve));
+    await instance.close();
   }
 }
 
@@ -80,44 +79,45 @@ test('Studio rejects cookie-only cross-origin mutations and non-JSON bodies', as
   await withStudio(async (base) => {
     const cookie = 'ael_studio=audit-token';
     const body = JSON.stringify({});
-    const crossOrigin = await fetch(`${base}/api/install`, {
+    const freeze = `${base}/api/projects/ffffffffffff/runs/run-001/goal/freeze`;
+    const crossOrigin = await fetch(freeze, {
       method: 'POST',
       headers: { cookie, 'content-type': 'application/json', origin: 'http://localhost:3000' },
       body
     });
     assert.equal(crossOrigin.status, 403);
-    const noOrigin = await fetch(`${base}/api/install`, {
+    const noOrigin = await fetch(freeze, {
       method: 'POST',
       headers: { cookie, 'content-type': 'application/json' },
       body
     });
     assert.equal(noOrigin.status, 403);
-    const formPost = await fetch(`${base}/api/install`, {
+    const formPost = await fetch(freeze, {
       method: 'POST',
       headers: { cookie, 'content-type': 'text/plain', origin: base },
       body
     });
     assert.equal(formPost.status, 415);
-    const tokenTextPost = await fetch(`${base}/api/install`, {
+    const tokenTextPost = await fetch(freeze, {
       method: 'POST',
       headers: { 'x-ael-studio-token': 'audit-token', 'content-type': 'text/plain' },
       body
     });
     assert.equal(tokenTextPost.status, 415);
 
-    const sameOrigin = await fetch(`${base}/api/install`, {
+    const sameOrigin = await fetch(freeze, {
       method: 'POST',
       headers: { cookie, 'content-type': 'application/json; charset=utf-8', origin: base },
       body
     });
     assert.ok(![401, 403, 415].includes(sameOrigin.status), `same-origin status ${sameOrigin.status}`);
-    const tokenHeader = await fetch(`${base}/api/install`, {
+    const tokenHeader = await fetch(freeze, {
       method: 'POST',
       headers: { 'x-ael-studio-token': 'audit-token', 'content-type': 'application/json' },
       body
     });
     assert.ok(![401, 403, 415].includes(tokenHeader.status), `token status ${tokenHeader.status}`);
-    const read = await fetch(`${base}/api/bootstrap`, { headers: { cookie } });
+    const read = await fetch(`${base}/api/projects`, { headers: { cookie } });
     assert.equal(read.status, 200, 'cookie-only reads keep working');
   });
 });
@@ -364,13 +364,4 @@ test('lifecycle snapshots and watcher cursors start from the newest events', asy
   } finally {
     watcher.stop();
   }
-
-  await withStudio(async (base, studioRoot) => {
-    createRun(studioRoot, { runId: 'run-001', task: 'cursor' });
-    for (let index = 1; index <= 105; index += 1) appendRunLifecycle(studioRoot, 'run-001', lifecycleEvent(`event ${index}`));
-    const response = await fetch(`${base}/api/live?runId=run-001`, { headers: { 'x-ael-studio-token': 'audit-token' } });
-    const body = await response.json();
-    assert.equal(body.live.lifecycle.events.at(-1).sequence, 105);
-    assert.equal(body.live.lifecycle.events.length, 100);
-  });
 });

@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
-const { createStudioRun } = require('../lib/studio-runtime.js');
+const { createWorkflowRun } = require('./helpers/workflow-run.js');
 const { createRun } = require('../lib/run-state.js');
 const {
   duplicateRunAsRecipe,
@@ -16,7 +16,7 @@ const {
 
 function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-checkout-'));
-  const run = createStudioRun(root, {
+  const run = createWorkflowRun(root, {
     task: 'Improve the checkout experience',
     constraints: 'Keep historical runs immutable',
     recipeId: 'default',

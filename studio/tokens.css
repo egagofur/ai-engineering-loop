@@ -1,0 +1,210 @@
+/* Workflow Studio design tokens. The only file that holds raw colours.
+   Brand: AEL orange on warm paper (light) or ink (dark), as in the blog
+   diagrams and the sharing deck. Green is status only (passed). */
+
+:root {
+  color-scheme: light;
+
+  --brand: #fc6404;
+  --brand-hover: #e75c04;
+  --brand-deep: #833301;
+  --brand-highlight: #fcaa72;
+  --brand-text: #b94a00;
+  --brand-soft: #fff0e5;
+  --on-brand: #16171a;
+
+  --surface-0: #ebe9e4;
+  --surface-1: #f4f3f0;
+  --surface-2: #ffffff;
+  --surface-3: #f7f6f3;
+  --line: #e3e1dc;
+  --line-strong: #cfccc6;
+  --faint: #a19f99;
+  --muted: #6f6e6a;
+  --text-2: #3c3d42;
+  --text: #16171a;
+
+  --ok: #1d7a00;
+  --ok-fill: #29ab00;
+  --ok-soft: #e8f5e2;
+  --idle-highlight: #d9d7d2;
+  --idle: #b9b7b1;
+  --idle-deep: #8b8a86;
+  --prop-paper: #fbfaf7;
+  --prop-wood: #a8703c;
+  --prop-metal: #8b8a86;
+  --prop-box: #d6a66a;
+  --prop-pencil: #f2b632;
+  --plinth: #f3efe8;
+  --plinth-base: #2a2b30;
+  --bot-trim: #f6f3ee;
+  --bot-visor: #121318;
+  --bot-eye: #fff4e8;
+  --bot-leaf: #6f8f3a;
+  --bot-devil: #1b1a1e;
+  --bot-devil-trim: #4a1d1f;
+  --bot-devil-eye: #e2463c;
+  --room-marble: #efeae2;
+  --room-terracotta: #c0643a;
+  --room-velvet: #6e1a1f;
+  --room-velvet-sheen: #9c3a32;
+  --room-brass: #c9a35a;
+  --kitchen-floor: #d39a6e;
+  --kitchen-floor-back: #9c958c;
+  --kitchen-wall: #efe3d2;
+  --kitchen-tile: #f6efe4;
+  --kitchen-trim: #6b4a32;
+  --kitchen-counter: #8a5d3c;
+  --kitchen-steel: #c3c5c9;
+  --kitchen-iron: #2e2f34;
+  --kitchen-mat: #ebe6dd;
+  --kitchen-flame: #ff7a2e;
+  --kitchen-flame-core: #ffd36a;
+  --kitchen-soup: #d98a3a;
+  --kitchen-food: #b5532f;
+  --diner-1: #4f7cc9;
+  --diner-2: #3f9f8a;
+  --diner-3: #8a63c7;
+  --diner-4: #d1a33a;
+  --diner-5: #c75b7a;
+  --diner-6: #6b8f3a;
+  --light-sky: #fff1df;
+  --light-ground: #a8876a;
+  --light-key: #ffe4c4;
+  --light-fill: #dfe7f7;
+  --light-now: #ffb070;
+  --light-pendant: #ffc98a;
+  --env-room: #eadccb;
+  --env-light: #fff6ea;
+  --env-warm: #ffcf9f;
+  --kitchen-exposure: 1;
+  --kitchen-ambient: 0.6;
+  --stage-top: #fbfaf8;
+  --stage-bottom: #efede8;
+  --warn: #9a6200;
+  --warn-soft: #fbf1dc;
+  --danger: #c4282d;
+  --danger-text: #b4262b;
+  --danger-soft: #fde9e9;
+  --shadow: #16171a;
+  --focus: #fc6404;
+
+  --font: "Geist", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --radius-control: 6px;
+  --radius-panel: 12px;
+  --radius-card: 16px;
+  --shadow-raised: 0 6px 16px color-mix(in srgb, var(--shadow) 5%, transparent);
+  --shadow-bot: 0 3px 6px color-mix(in srgb, var(--brand) 22%, transparent);
+  --halo-now: 0 0 0 5px color-mix(in srgb, var(--brand) 15%, transparent);
+  --shadow-panel: 0 1px 2px color-mix(in srgb, var(--shadow) 6%, transparent), 0 12px 32px color-mix(in srgb, var(--shadow) 10%, transparent);
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --press: 160ms;
+  --enter: 220ms;
+  --exit: 180ms;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --brand-text: #ff9a4d;
+  --brand-soft: #2a1a10;
+  --surface-0: #0f1012;
+  --surface-1: #16171a;
+  --surface-2: #1d1e22;
+  --surface-3: #26272c;
+  --line: #33343a;
+  --line-strong: #45464d;
+  --faint: #6b6c73;
+  --muted: #9a9aa2;
+  --text-2: #c9c9cf;
+  --text: #f2f1ee;
+  --ok: #4ade80;
+  --ok-fill: #3fbf5f;
+  --idle-highlight: #7a7b82;
+  --idle: #55565d;
+  --idle-deep: #3a3b41;
+  --prop-paper: #e9e7e2;
+  --prop-wood: #9a6a3a;
+  --prop-metal: #a3a3aa;
+  --prop-box: #c4955c;
+  --prop-pencil: #e0a92e;
+  --plinth: #2b2c31;
+  --plinth-base: #0e0f12;
+  --kitchen-floor: #6e4a36;
+  --kitchen-floor-back: #3a3632;
+  --kitchen-wall: #54443a;
+  --kitchen-tile: #8c7a68;
+  --kitchen-trim: #3a271b;
+  --kitchen-counter: #5a3a26;
+  --kitchen-mat: #3a3a3e;
+  --light-sky: #d8c3a8;
+  --light-ground: #3a2c22;
+  --light-pendant: #ffb463;
+  --env-room: #2e2620;
+  --kitchen-exposure: 0.95;
+  --kitchen-ambient: 0.32;
+  --stage-top: #1f2024;
+  --stage-bottom: #141518;
+  --ok-soft: #14261a;
+  --warn: #e4a853;
+  --warn-soft: #3a3018;
+  --danger: #e5484d;
+  --danger-text: #ff8f92;
+  --danger-soft: #2e1a1b;
+  --shadow: #000000;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --brand-text: #ff9a4d;
+    --brand-soft: #2a1a10;
+    --surface-0: #0f1012;
+    --surface-1: #16171a;
+    --surface-2: #1d1e22;
+    --surface-3: #26272c;
+    --line: #33343a;
+    --line-strong: #45464d;
+    --faint: #6b6c73;
+    --muted: #9a9aa2;
+    --text-2: #c9c9cf;
+    --text: #f2f1ee;
+    --ok: #4ade80;
+    --ok-fill: #3fbf5f;
+    --idle-highlight: #7a7b82;
+    --idle: #55565d;
+    --idle-deep: #3a3b41;
+    --prop-paper: #e9e7e2;
+    --prop-wood: #9a6a3a;
+    --prop-metal: #a3a3aa;
+    --prop-box: #c4955c;
+    --prop-pencil: #e0a92e;
+    --plinth: #2b2c31;
+    --plinth-base: #0e0f12;
+    --kitchen-floor: #6e4a36;
+    --kitchen-floor-back: #3a3632;
+    --kitchen-wall: #54443a;
+    --kitchen-tile: #8c7a68;
+    --kitchen-trim: #3a271b;
+    --kitchen-counter: #5a3a26;
+    --kitchen-mat: #3a3a3e;
+    --light-sky: #d8c3a8;
+    --light-ground: #3a2c22;
+    --light-pendant: #ffb463;
+    --env-room: #2e2620;
+    --kitchen-exposure: 0.95;
+    --kitchen-ambient: 0.32;
+    --stage-top: #1f2024;
+    --stage-bottom: #141518;
+    --ok-soft: #14261a;
+    --warn: #e4a853;
+    --warn-soft: #3a3018;
+    --danger: #e5484d;
+    --danger-text: #ff8f92;
+    --danger-soft: #2e1a1b;
+    --shadow: #000000;
+  }
+}

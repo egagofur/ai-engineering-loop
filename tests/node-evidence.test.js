@@ -11,7 +11,7 @@ const { computeJudgeVerdict } = require('../lib/orchestration.js');
 const { nodeTiming, resolveNodeEvidence } = require('../lib/node-evidence.js');
 const { runNodeIo } = require('../lib/run-checkout.js');
 const { getGitRevision, loadRun } = require('../lib/run-state.js');
-const { createStudioRun } = require('../lib/studio-runtime.js');
+const { createWorkflowRun } = require('./helpers/workflow-run.js');
 const { approveWorkflowNode, applyWorkflowGate, workflowStatus } = require('../lib/workflow-runtime.js');
 
 function writeArtifact(root, runId, name, value) {
@@ -96,7 +96,7 @@ const DIFF = [
 
 function deliverClassicRun() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-node-evidence-'));
-  const run = createStudioRun(root, {
+  const run = createWorkflowRun(root, {
     task: 'Add pagination to the list endpoint',
     recipeId: 'default',
     now: new Date('2026-10-16T10:00:00.000Z')
@@ -242,7 +242,7 @@ test('a sha256 mismatch reports artifact changed and does not trust the new byte
 
 test('evidence reads stay inside the run directory', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-node-evidence-path-'));
-  const run = createStudioRun(root, { task: 'Confine evidence', recipeId: 'default' });
+  const run = createWorkflowRun(root, { task: 'Confine evidence', recipeId: 'default' });
   const outside = path.join(root, 'secret.txt');
   fs.writeFileSync(outside, 'SECRET-OUTSIDE-SENTINEL');
   const runDir = path.join(root, '.ai-engineering-loop', 'runs', run.runId);

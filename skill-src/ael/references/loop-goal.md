@@ -13,7 +13,7 @@
 - Write `.ai-engineering-loop/drafts/goal.json`, then `npx ai-engineering-loop goal draft --json --run <runId> --file <file> --revision <currentRevision>`. Show `goal show --run <runId> --human` and `impactPreview`.
 - Write `objective`, AC `statement` and `failureCases` in STE style (`docs goal-contract`): short, active, testable. Fix `readability` warnings before asking for the freeze.
 - If `goal draft` returns `diagramOptions`, offer the recommended view or freeze; render only the pick (`goal diagram --view <v>`), then ask: freeze, another view, or add AC for `?`/side effects.
-- Freeze: show the Goal, ask one host question **Freeze** / **Revise** (`loop-hosts`). Only after Freeze: `goal freeze --json --latest --run <runId> --by "<their name>"`. `--by` is that person, never `agent`, `ael-agent`, a model id, or empty. Never set `AEL_GOAL_FREEZE_OK`. T0: `quick start`.
+- Freeze: show the Goal, ask one host question **Freeze** / **Revise** (`loop-hosts`). Only after Freeze: `goal freeze --json --latest --run <runId> --by "<their name>"`. `--by` is that person, never `agent`, `ael-agent`, a model id, or empty. Never set `AEL_GOAL_FREEZE_OK`. T0: `quick start`. `alreadyFrozen`: the human froze it in Studio; continue.
 - Otherwise the freeze writes a DRAFT blast-radius map: `impact show --run <runId>`. ASSISTED: the human confirms or edits it (`impact confirm --by <name> [--allow <glob>] [--remove <path>]`); copy/CSS/comment-only goals: `impact skip --by <name> --reason <text>` (`docs blast-radius-map`).
 - Do not edit production code until the Goal gate passes.
 - After the freeze, work from the frozen contract (`goal show --run <runId>`), not the drafting chat; compact the conversation there if the host supports it.

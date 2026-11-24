@@ -10,7 +10,7 @@ const { runCheckout, runNodeIo, studioAgentHandoff } = require('../lib/run-check
 const { appendRunQuestion } = require('../lib/run-interactions.js');
 const { appendRunLifecycle, listRunLifecycle } = require('../lib/run-lifecycle.js');
 const { createRun } = require('../lib/run-state.js');
-const { createStudioRun } = require('../lib/studio-runtime.js');
+const { createWorkflowRun } = require('./helpers/workflow-run.js');
 const {
   failWorkflowNode,
   retryWorkflowNode,
@@ -22,7 +22,7 @@ function tempRepo() {
 }
 
 function executionFixture(root) {
-  const run = createStudioRun(root, { task: 'Exercise runtime evidence' });
+  const run = createWorkflowRun(root, { task: 'Exercise runtime evidence' });
   const draft = saveGoalDraft(root, run.runId, {
     schemaVersion: 1,
     runId: run.runId,
@@ -45,26 +45,17 @@ function executionFixture(root) {
 
 test('AC-2 a bounded task creates exactly one Run bound to the default workflow', () => {
   const root = tempRepo();
-  const run = createStudioRun(root, { task: 'Draft a safe release plan', recipeId: '' });
+  const run = createWorkflowRun(root, { task: 'Draft a safe release plan', recipeId: '' });
   assert.equal(run.task, 'Draft a safe release plan');
   assert.equal(run.workflow.recipeId, 'default');
   const runEntries = fs.readdirSync(path.join(root, '.ai-engineering-loop', 'runs'))
     .filter((entry) => entry !== 'current.json');
   assert.deepEqual(runEntries, [run.runId]);
-  assert.throws(
-    () => createStudioRun(root, { task: ' '.repeat(4) }),
-    { code: 'INVALID_RUN_TASK' }
-  );
-  assert.deepEqual(
-    fs.readdirSync(path.join(root, '.ai-engineering-loop', 'runs'))
-      .filter((entry) => entry !== 'current.json'),
-    [run.runId]
-  );
 });
 
 test('AC-3 Agent handoff is provider-neutral, repository-relative, and bound to one Technical Run ID', () => {
   const root = tempRepo();
-  const run = createStudioRun(root, {
+  const run = createWorkflowRun(root, {
     task: 'Continue from /Users/private/project without exposing sk-live-secretvalue123456'
   });
   const handoff = studioAgentHandoff(root, run.runId);
@@ -80,7 +71,7 @@ test('AC-3 Agent handoff is provider-neutral, repository-relative, and bound to 
 
 test('DA-01 Windows home redaction preserves valid handoff JSON and sibling content', () => {
   const root = tempRepo();
-  const run = createStudioRun(root, {
+  const run = createWorkflowRun(root, {
     task: String.raw`C:\Users\bob`
   });
   const checkout = runCheckout(root, run.runId);
@@ -97,7 +88,7 @@ test('DA2-S01 handoff redacts Unix, root, and UNC home locations', () => {
     String.raw`Read \\fileserver\alice\private.txt`
   ]) {
     const root = tempRepo();
-    const run = createStudioRun(root, { task });
+    const run = createWorkflowRun(root, { task });
     const handoff = studioAgentHandoff(root, run.runId);
     assert.match(handoff.prompt, /\[REDACTED HOME\]/);
     assert.doesNotMatch(handoff.prompt, /alice|fileserver|\/root/);
@@ -122,7 +113,7 @@ test('AC-5 persisted Run state determines the visible first-run journey without 
   const { appendRunQuestion } = require('../lib/run-interactions.js');
   const { workflowStatus } = require('../lib/workflow-runtime.js');
   const root = tempRepo();
-  const run = createStudioRun(root, { task: 'Expose the real journey' });
+  const run = createWorkflowRun(root, { task: 'Expose the real journey' });
   assert.equal(runJourney(root, run.runId).current, 'TASK_RECEIVED');
 
   saveGoalDraft(root, run.runId, {
@@ -198,7 +189,7 @@ test('AC-5 persisted Run state determines the visible first-run journey without 
 
 test('AC-7 checkout connectors expose persisted traversal state instead of visual inference', () => {
   const root = tempRepo();
-  const run = createStudioRun(root, { task: 'Render only real connector progress' });
+  const run = createWorkflowRun(root, { task: 'Render only real connector progress' });
   const checkout = runCheckout(root, run.runId);
   assert.ok(checkout.edges.length > 0);
   assert.ok(checkout.edges.every((edge) => edge.traversed === false));
@@ -222,7 +213,7 @@ test('DA-03 an Edge remains traversed after its target node fails', () => {
 
 test('AC-8 Node I/O reports honest duration, Agent Interaction, and Loop Iteration empty states', () => {
   const root = tempRepo();
-  const run = createStudioRun(root, { task: 'Inspect complete Node I/O' });
+  const run = createWorkflowRun(root, { task: 'Inspect complete Node I/O' });
   const checkout = runCheckout(root, run.runId);
   const rootNode = checkout.nodes.find((node) => checkout.edges.every((edge) => edge.to !== node.id));
   const io = runNodeIo(root, run.runId, rootNode.id);
@@ -235,7 +226,7 @@ test('AC-8 Node I/O reports honest duration, Agent Interaction, and Loop Iterati
 
 test('DA-04 Node I/O labels Run-wide interactions honestly and bounds the payload', () => {
   const root = tempRepo();
-  const run = createStudioRun(root, { task: 'Bound interaction evidence' });
+  const run = createWorkflowRun(root, { task: 'Bound interaction evidence' });
   const checkout = runCheckout(root, run.runId);
   const rootNode = checkout.nodes.find((node) => checkout.edges.every((edge) => edge.to !== node.id));
   for (let index = 1; index <= 55; index += 1) {
@@ -249,7 +240,7 @@ test('DA-04 Node I/O labels Run-wide interactions honestly and bounds the payloa
 
 test('DA2-S08 corrupt interactions degrade only the interaction section', () => {
   const root = tempRepo();
-  const run = createStudioRun(root, { task: 'Keep Node I/O available' });
+  const run = createWorkflowRun(root, { task: 'Keep Node I/O available' });
   const checkout = runCheckout(root, run.runId);
   const rootNode = checkout.nodes.find((node) => checkout.edges.every((edge) => edge.to !== node.id));
   fs.writeFileSync(
@@ -280,15 +271,6 @@ test('DA-05 duration describes only the latest completed attempt', () => {
     now: new Date('2026-01-01T00:00:05Z')
   });
   assert.equal(runNodeIo(root, run.runId, 'maker').durationMs, 4000);
-});
-
-test('AC-11 first-run controls expose bounded and keyboard-accessible semantics', () => {
-  const html = fs.readFileSync(path.join(__dirname, '..', 'studio', 'index.html'), 'utf8');
-  assert.match(html, /<label for="goal-task">/);
-  assert.match(html, /id="goal-task"[^>]*required/);
-  assert.match(html, /id="start-agent"[^>]*aria-describedby="agent-handoff-instructions"/);
-  assert.match(html, /id="cancel-active-run-conflict"/);
-  assert.match(html, /id="show-live"[^>]*aria-current="page"/);
 });
 
 test('AC-12 keeps the existing CLI and packaged Studio entry points', () => {
@@ -359,50 +341,4 @@ test('Stage 8 Run completion never carries a node scope', () => {
   );
   assert.match(cli, /const runCompleted = run\.state === 'DELIVERED' \|\| run\.state === 'REPORTED'/);
   assert.match(cli, /\.\.\.\(!runCompleted && lifecycleNode \? \{ nodeId: lifecycleNode\.id \} : \{\}\)/);
-});
-
-test('AC-14 live run view exposes persisted Run progress without a fake node', () => {
-  const html = fs.readFileSync(path.join(__dirname, '..', 'studio', 'index.html'), 'utf8');
-  const app = fs.readFileSync(path.join(__dirname, '..', 'studio', 'app.js'), 'utf8');
-  assert.match(html, /id="live-view"/);
-  assert.match(html, /id="run-journey"[^>]*aria-label="Run progress"/);
-  assert.match(html, /id="stage-rail"/);
-  assert.equal(html.includes('id="run-activity-dock"'), false);
-  assert.match(app, /function renderLive\(/);
-  assert.match(app, /degradedSources\.join\(' and '\).*unavailable — journey may be incomplete/s);
-  assert.doesNotMatch(app, /fake node|placeholder-node/i);
-});
-
-test('AC-15 live run view keeps honest running output without a node inspector', () => {
-  const html = fs.readFileSync(path.join(__dirname, '..', 'studio', 'index.html'), 'utf8');
-  const app = fs.readFileSync(path.join(__dirname, '..', 'studio', 'app.js'), 'utf8');
-  assert.equal(html.includes('id="inspector"'), false);
-  assert.match(app, /function heartbeatAge/);
-  assert.match(app, /receipt pending/);
-  assert.match(app, /heartbeatAge\(presence\.lastHeartbeatAt\)/);
-  assert.match(html, /id="run-summary"/);
-  assert.match(html, /id="stage-rail"/);
-});
-
-test('AC-16 semantic node and connector states remain distinct without a passed glow', () => {
-  const app = fs.readFileSync(path.join(__dirname, '..', 'studio', 'app.js'), 'utf8');
-  const css = fs.readFileSync(path.join(__dirname, '..', 'studio', 'styles.css'), 'utf8');
-  assert.match(app, /const GRAPH_STATES = Object\.freeze\(\['active', 'passed', 'failed', 'skipped', 'waiting', 'idle'\]\)/);
-  for (const state of ['active', 'passed', 'failed', 'skipped', 'waiting', 'idle']) {
-    assert.match(css, new RegExp(`edge-${state}`));
-  }
-  assert.match(css, /\.node\[data-status="passed"\] \.node-status\{color:#28ad00\}/);
-  assert.match(css, /\.node\[data-status="passed"\] \.node-mark\{display:block/);
-  assert.doesNotMatch(css, /\.node\[data-status="passed"\][^{]*\{[^}]*glow/);
-  assert.doesNotMatch(css, /\.node\.passed\{[^}]*glow/);
-});
-
-test('AC-17 lifecycle bursts coalesce rendering and reduced motion preserves state styling', () => {
-  const app = fs.readFileSync(path.join(__dirname, '..', 'studio', 'app.js'), 'utf8');
-  const css = fs.readFileSync(path.join(__dirname, '..', 'studio', 'styles.css'), 'utf8');
-  assert.match(app, /if \(liveRenderScheduled\) return/);
-  assert.match(app, /window\.requestAnimationFrame/);
-  assert.match(app, /lifecycleEvents = lifecycleEvents\.concat\([\s\S]*\)\.slice\(-100\)/);
-  assert.match(css, /prefers-reduced-motion:reduce/);
-  assert.match(css, /\.edge\.edge-active/);
 });
