@@ -59,6 +59,8 @@ git commit -m "<type>(<scope>): <summary>"
 
 2. Create a GitLab issue if none is linked (`glab issue create` with module title, scope checkboxes, `Steps to Reproduce & Testing (QA)` from `adapters/dot/gitlab.md`, expectation table, label `Ready to Test`). On a bugfix, do not leave those placeholders empty.
 
+Delivery never closes the card; closing stays with humans. GitLab closes an issue on merge to the default branch when a commit or MR text puts `Closes`, `Fixes`, `Resolves` or `Implements` before an issue reference. Reference the issue only as `Refs #<issue-iid>`, `Related to #<issue-iid>` or the bare issue URL, and never run `glab issue close`.
+
 3. Open **one** MR (`glab mr create` onto the live integration base from the topic-branch rules above; description links the issue). Issue and MR descriptions must include `Steps to Reproduce & Testing (QA)` (reproduce + how to test). On a bugfix, do not leave those placeholders empty. Do not cherry-pick to `staging` or `develop` unless the user named those branches this turn. Chat `setuju` is not propagate. Do not open three MRs.
 
 ---

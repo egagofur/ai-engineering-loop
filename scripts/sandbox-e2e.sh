@@ -26,7 +26,7 @@ scenario_image() {
     *) echo git ;;
   esac
 }
-ALL=(happy quick no-git non-git-folder no-commit no-identity gh-missing gh-logged-out cli-errors empty-folder host-stale old-node registry)
+ALL=(happy quick no-git non-git-folder no-commit no-identity gh-missing gh-logged-out rework cli-errors empty-folder host-stale old-node registry)
 
 REF=""
 SOURCE=tarball

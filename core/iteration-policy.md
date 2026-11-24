@@ -111,3 +111,16 @@ To maintain continuity across sub-agent calls or tool invocations, each iteratio
 3. **Cumulative Code Diff**: Total changes relative to base branch.
 4. **Deterministic Run Results**: Exit codes and timestamped test outcomes.
 5. **No-Progress Hash**: Signatures of active findings for stagnation detection.
+
+---
+
+## 6. Rework after the Maker gate (`run --reopen`)
+
+The change sometimes has to move after its diff is gated: test fixes for Devil's Advocate findings after the Judge passed, or a fix during verification. The gated diff is bound by hash to the verification evidence, the Finding Ledger, the verdict and the delivery receipt, so a new diff needs all of them again.
+
+- `gate maker --from-git` only writes `diff.patch` while the Run is `GOAL_FROZEN`. From `MAKER_COMPLETE`, `VERIFIED`, `REVIEWED` or `JUDGED_PASS` it refuses, leaves the judged `diff.patch` untouched, and its `fix` names the reopen command.
+- `ai-engineering-loop run --reopen --run <id> --reason "<what changed>" [--by <name>] [--json]` moves the Run back to `GOAL_FROZEN` as iteration N+1. `diff.patch`, `verification*.json`, `findings.json`, `verdict.json`, `delivery.json` and the receipt move to `runs/<id>/iterations/<N>/`; the matching state artifacts are dropped. In a workflow Run the Maker node and every node after it (verification, review, Judge, delivery approval, delivery) reset to PENDING. The history entry is `run-reopen` with the reason and the state it left.
+- Then run the loop again: `gate maker --from-git`, `verify`, a fresh Devil's Advocate, Judge, human approval, `deliver`. Delivery checks the new diff hash, so the delivered diff is always the judged diff.
+- The Run's change is everything between `startedRevision` (the commit the Run started on) and the working tree, committed or not, plus untracked files, excluding `.ai-engineering-loop/`. `gate maker --from-git` captures that, so a change committed before the Maker gate is still captured.
+- `verify`, `gate verification` and `gate delivery` compare the Run's change with the gated `diff.patch` and refuse with `DIFF_DRIFT` (naming each file and `run --reopen`) when they differ. The comparison keeps only what changed per file (added and removed lines, modes, binary data), so the same change committed, staged or untracked still matches. Untracked files the gated diff does not name are left to the clean-state check until they are committed. UNATTENDED Runs, whose diff comes from `sandbox capture`, are not compared. If `startedRevision` is no longer in the repository the gates refuse and say so.
+- Reopen is refused (with `why`/`fix`) before the Maker gate and on finished Runs (`DELIVERED`, `ESCALATED`, `REPORTED`, `CANCELLED`). It needs `--reason`. It never skips a gate, so agents use it instead of `run --abandon`.

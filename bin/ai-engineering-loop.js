@@ -1561,6 +1561,34 @@ function handleWorktree() {
   }
 }
 
+// `run --reopen --run <id> --reason <text> [--by <name>] [--json]`: a Run
+// between the Maker gate and delivery whose change must be reworked (e.g. test
+// fixes for DA findings after the Judge passed) starts a new iteration. The
+// gated diff, evidence, ledger, verdict and approval move to iterations/<n>/;
+// every gate runs again on the new diff.
+function handleRunReopen() {
+  const json = process.argv.includes('--json');
+  try {
+    const target = argValue('--run') ? loadRun(CWD, argValue('--run')) : getCurrentRun(CWD);
+    if (!target) throw Object.assign(new Error('No current run to reopen.'), { code: 'INVALID_USAGE', why: 'Reopen works on an existing Run.', fix: '`ai-engineering-loop status` lists the Run; pass --run <id>.' });
+    const options = { reason: argValue('--reason'), actor: argValue('--by') || 'agent' };
+    const result = target.workflow
+      ? require('../lib/workflow-runtime.js').reopenWorkflowRun(CWD, { runId: target.runId, ...options })
+      : require('../lib/gates.js').reopenRun(CWD, target.runId, options);
+    const { run } = result;
+    appendRunLifecycle(CWD, run.runId, { type: 'PHASE_COMPLETED', phase: 'reopen', actor: options.actor, status: 'PASSED', message: `Run reopened for iteration ${run.iteration}: ${run.history.at(-1).reason}` });
+    const next = `ai-engineering-loop gate maker --from-git --run ${run.runId}`;
+    if (json) console.log(JSON.stringify({ ok: true, runId: run.runId, state: run.state, iteration: run.iteration, from: target.state, archived: result.archiveDir, moved: result.moved, next }));
+    else {
+      log.success(`✓ Run ${run.runId} reopened (${target.state} -> ${run.state}), iteration ${run.iteration}`);
+      if (result.moved.length) console.log(`- Iteration ${target.iteration} evidence kept in ${result.archiveDir}: ${result.moved.join(', ')}`);
+      console.log(`- Next: \`${next}\`, then verify, Devil's Advocate, Judge and deliver again.`);
+    }
+  } catch (err) {
+    stageJsonError(err, json, 'REOPEN_FAILED');
+  }
+}
+
 function handleRunAbandon() {
   const json = process.argv.includes('--json');
   const yes = process.argv.includes('--yes');
@@ -1648,7 +1676,7 @@ function reproIntake() {
   return fromIssue ? issueRepro.readIssue(CWD, fromIssue) : issueRepro.readReportFile(CWD, fromReport);
 }
 
-const RUN_FLAGS = new Set(['--new', '--json', '--worktree', '--abandon', '--yes', '--force-live', '--help', '-h']);
+const RUN_FLAGS = new Set(['--new', '--json', '--worktree', '--abandon', '--reopen', '--yes', '--force-live', '--help', '-h']);
 const RUN_VALUED = ['--mode', '--recipe', '--tier', '--tier-reason', '--from-issue', '--from-report', '--run', '--reason', '--by', '--base'];
 
 function rejectUnknownRunFlags(runArgs) {
@@ -1682,6 +1710,7 @@ function rejectUnknownRunFlags(runArgs) {
 
 function handleRun() {
   if (process.argv.includes('--abandon')) return handleRunAbandon();
+  if (process.argv.includes('--reopen')) return handleRunReopen();
   const runJson = process.argv.includes('--json');
   try {
     rejectUnknownRunFlags(process.argv.slice(3));
@@ -2387,24 +2416,26 @@ function recordImpactDrift(runId) {
 function captureMakerDiff(run) {
   if (run.mode === 'UNATTENDED') throw new Error('--from-git is not allowed in UNATTENDED; use `sandbox capture`.');
   require('../lib/git-readiness.js').assertGitReady(CWD);
-  const { execFileSync } = require('child_process');
-  const exclude = ':(exclude).ai-engineering-loop';
-  const git = (args, allowExit1 = false) => {
-    try {
-      return execFileSync('git', args, { cwd: CWD, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
-    } catch (e) {
-      if (allowExit1 && e.status === 1) return e.stdout;
-      throw e;
-    }
-  };
-  let diff = git(['diff', '--binary', 'HEAD', '--', '.', exclude]);
-  const aelOnlyIgnore = (file) => file === '.gitignore' && (readFileSafe(path.join(CWD, file)) || '').trim().replace(/\/+$/, '') === '.ai-engineering-loop';
-  const untracked = git(['ls-files', '--others', '--exclude-standard', '-z', '--', '.', exclude]).split('\0').filter(Boolean).filter((file) => !aelOnlyIgnore(file));
-  for (const file of untracked) diff += git(['diff', '--binary', '--no-index', '--', '/dev/null', file], true);
-  if (!diff.trim()) throw new Error('--from-git found no changes against HEAD.');
+  const gates = require('../lib/gates.js');
+  gates.assertMakerDiffWritable(run);
+  let capture;
+  try {
+    capture = require('../lib/change-diff.js').captureChangeDiff(CWD, run);
+  } catch (err) {
+    if (err.code !== 'BASE_REVISION_MISSING') throw err;
+    throw Object.assign(err, { code: 'GATE_FAILED', why: 'The Maker diff is measured from the commit the Run started on.', fix: `Fetch or restore commit ${String(run.startedRevision).slice(0, 12)}, then retry; or start a new Run.` });
+  }
+  if (!capture.text.trim()) {
+    const base = capture.base.source === 'startedRevision' ? `the Run's starting commit ${capture.base.revision.slice(0, 12)}` : 'HEAD';
+    throw Object.assign(new Error(`--from-git found no changes against ${base}.`), {
+      code: 'GATE_FAILED',
+      why: 'The Maker gate binds review to the change since the Run started (committed or not), and there is none.',
+      fix: `Make the change first (files outside .ai-engineering-loop/), then \`gate maker --from-git --run ${run.runId}\`.`
+    });
+  }
   const target = path.join(CWD, '.ai-engineering-loop', 'runs', run.runId, 'diff.patch');
-  fs.writeFileSync(target, diff);
-  return { path: path.relative(CWD, target).split(path.sep).join('/'), files: untracked.length };
+  fs.writeFileSync(target, capture.text);
+  return { path: path.relative(CWD, target).split(path.sep).join('/'), files: capture.untracked.length };
 }
 
 function reviewLedgerBinding(run) {
@@ -2473,7 +2504,7 @@ function handleGate() {
       }
     }
   } catch (err) {
-    const retryHint = targetRunId && gate && err.code === 'GATE_FAILED'
+    const retryHint = targetRunId && gate && err.code === 'GATE_FAILED' && !(gate === 'maker' && String(err.fix || '').includes('run --reopen'))
       ? `After correcting the reported issue, retry: npx ai-engineering-loop gate ${gate} --run ${targetRunId}`
       : null;
     const details = [...(err.details || []), ...(retryHint ? [retryHint] : [])];
@@ -4223,6 +4254,9 @@ async function handleVerify() {
       if (!result.ok) process.exitCode = 1;
       return;
     }
+    // The working tree must still be the gated diff; otherwise the evidence
+    // would be bound to code nobody verifies or reviews.
+    require('../lib/gates.js').assertNoDiffDrift(CWD, loadRun(CWD, runId), 'verify');
     if (final) {
       const target = loadRun(CWD, runId);
       if (target.state !== 'JUDGED_PASS') throw Object.assign(new Error(`verify --final needs a Judge PASS (state is ${target.state})`), { code: 'INVALID_STATE' });
@@ -5378,6 +5412,9 @@ Commands:
                --abandon [--run <id>] --reason <text> --by <name> [--yes] [--force-live] [--json]
                       close a stale run as CANCELLED (kept on disk) and release current.json;
                       ASSISTED asks to confirm, UNATTENDED needs --yes from a human
+               --reopen [--run <id>] --reason <text> [--by <name>] [--json]
+                      rework a gated change (e.g. test fixes after Judge PASS): new iteration,
+                      gated diff and evidence move to iterations/<n>/, every gate runs again
   state        Inspect the current run ledger
                --run <id>  target a non-current run
                --json      print the complete machine-readable ledger

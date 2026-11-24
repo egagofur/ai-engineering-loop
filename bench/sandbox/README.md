@@ -22,6 +22,7 @@ Needs Docker, git and npm on the host. The `gh-logged-out` image downloads the `
 | `no-identity` | Node + git | no `user.name` / `user.email` |
 | `gh-missing` | Node + git | GitHub remote, `gh` not installed |
 | `gh-logged-out` | Node + git + gh | GitHub remote, `gh` not logged in |
+| `rework` | Node + git | code changed after Judge PASS: deliver refuses, `run --reopen`, loop again |
 | `cli-errors` | Node + git | typos, missing arguments, Run conflicts |
 | `empty-folder` | Node only | bare `ael` in an empty folder |
 | `host-stale` | Node + git | `~/.claude` exists, skill never installed |
