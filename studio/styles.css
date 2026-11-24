@@ -288,14 +288,14 @@ body[data-sheet="open"] .run{transform:scale(.985)}
   .details-button{right:8px;bottom:8px;padding:0 10px 0 14px}
   .run-status{left:8px;bottom:8px;max-width:calc(100% - 130px)}
   #ring[data-ring="3d"] .ring-centre{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-  #ring[data-ring="3d"] .guest{top:auto;right:8px;bottom:60px;left:8px;max-width:none;padding:10px 12px}
+  #ring[data-ring="3d"] .guest{top:auto;right:8px;bottom:68px;left:8px;max-width:none;padding:10px 12px}
   #ring[data-ring="3d"] .guest[data-asking="false"]{display:none}
   #ring[data-ring="3d"] .guest:has(.guest-ask) ~ .diners{display:none}
   #ring[data-ring="3d"] .guest-actions{width:100%}
   #ring[data-ring="3d"] .guest-actions>*{flex:1;justify-content:center}
   #ring[data-ring="3d"] .stages{top:auto;right:8px;bottom:60px;left:8px;display:flex;gap:6px;overflow-x:auto;padding:2px;pointer-events:auto;scrollbar-width:none;overscroll-behavior-x:contain}
   #ring[data-ring="3d"] .stages::-webkit-scrollbar{display:none}
-  #ring[data-ring="3d"]:has(.guest[data-asking="true"]) .stages{bottom:calc(68px + var(--guest-h,0px))}
+  #ring[data-ring="3d"]:has(.guest[data-asking="true"]) .stages{bottom:calc(76px + var(--guest-h,0px))}
   #ring[data-ring="3d"] .stage{position:static;flex:none;display:flex;align-items:center;min-height:32px;padding:4px 10px}
   #ring[data-ring="3d"] .stage-agent{display:none}
   #ring[data-ring="3d"] .stage.now .stage-agent{display:inline;margin:0 0 0 6px}

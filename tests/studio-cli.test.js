@@ -211,3 +211,28 @@ test('--background that cannot start shows the new log lines intact after multib
     await new Promise((resolve) => blocker.close(resolve));
   }
 });
+
+test('a background Studio child keeps running when its parent drops the IPC channel as soon as it has the URL', async () => {
+  const home = tempDir('ael-studio-ipc-');
+  const child = spawn(process.execPath, [BIN, 'studio', '--no-open', '--no-notify', '--port', '0'], {
+    env: env(home),
+    cwd: home,
+    stdio: ['ignore', 'ignore', 'pipe', 'ipc']
+  });
+  spawned.push(child);
+  let stderr = '';
+  child.stderr.on('data', (chunk) => { stderr += chunk; });
+  const url = await new Promise((resolve) => child.once('message', (message) => {
+    child.disconnect();
+    resolve(message.url);
+  }));
+  assert.match(url, /^http:\/\/127\.0\.0\.1:\d+\/\?token=/);
+  const deadline = Date.now() + 15000;
+  while (!fs.existsSync(studioFile(home)) && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  assert.ok(fs.existsSync(studioFile(home)), 'Studio wrote its instance file');
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  assert.equal(child.exitCode, null, stderr);
+  assert.doesNotMatch(stderr, /ERR_IPC/);
+});

@@ -3992,7 +3992,9 @@ function startStudioInForeground(home, port) {
     log.success('✓ AEL Studio is running locally');
     if (typeof process.send === 'function') {
       console.log(`http://127.0.0.1:${actualPort}/ (running in the background; stop it with \`ael studio --stop\`)`);
-      process.send({ url }, () => process.disconnect());
+      process.send({ url }, () => {
+        if (process.connected) process.disconnect();
+      });
       return;
     }
     console.log(url);

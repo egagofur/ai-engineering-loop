@@ -272,6 +272,24 @@ test('freeze twice: the first freezes as the Studio actor, the second answers al
   });
 });
 
+test('a Studio freeze records one GOAL_FROZEN lifecycle event and drafts the impact map, like the CLI', async () => {
+  const { listRunLifecycle } = require('../lib/run-lifecycle.js');
+  const { loadImpactMap } = require('../lib/impact-map.js');
+  const { home, roots } = fixture();
+  const hash = drafted(roots[0], 'run-1');
+  const route = `/api/projects/${projectId(roots[0])}/runs/run-1/goal/freeze`;
+  await withStudio({ home }, async ({ base }) => {
+    assert.equal((await api(base, route, { method: 'POST', body: { expectedHash: hash } })).status, 200);
+    assert.equal((await api(base, route, { method: 'POST', body: { expectedHash: hash } })).status, 200);
+  });
+  const frozen = listRunLifecycle(roots[0], 'run-1').events.filter((event) => event.type === 'GOAL_FROZEN');
+  assert.equal(frozen.length, 1);
+  assert.equal(frozen[0].phase, 'goal');
+  assert.equal(frozen[0].actor, 'Ega');
+  assert.match(frozen[0].message, /Studio/);
+  assert.ok(loadImpactMap(roots[0], 'run-1'));
+});
+
 test('freeze with a stale expectedHash is 409 GOAL_DRAFT_CONFLICT and leaves the Run unfrozen', async () => {
   const { home, roots } = fixture();
   drafted(roots[0], 'run-1');

@@ -161,7 +161,7 @@ test('phone layout: strip, bottom sheet guest, compact header, and 44px tap targ
   const phone = css.slice(css.indexOf('@media (max-width:600px)'));
   assert.ok(phone.length > 30, 'has a phone breakpoint');
   assert.match(phone, /#ring\[data-ring="3d"\] \.stages\{[^}]*overflow-x:auto/);
-  assert.match(phone, /#ring\[data-ring="3d"\] \.guest\{[^}]*right:8px;bottom:60px;left:8px;max-width:none/);
+  assert.match(phone, /#ring\[data-ring="3d"\] \.guest\{[^}]*right:8px;bottom:68px;left:8px;max-width:none/);
   assert.match(phone, /\.run-task\{[^}]*-webkit-line-clamp:2/);
   assert.match(phone, /\.details-button[^{]*\{min-height:44px\}/);
   assert.match(phone, /#ring\[data-ring="3d"\] \.ring-centre\{[^}]*clip-path:inset\(50%\)/, 'the waiting block stays for screen readers but merges into the header');
