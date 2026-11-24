@@ -24,7 +24,7 @@ test('write then read returns the same port and url', () => {
   const home = tempHome();
   writeInstance({ home, pid: process.pid, port: 4567 });
   assert.deepEqual(readInstance({ home }), { pid: process.pid, port: 4567, url: 'http://127.0.0.1:4567/' });
-  assert.equal(fs.statSync(file(home)).mode & 0o777, 0o600);
+  if (process.platform !== 'win32') assert.equal(fs.statSync(file(home)).mode & 0o777, 0o600);
 });
 
 test('a dead pid reads as null and removes the file', () => {

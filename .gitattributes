@@ -1,3 +1,7 @@
 tests/fixtures/*.md text eol=lf
 vendor/egm/** text eol=lf
 adapters/spec/** text eol=lf
+studio/**/*.js text eol=lf
+studio/**/*.css text eol=lf
+studio/**/*.html text eol=lf
+studio/**/*.json text eol=lf

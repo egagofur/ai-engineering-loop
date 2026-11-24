@@ -191,7 +191,7 @@ test('--background never writes the session token to the log, and the log is pri
   assert.equal(log.includes(token), false);
   assert.equal(log.includes('token='), false);
   assert.match(log, /http:\/\/127\.0\.0\.1:\d+\//);
-  assert.equal(fs.statSync(logFile).mode & 0o777, 0o600);
+  if (process.platform !== 'win32') assert.equal(fs.statSync(logFile).mode & 0o777, 0o600);
   runCli(home, ['studio', '--stop']);
 });
 
