@@ -16,6 +16,9 @@ const ROOT = path.join(__dirname, '..');
 const CLI = path.join(ROOT, 'bin', 'ai-engineering-loop.js');
 const au = require('../lib/auto-update.js');
 const reg = require('../lib/project-registry.js');
+const MAJOR = require('../package.json').version.split('.')[0];
+const NEXT = `${MAJOR}.99.0`;
+const MID = `${MAJOR}.50.0`;
 
 function sandbox() {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ael-au-home-'));
@@ -123,7 +126,7 @@ test('opt-out: AEL_NO_AUTO_UPDATE, CI, and policy off make `update auto` a no-op
   const { home, env } = sandbox();
   const dir = project(home);
   for (const extra of [{ AEL_NO_AUTO_UPDATE: '1' }, { CI: 'true' }]) {
-    const r = JSON.parse(cli(dir, { ...env, ...extra, AEL_UPDATE_DIST_TAGS: '{"latest":"2.99.0"}' }, 'update', 'auto', '--json').stdout);
+    const r = JSON.parse(cli(dir, { ...env, ...extra, AEL_UPDATE_DIST_TAGS: `{"latest":"${NEXT}"}` }, 'update', 'auto', '--json').stdout);
     assert.match(r.reason, /POLICY_OFF/);
   }
   assert.strictEqual(cli(dir, env, 'update', 'policy', 'off').status, 0);
@@ -137,7 +140,7 @@ test('project-scope installs are notify-only: package.json is never changed', ()
   const dir = project(home);
   const pkg = fs.readFileSync(path.join(dir, 'package.json'), 'utf8');
   assert.strictEqual(cli(dir, env, 'update', 'policy', 'minor').status, 0);
-  const r = JSON.parse(cli(dir, { ...env, AEL_UPDATE_DIST_TAGS: '{"latest":"2.99.0"}', AEL_INSTALL_SCOPE: 'project' }, 'update', 'auto', '--force', '--json').stdout);
+  const r = JSON.parse(cli(dir, { ...env, AEL_UPDATE_DIST_TAGS: `{"latest":"${NEXT}"}`, AEL_INSTALL_SCOPE: 'project' }, 'update', 'auto', '--force', '--json').stdout);
   assert.strictEqual(r.decision.action, 'apply');
   assert.deepStrictEqual(r.result, { applied: false, reason: 'PROJECT_SCOPE_NOTIFY_ONLY' });
   assert.strictEqual(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'), pkg);
@@ -264,13 +267,13 @@ test('status starts a detached background check and later prints a rate-limited 
   fs.writeFileSync(path.join(dir, 'pnpm-lock.yaml'), 'lockfileVersion: 9\n');
   const changelog = path.join(home, 'CHANGELOG.md');
   fs.writeFileSync(changelog, [
-    '# Changelog', '', '## 2.99.0', '', '### Faster tiered runs (#33)', '- detail', '',
-    '## 2.50.0', '', '### Combined verify command', '- detail', '', '## 1.0.0', '', '### Old stuff', ''
+    '# Changelog', '', `## ${NEXT}`, '', '### Faster tiered runs (#33)', '- detail', '',
+    `## ${MID}`, '', '### Combined verify command', '- detail', '', '## 1.0.0', '', '### Old stuff', ''
   ].join('\n'));
   const live = {
     ...env,
     AEL_ALLOW_AUTO_UPDATE_IN_TESTS: '1',
-    AEL_UPDATE_DIST_TAGS: '{"latest":"2.99.0"}',
+    AEL_UPDATE_DIST_TAGS: `{"latest":"${NEXT}"}`,
     AEL_INSTALL_SCOPE: 'project',
     AEL_UPDATE_CHANGELOG_FILE: changelog,
     AEL_FORCE_UPDATE_NOTICE: '1'
@@ -294,18 +297,18 @@ test('status starts a detached background check and later prints a rate-limited 
   assert.doesNotMatch(cli(dir, noTty, 'status').stderr, /available/);
 
   const second = cli(dir, live, 'status');
-  assert.match(second.stderr, /ai-engineering-loop \d+\.\d+\.\d+ -> 2\.99\.0 available \(minor\)/);
+  assert.match(second.stderr, new RegExp(`ai-engineering-loop \\d+\\.\\d+\\.\\d+ -> ${NEXT.replace(/\./g, '\\.')} available \\(minor\\)`));
   assert.match(second.stderr, /• Faster tiered runs/);
   assert.match(second.stderr, /• Combined verify command/);
   assert.doesNotMatch(second.stderr, /Old stuff/);
-  assert.match(second.stderr, /Update: +pnpm add -D ai-engineering-loop@2\.99\.0/);
+  assert.match(second.stderr, new RegExp(`Update: +pnpm add -D ai-engineering-loop@${NEXT.replace(/\./g, '\\.')}`));
   assert.match(second.stderr, /Silence: AEL_NO_UPDATE_NOTICE=1/);
   // Once per day per project.
   assert.doesNotMatch(cli(dir, live, 'status').stderr, /available/);
   const other = project(home);
-  assert.match(cli(other, live, 'status').stderr, /Update: +npm install -D ai-engineering-loop@2\.99\.0/);
+  assert.match(cli(other, live, 'status').stderr, new RegExp(`Update: +npm install -D ai-engineering-loop@${NEXT.replace(/\./g, '\\.')}`));
   // Package files never change: notify-only.
-  assert.doesNotMatch(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'), /2\.99\.0/);
+  assert.doesNotMatch(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'), new RegExp(NEXT.replace(/\./g, '\\.')));
 });
 
 test('update notice: package manager detection, highlights, global and major wording', () => {
