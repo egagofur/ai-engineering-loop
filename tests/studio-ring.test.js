@@ -8,6 +8,9 @@ const { pathToFileURL } = require('url');
 
 const studio = path.join(__dirname, '..', 'studio');
 const load = (file) => import(pathToFileURL(path.join(studio, 'js', file)).href);
+const { renderComponent } = require('./helpers/svelte.js');
+const renderRing = ({ summary = null, findings = null, actor = null, diners = [] } = {}) => renderComponent('components/Ring.svelte', { summary, findings, actor, diners, freeze: { source: null, phase: 'idle' } });
+const source = (file) => fs.readFileSync(path.join(studio, 'src', file), 'utf8');
 const STAGES = ['goal', 'maker', 'verify', 'review', 'judge', 'deliver'];
 
 const ring = (statuses) => STAGES.map((stage, index) => ({ stage, status: statuses[index] }));
@@ -41,8 +44,8 @@ test('ringModel fills missing stages as pending and ignores unknown statuses', a
 const summary = (statuses, overrides = {}) => ({ runId: 'r', state: 'VERIFIED', tier: 'T2', iteration: 2, maxIterations: 3, ring: ring(statuses), waiting: null, ...overrides });
 
 test('the ring face is option C: six labelled stages on the circle, status classes and angles', async () => {
-  const { renderRing, stagePosition } = await load('ring2d.js');
-  const html = renderRing({ summary: summary(['done', 'done', 'done', 'now', 'pending', 'skipped']), findings: { total: 3, blocking: 1 }, projectName: 'socialcrab/orch' });
+  const { stagePosition } = await load('ring2d.js');
+  const html = await renderRing({ summary: summary(['done', 'done', 'done', 'now', 'pending', 'skipped']), findings: { total: 3, blocking: 1 }, projectName: 'socialcrab/orch' });
   assert.doesNotMatch(html, /ring-eyebrow/, 'the eyebrow lives in the stage overlay now');
   const stages = [...html.matchAll(/<li class="stage ([a-z]+)" data-stage="([a-z]+)" data-status="\1" data-angle="(\d+)"><i aria-hidden="true"><\/i><b class="stage-station">([A-Za-z ]+)<\/b> <span class="stage-agent">([A-Za-z]+)<\/span><span class="visually-hidden">, ([a-z ]+)<\/span><\/li>/g)]
     .map((m) => `${m[2]}:${m[1]}:${m[3]}:${m[4]}:${m[5]}:${m[6]}`);
@@ -55,8 +58,8 @@ test('the ring face is option C: six labelled stages on the circle, status class
     'deliver:skipped:300:Serve:Deliver:skipped'
   ]);
   assert.match(html, /<ol class="stages" aria-label="Kitchen stations">/);
-  assert.match(html, /<b class="ring-activity">Devil&#39;s Advocate<\/b><span class="eyebrow ring-note">3 findings · 1 blocking<\/span>/);
-  assert.match(html, /<div class="ring-orbit" data-at="review"><button type="button" class="bot ring-bot" aria-label="Bot is reviewing: [^"]+"><\/button><p class="bot-bubble" aria-hidden="true" hidden><\/p><\/div>/);
+  assert.match(html, /<b class="ring-activity">Devil's Advocate<\/b><span class="eyebrow ring-note">3 findings · 1 blocking<\/span>/);
+  assert.match(html, /<div class="ring-orbit" data-at="review"><button type="button" class="bot ring-bot" aria-label="Bot is reviewing: [^"]+"><\/button><p class="bot-bubble" aria-hidden="true" hidden=""><\/p><\/div>/);
   assert.match(html, /<div class="ring-gl" aria-hidden="true"><\/div>/);
   assert.doesNotMatch(html, /style=|#[0-9a-fA-F]{3,8}\b/, 'positions and colours come from styles.css');
   const css = fs.readFileSync(path.join(studio, 'styles.css'), 'utf8');
@@ -83,28 +86,18 @@ test('ringActivity names the agent of the now stage, waits, settled and finished
 });
 
 test('a settled Run parks the bot at its last done stage', async () => {
-  const { renderRing } = await load('ring2d.js');
-  const html = renderRing({ summary: summary(['done', 'done', 'skipped', 'skipped', 'pending', 'pending'], { state: 'REPORTED' }) });
+  const html = await renderRing({ summary: summary(['done', 'done', 'skipped', 'skipped', 'pending', 'pending'], { state: 'REPORTED' }) });
   assert.match(html, /class="ring-orbit" data-at="maker"/);
   assert.doesNotMatch(html, /class="stage now"/);
 });
 
-test('mountRing2d keeps the bot orbit element across updates so it can glide, and disposes', async () => {
-  const { mountRing2d } = await load('ring2d.js');
-  const face = { innerHTML: '' };
-  const orbit = { dataset: {} };
-  const gl = {};
-  const button = { label: null, setAttribute(name, value) { this.label = `${name}=${value}`; } };
-  const el = { innerHTML: '', querySelector: (selector) => ({ '.ring-face': face, '.ring-orbit': orbit, '.ring-gl': gl, '.ring-bot': button })[selector] };
-  const handle = mountRing2d(el, { summary: summary(['now', 'pending', 'pending', 'pending', 'pending', 'pending']) });
-  assert.match(el.innerHTML, /data-stage="goal" data-status="now"/);
-  assert.equal(handle.gl, gl);
-  handle.update({ summary: summary(['done', 'now', 'pending', 'pending', 'pending', 'pending']) });
-  assert.match(face.innerHTML, /data-stage="maker" data-status="now"/);
-  assert.equal(orbit.dataset.at, 'maker');
-  assert.equal(button.label, 'aria-label=Bot is building: Maker, in progress');
-  handle.dispose();
-  assert.equal(el.innerHTML, '');
+test('the ring keeps its stage labels and bot orbit across updates so the 3D overlay and the glide survive', () => {
+  const ring = source('components/Ring.svelte');
+  assert.match(ring, /\{#each base\.stages as item \(item\.stage\)\}/, 'stage labels are keyed by stage, so updates patch them in place');
+  assert.match(ring, /<div class="ring-orbit" data-at=\{base\.botStage\}>/, 'one orbit element; only data-at changes');
+  assert.match(ring, /aria-label=\{botLabel\(summary, findings\)\}/);
+  assert.doesNotMatch(ring, /innerHTML/);
+  assert.match(ring, /if \(handle\) handle\.dispose\(\);/, 'the kitchen is disposed when the ring goes away');
 });
 
 test('kitchen modules: no raw colours, three imported by relative path, one paused render loop', () => {
@@ -138,16 +131,18 @@ test('vendored three.js is pinned, licensed and its core import is vendored too'
   assert.match(notices, /three\.js[\s\S]*0\.185\.1[\s\S]*MIT/);
 });
 
-test('main.js draws the DOM ring always and the WebGL ring only with WebGL and a working three.js', () => {
-  const main = fs.readFileSync(path.join(studio, 'js', 'main.js'), 'utf8');
-  assert.match(main, /prefers-reduced-motion: reduce/);
-  assert.match(main, /typeof window\.WebGL2RenderingContext === 'function'/, 'no throwaway probe context at boot');
-  assert.doesNotMatch(main, /getContext\('webgl/);
-  assert.match(main, /threeFailed = true/, 'a context three cannot create falls back to the flat ring');
-  assert.match(main, /import\('\.\/restaurant\.js'\)/);
-  assert.match(main, /if \(HAS_WEBGL\) loadKitchen\(\)/, 'the kitchen module starts loading at boot, in parallel with the API calls');
-  assert.match(main, /ringMode\(\{ webgl: HAS_WEBGL, threeFailed: ringView\.threeFailed \}\) === '3d'/);
-  assert.match(main, /dataset\.bot = 'css'/);
+test('the ring draws the DOM face always and the WebGL kitchen only with WebGL and a working three.js', () => {
+  const ring = source('components/Ring.svelte');
+  const main = source('main.js');
+  const app = source('App.svelte');
+  assert.match(app, /prefers-reduced-motion: reduce/);
+  assert.match(ring, /typeof window\.WebGL2RenderingContext === 'function'/, 'no throwaway probe context at boot');
+  assert.doesNotMatch(ring + main, /getContext\('webgl/);
+  assert.match(ring, /threeFailed = true/, 'a context three cannot create falls back to the flat ring');
+  assert.match(ring, /import\('\.\.\/\.\.\/js\/restaurant\.js'\)/);
+  assert.match(main, /if \(typeof window\.WebGL2RenderingContext === 'function'\) import\('\.\.\/js\/restaurant\.js'\)/, 'the kitchen module starts loading at boot, in parallel with the API calls');
+  assert.match(ring, /ringMode\(\{ webgl: HAS_WEBGL, threeFailed \}\) === '3d'/);
+  assert.match(ring, /data-bot=\{glReady \? '3d' : 'css'\}/);
   const css = fs.readFileSync(path.join(studio, 'styles.css'), 'utf8');
   assert.match(css, /#ring\[data-bot="3d"\] \.ring-bot\{background:transparent;box-shadow:none\}/, 'the CSS bot steps aside but its button keeps focus');
   assert.match(css, /@media \(max-width:899px\)\{[^@]*\.ringbox\{--loop:min\(220px,62vw\)\}/, 'the ring stays visible, scaled down, at narrow widths');
@@ -155,11 +150,11 @@ test('main.js draws the DOM ring always and the WebGL ring only with WebGL and a
 });
 
 test('the kitchen board names the step in kitchen words and keeps the AEL stage under it', async () => {
-  const { kitchenActivity, renderRingFace } = await import(require('node:url').pathToFileURL(require('node:path').join(__dirname, '..', 'studio', 'js', 'ring2d.js')).href);
+  const { kitchenActivity } = await load('ring2d.js');
   const ring = (now) => ['goal', 'maker', 'verify', 'review', 'judge', 'deliver'].map((stage, index, all) => ({ stage, status: index < all.indexOf(now) ? 'done' : stage === now ? 'now' : 'pending' }));
   assert.deepStrictEqual(kitchenActivity({ ring: ring('maker') }), { board: 'On the stove', title: 'Maker', note: 'in progress' });
   assert.equal(kitchenActivity({ ring: ring('deliver'), waiting: { kind: 'approval' } }).board, 'Ready at the pass');
   assert.equal(kitchenActivity({ ring: ring('deliver'), state: 'DELIVERED' }).board, 'Plating up');
-  const html = renderRingFace({ summary: { ring: ring('review') }, findings: { total: 3, blocking: 1 } });
-  assert.match(html, /<b class="ring-board" aria-hidden="true">The critic tastes<\/b><b class="ring-activity">Devil&#39;s Advocate<\/b>/);
+  const html = await renderRing({ summary: { ring: ring('review') }, findings: { total: 3, blocking: 1 } });
+  assert.match(html, /<b class="ring-board" aria-hidden="true">The critic tastes<\/b><b class="ring-activity">Devil's Advocate<\/b>/);
 });

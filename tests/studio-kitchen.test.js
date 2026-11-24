@@ -8,6 +8,12 @@ const { pathToFileURL } = require('url');
 
 const studio = path.join(__dirname, '..', 'studio');
 const load = (file) => import(pathToFileURL(path.join(studio, 'js', file)).href);
+const { renderComponent } = require('./helpers/svelte.js');
+const renderRing = ({ summary = null, actor = null } = {}) => renderComponent('components/Ring.svelte', { summary, actor, freeze: { source: null, phase: 'idle' } });
+const guest = async (view) => {
+  const html = await renderRing(view);
+  return html.slice(html.indexOf('<div class="guest"'), html.indexOf('<div class="ring-orbit"'));
+};
 const read = (file) => fs.readFileSync(path.join(studio, file), 'utf8');
 const STAGES = ['goal', 'maker', 'verify', 'review', 'judge', 'deliver'];
 const ring = (now) => STAGES.map((stage, index) => ({ stage, status: index < STAGES.indexOf(now) ? 'done' : stage === now ? 'now' : 'pending' }));
@@ -50,11 +56,10 @@ test('a Run sent back shows the dashed return path Head chef to Cook and the ite
   assert.deepStrictEqual(returnPath({ iteration: 2, maxIterations: 3 }), { from: 'judge', to: 'maker', fromX: stationX('judge'), toX: stationX('maker'), label: RETURN_LABEL });
   assert.equal(ticketLabel({ iteration: 2, maxIterations: 3 }), 'Iteration 2 of 3');
   assert.equal(ticketLabel({ iteration: 1, maxIterations: 3 }), 'Your order');
-  const { renderRing } = await load('ring2d.js');
-  const back = renderRing({ summary: { state: 'REVIEWED', iteration: 2, maxIterations: 3, ring: ring('judge') } });
+  const back = await renderRing({ summary: { state: 'REVIEWED', iteration: 2, maxIterations: 3, ring: ring('judge') } });
   assert.match(back, /<p class="kitchen-ticket" data-back="true">Iteration 2 of 3<\/p>/);
   assert.match(back, /<p class="kitchen-return">Sent back to the kitchen: Head chef → Cook<\/p>/);
-  assert.doesNotMatch(renderRing({ summary: { state: 'REVIEWED', ring: ring('judge') } }), /kitchen-return/);
+  assert.doesNotMatch(await renderRing({ summary: { state: 'REVIEWED', ring: ring('judge') } }), /kitchen-return/);
 });
 
 test('station lamps: done green, now warm orange with a soft pulse, pending dim, skipped grey; reduced motion holds still', async () => {
@@ -185,27 +190,27 @@ test('camera: rest shows the whole counter, zoom dollies to the station under th
 });
 
 test('the guest table asks: Confirm the order? with Freeze, Bring it out? and the waiter question stay in the agent host', async () => {
-  const { renderGuest } = await load('ring2d.js');
-  const freeze = renderGuest({ summary: { waiting: { kind: 'freeze' } }, actor: 'Ega' });
+  const ringOf = (waiting) => ({ state: 'STARTED', ring: ring('goal'), waiting });
+  const freeze = await guest({ summary: ringOf({ kind: 'freeze' }), actor: 'Ega' });
   assert.match(freeze, /<p class="eyebrow guest-name">You, the guest<\/p>/);
   assert.match(freeze, /<b>Confirm the order\?<\/b>/);
   assert.match(freeze, /<button type="button" class="primary" data-action="freeze">Freeze as Ega<\/button>/);
-  assert.match(renderGuest({ summary: { waiting: { kind: 'freeze' } } }), /data-action="guest-freeze-name">Freeze…<\/button>/);
-  const approval = renderGuest({ summary: { waiting: { kind: 'approval' } }, actor: 'Ega' });
+  assert.match(await guest({ summary: ringOf({ kind: 'freeze' }) }), /data-action="guest-freeze-name">Freeze…<\/button>/);
+  const approval = await guest({ summary: ringOf({ kind: 'approval' }), actor: 'Ega' });
   assert.match(approval, /<b>Bring it out\?<\/b> <span class="guest-note">Approve the delivery in your agent host\.<\/span>/);
   assert.doesNotMatch(approval, /data-action/, 'approval stays in the agent host');
-  assert.match(renderGuest({ summary: { waiting: { kind: 'question' } } }), /The waiter asks you something\./);
-  assert.match(renderGuest({ summary: {} }), /data-asking="false"/);
-  const main = read('js/main.js');
-  assert.match(main, /closest\('\.guest \[data-action\]'\)/);
+  assert.match(await guest({ summary: ringOf({ kind: 'question' }) }), /The waiter asks you something\./);
+  assert.match(await guest({ summary: ringOf(null) }), /data-asking="false"/);
+  const ringSource = fs.readFileSync(path.join(__dirname, '..', 'studio', 'src', 'components', 'Ring.svelte'), 'utf8');
+  assert.match(ringSource, /<FreezeButton \{actor\} source="guest" \{freeze\} nameAction="guest-freeze-name" \{onfreeze\} onname=\{onfreezename\} \/>/);
 });
 
 test('fallback: without WebGL the flat ring stays text-complete with stations, ticket and the guest', async () => {
-  const { ringMode, renderRing } = await load('ring2d.js');
+  const { ringMode } = await load('ring2d.js');
   assert.equal(ringMode({ webgl: false }), 'flat');
   assert.equal(ringMode({ webgl: true, threeFailed: true }), 'flat');
   assert.equal(ringMode({ webgl: true }), '3d');
-  const html = renderRing({ summary: { state: 'STARTED', ring: ring('goal'), waiting: { kind: 'freeze' } }, actor: 'Ega' });
+  const html = await renderRing({ summary: { state: 'STARTED', ring: ring('goal'), waiting: { kind: 'freeze' } }, actor: 'Ega' });
   for (const text of ['Order', 'Goal', 'Cook', 'Taste', 'Critic', 'Head chef', 'Serve', 'Your order', 'You, the guest', 'Confirm the order?', 'Freeze as Ega']) {
     assert.ok(html.includes(text), text);
   }
@@ -217,7 +222,9 @@ test('premium rendering: sRGB, ACES, soft shadows, PMREM studio environment, bev
   assert.match(scene, /toneMapping = ACESFilmicToneMapping/);
   assert.match(scene, /shadowMap\.type = PCFShadowMap/);
   assert.match(scene, /shadow\.radius = /);
-  assert.match(scene, /Math\.min\(window\.devicePixelRatio \|\| 1, 2\)/);
+  assert.match(scene, /Math\.min\(window\.devicePixelRatio \|\| 1, MAX_PIXEL_RATIO\)/);
+  assert.match(scene, /const MAX_PIXEL_RATIO = 1\.5;/, 'retina screens draw at 1.5x, not 2x: a third fewer pixels to shade');
+  assert.match(scene, /function watchFrameRate\(seconds\)[\s\S]*pixelRatio = 1;\n\s+renderer\.setPixelRatio\(pixelRatio\);/, 'slow frames drop the scene to 1x');
   assert.match(scene, /studioEnvironment\(renderer, read\)/);
   assert.match(read('js/forms.js'), /new PMREMGenerator\(renderer\)/);
   assert.match(read('js/forms.js'), /new ExtrudeGeometry\(/);
@@ -360,4 +367,15 @@ test('cooking: the flame bursts when the pan tosses, flickers in sync with a war
   assert.match(restaurant, /const burst = reducedMotion \? 0 : flameBurst\(bot\.cookPhase\(\)\);/);
   assert.match(restaurant, /fire\.intensity = FLAME_POWER \* \(1 \+ glow\) \+ FLAME_BURST_POWER \* burst;/);
   assert.match(restaurant, /new PointLight\(/);
+});
+
+test('overlay labels never force a layout per frame: sizes come from a ResizeObserver cache', () => {
+  const scene = read('js/restaurant.js');
+  const loop = scene.slice(scene.indexOf('  function place('), scene.indexOf('  function placeStrip('))
+    + scene.slice(scene.indexOf('  function placeGuest('), scene.indexOf('  function placeOverlay('));
+  assert.doesNotMatch(loop, /offset(?:Width|Height)/, 'place, guest, bubble and ticket read cached sizes');
+  assert.match(scene, /new ResizeObserver\(\(entries\) => \{\n\s+for \(const entry of entries\) \{/);
+  assert.match(scene, /function sizeOf\(node\)/);
+  assert.match(scene, /if \(sizeWatch\) sizeWatch\.disconnect\(\);/);
+  assert.match(scene, /if \(guestHeight !== lastGuestHeight\)/, 'the phone guest height is written only when it changes');
 });

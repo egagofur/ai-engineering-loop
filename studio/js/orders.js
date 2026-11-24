@@ -1,6 +1,6 @@
-import { escapeHtml, formatElapsed, FINISHED_RUN_STATES, stageLabel, waitingLabel } from './list.js';
+import { formatElapsed, FINISHED_RUN_STATES, stageLabel, waitingLabel } from './list.js';
 
-const OUTCOMES = {
+export const OUTCOMES = {
   passed: 'Passed',
   done: 'Served',
   back: 'Sent back',
@@ -30,7 +30,7 @@ export function orderSummary(runs) {
   return SUMMARY_ORDER.filter((outcome) => counts[outcome]).map((outcome) => `${counts[outcome]} ${OUTCOMES[outcome].toLowerCase()}`).join(' · ');
 }
 
-const STAMPS = {
+export const STAMPS = {
   passed: 'Passed',
   done: 'Served',
   back: 'Sent back',
@@ -39,43 +39,15 @@ const STAMPS = {
   cancelled: 'Void'
 };
 
-function orderRow(run, index, total) {
-  const outcome = orderOutcome(run);
+export function orderMeta(run) {
   const ago = formatElapsed(run.elapsedMs);
-  const meta = [run.worktree ? 'worktree' : '', run.iteration > 1 ? `iteration ${run.iteration}` : '', ago === 'just now' ? ago : `${ago} ago`].filter(Boolean).join(' · ');
-  return `<li class="order" data-outcome="${outcome}"${run.current ? ' aria-current="true"' : ''}>`
-    + `<span class="order-no" aria-hidden="true">No. ${total - index}</span>`
-    + `<span class="order-main"><b class="order-task">${escapeHtml(run.task || 'Untitled order')}</b>`
-    + `<span class="order-meta">${run.current ? '<span class="order-now">On the pass now</span> · ' : ''}${escapeHtml(meta)}</span></span>`
-    + `<span class="order-stamp" title="${OUTCOMES[outcome]}">${STAMPS[outcome]}</span></li>`;
+  return [run.worktree ? 'worktree' : '', run.iteration > 1 ? `iteration ${run.iteration}` : '', ago === 'just now' ? ago : `${ago} ago`].filter(Boolean).join(' · ');
 }
 
-function tally(list) {
+export function orderTally(runs) {
   const counts = {};
-  for (const run of list) counts[orderOutcome(run)] = (counts[orderOutcome(run)] || 0) + 1;
-  return SUMMARY_ORDER.filter((outcome) => counts[outcome])
-    .map((outcome) => `<li data-outcome="${outcome}"><span class="tally-count">${counts[outcome]}</span> ${OUTCOMES[outcome].toLowerCase()}</li>`).join('');
-}
-
-export function renderOrders(runs, { projectName = '', loading = false, error = null } = {}) {
-  const list = Array.isArray(runs) ? runs : [];
-  let right;
-  if (loading) right = '<p class="order-empty">Leafing through the pages…</p>';
-  else if (error) right = `<p class="order-empty">Could not read the order book: ${escapeHtml(error)}</p>`;
-  else if (!list.length) right = '<p class="order-empty">No orders written yet.</p>';
-  else right = `<ol class="orders" aria-label="Recent Runs, newest first">${list.map((run, index) => orderRow(run, index, list.length)).join('')}</ol>`;
-  const summary = !loading && !error && list.length
-    ? `<p class="visually-hidden">${escapeHtml(orderSummary(list))}</p><ul class="tally" aria-hidden="true">${tally(list)}</ul>`
-    : '';
-  return '<div class="book">'
-    + '<section class="page page-left" aria-label="Cover page">'
-    + '<p class="book-kicker">The kitchen\'s</p><p class="book-name">Order book</p>'
-    + (projectName ? `<p class="book-project">${escapeHtml(projectName)}</p>` : '')
-    + summary
-    + '<p class="book-foot">Newest orders first</p>'
-    + '</section>'
-    + `<section class="page page-right" aria-label="Orders">${right}</section>`
-    + '</div>';
+  for (const run of runs || []) counts[orderOutcome(run)] = (counts[orderOutcome(run)] || 0) + 1;
+  return SUMMARY_ORDER.filter((outcome) => counts[outcome]).map((outcome) => ({ outcome, count: counts[outcome], label: OUTCOMES[outcome].toLowerCase() }));
 }
 
 export function crewLabel(run) {

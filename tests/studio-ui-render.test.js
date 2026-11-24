@@ -5,9 +5,20 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 const { pathToFileURL } = require('url');
+const { renderComponent } = require('./helpers/svelte.js');
 
 const studio = path.join(__dirname, '..', 'studio');
 const load = (file) => import(pathToFileURL(path.join(studio, 'js', file)).href);
+const source = (file) => fs.readFileSync(path.join(studio, 'src', file), 'utf8');
+const IDLE = { source: null, phase: 'idle' };
+const renderProjectList = (projects, { selectedId = null, actor = null, freeze = IDLE } = {}) => renderComponent('components/ProjectList.svelte', { projects, loaded: true, selectedId, actor, freeze });
+const renderRunHead = (summary, { actor = null, projectName = '', freeze = IDLE } = {}) => renderComponent('components/RunHead.svelte', { summary, actor, projectName, freeze });
+const renderDetail = (detail, { goalView = 'formatted' } = {}) => renderComponent('components/RunDetail.svelte', { detail, goalView });
+const freezeOnly = async (summary, actor) => {
+  const head = await renderRunHead(summary, { actor });
+  const wait = head.match(/<div class="stage-wait"[\s\S]*<\/div>/);
+  return wait ? wait[0].replace(/^<div class="stage-wait"[^>]*><span class="chip[^>]*>[^<]*<\/span><span class="visually-hidden">[^<]*<\/span>/, '').replace(/ ?<button type="button" class="ghost" data-action="open-sketch">[^<]*<\/button>/, '').replace(/<\/div>$/, '') : '';
+};
 
 const ring = (now) => ['goal', 'maker', 'verify', 'review', 'judge', 'deliver'].map((stage, index, all) => ({
   stage,
@@ -49,21 +60,21 @@ function detail(overrides = {}) {
   };
 }
 
-test('render modules import in Node without touching document or window', async () => {
-  for (const file of ['list.js', 'detail.js', 'api.js', 'markdown.js']) {
-    const source = fs.readFileSync(path.join(studio, 'js', file), 'utf8');
-    assert.doesNotMatch(source, /\b(document|window)\b/, file);
+test('pure Studio modules import in Node without touching document or window', async () => {
+  for (const file of ['list.js', 'detail.js', 'api.js', 'markdown.js', 'orders.js', 'ring2d.js']) {
+    const text = fs.readFileSync(path.join(studio, 'js', file), 'utf8');
+    assert.doesNotMatch(text, /\b(document|window)\b/, file);
   }
   const list = await load('list.js');
   const view = await load('detail.js');
-  assert.equal(typeof list.renderProjectList, 'function');
-  assert.equal(typeof view.renderDetail, 'function');
-  assert.equal(typeof view.renderFreezeButton, 'function');
+  assert.equal(typeof list.sortProjects, 'function');
+  assert.equal(typeof view.findingsText, 'function');
+  for (const gone of ['renderProjectList', 'renderOverview']) assert.equal(list[gone], undefined, `${gone} moved to a Svelte component`);
+  for (const gone of ['renderDetail', 'renderRunHead', 'renderFreezeButton', 'renderRoomCard', 'renderSketch']) assert.equal(view[gone], undefined, `${gone} moved to a Svelte component`);
 });
 
 test('project list orders waiting, working, idle, missing and marks the selection', async () => {
-  const { renderProjectList } = await load('list.js');
-  const html = renderProjectList([
+    const html = await renderProjectList([
     project('idle-one', 'idle'),
     project('gone', 'missing'),
     project('busy', 'working'),
@@ -79,29 +90,26 @@ test('project list orders waiting, working, idle, missing and marks the selectio
 });
 
 test('project list escapes run-derived strings', async () => {
-  const { renderProjectList } = await load('list.js');
-  const evil = '<img src=x onerror=1>';
-  const html = renderProjectList([
+    const evil = '<img src=x onerror=1>';
+  const html = await renderProjectList([
     { id: '"><x', name: evil, state: 'working', run: summary({ task: evil, stage: evil, tier: evil }), worktreeRuns: [summary({ task: evil })] }
   ], { selectedId: null });
   assert.doesNotMatch(html, /<img/);
   assert.doesNotMatch(html, /"><x/);
-  assert.match(html, /&lt;img src=x onerror=1&gt;/);
+  assert.match(html, /&lt;img src=x onerror=1>/);
 });
 
 test('worktree Runs render as selectable rows keyed by their escaped worktree id', async () => {
-  const { renderProjectList } = await load('list.js');
-  const waiting = summary({ runId: 'w1', task: 'Worktree task', worktreeId: 'wt-"1<', waiting: { kind: 'freeze', since: 'x' } });
-  const html = renderProjectList([{ ...project('main', 'waiting', null), worktreeRuns: [waiting] }], { selectedId: 'wt-"1<', actor: 'Ega' });
+    const waiting = summary({ runId: 'w1', task: 'Worktree task', worktreeId: 'wt-"1<', waiting: { kind: 'freeze', since: 'x' } });
+  const html = await renderProjectList([{ ...project('main', 'waiting', null), worktreeRuns: [waiting] }], { selectedId: 'wt-"1<', actor: 'Ega' });
   assert.match(html, /<button type="button" class="worktree-row" data-project-id="wt-&quot;1&lt;" aria-current="true">/);
   assert.doesNotMatch(html, /wt-"1</);
   assert.match(html, /Worktree task/);
 });
 
 test('project list offers Freeze beside rows waiting for a freeze, and only there', async () => {
-  const { renderProjectList } = await load('list.js');
-  const freezeWait = { kind: 'freeze', since: 'x' };
-  const html = renderProjectList([
+    const freezeWait = { kind: 'freeze', since: 'x' };
+  const html = await renderProjectList([
     project('needs-freeze', 'waiting', summary({ runId: 'r-main', waiting: freezeWait })),
     project('needs-approval', 'waiting', summary({ waiting: { kind: 'approval', since: 'x' } })),
     project('question', 'waiting', summary({ waiting: { kind: 'question', since: 'x' } })),
@@ -109,7 +117,7 @@ test('project list offers Freeze beside rows waiting for a freeze, and only ther
     project('quiet', 'idle'),
     { ...project('host', 'waiting', null), worktreeRuns: [summary({ runId: 'r-wt', worktreeId: 'wt-1', waiting: freezeWait })] }
   ], { selectedId: null, actor: '<b>Ega</b>' });
-  const freezes = [...html.matchAll(/<button type="button" class="primary list-freeze" data-action="list-freeze" data-project-id="([^"]+)" data-run-id="([^"]+)" data-goal-hash="[^"]*" aria-label="[^"]+">Freeze as &lt;b&gt;Ega&lt;\/b&gt;<\/button>/g)]
+  const freezes = [...html.matchAll(/<button type="button" class="primary list-freeze" data-action="list-freeze" data-project-id="([^"]+)" data-run-id="([^"]+)" data-goal-hash="[^"]*" aria-label="[^"]+">Freeze as &lt;b>Ega&lt;\/b><\/button>/g)]
     .map((match) => `${match[1]}:${match[2]}`);
   assert.deepStrictEqual(freezes.sort(), ['needs-freeze:r-main', 'wt-1:r-wt']);
   assert.equal((html.match(/data-action="list-freeze"/g) || []).length, 2);
@@ -117,24 +125,23 @@ test('project list offers Freeze beside rows waiting for a freeze, and only ther
 });
 
 test('list Freeze carries the escaped draft hash it was rendered with and names its target', async () => {
-  const { renderProjectList } = await load('list.js');
-  const html = renderProjectList([
+    const html = await renderProjectList([
     { ...project('p"1', 'waiting', summary({ runId: 'r-main', waiting: { kind: 'freeze', since: 'x', goalHash: 'h"<1' } })), name: 'team/<a>' },
     { ...project('host', 'waiting', null), worktreeRuns: [summary({ runId: 'r-wt', task: 'Fix "login"', worktreeId: 'wt-1', waiting: { kind: 'freeze', since: 'x', goalHash: 'h2' } })] }
   ], { selectedId: null, actor: 'Ega <b>' });
-  assert.match(html, /data-run-id="r-main" data-goal-hash="h&quot;&lt;1" aria-label="Freeze team\/&lt;a&gt; as Ega &lt;b&gt;">/);
-  assert.match(html, /data-run-id="r-wt" data-goal-hash="h2" aria-label="Freeze Fix &quot;login&quot; as Ega &lt;b&gt;">/);
+  assert.match(html, /data-run-id="r-main" data-goal-hash="h&quot;&lt;1" aria-label="Freeze team\/&lt;a> as Ega &lt;b>">/);
+  assert.match(html, /data-run-id="r-wt" data-goal-hash="h2" aria-label="Freeze Fix &quot;login&quot; as Ega &lt;b>">/);
   assert.doesNotMatch(html, /h"<1/);
-  const nameless = renderProjectList([project('p', 'waiting', summary({ waiting: { kind: 'freeze', since: 'x', goalHash: 'h' } }))], { actor: null });
+  const nameless = await renderProjectList([project('p', 'waiting', summary({ waiting: { kind: 'freeze', since: 'x', goalHash: 'h' } }))], { actor: null });
   assert.match(nameless, /aria-label="Freeze team\/p">Freeze…<\/button>/);
 });
 
 test('a finished worktree Run shows an idle bot, not a working one', async () => {
-  const { renderProjectList, worktreeState } = await load('list.js');
+  const { worktreeState } = await load('list.js');
   const done = summary({ runId: 'w-done', worktreeId: 'wt-done', state: 'DELIVERED', stage: null });
   const live = summary({ runId: 'w-live', worktreeId: 'wt-live' });
   const waiting = summary({ runId: 'w-wait', worktreeId: 'wt-wait', waiting: { kind: 'question', since: 'x' } });
-  const html = renderProjectList([{ ...project('host', 'working', null), worktreeRuns: [done, live, waiting] }], {});
+  const html = await renderProjectList([{ ...project('host', 'working', null), worktreeRuns: [done, live, waiting] }], {});
   assert.match(html, /<li class="worktree-run" data-state="idle"><button type="button" class="worktree-row" data-project-id="wt-done"><span class="bot bot-idle"/);
   assert.match(html, /<li class="worktree-run" data-state="working"><button type="button" class="worktree-row" data-project-id="wt-live"><span class="bot bot-working"/);
   assert.equal(worktreeState(done), 'idle');
@@ -144,68 +151,74 @@ test('a finished worktree Run shows an idle bot, not a working one', async () =>
 });
 
 test('list Freeze without a valid actor asks for a name in the Run view', async () => {
-  const { renderProjectList } = await load('list.js');
-  const html = renderProjectList([project('needs-freeze', 'waiting', summary({ waiting: { kind: 'freeze', since: 'x' } }))], { selectedId: null, actor: null });
+    const html = await renderProjectList([project('needs-freeze', 'waiting', summary({ waiting: { kind: 'freeze', since: 'x' } }))], { selectedId: null, actor: null });
   assert.match(html, /data-action="list-freeze"[^>]*>Freeze…<\/button>/);
 });
 
 test('project list has an empty state', async () => {
-  const { renderProjectList } = await load('list.js');
-  assert.match(renderProjectList([], { selectedId: null }), /No projects yet/);
+    assert.match(await renderProjectList([], { selectedId: null }), /No projects yet/);
 });
 
 test('freeze button appears only for a freeze wait and names the actor', async () => {
-  const { renderFreezeButton } = await load('detail.js');
   const waitingFreeze = summary({ waiting: { kind: 'freeze', since: 'x' } });
-  assert.match(renderFreezeButton(waitingFreeze, 'Ega'), /<button[^>]*data-action="freeze"[^>]*>Freeze as Ega<\/button>/);
-  assert.equal(renderFreezeButton(summary(), 'Ega'), '');
-  assert.equal(renderFreezeButton(summary({ waiting: { kind: 'approval', since: 'x' } }), 'Ega'), '');
-  assert.equal(renderFreezeButton(summary({ waiting: { kind: 'question', since: 'x' } }), 'Ega'), '');
-  assert.equal(renderFreezeButton(null, 'Ega'), '');
-  assert.match(renderFreezeButton(waitingFreeze, '<b>x</b>'), /Freeze as &lt;b&gt;x&lt;\/b&gt;/);
+  assert.match(await freezeOnly(waitingFreeze, 'Ega'), /^<button[^>]*data-action="freeze"[^>]*>Freeze as Ega<\/button>$/);
+  assert.equal(await freezeOnly(summary(), 'Ega'), '');
+  assert.equal(await freezeOnly(summary({ waiting: { kind: 'approval', since: 'x' } }), 'Ega'), '');
+  assert.equal(await freezeOnly(summary({ waiting: { kind: 'question', since: 'x' } }), 'Ega'), '');
+  assert.equal(await freezeOnly(null, 'Ega'), '');
+  assert.match(await freezeOnly(waitingFreeze, '<b>x</b>'), /Freeze as &lt;b>x&lt;\/b>/);
 });
 
 test('freeze without a valid actor asks for a name once', async () => {
-  const { renderFreezeButton } = await load('detail.js');
-  const html = renderFreezeButton(summary({ waiting: { kind: 'freeze', since: 'x' } }), null);
+  const html = await freezeOnly(summary({ waiting: { kind: 'freeze', since: 'x' } }), null);
   assert.match(html, /<label for="freeze-actor">/);
   assert.match(html, /id="freeze-actor"[^>]*required/);
   assert.match(html, /data-action="freeze"/);
+  assert.equal((html.match(/id="freeze-actor"/g) || []).length, 1);
+});
+
+test('freeze buttons show Freezing… while busy and Frozen when done, only on the button that was used', async () => {
+  const waiting = summary({ waiting: { kind: 'freeze', since: 'x' } });
+  const busy = await renderRunHead(waiting, { actor: 'Ega', freeze: { source: 'head', phase: 'busy' } });
+  assert.match(busy, /<button type="button" class="primary" data-action="freeze" disabled="">Freezing…<\/button>/);
+  const done = await renderRunHead(waiting, { actor: 'Ega', freeze: { source: 'head', phase: 'done' } });
+  assert.match(done, /data-action="freeze" data-done="true">Frozen<\/button>/);
+  const other = await renderRunHead(waiting, { actor: 'Ega', freeze: { source: 'room', phase: 'busy' } });
+  assert.match(other, />Freeze as Ega<\/button>/);
 });
 
 test('detail shows the Goal as text, findings, PR, receipt, assumptions and extra nodes', async () => {
-  const { renderDetail } = await load('detail.js');
-  const html = renderDetail(detail(), { actor: 'Ega' });
-  assert.match(html, /<pre class="goal-text">[^<]*# Goal[^<]*\*\*keep\*\* &lt;b&gt;this&lt;\/b&gt; as text<\/pre>/);
+    const html = await renderDetail(detail(), { actor: 'Ega' });
+  assert.match(html, /<pre class="goal-text">[^<]*# Goal[^<]*\*\*keep\*\* &lt;b>this&lt;\/b> as text<\/pre>/);
   assert.doesNotMatch(html, /<b>this<\/b>/);
   assert.match(html, /3 findings, 1 blocking/);
   assert.match(html, /feat\/login/);
   assert.match(html, /No receipt yet/);
   assert.match(html, /<li>Users sign in with email<\/li>/);
-  assert.match(html, /<li>Sessions last &lt;24h&gt;<\/li>/);
+  assert.match(html, /<li>Sessions last &lt;24h><\/li>/);
   assert.match(html, /security-scan/);
 });
 
 test('detail has no stage rail; the stage overlay shows eyebrow, title, start time and a compact wait with Freeze', async () => {
-  const { renderDetail, renderRunHead } = await load('detail.js');
-  assert.doesNotMatch(renderDetail(detail(), { actor: 'Ega' }), /stage-rail/);
-  const head = renderRunHead(summary({ task: 'Add login <b>', waiting: { kind: 'freeze', since: 'x' } }), { actor: 'Ega', projectName: 'team/app' });
-  assert.match(head, /^<p class="eyebrow">Order · team\/app · T2 · iteration 2 of 3<\/p><h2 class="run-task" title="Add login &lt;b&gt;">Add login &lt;b&gt;<\/h2><p class="run-meta">Ordered 2m ago<\/p>/);
-  assert.match(head, /<div class="stage-wait" data-kind="freeze"><span class="chip chip-waiting" title="Freeze\?">Confirm the order\?<\/span><span class="visually-hidden">[^<]+<\/span><button type="button" class="primary" data-action="freeze">Freeze as Ega<\/button><\/div>$/);
-  const approval = renderRunHead(summary({ waiting: { kind: 'approval', since: 'x' } }), { actor: 'Ega' });
+  assert.doesNotMatch(await renderDetail(detail()), /stage-rail/);
+  const head = await renderRunHead(summary({ task: 'Add login <b>', waiting: { kind: 'freeze', since: 'x' } }), { actor: 'Ega', projectName: 'team/app' });
+  assert.match(head, /^<header id="run-head" class="stage-head"><p class="eyebrow">Order · team\/app · T2 · iteration 2 of 3<\/p> <h2 class="run-task" title="Add login &lt;b>">Add login &lt;b><\/h2> <p class="run-meta">Ordered 2m ago<\/p>/);
+  assert.match(head, /<div class="stage-wait" data-kind="freeze"><span class="chip chip-waiting" title="Freeze\?">Confirm the order\?<\/span><span class="visually-hidden">[^<]+<\/span><button type="button" class="primary" data-action="freeze">Freeze as Ega<\/button><\/div><\/header>$/);
+  const approval = await renderRunHead(summary({ waiting: { kind: 'approval', since: 'x' } }), { actor: 'Ega' });
   assert.match(approval, /<span class="chip chip-waiting" title="Approve delivery\?">Bring it out\?<\/span>/);
   assert.doesNotMatch(approval, /data-action="freeze"/);
-  assert.doesNotMatch(renderRunHead(summary(), {}), /stage-wait/);
+  assert.doesNotMatch(await renderRunHead(summary(), {}), /stage-wait/);
+  assert.equal(await renderRunHead(null), '<header id="run-head" class="stage-head"></header>');
 });
 
-test('the Run view is one screen: stage overlay, Details button with a D shortcut, and a modal bottom sheet', () => {
-  const html = fs.readFileSync(path.join(studio, 'index.html'), 'utf8');
+test('the Run view is one screen: stage overlay, Details button with a D shortcut, and a modal bottom sheet', async () => {
+  const html = await renderComponent('App.svelte');
   assert.match(html, /<header id="run-head" class="stage-head"><\/header>/);
-  assert.match(html, /<button type="button" id="details-open" class="details-button" aria-haspopup="dialog" aria-controls="details-sheet" aria-keyshortcuts="d" hidden>Details <kbd aria-hidden="true">D<\/kbd><\/button>/);
-  assert.match(html, /<div id="details-sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="details-title" hidden>/);
+  assert.match(html, /<button type="button" id="details-open" class="details-button" aria-haspopup="dialog" aria-controls="details-sheet" aria-keyshortcuts="d" aria-expanded="false" hidden="">Details <kbd aria-hidden="true">D<\/kbd><\/button>/);
+  assert.match(html, /<div id="details-sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="details-title" hidden="">/);
   assert.match(html, /<h2 id="details-title" class="sheet-title">Run details<\/h2>/);
   assert.match(html, /<button type="button" class="sheet-close" data-action="close-details" aria-label="Close details">Close<\/button>/);
-  assert.match(html, /<div class="sheet-panel" tabindex="-1">[\s\S]*<div id="run-detail" class="run-detail"><\/div>/);
+  assert.match(html, /<div class="sheet-panel" tabindex="-1">(?:(?!<div class="sheet-panel")[\s\S])*<div id="run-detail" class="run-detail"><\/div>/);
   assert.match(html, /<button type="button" id="projects-toggle" class="projects-toggle" aria-expanded="false" aria-controls="projects">Projects<\/button>/);
   const css = fs.readFileSync(path.join(studio, 'styles.css'), 'utf8');
   assert.match(css, /body\{[^}]*height:100dvh[^}]*overflow:hidden/, 'no page scroll: the stage fills the screen');
@@ -213,9 +226,10 @@ test('the Run view is one screen: stage overlay, Details button with a D shortcu
   assert.match(css, /body\[data-sheet="open"\] \.run\{transform:scale\(\.985\)\}/);
   const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion:reduce)'));
   assert.match(reduced, /\.sheet-panel\{opacity:0;transform:none;transition:opacity 200ms/, 'reduced motion: the sheet fades');
-  const main = fs.readFileSync(path.join(studio, 'js', 'main.js'), 'utf8');
-  assert.match(main, /event\.key === 'd' \|\| event\.key === 'D'/);
-  assert.match(main, /sheet\.open\(elements\.detailsButton\)/);
+  const app = source('App.svelte');
+  assert.match(app, /event\.key === 'd' \|\| event\.key === 'D'/);
+  assert.match(app, /openSheet\('details', detailsButton\)/);
+  assert.match(app, /document\.body\.dataset\.sheet = sheet \? 'open' : 'closed'/);
 });
 
 test('sheet rules: dismiss after a quarter of the height or a fast flick, rubber-band upward, focus stays inside', async () => {
@@ -238,8 +252,7 @@ test('sheet rules: dismiss after a quarter of the height or a fast flick, rubber
 });
 
 test('list bots: working orange, waiting outlined, idle grey; freeze waits read "name · Freeze?"', async () => {
-  const { renderProjectList } = await load('list.js');
-  const html = renderProjectList([
+    const html = await renderProjectList([
     project('busy', 'working'),
     project('quiet', 'idle'),
     project('needs-freeze', 'waiting', summary({ stage: 'goal', waiting: { kind: 'freeze', since: 'x' } })),
@@ -255,8 +268,7 @@ test('list bots: working orange, waiting outlined, idle grey; freeze waits read 
 });
 
 test('detail handles a Run with no Goal, findings, PR or assumptions', async () => {
-  const { renderDetail } = await load('detail.js');
-  const html = renderDetail(detail({ goalMarkdown: null, findings: null, pr: null, receipt: 'written', unconfirmed: [], extraNodes: [] }), { actor: 'Ega' });
+    const html = await renderDetail(detail({ goalMarkdown: null, findings: null, pr: null, receipt: 'written', unconfirmed: [], extraNodes: [] }), { actor: 'Ega' });
   assert.match(html, /No Goal draft yet/);
   assert.match(html, /No review yet/);
   assert.match(html, /No branch yet/);
@@ -265,20 +277,23 @@ test('detail handles a Run with no Goal, findings, PR or assumptions', async () 
 });
 
 test('detail only links PR urls that are http or https', async () => {
-  const { renderDetail } = await load('detail.js');
-  const safe = renderDetail(detail({ pr: { branch: 'b', merged: true, url: 'https://example.test/pr/1' } }), { actor: 'Ega' });
+    const safe = await renderDetail(detail({ pr: { branch: 'b', merged: true, url: 'https://example.test/pr/1' } }), { actor: 'Ega' });
   assert.match(safe, /<a href="https:\/\/example\.test\/pr\/1"/);
-  const unsafe = renderDetail(detail({ pr: { branch: 'b', merged: false, url: 'javascript:alert(1)' } }), { actor: 'Ega' });
+  const unsafe = await renderDetail(detail({ pr: { branch: 'b', merged: false, url: 'javascript:alert(1)' } }), { actor: 'Ega' });
   assert.doesNotMatch(unsafe, /<a /);
 });
 
-test('index.html loads only allowlisted files and reserves the ring', () => {
-  const html = fs.readFileSync(path.join(studio, 'index.html'), 'utf8');
-  assert.match(html, /<script type="module" src="\/js\/main\.js"><\/script>/);
-  assert.doesNotMatch(html, /app\.js/);
+test('index.html loads only the built bundle and the app reserves the ring before the stage head', async () => {
+  const html = source('index.html');
+  assert.match(html, /<script type="module" src="\.\/main\.js"><\/script>/);
   assert.doesNotMatch(html, /<script(?![^>]*\bsrc=)[^>]*>|<style|\sstyle=|\son[a-z]+=/);
-  assert.match(html, /<section id="ring" class="ringbox" aria-label="Run loop" hidden><\/section>/);
-  assert.ok(html.indexOf('id="ring"') < html.indexOf('id="run-head"'), 'the ring card comes first, as in option C');
-  assert.match(html, /id="project-list"/);
-  assert.match(html, /id="run-detail"/);
+  const built = fs.readFileSync(path.join(studio, 'app', 'index.html'), 'utf8');
+  assert.match(built, /<script type="module" crossorigin src="\/assets\/index-[A-Za-z0-9_-]{8}\.js"><\/script>/);
+  assert.match(built, /<link rel="stylesheet" crossorigin href="\/assets\/index-[A-Za-z0-9_-]{8}\.css">/);
+  assert.doesNotMatch(built, /<script(?![^>]*\bsrc=)[^>]*>|<style|\sstyle=|\son[a-z]+=/, 'no inline script or style: the CSP stays strict');
+  const app = await renderComponent('App.svelte');
+  assert.match(app, /<section id="ring" class="ringbox" aria-label="Run loop" hidden="" data-bot="css" data-ring="flat">/);
+  assert.ok(app.indexOf('id="ring"') < app.indexOf('id="run-head"'), 'the ring card comes first, as in option C');
+  assert.match(app, /id="project-list"/);
+  assert.match(app, /id="run-detail"/);
 });

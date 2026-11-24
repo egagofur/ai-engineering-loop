@@ -17,7 +17,8 @@
     "adapters/",
     "recipes/",
     "schemas/",
-    "studio/",
+    "studio/app/",
+    "studio/diners.json",
     "docs/images/",
     "evals/",
     ".agents/",
@@ -38,9 +39,11 @@
     "eval": "node bin/ai-engineering-loop.js eval",
     "audit:package": "node scripts/audit-package.js",
     "verify:release": "node scripts/verify-release.js",
-    "prepublishOnly": "npm run check:skills && npm test && npm run doctor && npm run eval && npm run audit:package",
+    "prepublishOnly": "npm run check:skills && npm run check:studio && npm test && npm run doctor && npm run eval && npm run audit:package",
     "build:skills": "node scripts/build-host-skills.js",
     "check:skills": "node scripts/build-host-skills.js --check",
+    "build:studio": "node scripts/build-studio.js",
+    "check:studio": "node scripts/build-studio.js --check",
     "build:hosts-table": "node scripts/build-host-table.js",
     "measure": "node scripts/measure.js"
   },
@@ -68,5 +71,10 @@
   "bugs": {
     "url": "https://github.com/egagofur/ai-engineering-loop/issues"
   },
-  "homepage": "https://github.com/egagofur/ai-engineering-loop#readme"
+  "homepage": "https://github.com/egagofur/ai-engineering-loop#readme",
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "7.3.2",
+    "svelte": "5.59.1",
+    "vite": "8.3.8"
+  }
 }

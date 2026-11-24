@@ -133,7 +133,9 @@ test('the run detail carries diagramOptions and flow counts only while the draft
 });
 
 test('the order sketch sheet: tabs recommended first, counts, no Revise button, Freeze on the same hash path', async () => {
-  const { renderSketch, sketchCounts, sketchFrame, recommendedView, REVISE_HINT, renderRunHead } = await load('detail.js');
+  const { renderComponent } = require('./helpers/svelte.js');
+  const IDLE = { source: null, phase: 'idle' };
+  const { sketchCounts, recommendedView, REVISE_HINT } = await load('detail.js');
   const detail = {
     diagramOptions: [
       { view: 'state', recommended: true, reason: 'the Goal changes the status of order' },
@@ -142,37 +144,44 @@ test('the order sketch sheet: tabs recommended first, counts, no Revise button, 
     ],
     flowCounts: { undecided: 3, hotspots: 1, sideEffects: 2 }
   };
-  const html = renderSketch(detail, { actor: 'Ega' });
+  const urlFor = (view) => `/diagram?view=${view}&rev=h`;
+  const renderSketch = (data, { view = null, actor = null, frames = [] } = {}) => renderComponent('components/Sketch.svelte', { detail: data, view, actor, frames, urlFor, freeze: IDLE });
+  const html = await renderSketch(detail, { actor: 'Ega' });
   assert.match(html, /<p class="sketch-counts">3 undecided, 1 hotspot, 2 side effects<\/p>/);
   const tabs = [...html.matchAll(/data-sketch-view="([a-z]+)"[^>]*>([A-Za-z]+)/g)].map((match) => `${match[1]}:${match[2]}`);
   assert.deepEqual(tabs, ['state:State', 'storyboard:Storyboard', 'lanes:Lanes']);
   assert.match(html, /aria-selected="true" tabindex="0" data-sketch-view="state"[^>]*>State <span class="tab-note">Recommended<\/span>/);
   assert.match(html, /<div id="sketch-panel" class="sketch-panel" role="tabpanel" aria-labelledby="sketch-tab-state" aria-busy="true" data-loaded="false"><div class="sketch-skeleton" aria-hidden="true">/, 'the sheet opens on a skeleton');
   assert.doesNotMatch(html, /<iframe/, 'frames are added lazily, one per visited tab');
-  assert.equal(sketchFrame('state', '/diagram?view=state&rev=h'), '<iframe class="sketch-frame" title="State sketch of the Goal" sandbox="" referrerpolicy="no-referrer" data-view="state" src="/diagram?view=state&amp;rev=h"></iframe>');
+  const framed = await renderSketch(detail, { actor: 'Ega', frames: ['state', 'lanes'] });
+  assert.match(framed, /<iframe class="sketch-frame" title="State sketch of the Goal" sandbox="" referrerpolicy="no-referrer" data-view="state" src="\/diagram\?view=state&amp;rev=h"/);
+  assert.match(framed, /data-view="lanes" src="[^"]+" hidden=""/, 'only the selected frame shows');
   assert.equal(recommendedView(detail), 'state');
   assert.equal(recommendedView({ diagramOptions: [{ view: 'lanes' }, { view: 'state', recommended: true }] }), 'state');
   assert.match(html, /data-action="freeze">Freeze as Ega<\/button>/);
   assert.ok(html.includes(REVISE_HINT));
   assert.equal(REVISE_HINT, 'To change the Goal, answer Revise in your agent host.');
   assert.doesNotMatch(html, />Revise</, 'no Revise button in Studio');
-  assert.match(renderSketch(detail, { view: 'lanes' }), /aria-selected="true" tabindex="0" data-sketch-view="lanes"/);
-  assert.match(renderSketch(detail, {}), /data-action="sketch-freeze-name">Freeze…<\/button>/);
-  assert.match(renderSketch({}, {}), /no order sketch/);
+  assert.match(await renderSketch(detail, { view: 'lanes' }), /aria-selected="true" tabindex="0" data-sketch-view="lanes"/);
+  assert.match(await renderSketch(detail, {}), /data-action="sketch-freeze-name">Freeze…<\/button>/);
+  assert.match(await renderSketch({}, {}), /no order sketch/);
   assert.equal(sketchCounts({ undecided: 1, hotspots: 2, sideEffects: 1 }), '1 undecided, 2 hotspots, 1 side effect');
   const summary = { runId: 'r', task: 't', ring: [], waiting: { kind: 'freeze', since: 'x', goalHash: 'h', sketch: true } };
-  assert.match(renderRunHead(summary, { actor: 'Ega' }), /Freeze as Ega<\/button><button type="button" class="ghost" data-action="open-sketch">Look at the order sketch<\/button>/);
-  assert.doesNotMatch(renderRunHead({ ...summary, waiting: { ...summary.waiting, sketch: false } }, { actor: 'Ega' }), /open-sketch/);
-  const { renderGuest } = await load('ring2d.js');
-  assert.match(renderGuest({ summary, actor: 'Ega' }), /data-action="open-sketch">Look at the order sketch<\/button><button type="button" class="primary" data-action="freeze">Freeze as Ega/);
-  const { renderProjectList } = await load('list.js');
-  const list = renderProjectList([{ id: 'p', name: 'shop', state: 'waiting', run: { ...summary, state: 'STARTED' } }], { actor: 'Ega' });
+  const head = (data) => renderComponent('components/RunHead.svelte', { summary: data, actor: 'Ega', freeze: IDLE });
+  assert.match(await head(summary), /Freeze as Ega<\/button><button type="button" class="ghost" data-action="open-sketch">Look at the order sketch<\/button>/);
+  assert.doesNotMatch(await head({ ...summary, waiting: { ...summary.waiting, sketch: false } }), /open-sketch/);
+  const ring = await renderComponent('components/Ring.svelte', { summary, actor: 'Ega', freeze: IDLE });
+  assert.match(ring, /data-action="open-sketch">Look at the order sketch<\/button> <button type="button" class="primary" data-action="freeze">Freeze as Ega/);
+  const list = await renderComponent('components/ProjectList.svelte', { projects: [{ id: 'p', name: 'shop', state: 'waiting', run: { ...summary, state: 'STARTED' } }], loaded: true, actor: 'Ega', freeze: IDLE });
   assert.match(list, /data-action="list-freeze"[^>]*data-goal-hash="h"/);
   assert.match(list, /<button type="button" class="ghost list-sketch" data-action="list-sketch" data-project-id="p" aria-label="Look at the order sketch for shop">Sketch<\/button>/);
-  const index = fs.readFileSync(path.join(studio, 'index.html'), 'utf8');
-  assert.match(index, /<div id="sketch-sheet" class="sheet sketch-sheet" role="dialog" aria-modal="true" aria-labelledby="sketch-title" hidden>/);
-  const main = fs.readFileSync(path.join(studio, 'js', 'main.js'), 'utf8');
-  assert.match(main, /diagramUrl\(target\.project\.id, target\.detail\.summary\.runId, view, target\.detail\.goalHash\)/, 'frame URLs carry the draft hash so the browser can cache them');
-  assert.match(main, /if \(sketchSheet\.isOpen\(\) \|\| waitsForFreeze\(target\.detail\)/, 'the recommended view is prepared while the Run waits for Freeze');
-  assert.match(main, /if \(action\.dataset\.action === 'freeze'\) freeze\(undefined, action\);/, 'the sheet Freeze uses the same expectedHash path');
+  const app = await renderComponent('App.svelte');
+  assert.match(app, /<div id="sketch-sheet" class="sheet sketch-sheet" role="dialog" aria-modal="true" aria-labelledby="sketch-title" hidden="">/);
+  const main = fs.readFileSync(path.join(studio, 'src', 'App.svelte'), 'utf8');
+  assert.match(main, /diagramUrl\(sketch\.ids\.projectId, sketch\.ids\.runId, name, sketch\.ids\.goalHash\)/, 'frame URLs carry the draft hash so the browser can cache them');
+  assert.match(main, /if \(sheet === 'sketch' \|\| waitsForFreeze\(target\.detail\.summary\)/, 'the recommended view is prepared while the Run waits for Freeze');
+  assert.match(main, /onfreeze=\{\(source\) => freezeGoalDraft\(source\)\} onfreezename=\{sketchName\}/, 'the sheet Freeze uses the same expectedHash path');
+  const sheet = fs.readFileSync(path.join(studio, 'src', 'components', 'Sketch.svelte'), 'utf8');
+  assert.match(sheet, /\$effect\(\(\) => \{\n\s+void sketchKey;\n\s+loaded = \{\};/, 'loaded frames reset only for a new draft, not when idle tabs warm up');
+  assert.match(main, /sketchKey=\{sketch\.key\}/);
 });
