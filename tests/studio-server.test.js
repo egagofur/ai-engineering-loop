@@ -416,6 +416,57 @@ test('the ring modules and vendored three.js are served as JavaScript; other ven
   });
 });
 
+function rawBytes(port, route, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const request = http.request({ host: '127.0.0.1', port, path: route, headers }, (response) => {
+      const chunks = [];
+      response.on('data', (chunk) => chunks.push(chunk));
+      response.on('end', () => resolve({ status: response.statusCode, headers: response.headers, body: Buffer.concat(chunks) }));
+    });
+    request.on('error', reject);
+    request.end();
+  });
+}
+
+test('static files carry an ETag, revalidate with no-cache and answer 304 when unchanged', async () => {
+  const { home } = fixture();
+  await withStudio({ home }, async ({ port }) => {
+    const headers = { 'x-ael-studio-token': TOKEN };
+    const first = await rawBytes(port, '/vendor/three.core.min.js', headers);
+    assert.equal(first.status, 200);
+    assert.equal(first.headers['cache-control'], 'no-cache');
+    assert.match(first.headers.etag, /^"[A-Za-z0-9_-]{27}"$/);
+    const again = await rawBytes(port, '/vendor/three.core.min.js', { ...headers, 'if-none-match': first.headers.etag });
+    assert.equal(again.status, 304);
+    assert.equal(again.body.length, 0);
+    assert.equal(again.headers.etag, first.headers.etag);
+    assert.equal((await rawBytes(port, '/vendor/three.core.min.js', { ...headers, 'if-none-match': '"stale"' })).status, 200);
+    assert.equal((await rawBytes(port, '/vendor/three.core.min.js', { 'if-none-match': first.headers.etag })).status, 401, 'a cached copy never skips the session check');
+  });
+});
+
+test('static files are brotli or gzip encoded when the browser accepts it and identical once decoded', async () => {
+  const { home } = fixture();
+  const zlib = require('node:zlib');
+  const original = fs.readFileSync(path.join(__dirname, '..', 'studio', 'vendor', 'three.module.min.js'));
+  await withStudio({ home }, async ({ port }) => {
+    const headers = { 'x-ael-studio-token': TOKEN };
+    const br = await rawBytes(port, '/vendor/three.module.min.js', { ...headers, 'accept-encoding': 'gzip, deflate, br' });
+    assert.equal(br.headers['content-encoding'], 'br');
+    assert.equal(br.headers.vary, 'accept-encoding');
+    assert.ok(br.body.length < original.length / 3, `brotli body ${br.body.length} bytes`);
+    assert.ok(zlib.brotliDecompressSync(br.body).equals(original));
+    const gzip = await rawBytes(port, '/vendor/three.module.min.js', { ...headers, 'accept-encoding': 'gzip' });
+    assert.equal(gzip.headers['content-encoding'], 'gzip');
+    assert.ok(zlib.gunzipSync(gzip.body).equals(original));
+    const plain = await rawBytes(port, '/vendor/three.module.min.js', headers);
+    assert.equal(plain.headers['content-encoding'], undefined);
+    assert.ok(plain.body.equals(original));
+    const tiny = await rawBytes(port, '/diners.json', { ...headers, 'accept-encoding': 'br' });
+    assert.equal(tiny.headers['content-encoding'], undefined, 'files under 1 KiB are sent as is');
+  });
+});
+
 test('SSE sends projects on connect and again within pollMs after a fixture Run changes', async () => {
   const { home, roots } = fixture();
   const pollMs = 150;

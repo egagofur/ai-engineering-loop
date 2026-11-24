@@ -141,8 +141,11 @@ test('vendored three.js is pinned, licensed and its core import is vendored too'
 test('main.js draws the DOM ring always and the WebGL ring only with WebGL and a working three.js', () => {
   const main = fs.readFileSync(path.join(studio, 'js', 'main.js'), 'utf8');
   assert.match(main, /prefers-reduced-motion: reduce/);
-  assert.match(main, /getContext\('webgl2'\)/);
+  assert.match(main, /typeof window\.WebGL2RenderingContext === 'function'/, 'no throwaway probe context at boot');
+  assert.doesNotMatch(main, /getContext\('webgl/);
+  assert.match(main, /threeFailed = true/, 'a context three cannot create falls back to the flat ring');
   assert.match(main, /import\('\.\/restaurant\.js'\)/);
+  assert.match(main, /if \(HAS_WEBGL\) loadKitchen\(\)/, 'the kitchen module starts loading at boot, in parallel with the API calls');
   assert.match(main, /ringMode\(\{ webgl: HAS_WEBGL, threeFailed: ringView\.threeFailed \}\) === '3d'/);
   assert.match(main, /dataset\.bot = 'css'/);
   const css = fs.readFileSync(path.join(studio, 'styles.css'), 'utf8');

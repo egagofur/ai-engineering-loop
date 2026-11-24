@@ -234,6 +234,25 @@ test('premium rendering: sRGB, ACES, soft shadows, PMREM studio environment, bev
   for (const token of new Set([...stations.matchAll(/'(--kitchen-[a-z-]+)'/g)].map((m) => m[1]))) assert.match(tokens, new RegExp(`${token}:`), token);
 });
 
+test('render budget: no frames while hidden, no blocking shader log reads on first draw', () => {
+  const scene = read('js/restaurant.js');
+  assert.match(scene, /renderer\.debug\.checkShaderErrors = false/);
+  assert.match(scene, /if \(frame \|\| document\.hidden\) return;/);
+});
+
+test('procedural textures are generated once per pattern and size and keep the same pixels', async () => {
+  const { patternTexture } = await load('forms.js');
+  const first = patternTexture('planks', { size: 32 });
+  const second = patternTexture('planks', { size: 32, repeat: 2 });
+  assert.notStrictEqual(first, second, 'each mount still gets its own texture to dispose');
+  assert.strictEqual(first.image.data, second.image.data, 'pixels are computed once');
+  assert.deepStrictEqual([...first.image.data.slice(0, 8)], [...second.image.data.slice(0, 8)]);
+  assert.equal(second.repeat.x, 2);
+  const crypto = require('crypto');
+  const digest = crypto.createHash('sha256').update(patternTexture('marble', { size: 64 }).image.data).digest('hex').slice(0, 16);
+  assert.equal(digest, '020df919ca1e1361', 'same marble pixels as v3.0.0');
+});
+
 test('kitchen art: warm tiled backsplash, bracketed shelf, hood over the Cook, pendant pools, tuned exposure in both themes', async () => {
   const stations = read('js/stations.js');
   const scene = read('js/restaurant.js');
