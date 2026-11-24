@@ -4,6 +4,14 @@ All notable changes to this project are documented here. Versions follow [Semant
 
 ## Unreleased
 
+- **Fixed:** DOT delivery could let GitLab close the card on merge. The adapter now says delivery never closes the card: commits and MR text reference the issue only as `Refs #<iid>`, `Related to #<iid>` or the bare URL, never after `Closes`/`Fixes`/`Resolves`/`Implements`, and never via `glab issue close`. The Coreview fix-commit template no longer reads `resolve <...>`. A test scans every DOT adapter file for closing keywords.
+
+- **Fixed:** an approved delivery kept showing as waiting for minutes. The agent recorded your approval only in its last `deliver` call, after committing, pushing and opening the PR, so Studio and the notification kept asking. `deliver --run <id> --approve --by <name>` without a destination now records the approval at once (approval nodes, `delivery.json` with `approvedAt`; repeatable), and the delivery stage tells the agent to run it the moment you say yes; the full `deliver` still finishes the Run. Before, that call approved the nodes and then failed asking for `--destination`.
+
+- **Added:** a busy Studio kitchen. Every other unfinished Run of the selected project (its main Run and worktree Runs, up to five) is a commis chef working in the back kitchen, seen through a wide pass window in the back wall: a bright stainless room where each one has its own steel island behind its station, with its own hob or board; hover names the Run and its step, click switches to it, and a station label shows `×N` when several Runs sit at the same step.
+- **Added:** the order book. Click the book at the Order station (or **Order book**, `O`) to open a leather-bound ledger of the project's recent Runs, newest first, each stamped Passed, Served, Sent back, Cooking, Escalated or Void from its last Judge verdict; live worktree Runs are listed first. New read-only `GET /api/projects/:id/runs`.
+- **Changed:** Studio speaks kitchen. The Run card is a pinned paper order ticket ("Order · project · tier · iteration", "Ordered 3m ago", "Bring it out?"), the activity card is a chalkboard ("On the stove", "Ready at the pass") with the AEL stage under it, and the header counts kitchens, chefs cooking and orders that need you. Diners have the bot's flat capsule eyes and blink; their hover name cards are gone (names stay for screen readers).
+
 ## 3.0.1 - 2026-11-24
 
 Lighter, faster AEL Studio with the same scene (#177).

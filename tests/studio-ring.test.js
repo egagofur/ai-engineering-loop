@@ -153,3 +153,13 @@ test('main.js draws the DOM ring always and the WebGL ring only with WebGL and a
   assert.match(css, /@media \(max-width:899px\)\{[^@]*\.ringbox\{--loop:min\(220px,62vw\)\}/, 'the ring stays visible, scaled down, at narrow widths');
   assert.doesNotMatch(css, /stage-rail/);
 });
+
+test('the kitchen board names the step in kitchen words and keeps the AEL stage under it', async () => {
+  const { kitchenActivity, renderRingFace } = await import(require('node:url').pathToFileURL(require('node:path').join(__dirname, '..', 'studio', 'js', 'ring2d.js')).href);
+  const ring = (now) => ['goal', 'maker', 'verify', 'review', 'judge', 'deliver'].map((stage, index, all) => ({ stage, status: index < all.indexOf(now) ? 'done' : stage === now ? 'now' : 'pending' }));
+  assert.deepStrictEqual(kitchenActivity({ ring: ring('maker') }), { board: 'On the stove', title: 'Maker', note: 'in progress' });
+  assert.equal(kitchenActivity({ ring: ring('deliver'), waiting: { kind: 'approval' } }).board, 'Ready at the pass');
+  assert.equal(kitchenActivity({ ring: ring('deliver'), state: 'DELIVERED' }).board, 'Plating up');
+  const html = renderRingFace({ summary: { ring: ring('review') }, findings: { total: 3, blocking: 1 } });
+  assert.match(html, /<b class="ring-board" aria-hidden="true">The critic tastes<\/b><b class="ring-activity">Devil&#39;s Advocate<\/b>/);
+});

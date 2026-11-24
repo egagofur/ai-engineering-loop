@@ -190,10 +190,10 @@ test('detail has no stage rail; the stage overlay shows eyebrow, title, start ti
   const { renderDetail, renderRunHead } = await load('detail.js');
   assert.doesNotMatch(renderDetail(detail(), { actor: 'Ega' }), /stage-rail/);
   const head = renderRunHead(summary({ task: 'Add login <b>', waiting: { kind: 'freeze', since: 'x' } }), { actor: 'Ega', projectName: 'team/app' });
-  assert.match(head, /^<p class="eyebrow">team\/app · T2 · iteration 2 of 3<\/p><h2 class="run-task" title="Add login &lt;b&gt;">Add login &lt;b&gt;<\/h2><p class="run-meta">Started 2m ago<\/p>/);
-  assert.match(head, /<div class="stage-wait" data-kind="freeze"><span class="chip chip-waiting">Freeze\?<\/span><span class="visually-hidden">[^<]+<\/span><button type="button" class="primary" data-action="freeze">Freeze as Ega<\/button><\/div>$/);
+  assert.match(head, /^<p class="eyebrow">Order · team\/app · T2 · iteration 2 of 3<\/p><h2 class="run-task" title="Add login &lt;b&gt;">Add login &lt;b&gt;<\/h2><p class="run-meta">Ordered 2m ago<\/p>/);
+  assert.match(head, /<div class="stage-wait" data-kind="freeze"><span class="chip chip-waiting" title="Freeze\?">Confirm the order\?<\/span><span class="visually-hidden">[^<]+<\/span><button type="button" class="primary" data-action="freeze">Freeze as Ega<\/button><\/div>$/);
   const approval = renderRunHead(summary({ waiting: { kind: 'approval', since: 'x' } }), { actor: 'Ega' });
-  assert.match(approval, /<span class="chip chip-waiting">Approve delivery\?<\/span>/);
+  assert.match(approval, /<span class="chip chip-waiting" title="Approve delivery\?">Bring it out\?<\/span>/);
   assert.doesNotMatch(approval, /data-action="freeze"/);
   assert.doesNotMatch(renderRunHead(summary(), {}), /stage-wait/);
 });

@@ -5,6 +5,12 @@ import { ringActivity, ringEyebrow, ringModel } from './ring2d.js';
 export const GOAL_VIEWS = ['formatted', 'markdown'];
 const GOAL_VIEW_LABELS = { formatted: 'Formatted', markdown: 'Markdown' };
 
+const KITCHEN_ASK = {
+  freeze: 'Confirm the order?',
+  approval: 'Bring it out?',
+  question: 'Chef asks you'
+};
+
 const WAITING_TEXT = {
   freeze: 'The Goal draft is waiting for you to freeze it. You can also answer in the agent host; whichever comes first wins.',
   approval: 'Delivery is waiting for your approval in the agent host.',
@@ -81,14 +87,14 @@ export function renderFreezeButton(summary, actor) {
 
 function startedText(elapsedMs) {
   const elapsed = formatElapsed(elapsedMs);
-  return elapsed === 'just now' ? 'Started just now' : `Started ${elapsed} ago`;
+  return elapsed === 'just now' ? 'Ordered just now' : `Ordered ${elapsed} ago`;
 }
 
 export function renderRunHead(summary, { actor = null, projectName = '' } = {}) {
   if (!summary) return '';
   const title = summary.task || summary.runId;
   const wait = summary.waiting
-    ? `<div class="stage-wait" data-kind="${escapeHtml(summary.waiting.kind)}"><span class="chip chip-waiting">${escapeHtml(waitingLabel(summary.waiting))}</span>`
+    ? `<div class="stage-wait" data-kind="${escapeHtml(summary.waiting.kind)}"><span class="chip chip-waiting" title="${escapeHtml(waitingLabel(summary.waiting))}">${escapeHtml(KITCHEN_ASK[summary.waiting.kind] || waitingLabel(summary.waiting))}</span>`
       + `<span class="visually-hidden">${escapeHtml(WAITING_TEXT[summary.waiting.kind] || '')}</span>`
       + `${renderFreezeButton(summary, actor)}${summary.waiting.kind === 'freeze' && summary.waiting.sketch ? sketchButton() : ''}</div>`
     : '';

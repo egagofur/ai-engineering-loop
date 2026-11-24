@@ -134,11 +134,11 @@ export function renderOverview(projects) {
   const list = projects || [];
   const working = list.filter((project) => project.state === 'working').length;
   const waiting = list.filter((project) => project.state === 'waiting').length;
-  const chips = [`<li class="chip">${list.length} ${list.length === 1 ? 'project' : 'projects'}</li>`];
-  const workingText = `${working} ${working === 1 ? 'bot' : 'bots'} working`;
+  const chips = [`<li class="chip">${list.length} ${list.length === 1 ? 'kitchen' : 'kitchens'}</li>`];
+  const workingText = `${working} ${working === 1 ? 'chef' : 'chefs'} cooking`;
   chips.push(working
     ? `<li class="chip chip-working"><span class="chip-dot" aria-hidden="true"></span>${workingText}</li>`
     : `<li class="chip">${workingText}</li>`);
-  if (waiting) chips.push(`<li class="chip chip-waiting">${waiting} waiting for you</li>`);
+  if (waiting) chips.push(`<li class="chip chip-waiting">${waiting} ${waiting === 1 ? 'order needs' : 'orders need'} you</li>`);
   return chips.join('');
 }

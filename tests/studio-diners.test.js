@@ -59,13 +59,13 @@ test('studio.diners in the local config overrides the defaults after validation'
   assert.deepStrictEqual(fallback.diners.map((diner) => diner.name), ['Matt Pocock', 'Claude']);
 });
 
-test('diner name tags escape names and carry the fixed subtitle; the layout seats at most six', async () => {
+test('diner names are a visually hidden list with the fixed subtitle and no hover card; the layout seats at most six', async () => {
   const { renderDiners, DINER_SUBTITLE } = await import(pathToFileURL(path.join(studio, 'js', 'ring2d.js')).href);
   assert.equal(DINER_SUBTITLE, 'Eating while their workflow cooks');
   const html = renderDiners([{ name: '<b>Linus</b>', note: 'Reads "diffs"' }, { name: 'Ada' }]);
-  assert.match(html, /<ul class="diners" aria-label="Diners">/);
-  assert.match(html, /<b class="diner-name">&lt;b&gt;Linus&lt;\/b&gt;<\/b><span class="diner-note">Reads &quot;diffs&quot;<\/span><span class="diner-sub">Eating while their workflow cooks<\/span>/);
-  assert.equal((html.match(/class="diner-tag"/g) || []).length, 2);
+  assert.match(html, /<ul class="visually-hidden diners" aria-label="Diners, eating while their workflow cooks">/);
+  assert.match(html, /<li>&lt;b&gt;Linus&lt;\/b&gt;, Reads &quot;diffs&quot;<\/li><li>Ada<\/li>/);
+  assert.doesNotMatch(html, /button|diner-card/);
   assert.equal(renderDiners([]), '');
   const { dinerLayout, dinerPose, DINER_LOOPS } = await import(pathToFileURL(path.join(studio, 'js', 'kitchen.js')).href);
   assert.equal(dinerLayout(9).length, 6);
@@ -78,5 +78,26 @@ test('diner name tags escape names and carry the fixed subtitle; the layout seat
   assert.deepStrictEqual(dinerPose('fork', 1.2, 0, { reducedMotion: true }), dinerPose('sip', 3, 0.5, { reducedMotion: true }), 'reduced motion is one static pose');
   assert.ok(dinerPose('fork', 0.7).armR < dinerPose('fork', 0).armR, 'the fork lifts');
   const css = fs.readFileSync(path.join(studio, 'styles.css'), 'utf8');
-  assert.match(css, /\.diner-tag:focus-visible \.diner-card\{opacity:1/);
+  assert.doesNotMatch(css, /\.diner-(tag|card)/);
+});
+
+test('diners blink with the bot eye shape: closed mid-blink, open again after, still under reduced motion', async () => {
+  const { blinkDiner } = await import(pathToFileURL(path.join(studio, 'js', 'diners.js')).href);
+  const { BLINK_SECONDS, blinkOpenness } = await import(pathToFileURL(path.join(studio, 'js', 'bot.js')).href);
+  assert.equal(blinkOpenness(-1), 1);
+  assert.ok(blinkOpenness(BLINK_SECONDS / 2) < 0.05);
+  assert.equal(blinkOpenness(BLINK_SECONDS), 1);
+  const shapes = [];
+  const figure = { open: 1, blinkAt: null, decals: [{ shape: (open) => shapes.push(open) }, { shape: () => {} }] };
+  blinkDiner(figure, 0, false, () => 0);
+  const start = figure.blinkAt;
+  assert.ok(start > 0);
+  assert.equal(blinkDiner(figure, start + BLINK_SECONDS / 2, false), true);
+  assert.ok(figure.open < 0.05);
+  blinkDiner(figure, start + BLINK_SECONDS + 0.01, false, () => 0);
+  assert.equal(figure.open, 1);
+  assert.ok(figure.blinkAt > start + BLINK_SECONDS);
+  const still = { open: 1, blinkAt: null, decals: [] };
+  assert.equal(blinkDiner(still, 5, true), false);
+  assert.deepStrictEqual(shapes.slice(-1), [1]);
 });

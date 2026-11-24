@@ -31,6 +31,28 @@ const FINISHED_ACTIVITY = {
   ESCALATED: 'Escalated'
 };
 
+const KITCHEN_STAGE = {
+  goal: 'Writing the order',
+  maker: 'On the stove',
+  verify: 'Tasting',
+  review: 'The critic tastes',
+  judge: "Head chef's call",
+  deliver: 'Plating up'
+};
+
+const KITCHEN_WAITING = {
+  freeze: 'Confirm your order',
+  approval: 'Ready at the pass',
+  question: 'The chef has a question'
+};
+
+const KITCHEN_FINISHED = {
+  DELIVERED: 'Served',
+  REPORTED: 'Order noted',
+  CANCELLED: 'Order cancelled',
+  ESCALATED: 'Sent to the manager'
+};
+
 export function ringModel(ring, { iteration = 1, maxIterations = 1, waiting = null } = {}) {
   const statusByStage = new Map((Array.isArray(ring) ? ring : []).map((item) => [item && item.stage, item && item.status]));
   const stages = RING_STAGES.map((stage, index) => {
@@ -85,6 +107,18 @@ export function ringActivity(summary, findings = null) {
   return { title, note };
 }
 
+export function kitchenActivity(summary, findings = null) {
+  const { title, note } = ringActivity(summary, findings);
+  const model = ringModel(summary && summary.ring, summary || {});
+  const now = model.stages.find((item) => item.status === 'now');
+  const waiting = summary && summary.waiting;
+  let board;
+  if (waiting && KITCHEN_WAITING[waiting.kind]) board = KITCHEN_WAITING[waiting.kind];
+  else if (summary && KITCHEN_FINISHED[summary.state] && !now) board = KITCHEN_FINISHED[summary.state];
+  else board = KITCHEN_STAGE[model.botStage] || title;
+  return { board, title, note };
+}
+
 const STAGE_VERBS = {
   goal: 'planning',
   maker: 'building',
@@ -104,7 +138,7 @@ export function botLabel(summary, findings = null) {
 
 export function ringEyebrow(summary, projectName = '') {
   const iteration = `iteration ${Number(summary && summary.iteration) || 1} of ${Number(summary && summary.maxIterations) || 1}`;
-  return [projectName, summary && summary.tier, iteration].filter(Boolean).join(' · ');
+  return ['Order', projectName, summary && summary.tier, iteration].filter(Boolean).join(' · ');
 }
 
 function stageItem({ stage, angle, status }) {
@@ -135,20 +169,17 @@ export const DINER_SUBTITLE = 'Eating while their workflow cooks';
 export function renderDiners(diners) {
   const list = (Array.isArray(diners) ? diners : []).slice(0, 6).filter((diner) => diner && diner.name);
   if (!list.length) return '';
-  const item = (diner, index) => `<li><button type="button" class="diner-tag" data-diner="${index}">`
-    + `<span class="diner-dot" aria-hidden="true"></span><span class="diner-card"><b class="diner-name">${escapeHtml(diner.name)}</b>`
-    + (diner.note ? `<span class="diner-note">${escapeHtml(diner.note)}</span>` : '')
-    + `<span class="diner-sub">${DINER_SUBTITLE}</span></span></button></li>`;
-  return `<ul class="diners" aria-label="Diners">${list.map(item).join('')}</ul>`;
+  const item = (diner) => `<li>${escapeHtml(diner.name)}${diner.note ? `, ${escapeHtml(diner.note)}` : ''}</li>`;
+  return `<ul class="visually-hidden diners" aria-label="Diners, ${DINER_SUBTITLE.toLowerCase()}">${list.map(item).join('')}</ul>`;
 }
 
 export function renderRingFace({ summary, findings = null, actor = null, diners = [] }) {
   const model = ringModel(summary && summary.ring, summary || {});
-  const activity = ringActivity(summary, findings);
+  const activity = kitchenActivity(summary, findings);
   const back = returnPath(model);
   return '<div class="loop">'
     + `<ol class="stages" aria-label="Kitchen stations">${model.stages.map(stageItem).join('')}</ol>`
-    + `<div class="ring-centre" aria-live="polite"><b class="ring-activity">${escapeHtml(activity.title)}</b>`
+    + `<div class="ring-centre" aria-live="polite"><b class="ring-board" aria-hidden="true">${escapeHtml(activity.board)}</b><b class="ring-activity">${escapeHtml(activity.title)}</b>`
     + `<span class="eyebrow ring-note">${escapeHtml(activity.note)}</span></div>`
     + `<p class="kitchen-ticket" data-back="${back ? 'true' : 'false'}">${escapeHtml(ticketLabel(model))}</p>`
     + (back ? `<p class="kitchen-return">${escapeHtml(back.label)}: ${escapeHtml(stationConfig(back.from).label)} → ${escapeHtml(stationConfig(back.to).label)}</p>` : '')

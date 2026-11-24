@@ -79,10 +79,10 @@ test('the header shows count chips: neutral projects, orange working with a live
   const { renderOverview } = await load('list.js');
   const projects = [{ state: 'working' }, { state: 'working' }, { state: 'waiting' }, { state: 'idle' }];
   const html = renderOverview(projects);
-  assert.equal(html, '<li class="chip">4 projects</li>'
-    + '<li class="chip chip-working"><span class="chip-dot" aria-hidden="true"></span>2 bots working</li>'
-    + '<li class="chip chip-waiting">1 waiting for you</li>');
-  assert.equal(renderOverview([{ state: 'idle' }]), '<li class="chip">1 project</li><li class="chip">0 bots working</li>');
+  assert.equal(html, '<li class="chip">4 kitchens</li>'
+    + '<li class="chip chip-working"><span class="chip-dot" aria-hidden="true"></span>2 chefs cooking</li>'
+    + '<li class="chip chip-waiting">1 order needs you</li>');
+  assert.equal(renderOverview([{ state: 'idle' }]), '<li class="chip">1 kitchen</li><li class="chip">0 chefs cooking</li>');
   const index = read('index.html');
   assert.match(index, /<ul id="overview" class="chips" aria-label="Overview" aria-live="polite">/);
   assert.match(index, /<p id="live" class="live" data-state="connecting" role="status"><span class="live-dot" aria-hidden="true"><\/span><span class="live-text">Connecting…<\/span><\/p>/);
