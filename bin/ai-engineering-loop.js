@@ -4816,7 +4816,37 @@ function handleDeliver() {
     }
     const destination = argValue('--destination');
     const summary = argValue('--summary');
-    if (!delivery && !(destination && summary)) {
+    const hasTarget = Boolean((destination && summary) || (delivery && delivery.destination && delivery.summary));
+    if (approve && !hasTarget) {
+      const recorded = {
+        ...(delivery || {}),
+        schemaVersion: 1,
+        runId,
+        ...(destination ? { destination } : {}),
+        ...(summary ? { summary } : {}),
+        humanApproved: true,
+        approvedBy: by,
+        approvedAt: (delivery && delivery.approvedAt) || new Date().toISOString()
+      };
+      fs.writeFileSync(deliveryPath, `${JSON.stringify(recorded, null, 2)}\n`, { mode: 0o600 });
+      const result = {
+        ok: true,
+        runId,
+        state: loadRun(CWD, runId).state,
+        approvalRecorded: true,
+        approvedNodes: approved,
+        humanApproved: true,
+        next: `ai-engineering-loop deliver --run ${runId} --destination <where> --summary <text> --approve --by ${JSON.stringify(by)}`
+      };
+      if (json) console.log(JSON.stringify(result));
+      else {
+        log.success(`✓ Delivery approval recorded for ${by}`);
+        if (approved.length) console.log(`- Approved: ${approved.join(', ')}`);
+        console.log(`- Next: commit and push, then \`${result.next}\` runs the delivery gate.`);
+      }
+      return;
+    }
+    if (!hasTarget) {
       throw Object.assign(new Error('Pass --destination <where> and --summary <text>, or write delivery.json first.'), { code: 'INVALID_USAGE' });
     }
     // Proof-carrying receipt (#70): the final deliver step, after approval.
@@ -5485,6 +5515,7 @@ Commands:
   review-pack  Build the Devil's Advocate pack: fast-path, diff hunks, escalation floor, tier
                [--run <id>] [--base <git-ref>] [--profile lean|standard|thorough] [--json]
   deliver      Approve READY approval nodes, write delivery.json, and pass the delivery gate
+               --approve --by <name> alone records the human's approval at once (before the push)
                [--run <id>] [--destination <where> --summary <text>] [--approve --by <name>] [--json]
                ASSISTED requires --approve --by <name>, given only after explicit human approval
                [--host <id>] [--model <id>] [--head <sha>] [--evidence AC-N=<https-url>]...

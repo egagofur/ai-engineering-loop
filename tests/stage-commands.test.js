@@ -97,6 +97,21 @@ function drive({ repo, cli }, combined) {
   const review = JSON.parse(ok(cli('gate', 'review', '--run', run.runId, '--json'), 'gate review').stdout);
   assert.strictEqual(review.judgeRequired, false);
   ok(cli('gate', 'judge', '--run', run.runId), 'gate judge');
+  if (combined === 'early') {
+    const early = JSON.parse(ok(cli('deliver', '--run', run.runId, '--approve', '--by', 'human', '--json'), 'deliver approval only').stdout);
+    assert.strictEqual(early.approvalRecorded, true);
+    assert.deepStrictEqual(early.approvedNodes, ['delivery-approval']);
+    assert.strictEqual(early.state, 'JUDGED_PASS');
+    const flow = JSON.parse(fs.readFileSync(path.join(runDir, 'workflow-state.json'), 'utf8'));
+    assert.notStrictEqual(flow.nodes['delivery-approval'].status, 'READY', 'the approval is recorded at once');
+    const recorded = JSON.parse(fs.readFileSync(path.join(runDir, 'delivery.json'), 'utf8'));
+    assert.strictEqual(recorded.humanApproved, true);
+    assert.strictEqual(recorded.approvedBy, 'human');
+    assert.ok(!fs.existsSync(path.join(runDir, 'receipt.json')), 'no receipt before the commit');
+    const again = JSON.parse(ok(cli('deliver', '--run', run.runId, '--approve', '--by', 'human', '--json'), 'deliver approval again').stdout);
+    assert.deepStrictEqual(again.approvedNodes, []);
+    assert.strictEqual(again.approvalRecorded, true);
+  }
   commitWork(repo);
   if (combined) {
     ok(cli('deliver', '--run', run.runId, '--destination', 'pr', '--summary', 'paginate', '--approve', '--by', 'human', '--json'), 'deliver');
@@ -125,6 +140,16 @@ test('combined commands reach the same gated outcome as the long form', () => {
     combined.verification.commands.map((c) => [c.exitCode, c.timeoutStatus]),
     longForm.verification.commands.map((c) => [c.exitCode, c.timeoutStatus])
   );
+});
+
+test('deliver --approve without a destination records the approval at once, then the full deliver finishes the same way', () => {
+  const longForm = drive(setupRepo(), false);
+  const early = drive(setupRepo(), 'early');
+  assert.strictEqual(early.state.state, 'DELIVERED');
+  const gates = (state) => state.history.map((entry) => `${entry.gate}:${entry.from}->${entry.to}`);
+  assert.deepStrictEqual(gates(early.state), gates(longForm.state));
+  const nodeStatus = (wf) => Object.fromEntries(Object.entries(wf.nodes).map(([id, node]) => [id, node.status]));
+  assert.deepStrictEqual(nodeStatus(early.workflow), nodeStatus(longForm.workflow));
 });
 
 test('combined commands publish Studio lifecycle and heartbeats', () => {

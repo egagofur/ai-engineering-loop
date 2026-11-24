@@ -11,6 +11,7 @@
     "summary": { "type": "string", "minLength": 1 },
     "humanApproved": { "type": "boolean" },
     "approvedBy": { "type": "string" },
+    "approvedAt": { "description": "When the human approved; deliver --approve without a destination records it before the push", "type": "string" },
     "receipt": {
       "description": "Proof-carrying PR receipt written by deliver (#70)",
       "type": "object",
