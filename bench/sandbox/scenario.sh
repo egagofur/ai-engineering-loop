@@ -233,6 +233,25 @@ gh-missing|gh-logged-out)
   expect_out deliver-warns-adapter 'adapter-auth'
   ;;
 
+rework)
+  # The delivered diff is the judged diff: drift after gate maker or after PASS
+  # is refused and names `run --reopen`, which re-runs the loop on the new diff.
+  identity; sample_app
+  c ael init; expect_rc init 0
+  git add -A && git commit -qm ael-init
+  drive_to_pass
+  echo 'exports.boom = () => { throw new Error("unjudged"); };' >> src/math.js
+  git add -A src test && git commit -qm "add subtract"
+  c ael deliver --destination pr --summary "add subtract" --approve --by newbie; expect_rc_not0 deliver-refuses-unjudged; expect_out deliver-names-reopen 'run --reopen'
+  c ael gate maker --from-git; expect_rc_not0 maker-keeps-judged-diff; expect_out maker-names-reopen 'run --reopen'
+  c ael run --reopen --reason "boom after PASS" --json; expect_rc reopen 0; expect_out reopen-iteration '"iteration": ?2'
+  c ael gate maker --from-git; expect_rc gate-maker-2 0
+  c ael verify; expect_rc verify-2 0; expect_out verify-2-state 'VERIFIED'
+  c ael review-pack --json; expect_rc review-pack-2 0
+  c ael review ingest --child-id da-2 --file /tmp/da.json --json; expect_rc review-ingest-2 0; expect_out judged-pass-2 'JUDGED_PASS'
+  c ael deliver --destination pr --summary "add subtract" --approve --by newbie; expect_rc deliver-2 0; expect_out delivered 'DELIVERED'
+  ;;
+
 cli-errors)
   identity; sample_app
   c ael int

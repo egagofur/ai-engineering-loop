@@ -27,6 +27,7 @@
         "LOOP_LIMIT_EXITED",
         "LOOP_RUN_STOPPED",
         "GOAL_UNFROZEN",
+        "RUN_REOPENED",
         "WORKFLOW_EXECUTION_STARTED"
       ]
     },

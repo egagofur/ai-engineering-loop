@@ -73,7 +73,7 @@ Every Coreview comment must be categorized into one of two paths:
      ```
   3. Commit and push the fix to the branch:
      ```bash
-     git commit -m "fix(coreview): resolve <issue summary>"
+     git commit -m "fix(coreview): <finding summary>"
      git push origin <branch-name>
      ```
   4. Cherry-pick the new fix commit to all other active environment branches (`main`, `staging`).

@@ -25,6 +25,14 @@ flowchart TD
     Triage --> Ready[Move card to Ready to review: Step 4]
 ```
 
+### Delivery never closes the card
+
+DOT delivery never closes the card: it only moves it to "Ready to review" (Step 4), and closing stays with humans. GitLab closes an issue by itself when a commit or MR description that reaches the default branch puts a closing keyword (`Closes`, `Fixes`, `Resolves`, `Implements`, any tense) before an issue reference or issue URL. So in commit messages, MR titles and MR descriptions:
+
+- Reference the issue only as `Refs #<issue-iid>`, `Related to #<issue-iid>`, or the bare issue URL (as in the MR template's `## Issue` section).
+- Never put a closing keyword before an issue reference, and never run `glab issue close`.
+- `fix(#300): ...` and `Refs #300` are fine; a closing keyword followed by `#300` is not.
+
 ---
 
 ## 3. Step 1: Git Context & Remote Repository Inspection

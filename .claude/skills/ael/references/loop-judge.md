@@ -6,6 +6,7 @@ Read when `gate review` says `judgeRequired`, on T2, or when acting on findings.
 - Judge context: only run-summary.md, verification-summary.json (or verification.json), open-findings.json/findings.json, and the Goal hash; it reads the full diff only if those contradict each other. Judge prompt includes "at most 4 tool calls; ledger and contract only; skip css; do not re-review the whole diff".
 - Spawn a fresh sibling Judge, wait, `budget record`, write `RUN_DIR/verdict.json` with `modelTier` and any `judgeFindings`, then `gate judge`. A gate failure overrides optimistic prose.
 - ITERATE under the recipe cap: fix in the parent, re-verify, spawn a **new** DA (never resume the previous child). At the cap or NO_PROGRESS, ESCALATE to the human.
+- Code changed after PASS (DA fixes, test fixes): `run --reopen --run <runId> --reason <what>` starts a new iteration; `gate maker` refuses to overwrite a judged diff (`docs iteration-policy`).
 
 ## Acting on findings (DA during ITERATE, or human MR/PR comments)
 
