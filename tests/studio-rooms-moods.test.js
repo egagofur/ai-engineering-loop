@@ -9,6 +9,12 @@ const { pathToFileURL } = require('url');
 const studio = path.join(__dirname, '..', 'studio');
 const load = (file) => import(pathToFileURL(path.join(studio, 'js', file)).href);
 const read = (file) => fs.readFileSync(path.join(studio, file), 'utf8');
+const { renderComponent } = require('./helpers/svelte.js');
+const IDLE = { source: null, phase: 'idle' };
+const roomCard = async (summary, { projectName = '', actor = null } = {}) => {
+  const html = await renderComponent('components/Room.svelte', { visible: true, opened: true, summary, projectName, actor, freeze: IDLE });
+  return html.match(/<div class="room-card">([\s\S]*?)<\/div> <div class="room-nav">/)[1];
+};
 const STAGES = ['goal', 'maker', 'verify', 'review', 'judge', 'deliver'];
 const ring = (now) => STAGES.map((stage, index) => ({ stage, status: index < STAGES.indexOf(now) ? 'done' : stage === now ? 'now' : 'pending' }));
 
@@ -94,42 +100,43 @@ test('bot waiting moods: calm look-around, foot tap, grumble, angry hops with st
 });
 
 test('the ring renders a bubble near the bot and a polite live region for the wait level', async () => {
-  const { renderRing } = await load('ring2d.js');
-  const html = renderRing({ summary: { state: 'STARTED', ring: ring('goal'), waiting: { kind: 'freeze' } } });
-  assert.match(html, /<p class="bot-bubble" aria-hidden="true" hidden><\/p>/);
+  const html = await renderComponent('components/Ring.svelte', { summary: { state: 'STARTED', ring: ring('goal'), waiting: { kind: 'freeze' } }, freeze: IDLE });
+  assert.match(html, /<p class="bot-bubble" aria-hidden="true" data-level="1">Your order, please\?<\/p>/);
   assert.match(html, /<p class="visually-hidden bot-mood" aria-live="polite"><\/p>/);
-  const main = read('js/main.js');
-  assert.match(main, /if \(bubble\.level !== moodView\.level\)/, 'announce only when the level changes');
+  const quiet = await renderComponent('components/Ring.svelte', { summary: { state: 'STARTED', ring: ring('maker'), waiting: null }, freeze: IDLE });
+  assert.match(quiet, /<p class="bot-bubble" aria-hidden="true" hidden=""><\/p>/);
+  const source = read('src/components/Ring.svelte');
+  assert.match(source, /const level = \$derived\(bubble \? bubble\.level : 0\);/);
+  assert.match(source, /const now = level;\n\s+untrack\(\(\) => \{\n\s+moodText = /, 'announce only when the level changes');
 });
 
 test('room card: project, title, activity, stage, iteration, wait and the same Freeze action', async () => {
-  const { renderRoomCard } = await load('detail.js');
   const summary = { runId: 'r1', task: 'Add <login>', tier: 'T2', iteration: 2, maxIterations: 3, state: 'STARTED', ring: ring('goal'), waiting: { kind: 'freeze', since: 'x' } };
-  const html = renderRoomCard(summary, { projectName: 'team/app', actor: 'Ega' });
-  assert.match(html, /^<p class="eyebrow">team\/app<\/p><h2 id="room-title" class="room-title">Add &lt;login&gt;<\/h2>/);
+  const html = await roomCard(summary, { projectName: 'team/app', actor: 'Ega' });
+  assert.match(html, /^<p class="eyebrow">team\/app<\/p> <h2 id="room-title" class="room-title">Add &lt;login><\/h2>/);
   assert.match(html, /<p class="room-activity"><strong>Waiting for Freeze<\/strong> · waiting for you<\/p>/);
   assert.match(html, /<span class="chip">Goal<\/span><span class="chip">T2<\/span><span class="chip">Iteration 2 of 3<\/span>/);
-  assert.match(html, /<span class="chip chip-waiting">Freeze\?<\/span><button type="button" class="primary" data-action="freeze">Freeze as Ega<\/button>/);
-  assert.match(renderRoomCard(summary, { projectName: 'p' }), /data-action="room-freeze-name">Freeze…<\/button>/);
-  assert.doesNotMatch(renderRoomCard({ ...summary, waiting: { kind: 'approval' } }, { actor: 'Ega' }), /data-action="freeze"/);
+  assert.match(html, /<span class="chip chip-waiting">Freeze\?<\/span> <button type="button" class="primary" data-action="freeze">Freeze as Ega<\/button>/);
+  assert.match(await roomCard(summary, { projectName: 'p' }), /data-action="room-freeze-name">Freeze…<\/button>/);
+  assert.doesNotMatch(await roomCard({ ...summary, waiting: { kind: 'approval' } }, { actor: 'Ega' }), /data-action="freeze"/);
 });
 
-test('the room is a labelled modal dialog over the zoomed kitchen with Previous, Next and Close, arrow keys and Esc', () => {
-  const html = read('index.html');
-  assert.match(html, /<div id="room" class="room" role="dialog" aria-modal="true" aria-labelledby="room-title" hidden>/);
+test('the room is a labelled modal dialog over the zoomed kitchen with Previous, Next and Close, arrow keys and Esc', async () => {
+  const html = await renderComponent('App.svelte');
+  assert.match(html, /<div id="room" class="room" role="dialog" aria-modal="true" aria-labelledby="room-title" hidden="">/);
   assert.doesNotMatch(html, /room-scene/, 'no separate room scene: the kitchen camera zooms in');
   assert.ok(html.indexOf('id="room"') > html.indexOf('id="run"') && html.indexOf('id="room"') < html.indexOf('id="details-sheet"'), 'the room overlays the stage');
   assert.match(html, /<button type="button" data-action="room-prev" aria-keyshortcuts="ArrowLeft">← Previous<\/button>/);
   assert.match(html, /<button type="button" data-action="room-next" aria-keyshortcuts="ArrowRight">Next →<\/button>/);
   assert.match(html, /<button type="button" data-action="room-close" aria-keyshortcuts="Escape">Close<\/button>/);
-  const main = read('js/main.js');
-  assert.match(main, /event\.key === 'ArrowRight'/);
-  assert.match(main, /event\.key === 'ArrowLeft'/);
-  assert.match(main, /trapFocus\(event, elements\.room\)/);
-  assert.match(main, /stepTarget\(roomTargets\(state\.projects\), state\.selectedId, direction\)/);
-  assert.match(main, /ringView\.gl\.zoom\('in'\)/);
-  assert.match(main, /ringView\.gl\.update\(ringView\.model, \{ swap, direction: swap \? roomView\.direction : 0 \}\)/, 'Previous/Next swap the kitchen');
-  const server = fs.readFileSync(path.join(__dirname, '..', 'lib', 'studio-server.js'), 'utf8');
-  for (const file of ['mood.js', 'kitchen.js', 'forms.js', 'stations.js', 'restaurant.js', 'bot.js']) assert.ok(server.includes(`['/js/${file}', 'js/${file}']`), file);
-  assert.doesNotMatch(server, /js\/ring\.js|js\/room\.js|turntable|diorama|rooms\.js/);
+  const room = read('src/components/Room.svelte');
+  assert.match(room, /event\.key === 'ArrowRight'/);
+  assert.match(room, /event\.key === 'ArrowLeft'/);
+  assert.match(room, /trapFocus\(event, root\)/);
+  const app = read('src/App.svelte');
+  assert.match(app, /stepTarget\(roomTargets\(projects\), selectedId, direction\)/);
+  assert.match(app, /await ring\.zoom\('in'\)/);
+  const ring = read('src/components/Ring.svelte');
+  assert.match(ring, /gl\.update\(next, \{ swap, direction: swap \? direction : 0 \}\)/, 'Previous/Next swap the kitchen');
+  assert.match(app, /select\(id, \{ direction \}\)/);
 });

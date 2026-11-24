@@ -18,7 +18,8 @@ test('the shipped diners file holds the valid default diners and is an allowlist
   assert.deepStrictEqual(defaultDiners(), shipped);
   const server = fs.readFileSync(path.join(__dirname, '..', 'lib', 'studio-server.js'), 'utf8');
   assert.ok(server.includes("['/diners.json', 'diners.json']"));
-  assert.ok(server.includes("['/js/diners.js', 'js/diners.js']"));
+  const { appAssets } = require('../lib/studio-server.js');
+  assert.equal(appAssets().get('/diners.json'), 'diners.json');
 });
 
 test('a missing or invalid diners file leaves only generic, unnamed seats', () => {
@@ -60,13 +61,19 @@ test('studio.diners in the local config overrides the defaults after validation'
 });
 
 test('diner names are a visually hidden list with the fixed subtitle and no hover card; the layout seats at most six', async () => {
-  const { renderDiners, DINER_SUBTITLE } = await import(pathToFileURL(path.join(studio, 'js', 'ring2d.js')).href);
+  const { DINER_SUBTITLE } = await import(pathToFileURL(path.join(studio, 'js', 'ring2d.js')).href);
   assert.equal(DINER_SUBTITLE, 'Eating while their workflow cooks');
-  const html = renderDiners([{ name: '<b>Linus</b>', note: 'Reads "diffs"' }, { name: 'Ada' }]);
+  const { renderComponent } = require('./helpers/svelte.js');
+  const renderDiners = async (diners) => {
+    const html = await renderComponent('components/Ring.svelte', { summary: { ring: [] }, diners, freeze: { source: null, phase: 'idle' } });
+    const list = html.match(/<ul class="visually-hidden diners"[\s\S]*?<\/ul>/);
+    return list ? list[0] : '';
+  };
+  const html = await renderDiners([{ name: '<b>Linus</b>', note: 'Reads "diffs"' }, { name: 'Ada' }]);
   assert.match(html, /<ul class="visually-hidden diners" aria-label="Diners, eating while their workflow cooks">/);
-  assert.match(html, /<li>&lt;b&gt;Linus&lt;\/b&gt;, Reads &quot;diffs&quot;<\/li><li>Ada<\/li>/);
+  assert.match(html, /<li>&lt;b>Linus&lt;\/b>, Reads "diffs"<\/li><li>Ada<\/li>/);
   assert.doesNotMatch(html, /button|diner-card/);
-  assert.equal(renderDiners([]), '');
+  assert.equal(await renderDiners([]), '');
   const { dinerLayout, dinerPose, DINER_LOOPS } = await import(pathToFileURL(path.join(studio, 'js', 'kitchen.js')).href);
   assert.equal(dinerLayout(9).length, 6);
   const { dinerSeats, GENERIC_SEATS } = await import(pathToFileURL(path.join(studio, 'js', 'kitchen.js')).href);

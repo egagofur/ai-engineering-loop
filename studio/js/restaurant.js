@@ -55,6 +55,9 @@ const OVERLAY_PAD = 8;
 const DIM_STATION = 0.55;
 const HOP = 0.14;
 const MAX_FRAME_SECONDS = 0.1;
+const MAX_PIXEL_RATIO = 1.5;
+const SLOW_FRAME_SECONDS = 1 / 40;
+const SLOW_FRAME_SAMPLES = 45;
 const LABEL_GAP = 8;
 const SPOT_ON = 9;
 const PENDANT_POWER = 7;
@@ -121,7 +124,8 @@ function settle(current, target, seconds, constant) {
 
 export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = null, onBook = null, onCrew = null, diners = 0 } = {}) {
   const renderer = new WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  let pixelRatio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
+  renderer.setPixelRatio(pixelRatio);
   renderer.outputColorSpace = SRGBColorSpace;
   renderer.toneMapping = ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
@@ -206,6 +210,28 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
   let cameraX = null;
   let stripStage = null;
   const compactQuery = window.matchMedia('(max-width: 600px)');
+  let lastGuestHeight = '';
+  const frameSamples = [];
+  const sizes = new WeakMap();
+  const sizeWatch = typeof ResizeObserver === 'function'
+    ? new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const box = entry.borderBoxSize && entry.borderBoxSize[0];
+        sizes.set(entry.target, box ? { w: box.inlineSize, h: box.blockSize } : { w: entry.target.offsetWidth, h: entry.target.offsetHeight });
+      }
+      schedule();
+    })
+    : null;
+
+  function sizeOf(node) {
+    let size = sizes.get(node);
+    if (!size) {
+      size = { w: node.offsetWidth, h: node.offsetHeight };
+      sizes.set(node, size);
+      if (sizeWatch) sizeWatch.observe(node);
+    }
+    return size;
+  }
 
   function statusMap(next) {
     return Object.fromEntries(next.stages.map((item) => [item.stage, item.status]));
@@ -343,8 +369,7 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
   function place(node, point, { anchor = 'top', gap = 0 } = {}) {
     if (!node) return;
     const screen = project(point);
-    const w = node.offsetWidth;
-    const h = node.offsetHeight;
+    const { w, h } = sizeOf(node);
     if (anchor === 'side') {
       node.style.transform = `translate(${(screen.x + gap).toFixed(1)}px, ${(screen.y - h / 2).toFixed(1)}px)`;
       return;
@@ -377,13 +402,19 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
       return;
     }
     guest.style.removeProperty('transform');
-    root.style.setProperty('--guest-h', `${guest.offsetHeight}px`);
+    const guestHeight = `${sizeOf(guest).h}px`;
+    if (guestHeight !== lastGuestHeight) {
+      lastGuestHeight = guestHeight;
+      root.style.setProperty('--guest-h', guestHeight);
+    }
   }
 
   function placeBubble(top, size) {
     const bubble = root.querySelector('.bot-bubble');
-    if (!bubble || bubble.hidden || !bubble.offsetWidth) return null;
-    const box = clampBox({ x: top.x + size * 0.2, y: top.y - (bubble.offsetHeight || 28) - 4, w: bubble.offsetWidth, h: bubble.offsetHeight }, { width, height }, OVERLAY_PAD);
+    if (!bubble || bubble.hidden) return null;
+    const { w, h } = sizeOf(bubble);
+    if (!w) return null;
+    const box = clampBox({ x: top.x + size * 0.2, y: top.y - (h || 28) - 4, w, h }, { width, height }, OVERLAY_PAD);
     bubble.style.transform = `translate(${box.x.toFixed(1)}px, ${box.y.toFixed(1)}px)`;
     return box;
   }
@@ -392,8 +423,7 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
     const ticket = root.querySelector('.kitchen-ticket');
     if (!ticket) return;
     const screen = project(new Vector3(current.ticketX + base.x, TICKET_Y + 0.2 + base.y, RAIL_Z + base.z));
-    const w = ticket.offsetWidth;
-    const h = ticket.offsetHeight;
+    const { w, h } = sizeOf(ticket);
     const spot = dodgeLabel({ x: screen.x - w / 2, y: screen.y - h - 4, w, h }, bubbleBox, { width, height }, { pad: OVERLAY_PAD });
     ticket.style.transform = `translate(${spot.x.toFixed(1)}px, ${spot.y.toFixed(1)}px)`;
     ticket.style.visibility = spot.hidden ? 'hidden' : '';
@@ -643,6 +673,7 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
   function tick(time) {
     frame = 0;
     const seconds = lastTime ? Math.min((time - lastTime) / 1000, MAX_FRAME_SECONDS) : 1 / 60;
+    if (lastTime) watchFrameRate(seconds);
     lastTime = time;
     const swapping = stepSwap(time);
     const zooming = stepZoom(time);
@@ -658,6 +689,18 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
       lastTime = 0;
       sleepUntilBlink();
     }
+  }
+
+  function watchFrameRate(seconds) {
+    if (pixelRatio <= 1) return;
+    frameSamples.push(seconds);
+    if (frameSamples.length < SLOW_FRAME_SAMPLES) return;
+    const average = frameSamples.reduce((sum, value) => sum + value, 0) / frameSamples.length;
+    frameSamples.length = 0;
+    if (average <= SLOW_FRAME_SECONDS) return;
+    pixelRatio = 1;
+    renderer.setPixelRatio(pixelRatio);
+    renderer.setSize(width, height);
   }
 
   function sleepUntilBlink() {
@@ -983,6 +1026,7 @@ export function mountKitchen(el, model, { root, reducedMotion = false, onOpen = 
       finishSwap();
       if (zoomTween) zoomTween.resolve();
       resizeObserver.disconnect();
+      if (sizeWatch) sizeWatch.disconnect();
       document.removeEventListener('visibilitychange', onVisibility);
       darkScheme.removeEventListener('change', onTheme);
       compactQuery.removeEventListener('change', onCompact);

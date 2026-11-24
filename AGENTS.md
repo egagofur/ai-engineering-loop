@@ -1,6 +1,6 @@
 # AGENTS.md: ai-engineering-loop
 
-AEL is an npm CLI (`bin/ai-engineering-loop.js`, alias `ael`) plus host skills that run a gated engineering loop: Goal Contract -> Maker -> verification -> Devil's Advocate -> Judge -> delivery. Plain Node.js (CommonJS, Node >= 18), no build step, no runtime dependencies.
+AEL is an npm CLI (`bin/ai-engineering-loop.js`, alias `ael`) plus host skills that run a gated engineering loop: Goal Contract -> Maker -> verification -> Devil's Advocate -> Judge -> delivery. Plain Node.js (CommonJS, Node >= 18), no runtime dependencies. The CLI has no build step; only Studio's browser UI is compiled (Svelte + Vite, devDependencies) into the committed `studio/app/`.
 
 ## Start here
 
@@ -18,12 +18,13 @@ AEL is an npm CLI (`bin/ai-engineering-loop.js`, alias `ael`) plus host skills t
 | `npm run eval` | when touching `evals/` or Judge/DA policy |
 | `npm run audit:package` | when touching `package.json` `files` or adding files |
 | `npm run measure` | after any skill text change (T1 context budget) |
+| `npm run build:studio` / `npm run check:studio` | after editing `studio/src/`, `studio/js/` or `studio/*.css` (rebuild, then check `studio/app/` matches) |
 
-Full pre-publish gate: `npm run check:skills && npm test && npm run doctor && npm run eval && npm run audit:package`.
+Full pre-publish gate: `npm run check:skills && npm run check:studio && npm test && npm run doctor && npm run eval && npm run audit:package`.
 
 ## Hard rules
 
-- **Generated files.** `.claude/skills/ael/**` and `.agents/skills/ael/**` are built from `skill-src/` by `npm run build:skills`. Never edit them by hand; `check:skills` fails on drift.
+- **Generated files.** `.claude/skills/ael/**` and `.agents/skills/ael/**` are built from `skill-src/` by `npm run build:skills`. `studio/app/**` is built from `studio/src/`, `studio/js/` and the CSS by `npm run build:studio`. Never edit them by hand; `check:skills` and `check:studio` fail on drift.
 - **Agent prompts.** The Devil's Advocate and Judge prompts live in `agents/shared/*.body.md`. `.claude/agents/*.md` and `.grok/agents/*.md` must carry the same body under their own frontmatter (tested in `tests/skill-host-compat.test.js`).
 - **Skill context budget.** T1 parent context (SKILL.md plus the references a T1 run reads) must stay at or under 50% of the baseline in `scripts/measure.js` (tested). Put detail in `core/*.md` (served by `ael docs <name>`) or in references that T1 does not read (`loop-commands`, `loop-report`, `loop-hosts`, `loop-risky`). `ael doctor --harness` shows the headroom.
 - **Gate errors.** Every `gateError(...)` in `lib/gates.js` passes `{ why, fix }` (tested). Fixes name the exact next command.
@@ -42,6 +43,9 @@ Full pre-publish gate: `npm run check:skills && npm test && npm run doctor && np
 | `lib/claimed-vs-reality.js` | claimed-vs-reality parsing and the L1/L2/L3 rules |
 | `lib/cli-args.js` | flag allowlist for commands that write files |
 | `skill-src/ael/` | skill template and stage references (source of truth) |
+| `studio/src/` | Studio UI: Svelte components (`App.svelte`, `components/`), Vite entry |
+| `studio/js/` | Studio pure helpers and the three.js kitchen scene (imported by the components and by tests) |
+| `studio/app/` | built Studio served by `lib/studio-server.js` (generated, shipped) |
 | `agents/` | DA, Judge, Maker specs; `agents/shared/` = runtime prompt bodies |
 | `core/`, `policies/` | specs served by `ael docs <name>` |
 | `schemas/` | JSON Schemas for Run artifacts |

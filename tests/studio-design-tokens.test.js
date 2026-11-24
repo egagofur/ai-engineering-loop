@@ -24,7 +24,7 @@ test('styles.css has no raw colours; tokens.css defines the brand, light and dar
   const used = new Set([...css.matchAll(/var\(--([a-z0-9-]+)\)/g)].map((match) => match[1]));
   const defined = new Set([...tokens.matchAll(/--([a-z0-9-]+):/g), ...css.matchAll(/--([a-z0-9-]+):/g)].map((match) => match[1]));
   assert.deepStrictEqual([...used].filter((name) => !defined.has(name)), []);
-  assert.match(read('index.html'), /href="\/tokens\.css"[\s\S]*href="\/styles\.css"/);
+  assert.match(read('src/main.js'), /import '\.\.\/tokens\.css';\nimport '\.\.\/styles\.css';/, 'tokens load before the styles that use them');
 });
 
 test('option C colours: done green, now orange with a halo, pending paper, bots from tokens in both themes', () => {

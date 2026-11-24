@@ -410,32 +410,37 @@ test('/api/me resolves the actor from config, then git user.name, and PUT saves 
   });
 });
 
-test('static files come only from the allowlist; traversal and app.js are 404', async () => {
+const APP_ASSETS = path.join(__dirname, '..', 'studio', 'app', 'assets');
+const builtAsset = (pattern) => `/assets/${fs.readdirSync(APP_ASSETS).find((name) => pattern.test(name))}`;
+
+test('static files come only from the built Studio app; traversal, sources and old paths are 404', async () => {
   const { home } = fixture();
   await withStudio({ home }, async ({ port }) => {
     const headers = { 'x-ael-studio-token': TOKEN };
-    const tokens = await rawGet(port, '/tokens.css', headers);
-    assert.equal(tokens.status, 200);
-    assert.match(tokens.headers['content-type'], /^text\/css/);
-    assert.equal((await rawGet(port, '/', headers)).status, 200);
-    assert.equal((await rawGet(port, '/js/../../package.json', headers)).status, 404);
-    assert.equal((await rawGet(port, '/js/..%2F..%2Fpackage.json', headers)).status, 404);
-    assert.equal((await rawGet(port, '/app.js', headers)).status, 404);
-    assert.equal((await rawGet(port, '/api/bootstrap', headers)).status, 404);
+    const page = await rawGet(port, '/', headers);
+    assert.equal(page.status, 200);
+    assert.match(page.headers['content-type'], /^text\/html/);
+    const styles = await rawGet(port, builtAsset(/^index-.+\.css$/), headers);
+    assert.equal(styles.status, 200);
+    assert.match(styles.headers['content-type'], /^text\/css/);
+    assert.equal((await rawGet(port, '/assets/../../package.json', headers)).status, 404);
+    assert.equal((await rawGet(port, '/assets/..%2F..%2Fpackage.json', headers)).status, 404);
+    for (const gone of ['/app.js', '/tokens.css', '/styles.css', '/js/main.js', '/js/restaurant.js', '/src/App.svelte', '/vendor/three.module.min.js', '/index.html.map', '/assets/', '/api/bootstrap']) {
+      assert.equal((await rawGet(port, gone, headers)).status, 404, gone);
+    }
   });
 });
 
-test('the ring modules and vendored three.js are served as JavaScript; other vendor files are 404', async () => {
+test('the app bundle and the lazily loaded kitchen chunk are served as JavaScript', async () => {
   const { home } = fixture();
   await withStudio({ home }, async ({ port }) => {
     const headers = { 'x-ael-studio-token': TOKEN };
-    for (const file of ['/js/restaurant.js', '/js/ring2d.js', '/js/kitchen.js', '/js/stations.js', '/vendor/three.module.min.js', '/vendor/three.core.min.js']) {
+    const html = (await rawGet(port, '/', headers)).body;
+    const entry = html.match(/src="(\/assets\/index-[^"]+\.js)"/)[1];
+    for (const file of [entry, builtAsset(/^restaurant-.+\.js$/)]) {
       const response = await rawGet(port, file, headers);
       assert.equal(response.status, 200, file);
       assert.match(response.headers['content-type'], /^text\/javascript/, file);
-    }
-    for (const file of ['/vendor/three.LICENSE', '/vendor/three.webgpu.min.js', '/vendor/']) {
-      assert.equal((await rawGet(port, file, headers)).status, 404, file);
     }
   });
 });
@@ -452,38 +457,61 @@ function rawBytes(port, route, headers = {}) {
   });
 }
 
-test('static files carry an ETag, revalidate with no-cache and answer 304 when unchanged', async () => {
+test('a rebuild while Studio runs is picked up: a new hashed asset is found without a restart', async () => {
+  const { home } = fixture();
+  const name = 'probe-AbCdEf12.js';
+  const file = path.join(APP_ASSETS, name);
+  await withStudio({ home }, async ({ port }) => {
+    const headers = { 'x-ael-studio-token': TOKEN };
+    try {
+      assert.equal((await rawGet(port, `/assets/${name}`, headers)).status, 404);
+      fs.writeFileSync(file, 'export {};\n');
+      const response = await rawGet(port, `/assets/${name}`, headers);
+      assert.equal(response.status, 200);
+      assert.match(response.headers['content-type'], /^text\/javascript/);
+    } finally {
+      fs.rmSync(file, { force: true });
+    }
+    assert.equal((await rawGet(port, '/assets/not-hashed.js', headers)).status, 404);
+  });
+});
+
+test('hashed assets are cached for a year; the page revalidates with no-cache; both answer 304 when unchanged', async () => {
   const { home } = fixture();
   await withStudio({ home }, async ({ port }) => {
     const headers = { 'x-ael-studio-token': TOKEN };
-    const first = await rawBytes(port, '/vendor/three.core.min.js', headers);
+    const chunk = builtAsset(/^restaurant-.+\.js$/);
+    const first = await rawBytes(port, chunk, headers);
     assert.equal(first.status, 200);
-    assert.equal(first.headers['cache-control'], 'no-cache');
+    assert.equal(first.headers['cache-control'], 'private, max-age=31536000, immutable');
     assert.match(first.headers.etag, /^"[A-Za-z0-9_-]{27}"$/);
-    const again = await rawBytes(port, '/vendor/three.core.min.js', { ...headers, 'if-none-match': first.headers.etag });
+    const again = await rawBytes(port, chunk, { ...headers, 'if-none-match': first.headers.etag });
     assert.equal(again.status, 304);
     assert.equal(again.body.length, 0);
     assert.equal(again.headers.etag, first.headers.etag);
-    assert.equal((await rawBytes(port, '/vendor/three.core.min.js', { ...headers, 'if-none-match': '"stale"' })).status, 200);
-    assert.equal((await rawBytes(port, '/vendor/three.core.min.js', { 'if-none-match': first.headers.etag })).status, 401, 'a cached copy never skips the session check');
+    assert.equal((await rawBytes(port, chunk, { ...headers, 'if-none-match': '"stale"' })).status, 200);
+    assert.equal((await rawBytes(port, chunk, { 'if-none-match': first.headers.etag })).status, 401, 'a cached copy never skips the session check');
+    const page = await rawBytes(port, '/', headers);
+    assert.equal(page.headers['cache-control'], 'no-cache', 'the page always revalidates so a new build is picked up');
   });
 });
 
 test('static files are brotli or gzip encoded when the browser accepts it and identical once decoded', async () => {
   const { home } = fixture();
   const zlib = require('node:zlib');
-  const original = fs.readFileSync(path.join(__dirname, '..', 'studio', 'vendor', 'three.module.min.js'));
+  const chunk = builtAsset(/^restaurant-.+\.js$/);
+  const original = fs.readFileSync(path.join(APP_ASSETS, chunk.slice('/assets/'.length)));
   await withStudio({ home }, async ({ port }) => {
     const headers = { 'x-ael-studio-token': TOKEN };
-    const br = await rawBytes(port, '/vendor/three.module.min.js', { ...headers, 'accept-encoding': 'gzip, deflate, br' });
+    const br = await rawBytes(port, chunk, { ...headers, 'accept-encoding': 'gzip, deflate, br' });
     assert.equal(br.headers['content-encoding'], 'br');
     assert.equal(br.headers.vary, 'accept-encoding');
     assert.ok(br.body.length < original.length / 3, `brotli body ${br.body.length} bytes`);
     assert.ok(zlib.brotliDecompressSync(br.body).equals(original));
-    const gzip = await rawBytes(port, '/vendor/three.module.min.js', { ...headers, 'accept-encoding': 'gzip' });
+    const gzip = await rawBytes(port, chunk, { ...headers, 'accept-encoding': 'gzip' });
     assert.equal(gzip.headers['content-encoding'], 'gzip');
     assert.ok(zlib.gunzipSync(gzip.body).equals(original));
-    const plain = await rawBytes(port, '/vendor/three.module.min.js', headers);
+    const plain = await rawBytes(port, chunk, headers);
     assert.equal(plain.headers['content-encoding'], undefined);
     assert.ok(plain.body.equals(original));
     const tiny = await rawBytes(port, '/diners.json', { ...headers, 'accept-encoding': 'br' });

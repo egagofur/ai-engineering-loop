@@ -7,6 +7,8 @@ const { pathToFileURL } = require('node:url');
 
 const studio = path.join(__dirname, '..', 'studio');
 const load = (name) => import(pathToFileURL(path.join(studio, 'js', name)).href);
+const { renderComponent } = require('./helpers/svelte.js');
+const renderOrders = (runs, { projectName = '', loading = false, error = null } = {}) => renderComponent('components/OrderBook.svelte', { runs, projectName, loading, error });
 
 test('order outcomes read the last Judge verdict before the Run state', async () => {
   const { orderOutcome, orderSummary } = await load('orders.js');
@@ -20,12 +22,11 @@ test('order outcomes read the last Judge verdict before the Run state', async ()
 });
 
 test('the order book escapes tasks, marks the current Run and shows empty, loading and error states', async () => {
-  const { renderOrders } = await load('orders.js');
-  const html = renderOrders([
+  const html = await renderOrders([
     { runId: 'b', task: '<img src=x>', state: 'STARTED', verdict: null, current: true, iteration: 2, elapsedMs: 3 * 60_000 },
     { runId: 'a', task: 'old', state: 'REPORTED', verdict: 'PASS', current: false, iteration: 1, elapsedMs: 0 }
   ], { projectName: 'shop' });
-  assert.match(html, /&lt;img src=x&gt;/);
+  assert.match(html, /&lt;img src=x>/);
   assert.doesNotMatch(html, /<img/);
   assert.match(html, /<li class="order" data-outcome="cooking" aria-current="true">/);
   assert.match(html, /<span class="order-now">On the pass now<\/span> · iteration 2 · 3m ago/);
@@ -34,9 +35,9 @@ test('the order book escapes tasks, marks the current Run and shows empty, loadi
   assert.match(html, /class="page page-left"[\s\S]*class="page page-right"/);
   assert.match(html, /data-outcome="passed"/);
   assert.match(html, /1 cooking · 1 passed/);
-  assert.match(renderOrders([]), /No orders written yet/);
-  assert.match(renderOrders([], { loading: true }), /Leafing through the pages/);
-  assert.match(renderOrders([], { error: '<b>' }), /&lt;b&gt;/);
+  assert.match(await renderOrders([]), /No orders written yet/);
+  assert.match(await renderOrders([], { loading: true }), /Leafing through the pages/);
+  assert.match(await renderOrders([], { error: '<b>' }), /&lt;b>/);
 });
 
 test('crew are the other unfinished Runs of the selected project, worktrees included', async () => {
@@ -70,14 +71,14 @@ test('each extra chef gets its own spot on the back line behind its station, up 
 });
 
 test('the order book lists live worktree Runs first, without repeating Runs already in the history', async () => {
-  const { withLiveOrders, renderOrders } = await load('orders.js');
+  const { withLiveOrders } = await load('orders.js');
   const merged = withLiveOrders([{ runId: 'main', task: 'main', state: 'STARTED' }], [
     { id: 'w1', run: { runId: 'wt', worktreeId: 'w1', task: 'wt task', state: 'VERIFIED', iteration: 2 } },
     { id: 'p1', run: { runId: 'main', task: 'main', state: 'STARTED' } }
   ]);
   assert.deepEqual(merged.map((run) => run.runId), ['wt', 'main']);
   assert.equal(merged[0].worktree, true);
-  assert.match(renderOrders(merged), /worktree · iteration 2/);
+  assert.match(await renderOrders(merged), /worktree · iteration 2/);
   assert.deepEqual(withLiveOrders(null, null), []);
 });
 

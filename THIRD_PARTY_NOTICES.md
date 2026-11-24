@@ -11,11 +11,18 @@ The vendored skill text remains authored by the original project. See the upstre
 
 ## three.js
 
-Studio's loop ring renders with a vendored, unmodified copy of three.js. It is a shipped static file, not an npm dependency.
+Studio's kitchen scene renders with a vendored, unmodified copy of three.js. The vendored files are build input: Vite bundles the parts the scene uses into the shipped Studio chunk.
 
 - Source: https://github.com/mrdoob/three.js (npm package `three`, version 0.185.1, fetched with `npm pack three@0.185.1`)
-- License: MIT, shipped as `studio/vendor/three.LICENSE`
-- AEL files shipped: `studio/vendor/three.module.min.js` and the `studio/vendor/three.core.min.js` it imports, both copied from the package `build/` folder.
+- License: MIT, kept as `studio/vendor/three.LICENSE` and shipped as `studio/app/licenses/three.LICENSE`
+- Vendored files: `studio/vendor/three.module.min.js` and the `studio/vendor/three.core.min.js` it imports, both copied from the package `build/` folder.
+
+## Svelte
+
+Studio's interface is written in Svelte and compiled at build time; the small Svelte runtime is bundled into `studio/app/assets/`. Svelte is a devDependency, not a runtime dependency of the CLI.
+
+- Source: https://github.com/sveltejs/svelte (npm package `svelte`, version 5.59.1)
+- License: MIT, shipped as `studio/app/licenses/svelte.LICENSE`
 
 ## google/elephant-goldfish-model (Elephant-Goldfish Model, EGM)
 
